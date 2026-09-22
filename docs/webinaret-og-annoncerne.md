@@ -289,8 +289,7 @@ tilmeldt sig.
 **Opsat 16:4x–17:0x, verificeret af Mailgun 16:56:** konto (Topix.dk ApS) ·
 `webinar.topix.dk` i EU · shared IP · DKIM 2048 · DNS i Cloudflare (SPF, DKIM,
 MX `mxa`/`mxb.eu.mailgun.org`, CNAME `email.webinar` → `eu.mailgun.org`, DNS
-only) · secret `MAILGUN_SENDING_KEY`. **UMÅLT: planen (Foundation 50k) er ikke
-bekræftet.** A bygger `udkast-webinar-foer-flow`.
+only) · secret `MAILGUN_SENDING_KEY`. **Planen er Foundation** (bekræftet af Jonas 22/9 aften). A bygger `udkast-webinar-foer-flow`.
 
 ### Et fund, vi ikke selv kan rette: eWebinars `.ics`
 
@@ -299,6 +298,55 @@ Morten Larsen, `ATTENDEE` `RSVP=TRUE`, `LOCATION`/`URL` = personligt joinLink.
 **`attendeeId` er fortløbende, og filen bærer navn + e-mail** — listen kan i
 princippet gennemløbes. eWebinars design; **meld det til dem**. Indtil da:
 deltagerlisten til et webinar er ikke fortrolig. Kort: `a22-ewebinar-ics-aaben`.
+
+---
+
+## 7e. Platformen sender selv webinarmailene — i drift 22/9 kl. 19:29
+
+**#1094, #1095, #1097.** Fire migrationer kørt 18:48–19:28, otte udrulninger,
+én prøve og én rigtig kørsel. Fuld bogføring i `docs/OVERLEVERING.md`
+«22. september (dagen)» §8–§11.
+
+**Første rigtige kørsel 19:29:00** (cron.job 573): `sendt 1 · med_invitation 1 ·
+fejlede 0` — én bekræftelse til en ny tilmeldt til 13/10. Og
+**`for_tidlig_tilmelding` 593**: så mange blev IKKE sendt, fordi tilmeldingen
+lå før skillelinjen.
+
+### Hvem sender hvad nu
+
+| mail | afsender | tidspunkt | ændret 22/9 |
+|---|---|---|---|
+| Bekræftelse | **platformen** | straks, **kun nye** (efter 19:03) | eWebinars SLUKKET 19:03 · Klaviyos `WFzxH9` slukket |
+| 7 / 3 / 1 dag før | **platformen** | 08:00 | ny |
+| Dagen | **platformen** | 07:30 | ny |
+| 1 time før | **platformen** | −60 min | eWebinars 1-times SLUKKET |
+| **10 min før** | **eWebinar** | −10 min | **BEHOLDT**, oversat til dansk 22/9 |
+| Efter webinaret | **Klaviyo** | uændret | `Wq3MkG`, `SDVvCW` urørte (`UiECQS` slukket 19:0x) |
+
+Platformen har overtaget alt FØR webinaret på nær de sidste ti minutter; Klaviyo
+har alt EFTER; eWebinar har én mail tilbage.
+
+### Bekræftelsen sendes ALDRIG bagud (Jonas ~19:05)
+
+`BEKRAEFTELSE_FRA = 2026-09-22T17:03:00Z` — det øjeblik, eWebinars bekræftelse
+blev slukket. Ældre tilmeldinger får ingen.
+
+**Grundlaget er to SUMMER, ikke navne:** Klaviyos `WFzxH9` har sendt 556
+bekræftelser de sidste 90 dage, og eWebinars egen gik 15:50–19:03. **Hvem af de
+216 der faktisk har fået én, er IKKE målt pr. person** — kommentaren i dommen
+sagde det modsatte og er rettet i begge spejle.
+
+Beslutningen står, fordi den fejler i den rigtige retning: en manglende
+bekræftelse til en gammel tilmelding er en mangel; en dublet til 216 mennesker
+er en fejl, de kan se. **Kun bekræftelsen** — de fem påmindelser går til alle.
+
+### Bagud-fyldningen, der gjorde mailene mulige
+
+Migration `20260922170000` (kørt 18:48) fyldte de tre nye kolonner fra `raa` på
+**alle 691 rækker**. De **216 til 13/10 har `join_link` og `kalender_link`, 0
+uden**. Uden den ville en påmindelse til en gammel tilmelding stå **uden knap** —
+og #1097's rettelse (ingen mail lover et link, der kommer) ville ikke kunne
+holdes.
 
 ---
 

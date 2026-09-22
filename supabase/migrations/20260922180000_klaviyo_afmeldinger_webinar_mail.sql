@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik),
+-- KØRT i prod — 22/9-2026 kl. 18:49 (Jonas, Lovable SQL editor), umiddelbart efter 171000. EFTER: kilde-CHECK'en udvidet med «webinar_mail». De 9 afmeldinger fra 22/9 står stadig under «bagud» — historikken er urørt.
 -- og FØR webinar-afmeld udrulles. Uden den afviser CHECK'en hver eneste række,
 -- webinar-afmeld prøver at skrive — og afmeldingen ville stå som en fejl i
 -- loggen, mens mennesket fik at vide, at den var gået igennem.

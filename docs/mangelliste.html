@@ -1634,6 +1634,55 @@
     ebitda_margin_pct-noten. Talt med grep på div-taggene: før 186 (inkl.
     skabelonen i kommentaren) og 56 lukkede; efter 198 og 57 lukkede.
     Lukket: 1 (bliver stående). Omskrevet: 2. Tilføjet: 12.
+  RØRT 22/9 NAT — PLATFORMENS WEBINARMAILS I DRIFT, VENTELISTEN UNDER
+  ANSØGNINGER (bogført i docs/OVERLEVERING.md DEL 2 «22. september (dagen)»
+  §8–§13; mailene i docs/webinaret-og-annoncerne.md §7e og
+  docs/marketingmotoren.md §2.4)
+    PLATFORMEN SENDER NU SELV WEBINARMAILENE (#1094, #1095, #1097). Fire
+    migrationer KØRT 18:48–19:28 — filhovederne rettet til KØRT med FØR/EFTER-
+    tallene: 170000 (18:48) fyldte de tre kolonner bagud fra raa på ALLE 691
+    rækker, og de 216 til 13/10 har join_link og kalender_link, 0 UDEN · 171000
+    (18:49) webinar_mails + webinar_afmeldinger, 4 politikker, den unikke regel,
+    låsen «ikke sat → false» · 180000 (18:49) kilde-CHECK udvidet med
+    webinar_mail, de 9 fra i dag står stadig under «bagud» · 172000 (19:28)
+    cron.job 573, elleve gange i timen, active; låsen true fra 19:03.
+    Udrulninger 18:5x: webinar-mail-cron og webinar-afmeld (nye) + fem, der
+    deler kode; igen 19:2x og 21:xx. PRØVEN 18:55–18:57 til jonas@topix.dk:
+    alle seks arter ok/200, mailen ankom med Postbilag.ics + invite.ics, Mortens
+    design, rigtigt tidspunkt; de fem påmindelsesrækker slettet 19:03,
+    bekræftelsen beholdt. FØRSTE RIGTIGE KØRSEL 19:29:00: sendt 1,
+    med_invitation 1, fejlede 0 — og for_tidlig_tilmelding 593.
+    BESLUTNING (Jonas ~19:05): bekræftelsen sendes ALDRIG bagud
+    (BEKRAEFTELSE_FRA = 2026-09-22T17:03:00Z). Grundlaget er TO SUMMER, ikke
+    navne: Klaviyos WFzxH9 har sendt 556 bekræftelser de sidste 90 dage, og
+    eWebinars egen gik 15:50–19:03 — men hvem af de 216 der har fået én, er IKKE
+    målt pr. person. Kommentaren i dommen sagde «alle til folk, der allerede
+    havde fået én»; det var en slutning, ikke en måling, og den er rettet i
+    BEGGE spejle. Beslutningen står, fordi den fejler i den rigtige retning: en
+    manglende bekræftelse er en mangel, en dublet til 216 er en fejl, de kan se.
+    TEKSTRETTELSEN (#1097): ingen mail lover længere et link, der kommer —
+    knappen står i hver mail; «dagen» lover de to påmindelser, der faktisk
+    sendes; «de fem» → «de seks» arter. Samme klasse som bekræftelsen, der
+    lovede en kalenderinvitation, mens eWebinars var slukket.
+    LUKKET (2, bliver stående): a22-cvr-opslag-knap (#1093 udrullet og BRUGT
+    samme aften: alle tre fra Monday slået op — Tatti, ABC HUNDEUDSTYR, LEV
+    POSITIV; Anettes CVR 36203609 sat i hånden 18:15, FØR NULL) ·
+    a22-venteliste-under-ansoegninger (#1096, fanen «3 VENTELISTE» i drift —
+    udløst af, at Studio Mini er tidligere medlem og ikke står i Virksomheder).
+    TILFØJET (1, Ny 22/9): a22-webinarmail-foerste-hold — mailene er i drift,
+    men den første mail til et HELT hold går 6/10 kl. 08:00 til ~217, og den kan
+    ikke prøves af igen.
+    IKKE ET KORT: (a) TILBUDT 18:28 — Lev Positiv (blød udgave, afvist > 12
+    mdr.) og Tatti; begge mails sendt, frist 29/9. ABC spærret til 13/10 af
+    tidligst_tilbud_at. (b) HVEM SENDER HVAD NU: platformen har alt FØR
+    webinaret på nær de sidste ti minutter (eWebinars 10-min-påmindelse,
+    oversat til dansk 22/9); Klaviyo har alt EFTER (Wq3MkG, SDVvCW urørte);
+    eWebinars bekræftelse og 1-times slukket, Klaviyos WFzxH9 og UiECQS
+    slukket. (c) Mailgun-planen er Foundation, bekræftet af Jonas — «ikke
+    bekræftet» er rettet fire steder.
+    Talt med grep på kortenes div-tag (class card) og på lukket-status:
+    før 249 og 92 lukkede; efter 251 og 94 lukkede.
+    Lukket: 2 (bliver stående). Tilføjet: 2.
   RØRT 22/9 AFTEN — KLOKKE-MAILEN I DRIFT, MAILVEJENE RYDDET OP (bogført i
   docs/OVERLEVERING.md DEL 2 «22. september (dagen)» §6–§7; mailvejene i
   docs/tracking.md §4d; bekræftelsen og Mailgun i
@@ -2157,6 +2206,16 @@
       <strong>Beviset, læst tilbage hos Klaviyo 13:58 gennem API'et:</strong> <code>vera@natur-klinikken.dk</code> havde INGEN profil og blev OPRETTET som UNSUBSCRIBED 11:57:17 UTC (præcis hvad Klaviyos reference lover) · <code>newsletter@stenbryggen.dk</code> var NEVER_SUBSCRIBED og blokeret, nu UNSUBSCRIBED 11:57:16 UTC · <code>info@metteolsen.dk</code> uændret UNSUBSCRIBED fra 19/9 · de 6 fra 11:18 uændrede. Idempotensen holder (unik på <code>(email) where udfald = 'ok'</code>). Låsen bliver stående på true. Mekanismen står i CLAUDE.md og <code>docs/tracking.md</code> §2 række 25; se det nye kort <code>a22-afmelding-webhook-bevis</code> for det, der mangler.</p>
       <div class="meta"><span class="tag loest">Lukket 22/9 — 9 af 9, bevist hos Klaviyo 13:58</span><span class="tag gold">Jonas 22/9: «Lige nu gør jeg det manuelt»</span><span class="tag ny">Ny 22/9</span></div>
     </div>
+    <div class="card new loest" id="a22-venteliste-under-ansoegninger" data-status="loest" data-spor="1" data-rammer="raadgiver">
+      <h3>Ventelisten kunne kun betjenes fra virksomhedssiden — og et tidligere medlem står ikke i Virksomheder-listen</h3>
+      <p><strong>LØST 22/9 — #1096 merget, Update klikket, i drift.</strong> Jonas 22/9 18:3x (ordret): «Det kunne være smart, at vi havde ventelisten under ansøgninger. Det her er for bøvlet.» <strong>Det målte bøvl:</strong> for at tilbyde Tatti pladsen hos Studio Mini måtte han åbne <code>/virksomhed/&lt;id&gt;</code> direkte fra en URL, fordi Studio Mini er et TIDLIGERE medlem og derfor ikke står i Virksomheder-listen — og knappen «Tilbyd» tegnedes kun dér (<code>VirksomhedView.tsx:1833</code>). <strong>Nu:</strong> fanen «3 VENTELISTE» på <code>/ansoegninger</code> med tilstand pr. plads (kan tilbydes nu · tilbudt til &lt;dato&gt; · venter på dato · venter i kø · venter på pladsen), og «Tilbyd pladsen» også på ansøgningen selv. <strong>Ingen ny motor:</strong> ÉN dom (<code>bygVentelisteOverblik</code>) komponerer husets fem eksisterende domme, og knappen kalder samme <code>tilbydPladsen</code> som før — værnet <code>ventelisteOverblik.guard</code> (6 domme) låser, at fladen ikke regner selv. Historik: OVERLEVERING DEL 2 «22. september (dagen)» §12.</p>
+      <div class="meta"><span class="tag loest">Lukket 22/9 — #1096, i drift</span><span class="tag gold">Jonas 22/9: «Det her er for bøvlet»</span><span class="tag ny">Ny 22/9</span></div>
+    </div>
+    <div class="card new" id="a22-webinarmail-foerste-hold" data-status="mangler" data-spor="1" data-rammer="medlem">
+      <h3>Platformens webinarmails er i drift — men den første mail til et HELT hold går først 6/10 kl. 08:00 til ~217</h3>
+      <p><strong>I DRIFT 22/9 kl. 19:29</strong> (#1094, #1095, #1097; cron.job 573, elleve gange i timen). Første rigtige kørsel: <code>sendt 1 · med_invitation 1 · fejlede 0</code> — én bekræftelse til én ny tilmeldt. <strong>Det er ikke en prøve af mængden.</strong> Den første før-mail til et helt hold er <strong>syv_dage-mailen 6/10 kl. 08:00 til ~217 personer</strong>, og den kan ikke prøves af igen: er noget galt i teksten, knappen eller kalenderfilen, rammer det alle på én gang. <strong>Det, der skal ses på inden:</strong> at hver mail bærer sin egen knap (bagud-fyldningen 18:48 gav 216 af 216 et <code>join_link</code> og <code>kalender_link</code>, 0 uden), og at teksterne efter #1097 ikke lover noget, de ikke leverer. Historik: OVERLEVERING DEL 2 «22. september (dagen)» §8–§11; <code>docs/webinaret-og-annoncerne.md</code> §7e.</p>
+      <div class="meta"><span class="tag rust">FØRSTE HOLD 6/10 08:00 — ~217 på én gang</span><span class="tag gold">I drift 22/9 19:29</span><span class="tag ny">Ny 22/9</span></div>
+    </div>
     <div class="card new" id="a22-spf-topix" data-status="mangler" data-spor="senere" data-rammer="ingen">
       <h3><code>topix.dk</code>s SPF nævner ikke Google, og DMARC står <code>p=quarantine</code> med streng justering — et fund, ikke en rettelse</h3>
       <p>Målt 22/9 (DNS hos <strong>Cloudflare</strong> — modsat theboardroom.dk, der ligger hos Simply): SPF er <code>"v=spf1 include:mailgun.org include:_spf.herodesk-mails.io ~all"</code>. <strong>Google er IKKE med.</strong> DMARC står <code>p=quarantine adkim=s aspf=s</code> — altså karantæne ved fejl OG <em>streng</em> justering på både DKIM og SPF, hvor underdomæner ikke tæller som match. <strong>Følgen, hvis nogen sender som <code>@topix.dk</code> gennem Google Workspace:</strong> SPF fejler, og den strenge justering gør, at et DKIM-match på et underdomæne ikke redder den — mailen kan havne i karantæne. <strong>Det er IKKE målt, om nogen faktisk gør det</strong>, og derfor er dette et fund og ikke en rettelse: at føje <code>_spf.google.com</code> til uden at vide, om Google bruges, ville være at gætte. Historik: OVERLEVERING DEL 2 «22. september (dagen)» §7.</p>
@@ -2167,10 +2226,10 @@
       <p>Målt 22/9 med <code>curl</code>: kalenderfilen svarer <strong>HTTP 200 uden login</strong>. Indholdet: <code>METHOD:REQUEST</code>, <code>ORGANIZER</code> Morten Larsen, <code>ATTENDEE</code> med <code>RSVP=TRUE</code>, og <code>LOCATION</code>/<code>URL</code> = tilmeldtes <strong>personlige joinLink</strong>. <strong>FUNDET:</strong> <code>attendeeId</code> i URL'en er <strong>fortløbende</strong>, og filen bærer <strong>navn og e-mail</strong> — så listen kan i princippet gennemløbes af enhver, der tæller opad, og hver fil giver et navn, en mail og et personligt join-link. <strong>Det er eWebinars design, ikke en fejl i vores opsætning</strong>, og vi kan ikke rette det: der er ingen indstilling hos os. <strong>Handlingen er derfor at MELDE det til eWebinar</strong> — og indtil da at vide, at deltagerlisten til et webinar ikke er fortrolig. Historik: OVERLEVERING DEL 2 «22. september (dagen)» §7.</p>
       <div class="meta"><span class="tag rust">Meld til eWebinar — vi kan ikke rette det selv</span><span class="tag gold">Målt 22/9 med curl</span><span class="tag ny">Ny 22/9</span></div>
     </div>
-    <div class="card new" id="a22-cvr-opslag-knap" data-status="mangler" data-spor="1" data-rammer="raadgiver">
+    <div class="card new loest" id="a22-cvr-opslag-knap" data-status="loest" data-spor="1" data-rammer="raadgiver">
       <h3>De tre nye ventepladser har <code>cvr_opslag = NULL</code> — fladen viser «&lt;navn&gt;s virksomhed» og tomme CVR-felter</h3>
-      <p>Fundet 22/9 kl. 15:06, da ventelistens SQL blev kørt (<code>a18-tre-fra-monday</code>): de tre ansøgninger (Lev Positiv, Tatti, ABC hundeudstyr) kom ind uden et CVR-opslag, fordi de blev lagt ind med SQL og ikke gennem ansøgningsformularen, som normalt slår op undervejs. Følgen på rådgiverfladen: firmanavnet vises som «&lt;navn&gt;s virksomhed», og CVR-felterne står tomme. Tallene er ikke forkerte — de findes ikke. <strong>A bygger en manuel «Slå op i CVR»-knap</strong> (<code>udkast-cvr-opslag-knap</code>), så en rådgiver kan hente opslaget for en ansøgning, der mangler det, uanset hvordan den kom ind. Historik: OVERLEVERING DEL 2 «22. september (dagen)» §5 f.</p>
-      <div class="meta"><span class="tag gold">A bygger — udkast-cvr-opslag-knap</span><span class="tag ny">Ny 22/9</span><span class="tag size">Lille</span></div>
+      <p><strong>LØST 22/9 — knappen er bygget (#1093), udrullet og BRUGT samme aften.</strong> Alle tre fra Monday er slået op: Tatti ApS · ABC HUNDEUDSTYR ApS · LEV POSITIV ApS. Anettes CVR <code>36203609</code> blev sat i hånden kl. 18:15 (FØR: NULL). Fladen viser nu firmanavn og CVR-felter for alle tre. Historik: OVERLEVERING DEL 2 «22. september (dagen)» §12. Fundet 22/9 kl. 15:06, da ventelistens SQL blev kørt (<code>a18-tre-fra-monday</code>): de tre ansøgninger (Lev Positiv, Tatti, ABC hundeudstyr) kom ind uden et CVR-opslag, fordi de blev lagt ind med SQL og ikke gennem ansøgningsformularen, som normalt slår op undervejs. Følgen på rådgiverfladen: firmanavnet vises som «&lt;navn&gt;s virksomhed», og CVR-felterne står tomme. Tallene er ikke forkerte — de findes ikke. <strong>A bygger en manuel «Slå op i CVR»-knap</strong> (<code>udkast-cvr-opslag-knap</code>), så en rådgiver kan hente opslaget for en ansøgning, der mangler det, uanset hvordan den kom ind. Historik: OVERLEVERING DEL 2 «22. september (dagen)» §5 f.</p>
+      <div class="meta"><span class="tag loest">Lukket 22/9 — tre slået op, Anettes sat 18:15</span><span class="tag gold">A bygger — udkast-cvr-opslag-knap</span><span class="tag ny">Ny 22/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" id="a22-afmelding-webhook-bevis" data-status="mangler" data-spor="1" data-rammer="ingen">
       <h3>Den LEVENDE webhook-vej for afmeldinger er kode, ikke drift — alle ni gik gennem fejet bagud</h3>

@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik),
+-- KØRT i prod — 22/9-2026 kl. 18:48 (Jonas, Lovable SQL editor), FØR udrulningen af webinar-mail-cron. EFTER: de tre kolonner står, og bagud-fyldningen fra `raa` ramte ALLE 691 rækker — alle tre felter fyldt på alle. De 216 til 13/10 har join_link og kalender_link, 0 uden. Uden fyldningen ville en påmindelse til en gammel tilmelding stå uden knap.
 -- og FØR ewebinar-webhook og webinar-mail-cron udrulles.
 --
 -- DE TRE LINKS, EWEBINAR HAR SENDT HELE TIDEN (22/9-2026).

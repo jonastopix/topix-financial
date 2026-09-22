@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod — 22/9-2026 kl. 19:28 (Jonas, Lovable SQL editor), EFTER udrulningen (18:5x), prøven (18:55–18:57) og låsen (true 19:03; FØR: ikke sat). EFTER: cron.job 573 «webinar-mail», udtrykket «9,14,24,27,29,37,39,44,47,57,59 * * * *», active. Første rigtige kørsel 19:29:00.
 -- KØRES ALLERSIDST — efter 20260922170000, 20260922171000, efter at
 -- webinar-mail-cron og webinar-afmeld er UDRULLET, og efter at prøven (én mail
 -- af hver art til jonas@topix.dk) er set i indbakken. Et cron-job, der kører

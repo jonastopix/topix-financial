@@ -81,8 +81,16 @@ export const SEN_TILMELDING_NAADE_MS = 2 * 3_600_000;
  * teoretisk risiko: målt samme aften har Klaviyos flowmail WFzxH9 sendt
  * bekræftelsen til 556 modtagere de sidste 90 dage, og eWebinars egen danske
  * bekræftelse gik fra kl. 15:50 til 19:03. Tørkørslen kl. 18:54 viste 216
- * forfaldne mails — alle af arten «bekraeftelse», alle til 13/10-holdet, alle
- * til folk, der allerede havde fået én.
+ * forfaldne mails — alle af arten «bekraeftelse», alle til 13/10-holdet.
+ *
+ * DE FLESTE af dem har fået en bekræftelse ANDETSTEDS — men hvem, er IKKE MÅLT
+ * PR. PERSON (rettet 22/9 aften; her stod før «alle til folk, der allerede
+ * havde fået én», og det var en slutning, ikke en måling). Det målte er to
+ * SUMMER: Klaviyos WFzxH9 har sendt 556 bekræftelser de sidste 90 dage, og
+ * eWebinars egen gik 15:50–19:03. Ingen af dem er holdt op mod de 216 navne.
+ * Beslutningen står alligevel (Jonas 22/9 ~19:05), fordi den fejler i den rigtige
+ * retning: en manglende bekræftelse til en gammel tilmelding er en mangel, en
+ * DUBLET til 216 mennesker er en fejl, de kan se.
  *
  * Skillelinjen er det øjeblik, eWebinars bekræftelse blev slukket, og
  * platformens tog over: 22/9-2026 kl. 19:03 dansk = 17:03 UTC. Er tilmeldingen
