@@ -112,6 +112,42 @@ Persondata: vi sender mailadressen til Klaviyo. Teksten er dækket af #1020
 
 ---
 
+### 2.1 Målt i drift 22/9 — det første rigtige webinar
+
+Webinaret 22/9 kl. 09 er lag 2's første rigtige prøve. Målt kl. 10:24:
+**384 tilmeldte · 159 deltog · 224 mødte ikke op · 1 ukendt.**
+
+- «Deltog i webinar»: **214 hændelser / 159 profiler** · «Moedte ikke op»:
+  **225 / 224**. `frisk = ja` på alle, **ingen profil fik begge**.
+- **2 timeouts blev gensendt** af `klaviyo-gensend-cron` (job 567) — gensenderen
+  gjorde præcis det, den blev bygget til 21/9.
+- Flere hændelser end profiler er efter bogen: `unique_id` er
+  `<ewebinar_id>:<grad>`, så en opgradering «delvist» → «set» er en NY hændelse.
+  Klaviyo kasserer dubletter, ikke opgraderinger.
+
+**To ting, målingen afgjorde:**
+
+1. **eWebinar sender selv fravær.** Alle 224 kom som Missed/NotJoined fra
+   webhooken. Det lukker køreplanens åbne spørgsmål om, hvorvidt importens
+   no-show-vej skulle bruges: den skulle ikke.
+2. **«Deltog» fyrer ved login.** Første hændelse 09:00:04, grad «delvist»
+   (`doemSetGrad` på state `Joined`). Overgangen er «intet → var der», og den
+   sker, når personen kommer ind — ikke når sessionen slutter.
+
+**Porten fra 22/9:** en tilmelding, der er afmeldt (`subscribed` eller
+`sidste_action` = Unsubscribed), får **ingen** fremmøde-hændelse. Det er ikke en
+optimering — det er, hvad afmeldingen betyder. Se `_shared/webinarAfmelding.ts`
+og `CLAUDE.md` («Afmeldinger fra eWebinar til Klaviyo»).
+
+**Rækkevidden, der ikke er lag 2's fejl — og som BLIVER:** `Wq3MkG`/`SDVvCW`
+kræver Hovedlisten OG samtykke, så færre er i flowene end de 384. Hændelsen når
+Klaviyo; flowet optager kun dem, der må modtage. **AFGJORT 22/9 ~14:10 (Jonas,
+ordret): «Hovedliste»-kravet BLIVER — tilmeldte, der ikke står på Hovedliste,
+skal IKKE ind.** Det er en grænse for FLOWET, ikke for lag 2: hændelserne sendes
+uændret for alle, og dommen i lag 6 tæller dem, der faktisk fik en mail.
+
+---
+
 ## 3. Lag 3 — motoren (#1032, 19/9 22:47; #1035, 20/9 08:24)
 
 **Evnen til at handle:** læse og skrive flows, handlinger og skabeloner.
