@@ -47,17 +47,11 @@ export async function listMemberDirectory(): Promise<MemberProfile[]> {
   return (data ?? []) as unknown as MemberProfile[];
 }
 
-/** Absolut href til eksterne links. Værdier uden protokol
-    ("www.brroset.dk") er RELATIVE stier i et <a> — klikket lander på
-    app.theboardroom.dk/medlemmer/www.brroset.dk i stedet for ude af
-    siden. Feltet valideres bevidst ikke ved indtastning (et domæne uden
-    protokol er ikke en fejl); reparationen sker her ved visning. */
-export function externalHref(raw: string | null): string | null {
-  const trimmed = raw?.trim();
-  if (!trimmed) return null;
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  return `https://${trimmed}`;
-}
+/* externalHref BOEDE HER indtil 22/9-2026. Den er flyttet til
+   src/lib/eksterntLink.ts som `eksterntHref` — ren, uden Supabase-klienten,
+   og med skemakontrol: den satte før «https://» foran ALT uden http-protokol,
+   også «mailto:x@y.dk», som blev til det brudte link «https://mailto:x@y.dk».
+   Ét hjem for dommen «må denne brugerskrevne værdi blive et href». */
 
 /** Én brugers visningsprofil via get_member_profile-RPC'en (SECURITY
     DEFINER; gates BEVIDST ikke på medlemskab — historiske deltagere skal
