@@ -331,6 +331,22 @@ project_id = "loiavmastgeieqyiwyyr"
     verify_jwt = true
   [functions.klaviyo-profil-cron]
     verify_jwt = true
+  # Platformens før-webinar-mails (22/9-2026). Bucket B, authenticateServiceRole
+  # FØRST, kaldt gennem kald_edge hvert 5. minut. Tørkørsel som standard, og
+  # rigtig afsendelse kræver BÅDE dry_run: false OG låsen app_config
+  # 'webinar_mail_aktiv' — eller at kørslen er begrænset til ÉN adresse (prøven).
+  # Sender gennem Mailgun EU (_shared/mailgunAfsendelse.ts), ikke Lovables mail:
+  # Lovables loft er 300 app-mails/time pr. workspace, og én udsendelse til 384
+  # tilmeldte overskrider det i sig selv.
+  [functions.webinar-mail-cron]
+    verify_jwt = true
+  # Afmeldingslinket i de mails. verify_jwt = FALSE, bevidst: en mailklients
+  # One-Click (RFC 8058) og et menneske, der klikker i sin indbakke, sender
+  # hverken Authorization eller apikey. Legitimationen er tokenet i URL'en,
+  # verificeret af laesAfmeldToken (HMAC, konstant tid) FØR service role —
+  # samme klasse som aftale-underskrift og webinar-delt.
+  [functions.webinar-afmeld]
+    verify_jwt = false
   # Metas Conversions API fra platformen (udkast 21/9-2026 aften). Bucket B,
   # authenticateServiceRole FØRST, kaldt gennem kald_edge hvert 5. minut. Tørkørsel
   # som standard; sender for alvor kun med «dry_run: false» OG (låsen

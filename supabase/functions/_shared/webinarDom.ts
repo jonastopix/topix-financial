@@ -96,6 +96,24 @@ export interface WebinarTilmelding {
   enhed: string | null;
   /** IANA-tidszone som eWebinar skriver den. */
   tidszone: string | null;
+
+  // ── LINKENE (22/9-2026) ──────────────────────────────────────────────────
+  // eWebinar har sendt dem hele tiden — de lå i `raa` og blev aldrig plukket
+  // ud. Platformen skal selv sende før-webinar-mailene, og uden det PERSONLIGE
+  // join-link er en påmindelse kun en besked om, at noget sker.
+  // Målt i eWebinars webhook-dokumentation (ewebinar.com/help/webhook):
+  //   joinLink           «Session entry URL» — personligt pr. registrant
+  //   addToCalendarLink  «Calendar ICS file URL» — api.ewebinar.com/v1/attendees/<id>/ics
+  //   replayLink         «Replay access URL»
+  // De er IKKE hemmeligheder på niveau med et token, men de er personlige:
+  // de går kun i mails til personen selv, aldrig i et svar til en ekstern
+  // (webinar-delt's findForbudteNoegler skal kende dem — se webinarDelingSvar).
+  /** Personligt link til selve sessionen. */
+  join_link: string | null;
+  /** eWebinars eget .ics-endepunkt for denne registrant (METHOD:REQUEST). */
+  kalender_link: string | null;
+  /** Personligt link til optagelsen. */
+  replay_link: string | null;
 }
 
 export type PlukGrund = "ikke_et_objekt" | "uden_id" | "uden_email" | "uden_webinar_id";
@@ -277,6 +295,12 @@ export function plukTilmelding(raa: unknown): Pluk {
       set_procent: procent?.procent ?? null,
       set_procent_kilde: procent?.kilde ?? null,
       ...plukAnnoncespor(r),
+      // Linkene (22/9): eWebinars egne, personlige pr. registrant. De har
+      // ligget i `raa` siden 19/9 — nu står de i hver sin kolonne, fordi
+      // platformen selv sender før-webinar-mailene.
+      join_link: somTekst(r.joinLink),
+      kalender_link: somTekst(r.addToCalendarLink),
+      replay_link: somTekst(r.replayLink),
     },
   };
 }

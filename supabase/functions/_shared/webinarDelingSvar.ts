@@ -18,6 +18,10 @@ import { type Annoncenavn, annoncepriser, type Annoncepriser, type Forbrugsdag, 
 export const FORBUDTE_NOEGLER = [
   "email", "ewebinar_id", "by", "land", "enhed", "fbclid", "origin", "first_origin", "referrer", "first_referrer",
   "widget_source", "tidszone", "registreret_at", "raekker",
+  // De tre personlige links (22/9-2026): et join-link ER adgangen til sessionen
+  // for netop den person. De hører i en mail til personen selv — aldrig i et
+  // svar til en ekstern, uanset hvor dybt i objektet de måtte ligge.
+  "join_link", "kalender_link", "replay_link",
 ] as const;
 
 export interface DeltInput {

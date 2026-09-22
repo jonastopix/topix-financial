@@ -101,6 +101,11 @@ const STRIKS: readonly string[] = [
 
   // Rådgiverens manuelle CVR-opslag (22/9): ansoegning_id — ét felt, alt andet afvises.
   "ansoegning-cvr-opslag",
+
+  // Platformens før-webinar-mails (22/9): dry_run, email, art og nu. Alt andet
+  // afvises. (webinar-afmeld står IKKE her: den læser ét felt ud af URL'en
+  // eller en form-post — ikke en JSON-body med nøgler, man kan misforstå.)
+  "webinar-mail-cron",
 ];
 
 /**

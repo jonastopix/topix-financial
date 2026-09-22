@@ -169,6 +169,9 @@ const AUTH_PREDICATES: Predicate[] = [
   // verifyAftaletoken (kalderen har ingen session; tokenet er 256 bit og gemmes
   // kun som SHA-256-aftryk, sammenlignet i konstant tid). Se _shared/delingstokenAuth.ts.
   { name: "verifyDelingstoken()",         pattern: /\bverifyDelingstoken\s*\(/ },
+  // Afmeldingslinket i før-webinar-mailene (22/9-2026): HMAC over mailen,
+  // sammenlignet i konstant tid FØR service role — _shared/webinarAfmeldToken.ts.
+  { name: "laesAfmeldToken()",            pattern: /\blaesAfmeldToken\s*\(/ },
 
   // Shape-based: `Bearer ${...}` template compared against a request
   // header (=== or !==). Excludes outbound fetch-header assignments

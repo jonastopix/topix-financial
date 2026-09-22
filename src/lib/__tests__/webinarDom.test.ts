@@ -71,6 +71,9 @@ const NU = new Date("2026-09-19T12:00:00Z");
 
 function raekke(over: Partial<WebinarTilmelding> = {}): WebinarTilmelding {
   return {
+    join_link: null,
+    kalender_link: null,
+    replay_link: null,
     ewebinar_id: "r1",
     email: "a@b.dk",
     navn: "A B",
@@ -110,6 +113,11 @@ describe("plukTilmelding — dokumentationens eksempel", () => {
     expect(p.ok).toBe(true);
     if (p.ok === false) return;
     expect(p.tilmelding).toEqual({
+      // De tre links står i dokumentationens eget eksempel — og plukkes nu ud
+      // (22/9): det er dem, platformens før-webinar-mails bygges af.
+      join_link: "https://ilove.ewebinar.com/webinar/1234/join/1234",
+      kalender_link: "https://api.ewebinar.com/v1/attendees/12345/ics",
+      replay_link: "https://ilove.ewebinar.com/webinar/1234/replay/1234",
       ewebinar_id: "abCD1234Efg56",
       email: "john.doe@defaultmail.com",
       navn: "John Doe",
