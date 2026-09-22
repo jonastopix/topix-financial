@@ -98,6 +98,9 @@ const STRIKS: readonly string[] = [
   // handling, navn, dage og id (webinar-deling). Alt andet afvises.
   "webinar-delt",
   "webinar-deling",
+
+  // Rådgiverens manuelle CVR-opslag (22/9): ansoegning_id — ét felt, alt andet afvises.
+  "ansoegning-cvr-opslag",
 ];
 
 /**

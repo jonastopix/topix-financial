@@ -260,6 +260,13 @@ project_id = "loiavmastgeieqyiwyyr"
   # bag authenticateUser + advisor-gate — samme form som saet-indgangs-prisniveau.
   [functions.ansoegning-handling]
     verify_jwt = true
+  # Rådgiverens manuelle CVR-opslag for ÉN ansøgning (22/9-2026). Bucket A:
+  # authenticateUser + has_role('advisor') FØR service role — samme form som
+  # ansoegning-handling. Egen function, fordi ansoegning-cvr legitimerer sig med
+  # ansøgerens token, og verifyAnsoegningstoken kun finder KLADDER
+  # (.is("indsendt_at", null)) — de indsendte kan den slet ikke nå.
+  [functions.ansoegning-cvr-opslag]
+    verify_jwt = true
   # Ansøgerens link EFTER indsendelse: verify_jwt = FALSE, bevidst — samme
   # begrundelse som ansoegning-gem og opret-indgangs-checkout: ingen session.
   # Legitimationen er tokenet i body (verifyAnsoegningslink, service-role-opslag

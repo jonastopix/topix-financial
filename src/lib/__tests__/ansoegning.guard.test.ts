@@ -70,10 +70,16 @@ export const ipKunSomHash = (gem: string): boolean =>
  * DELTE `cacheRaekkeAf` (_shared/cvrCache.ts), som alle tre skrivere bruger.
  * Invarianten er uændret: hentningen går gennem husets `hentDataCvrRaa`, og
  * functionen har ingen egen fetch.
+ *
+ * NY PRÆMIS 22/9: også FRISKHEDEN kommer nu fra cvrCache (`erFriskCache`) —
+ * rådgiverens manuelle opslag (ansoegning-cvr-opslag) læser samme cache, og to
+ * kopier af «30 dage» ville før eller siden blive uenige. Dommen er derfor
+ * skærpet: den kræver nu, at de lokale CACHE_DAGE-konstanter er VÆK herfra.
  */
 export const cvrGennemHusetsKilde = (cvr: string): boolean =>
   cvr.includes('import { hentDataCvrRaa } from "../_shared/virksomhedsOprettelse.ts"') &&
-  cvr.includes('import { cacheRaekkeAf, type CvrCacheRaekke } from "../_shared/cvrCache.ts"') &&
+  /import \{[^}]*\bcacheRaekkeAf\b[^}]*\berFriskCache\b[^}]*\} from "\.\.\/_shared\/cvrCache\.ts"/.test(cvr) &&
+  !/const CACHE_DAGE_/.test(cvr) &&
   !/\bfetch\s*\(/.test(cvr);
 
 /** Cachen bærer aldrig den rå body — upsert'en skriver kun svar + visning. */
