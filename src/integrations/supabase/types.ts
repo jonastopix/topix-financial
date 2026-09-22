@@ -2986,6 +2986,45 @@ export type Database = {
         }
         Relationships: []
       }
+      klaviyo_profil: {
+        Row: {
+          email: string
+          forsoegt_at: string
+          grund: string | null
+          skrevet_at: string | null
+          status: number | null
+          svar: string | null
+          tb_naeste_webinar: string | null
+          tb_naeste_webinar_tekst: string | null
+          udfald: string
+          varighed_ms: number | null
+        }
+        Insert: {
+          email: string
+          forsoegt_at?: string
+          grund?: string | null
+          skrevet_at?: string | null
+          status?: number | null
+          svar?: string | null
+          tb_naeste_webinar?: string | null
+          tb_naeste_webinar_tekst?: string | null
+          udfald: string
+          varighed_ms?: number | null
+        }
+        Update: {
+          email?: string
+          forsoegt_at?: string
+          grund?: string | null
+          skrevet_at?: string | null
+          status?: number | null
+          svar?: string | null
+          tb_naeste_webinar?: string | null
+          tb_naeste_webinar_tekst?: string | null
+          udfald?: string
+          varighed_ms?: number | null
+        }
+        Relationships: []
+      }
       klaviyo_spor: {
         Row: {
           aendringer: Json
