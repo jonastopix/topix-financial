@@ -1,8 +1,9 @@
 /**
- * webinarMailTekster — de fem før-webinar-mails (22/9-2026).
+ * webinarMailTekster — de seks før-webinar-mails (22/9-2026).
  *
- * TEKSTEN ER MORTENS, IKKE MIN. De fire første er hentet ORDRET fra Klaviyo-
- * flowet «Jonas - Før webinar» (UiECQS) gennem flowet, som husets regel kræver
+ * TEKSTEN ER MORTENS, IKKE MIN. De fem første er hentet ORDRET fra Klaviyo
+ * gennem flowet — fire fra «Jonas - Før webinar» (UiECQS), bekræftelsen fra
+ * WFzxH9 — som husets regel kræver
  * (CLAUDE.md, Klaviyo-motoren §6: en flowmails skabelon er en KLON, usynlig i
  * skabelonlisten — find den altid gennem flowet):
  *
@@ -13,16 +14,16 @@
  *   en_dag    flow-message TpDAEF · skabelon Tx9m4j
  *   dagen     flow-message Y3Rc7W · skabelon VjzeyN
  *
- * Den femte, `en_time`, findes ikke i Klaviyo — den er NY og skrevet i samme
+ * Den sjette, `en_time`, findes ikke i Klaviyo — den er NY og skrevet i samme
  * form og samme længde som «dagen» (30 sekunders læsning). Det er den eneste
  * tekst i filen, der ikke er Mortens egen, og den er markeret som sådan.
  *
  * ÆNDRET I FORHOLD TIL KLAVIYO, og kun det:
  *   1. `{% unsubscribe %}` → vores eget afmeldingslink (token, ingen login).
  *   2. Tidsteksten sættes ind, hvor mailen omtaler tidspunktet — fra
- *      _shared/klaviyoDato.ts' `webinarTekst`, som har ét hjem.
- *      «Du får linket en time før start» bliver til «… en time før — altså
- *      <tid>», så påmindelsen bærer det klokkeslæt, den handler om.
+ *      _shared/klaviyoDato.ts' `webinarTekst`, som har ét hjem. Hvor
+ *      Klaviyo-mailen omtalte tidspunktet i ord, står nu «Vi ses <tid>», så
+ *      påmindelsen bærer det klokkeslæt, den handler om.
  *   3. Hver mail har fået en KNAP til join-linket og en kalenderrække
  *      (Google · Apple · Outlook). Klaviyo-mailene havde ingen af delene —
  *      det er hele grunden til, at platformen overtager dem.
@@ -33,6 +34,15 @@
  *      ER invitationen vedhæftet DENNE mail, så teksten siger det, der faktisk
  *      er sket — og kalenderrækken står under den for dem, hvis klient ikke
  *      viser vedhæftningen som en invitation.
+ *   5. LØFTET OM ET LINK, «DER KOMMER», ER VÆK (Jonas 22/9 ca. 19:35). Fire
+ *      af mailene sagde, at linket kom senere — «Linket til webinaret kommer
+ *      en time før», «Du får et link i god tid», «Du får linket en time før
+ *      start». Det var sandt i Klaviyo, hvor mailene ingen knap havde; her
+ *      står knappen med modtagerens EGET join-link i hver eneste mail (punkt
+ *      3). Nu peger teksten på den: «Dit personlige link står herunder».
+ *      «dagen» beholder sit løfte om flere, fordi begge dele er sande:
+ *      platformen sender «en time før» (arten `en_time`), og eWebinars egen
+ *      påmindelse går ti minutter før.
  *
  * Layoutet er ordret Mortens: Parkinsans/Manrope, #FAF8F5, 600 px, TOPIX-
  * ordmærke, eyebrow i #A3D9C4, portrættet, hårlinjerne, den grønne boks.
@@ -145,13 +155,13 @@ function indhold(art: MailArt, tid: string): MailIndhold {
         laesetid: "1 minuts læsning",
         krop:
           FOERSTE("Tak, fordi du meldte dig til. Din plads er reserveret, og du skal ikke gøre mere lige nu.") +
-          BOKS(`<strong style="font-weight:700;">Vi ses ${esc(tid)}.</strong> Invitationen er vedhæftet denne mail — sig ja til den, så står tiden reserveret i din kalender, og du får en påmindelse af dig selv.<br/><br/><strong style="font-weight:700;">Linket til webinaret kommer en time før.</strong> Det står også i invitationen, så du kan altid finde det der.`) +
+          BOKS(`<strong style="font-weight:700;">Vi ses ${esc(tid)}.</strong> Invitationen er vedhæftet denne mail — sig ja til den, så står tiden reserveret i din kalender, og du får en påmindelse af dig selv.<br/><br/><strong style="font-weight:700;">Dit personlige link står herunder og i invitationen</strong> — gem mailen, så har du det, når vi starter.`) +
           P("Webinaret tager en time. Sæt den af, sæt telefonen på lydløs, og hav noget at skrive på. Det er ikke et oplæg, du kan have kørende i baggrunden — det er tal og beslutninger, og du får mest ud af det, hvis du regner med.") +
           P("Vi ses."),
         kropTekst:
           "Tak, fordi du meldte dig til. Din plads er reserveret, og du skal ikke gøre mere lige nu.\n\n" +
           `VI SES ${tid}. Invitationen er vedhæftet denne mail — sig ja til den, så står tiden reserveret i din kalender.\n\n` +
-          "LINKET TIL WEBINARET KOMMER EN TIME FØR. Det står også i invitationen, så du kan altid finde det der.\n\n" +
+          "DIT PERSONLIGE LINK STÅR HERUNDER OG I INVITATIONEN — gem mailen, så har du det, når vi starter.\n\n" +
           "Webinaret tager en time. Sæt den af, sæt telefonen på lydløs, og hav noget at skrive på. Det er ikke et oplæg, du kan have kørende i baggrunden — det er tal og beslutninger, og du får mest ud af det, hvis du regner med.\n\n" +
           "Vi ses.",
       };
@@ -166,14 +176,14 @@ function indhold(art: MailArt, tid: string): MailIndhold {
           BOKS("Hvilken beslutning har du skubbet foran dig længst — og hvad venter du egentlig på?", true) +
           P("De fleste ejerledere, jeg taler med, kan svare på det første med det samme. Det er det andet, der bliver stille. Som regel venter man ikke på noget bestemt — man mangler bare nogen at vende den med.") +
           P("Jeg har lavet fejlene selv, i dba, i Just Eat, i Miinto og i Hungry. På webinaret giver jeg dig det, jeg lærte af dem.") +
-          P(`Vi ses ${esc(tid)}. Du får et link i god tid.`, true),
+          P(`Vi ses ${esc(tid)}. Dit personlige link står herunder.`, true),
         kropTekst:
           "Om en uge holder jeg webinaret, du har meldt dig til.\n\n" +
           "Indtil da vil jeg give dig ét spørgsmål at tænke over:\n\n" +
           "Hvilken beslutning har du skubbet foran dig længst — og hvad venter du egentlig på?\n\n" +
           "De fleste ejerledere, jeg taler med, kan svare på det første med det samme. Det er det andet, der bliver stille. Som regel venter man ikke på noget bestemt — man mangler bare nogen at vende den med.\n\n" +
           "Jeg har lavet fejlene selv, i dba, i Just Eat, i Miinto og i Hungry. På webinaret giver jeg dig det, jeg lærte af dem.\n\n" +
-          `Vi ses ${tid}. Du får et link i god tid.`,
+          `Vi ses ${tid}. Dit personlige link står herunder.`,
       };
     case "tre_dage":
       return {
@@ -185,13 +195,13 @@ function indhold(art: MailArt, tid: string): MailIndhold {
           P("Jeg har investeret i over femten virksomheder. Og jeg stiller de samme fem spørgsmål hver gang. Kan en ejerleder svare på dem uden at lede, er der styr på forretningen. Kan han ikke, ved jeg hvor arbejdet ligger.") +
           BOKS("De fem spørgsmål er den ene halvdel af webinaret. Den anden er de <strong style=\"font-weight:700;\">to områder, jeg mener afgør, om en virksomhed vokser eller står stille</strong>. Dem har jeg brugt tyve år på at finde — dels i dba, Just Eat og Miinto, dels ved at bygge Hungry og sælge den.") +
           P("Jeg har lavet fejlene undervejs. Pointen med timen er, at du slipper for at lave dem igen.") +
-          P(`Vi ses ${esc(tid)}. Du får linket en time før start, og det står også i din kalenderinvitation.`, true),
+          P(`Vi ses ${esc(tid)}. Dit personlige link står herunder og i din kalenderinvitation.`, true),
         kropTekst:
           "Der er tre dage til, vi ses. Jeg vil kort sige, hvad du går derfra med — så du ved, om du skal rydde kalenderen eller ej.\n\n" +
           "Jeg har investeret i over femten virksomheder. Og jeg stiller de samme fem spørgsmål hver gang. Kan en ejerleder svare på dem uden at lede, er der styr på forretningen. Kan han ikke, ved jeg hvor arbejdet ligger.\n\n" +
           "De fem spørgsmål er den ene halvdel af webinaret. Den anden er de to områder, jeg mener afgør, om en virksomhed vokser eller står stille. Dem har jeg brugt tyve år på at finde — dels i dba, Just Eat og Miinto, dels ved at bygge Hungry og sælge den.\n\n" +
           "Jeg har lavet fejlene undervejs. Pointen med timen er, at du slipper for at lave dem igen.\n\n" +
-          `Vi ses ${tid}. Du får linket en time før start, og det står også i din kalenderinvitation.`,
+          `Vi ses ${tid}. Dit personlige link står herunder og i din kalenderinvitation.`,
       };
     case "en_dag":
       return {
@@ -202,14 +212,14 @@ function indhold(art: MailArt, tid: string): MailIndhold {
           FOERSTE(`Vi ses ${esc(tid)}. Én ting, du kan gøre i aften, så du får mere ud af timen:`) +
           BOKS("Tænk på den beslutning, du har skubbet længst foran dig. Den du ved, du skal tage, men bliver ved med at udskyde — ansættelsen, prisen, kunden der fylder for meget, eller samtalen med investoren.<br/><br/>Hold den i baghovedet i morgen. Alt hvad jeg gennemgår, skal kunne bruges på lige netop den.") +
           P("Det er forskellen på at lære noget og at bruge noget.") +
-          P("Linket kommer en time før start. Det står også i din kalenderinvitation, hvis du vil have det klar i forvejen.") +
+          P("Dit personlige link står herunder og i din kalenderinvitation — gem det, så er du klar i morgen.") +
           P("Kan du ikke alligevel? Så gør ingenting — du får optagelsen bagefter.", true),
         kropTekst:
           `Vi ses ${tid}. Én ting, du kan gøre i aften, så du får mere ud af timen:\n\n` +
           "Tænk på den beslutning, du har skubbet længst foran dig. Den du ved, du skal tage, men bliver ved med at udskyde — ansættelsen, prisen, kunden der fylder for meget, eller samtalen med investoren.\n\n" +
           "Hold den i baghovedet i morgen. Alt hvad jeg gennemgår, skal kunne bruges på lige netop den.\n\n" +
           "Det er forskellen på at lære noget og at bruge noget.\n\n" +
-          "Linket kommer en time før start. Det står også i din kalenderinvitation.\n\n" +
+          "Dit personlige link står herunder og i din kalenderinvitation — gem det, så er du klar i morgen.\n\n" +
           "Kan du ikke alligevel? Så gør ingenting — du får optagelsen bagefter.",
       };
     case "dagen":
@@ -219,18 +229,18 @@ function indhold(art: MailArt, tid: string): MailIndhold {
         laesetid: "30 sekunders læsning",
         krop:
           FOERSTE("Er du klar?") +
-          BOKS(`<strong style="font-weight:700;">Vi starter ${esc(tid)}</strong> — og du får linket igen en time før.`) +
+          BOKS(`<strong style="font-weight:700;">Vi starter ${esc(tid)}</strong> — dit personlige link står herunder. Du får det igen en time og ti minutter før start.`) +
           P("Hav kaffen klar og luk mailen. Vi bruger timen på de to områder, der afgør, om en virksomheds vækst er sund eller usund — og på de fem spørgsmål, jeg stiller alle mine investeringer.") +
           P("Vi ses om lidt."),
         kropTekst:
           "Er du klar?\n\n" +
-          `Vi starter ${tid} — og du får linket igen en time før.\n\n` +
+          `Vi starter ${tid} — dit personlige link står herunder. Du får det igen en time og ti minutter før start.\n\n` +
           "Hav kaffen klar, luk mailen, og tag noter. Vi bruger timen på de to områder, der afgør, om en virksomhed vokser — og på de fem spørgsmål, jeg stiller alle mine investeringer.\n\n" +
           "Vi ses om lidt.",
       };
     case "en_time":
       // NY MAIL (22/9) — ikke Mortens egen tekst, skrevet i samme form og
-      // længde som «dagen». Den korteste af de fem, og den eneste, hvor
+      // længde som «dagen». Den korteste af de seks, og den eneste, hvor
       // knappen er hele ærindet.
       return {
         eyebrow: "OM EN TIME",

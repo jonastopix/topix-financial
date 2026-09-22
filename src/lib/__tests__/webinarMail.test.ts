@@ -14,7 +14,7 @@ const ARGS = {
   afmeldUrl: AFMELD,
 };
 
-describe("bygWebinarMail — alle fem mails er hele", () => {
+describe("bygWebinarMail — alle seks mails er hele", () => {
   it("hver art har emne, HTML og tekst — og tidspunktet står i dem alle", () => {
     for (const art of ARTER) {
       const m = bygWebinarMail({ ...ARGS, art });
@@ -83,6 +83,64 @@ describe("bygWebinarMail — alle fem mails er hele", () => {
   it("afsenderen og svaradressen er Jonas' — ét sted", () => {
     expect(AFSENDER).toBe("Morten Larsen <morten@webinar.topix.dk>");
     expect(SVAR_TIL).toBe("kontakt@topix.dk");
+  });
+});
+
+describe("INGEN LØFTER OM ET LINK, DER KOMMER (Jonas 22/9 ca. 19:35)", () => {
+  /**
+   * Knappen med modtagerens EGET join-link står i hver eneste mail — så en
+   * sætning om et link, der kommer senere, er forkert, uanset hvor pænt den
+   * er skrevet. Klaviyo-mailene havde ingen knap; det er hele forskellen.
+   *
+   * Dømmes på den FÆRDIGE mail (emne + HTML + tekst), ikke på kildeteksten:
+   * filhovedet CITERER de gamle sætninger for at fortælle, hvad der blev
+   * ændret, og den citation må ikke kunne fælde prøven.
+   *
+   * Der er ingen preheader i huset — skelettet har intet skjult preview-felt
+   * — så emne, HTML og tekst ER hele mailen. Får mailene en preheader, skal
+   * den med i `dele` nedenfor.
+   *
+   * UFØLSOM FOR STORE/SMÅ BOGSTAVER: teksten sætter fremhævede sætninger med
+   * VERSALER i ren tekst («DIT PERSONLIGE LINK STÅR HERUNDER …»), og «dagen»
+   * skriver «du får» med lille d. En følsom prøve ville lade begge slippe.
+   */
+  const FORBUDTE = ["kommer en time før", "i god tid", "du får linket"];
+
+  it("ingen af de seks mails lover et link, der kommer senere", () => {
+    for (const art of ARTER) {
+      const m = bygWebinarMail({ ...ARGS, art });
+      const dele: [string, string][] = [["emne", m.subject], ["html", m.html], ["tekst", m.text]];
+      for (const [navn, tekst] of dele) {
+        for (const forbudt of FORBUDTE) {
+          expect(tekst.toLowerCase(), `${art}/${navn}: «${forbudt}»`).not.toContain(forbudt);
+        }
+      }
+    }
+  });
+
+  it("i stedet peger de på knappen — «dit personlige link» i alle seks", () => {
+    for (const art of ARTER) {
+      const m = bygWebinarMail({ ...ARGS, art });
+      expect(m.html.toLowerCase(), art).toContain("dit personlige link");
+      expect(m.text.toLowerCase(), art).toContain("dit personlige link");
+    }
+  });
+
+  it("PRØVEN VIRKER: den gamle sætning ville være fældet", () => {
+    const gammel = "Vi ses tirsdag. Du får et link i god tid.";
+    for (const forbudt of FORBUDTE.slice(1, 2)) {
+      expect(gammel.toLowerCase()).toContain(forbudt);
+    }
+    expect("Du får linket en time før start".toLowerCase()).toContain("du får linket");
+    expect("LINKET TIL WEBINARET KOMMER EN TIME FØR.".toLowerCase()).toContain("kommer en time før");
+  });
+
+  it("«dagen» lover stadig de to påmindelser, der FAKTISK sendes", () => {
+    // Platformen sender «en time før» (arten en_time), og eWebinars egen
+    // påmindelse går ti minutter før. Begge dele er sande — derfor står de.
+    const m = bygWebinarMail({ ...ARGS, art: "dagen" });
+    expect(m.html).toContain("Du får det igen en time og ti minutter før start.");
+    expect(m.text).toContain("Du får det igen en time og ti minutter før start.");
   });
 });
 

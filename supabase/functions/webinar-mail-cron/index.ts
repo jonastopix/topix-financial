@@ -1,4 +1,4 @@
-// webinar-mail-cron — platformens fem før-webinar-mails (22/9-2026).
+// webinar-mail-cron — platformens seks før-webinar-mails (22/9-2026).
 //
 // JONAS 22/9: platformen sender selv mailene før en session; Klaviyo beholder
 // efter-webinaret, og eWebinars danske bekræftelse (med sin rigtige invite.ics)

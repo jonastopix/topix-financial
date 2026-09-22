@@ -34,7 +34,7 @@ describe("webinarMailDom.paritet — kildeteksten", () => {
 });
 
 describe("webinarMailDom.paritet — dommene svarer ens", () => {
-  it("planlagtTid for alle fem arter, og hen over sommertidsskiftet", () => {
+  it("planlagtTid for alle seks arter, og hen over sommertidsskiftet", () => {
     for (const session of [SESSION, "2026-10-27T10:00:00.000Z", "2026-01-13T10:00:00.000Z"]) {
       for (const art of deno.ARTER) {
         expect(deno.planlagtTid(session, art)?.toISOString(), `${session}/${art}`)
