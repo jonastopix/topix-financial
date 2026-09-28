@@ -136,7 +136,7 @@ export function kontrollerUdkast(udkast: string, g: Grundlag = GRUNDLAG): Dom {
   for (const m of udkast.match(LINK) ?? []) {
     const rent = m.replace(/[.,]$/, "");
     if (!g.kendteLinks.includes(rent)) {
-      sig("R5 link", "fejl", rent, `Linket ${rent} er ikke et af vores to kendte links.`);
+      sig("R5 link", "fejl", rent, `Linket ${rent} er ikke et af vores kendte links.`);
     }
   }
 
@@ -163,7 +163,7 @@ export function kontrollerUdkast(udkast: string, g: Grundlag = GRUNDLAG): Dom {
     }
     // Den anden halvdel er kun en heuristik. PORTEN ER SNÆVER MED VILJE: den
     // åbner kun, når udkastet PÅSTÅR noget om webinarets indhold. En mail, der
-    // blot nævner webinaret (en kvittering, et link til optagelsen, en
+    // blot nævner webinaret (en kvittering, et link til tilmeldingen, en
     // afmeldingsfod), gør ingen påstand om rammen, og et tjek dér er støj.
     // Målt 19/9 mod de virkelige skabeloner: uden porten fyrede reglen på
     // «Efter 01», som er godkendt og fejlfri.

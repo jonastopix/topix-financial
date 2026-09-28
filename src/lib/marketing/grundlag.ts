@@ -135,7 +135,9 @@ export const WEBINAR = {
   afslutning: "Til sidst nævnes muligheden for et samarbejde.",
   /** MANGLER: de fire målgruppebeskrivelser står ordret på tilmeldingssiden. */
   maalgruppebeskrivelser: MANGLER as Maaske<readonly string[]>,
-  optagelseslink: "https://www.topix.dk/webinar/optagelse",
+  // OPTAGELSESLINKET ER VÆK (Jonas 28/9-2026): optagelsen sendes ikke længere,
+  // og topix.dk/webinar/optagelse svarer «Optagelsen er ikke længere online».
+  // Et udkast, der linker dertil, fældes nu af R5 (linket er ikke kendt).
 } as const;
 
 // ── 4. TESTIMONIALS — TO KATEGORIER, DER ALDRIG MÅ BLANDES ─────────────────
@@ -279,8 +281,8 @@ export const KENDTE_TAL: readonly string[] = [
   "50.000", "4.375", "12", "tolv", "2", "to", "60", "en time", "15", "femten", "250", "2.000", "5", "fem", "ni", "2005", "2011", "ét", "en halv time", "ti minutter",
 ];
 
-/** Alle links, der må stå i et udkast. */
-export const KENDTE_LINKS: readonly string[] = [PRODUKT.ansoegningslink, WEBINAR.optagelseslink];
+/** Alle links, der må stå i et udkast — ét, siden optagelsen blev taget ned 28/9. */
+export const KENDTE_LINKS: readonly string[] = [PRODUKT.ansoegningslink];
 
 /** Alle navne, grundlaget kender. Et navn udenfor er en opfindelse. */
 export const KENDTE_NAVNE: readonly string[] = [
