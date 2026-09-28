@@ -549,7 +549,7 @@ const Blok2 = ({ d }: { d: VirksomhedsData }) => {
                 <Ord key={f.label} label={f.label}>{f.tekst}</Ord>
               ))}
               {r.milestone_progress != null && (
-                <p className="text-sm text-hb-ink-soft">Milestone-fremgang, som de selv vurderer den: {r.milestone_progress} %</p>
+                <p className="text-sm text-hb-ink-soft">Milestone-fremgang, regnet af de aktive mål, da refleksionen blev sendt: {r.milestone_progress} %</p>
               )}
             </div>
           )}

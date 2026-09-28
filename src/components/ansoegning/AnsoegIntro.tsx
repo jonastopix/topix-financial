@@ -3,7 +3,6 @@ import { HbButton } from "@/components/hjemmebane/HbButton";
 import { fokusUdenScroll } from "@/lib/fokusUdenScroll";
 import { HB_EYEBROW } from "@/components/hjemmebane/hbFormKlasser";
 import { INTRO } from "@/lib/ansoegning/spoergsmaal";
-import { MEDLEMSKAB_PRIS_KR_AAR } from "@/lib/ansoegning/skema";
 
 /**
  * Over formularen: hvad der sker bagefter, og prisen — FØR første
@@ -40,9 +39,7 @@ export const AnsoegIntro = ({ onStart, genoptager }: { onStart: () => void; geno
     </ol>
 
     <div className="mt-8 border-t border-hb-line pt-6">
-      <p className="text-[15px] font-medium text-hb-ink">
-        Medlemskabet koster {MEDLEMSKAB_PRIS_KR_AAR.toLocaleString("da-DK")} kr. om året ekskl. moms.
-      </p>
+      <p className="text-[15px] font-medium text-hb-ink">{INTRO.pris}</p>
       <p className="mt-1 text-sm leading-relaxed text-hb-ink-soft">{INTRO.prisNote}</p>
     </div>
 
