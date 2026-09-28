@@ -93,6 +93,10 @@
  *       selv bar et. Teksten sagde før «det klik-id … Meta selv har sat» uden at sige HVOR
  *       klikket skete — og det sted er et andet besøg, på et andet domæne.
  * Låst ordret af metaSend.guard dom 9.
+ *
+ * SPORET FØR ANSØGNINGEN (28/9-2026, JA fra Jonas ordret): én sætning under «Hvad vi gemmer»,
+ * lige efter dags-nøglen, om de tre anonyme trin (vist, start, tastet —
+ * udkast-ansoegning-visning). Låst ordret af persondataVisning.guard.
  */
 
 export interface PersondataAfsnit {
@@ -119,6 +123,7 @@ export const PERSONDATA_AFSNIT: readonly PersondataAfsnit[] = [
       "Vi fortæller Meta, at der er sket noget — at en ansøgning er påbegyndt, at den er sendt, at vi har sagt ja til en samtale, at der er booket en tid, og at et medlemskab er betalt — så vi kan se, om vores annoncer virker. Ved betalingen fortæller vi også, hvad medlemskabet kostede. Vi sender en krypteret udgave af din e-mail, dit telefonnummer og dit navn, det klik-id og de cookies, Meta selv har sat, hvilken slags browser du brugte, og et id, vi selv har lavet. Klikket kan også være det, du gjorde, da du tilmeldte dig vores webinar. Meta kan ikke se selve oplysningerne, men kan genkende dem, hvis du har en profil hos Meta med samme e-mail eller telefonnummer. Vi sender aldrig dit CVR-nummer eller dine svar. Vil du helst være fri, så skriv til kontakt@theboardroom.dk.",
       "Har du sagt ja til cookies på theboardroom.dk, fortæller vi også Google Analytics, at en ansøgning er påbegyndt, og at den er sendt. Vi sender det id, Google Analytics selv har givet din browser, og hvor du kom fra — aldrig dit navn, din e-mail, dit telefonnummer, dit CVR-nummer eller dine svar. Har du ikke sagt ja til cookies, sender vi ingenting.",
       "En anonymiseret dags-nøgle for din internetadresse, som vi kun bruger til at begrænse misbrug af formularen. Selve adressen gemmes ikke her.",
+      "Åbner du formularen, gemmer vi også — uden at vide, hvem du er — at siden blev vist, om du trykkede «Start», og om du begyndte at skrive dit CVR-nummer, sammen med hvor du kom fra og hvilken slags browser du brugte. Vi bruger det kun til at se, hvor formularen kan blive bedre.",
       "Har du tilmeldt dig vores webinar, gemmer vi også din tilmelding og din deltagelse: hvornår du meldte dig til, om du deltog, og hvor stor en del af webinaret du så. Bruger du samme e-mailadresse til at ansøge, kobler vi de to sammen, så vi ved, at du har set det.",
       "Skriver du under på et aftalegrundlag, gemmer vi det underskrevne dokument sammen med et revisionsspor: dit navn, tidspunktet, din internetadresse og hvilken browser du brugte. Sporet kan ikke ændres eller slettes bagefter — det er netop dets formål, for det er beviset for, at aftalen blev indgået.",
     ],
