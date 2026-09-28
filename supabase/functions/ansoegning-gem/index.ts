@@ -27,6 +27,14 @@
 // anbefalingen + rådgiverens klokke. Fejler den, er ansøgningen stadig
 // indsendt — det logges, og svaret er stadig ok.
 //
+// SPORET FØR RÆKKEN (udkast 28/9-2026): handlingen «spor» er den ANDEN vej
+// uden token. Den skriver kun til ansoegning_visninger — tre anonyme trin
+// (vist, start, tastet) før en ansøgning findes — og rører aldrig
+// ansoegninger. Ingen persondata (_shared/ansoegningVisning.ts), samme
+// IP-dagshash som «opret», eget loft (SPOR_PR_IP_PR_TIME), fail-closed tælling.
+// Fladen venter aldrig på svaret. «opret» tager et valgfrit visning_id og
+// kobler visningens rækker til den nye ansøgning i en EGEN fail-soft update.
+//
 // ÉN ÅBEN ANSØGNING PR. MAIL: A's partielle unikke indeks
 // ansoegninger_aaben_email_uidx afviser en anden indsendt, åben ansøgning
 // på samme mail med 23505 → 409 «du har allerede en ansøgning hos os».
@@ -38,6 +46,7 @@ import { brugbarMail, paabegyndt } from "../_shared/klaviyoHaendelser.ts";
 import { sendHvisMail } from "../_shared/klaviyoAfsendelse.ts";
 import { verifyAnsoegningstoken } from "../_shared/ansoegningToken.ts";
 import { laesUserAgent, sporMedUserAgent } from "../_shared/ansoegningUserAgent.ts";
+import { erVisningsId, loftetNaaet, sporRaekkeAf } from "../_shared/ansoegningVisning.ts";
 import { KONTAKT_ADRESSE } from "../_shared/indgangsMail.ts";
 import { planlaegKladde, registrerIndsendelse } from "../_shared/ansoegningMotor.ts";
 import {
@@ -65,17 +74,18 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-const HANDLINGER = ["opret", "hent", "gem", "indsend"] as const;
+const HANDLINGER = ["opret", "hent", "gem", "indsend", "spor"] as const;
 
 /**
  * DE ENESTE felter, body'en må bære — på tværs af de fire handlinger (21/9,
  * BAGLOG → STRIKS). Målt i src/lib/ansoegning/api.ts: opret sender kilde,
- * kilde_raa, annoncespor, svar, firma; hent token; gem token, svar,
+ * kilde_raa, annoncespor, svar, firma (+ visning_id, 28/9); spor visning_id, trin,
+ * kilde, kilde_raa, annoncespor; hent token; gem token, svar,
  * cvr_bekraeftet, virksomhedsnavn; indsend token, svar. Kildeværnet
  * ansoegningGemKendteFelter.guard holder listen op mod api.ts — et nyt felt
  * i klienten uden plads her afvises med 400, og værnet går rødt først.
  */
-const KENDTE_FELTER = ["handling", "token", "kilde", "kilde_raa", "annoncespor", "ga", "meta", "svar", "firma", "cvr_bekraeftet", "virksomhedsnavn"] as const;
+const KENDTE_FELTER = ["handling", "token", "kilde", "kilde_raa", "annoncespor", "ga", "meta", "svar", "firma", "cvr_bekraeftet", "virksomhedsnavn", "visning_id", "trin"] as const;
 type Handling = (typeof HANDLINGER)[number];
 
 /**
@@ -171,6 +181,35 @@ async function gemMetaCookies(admin: SupabaseClient, id: string, meta: MetaCooki
   if (metaFejl) console.error(`[ansoegning-gem] Metas cookier kunne ikke gemmes på ${id}: ${metaFejl.message}`);
 }
 
+/** Sporrækker den seneste time — for IP-dagshashen, eller i alt (null). null = tællingen fejlede. */
+async function sporSidsteTime(adminClient: SupabaseClient, ipHash: string | null): Promise<number | null> {
+  const siden = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  let q = adminClient.from("ansoegning_visninger").select("id", { count: "exact", head: true }).gte("created_at", siden);
+  if (ipHash) q = q.eq("ip_hash", ipHash);
+  const { count, error } = await q;
+  if (error) {
+    console.error("[ansoegning-gem] spor-tællingen fejlede:", error.message);
+    return null;
+  }
+  return count ?? 0;
+}
+
+/**
+ * Visningen → ansøgningen (28/9) — kaster aldrig. EN EGEN update efter insert'en og
+ * de andre fail-softe updates: en fejl her (tabellen mangler — migration
+ * 20260928170000 — eller andet) må aldrig koste ansøgningen noget. Kun et gyldigt
+ * uuid, og kun rækker, der ikke allerede er koblet.
+ */
+async function koblVisning(admin: SupabaseClient, ansoegningId: string, visningId: unknown): Promise<void> {
+  if (!erVisningsId(visningId)) return;
+  const { error } = await admin
+    .from("ansoegning_visninger")
+    .update({ ansoegning_id: ansoegningId })
+    .eq("visning_id", visningId)
+    .is("ansoegning_id", null);
+  if (error) console.error(`[ansoegning-gem] visningen kunne ikke kobles til ${ansoegningId}: ${error.message}`);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return jsonResponse({ error: "Kun POST" }, 405);
@@ -191,6 +230,26 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const adminClient = createClient(supabaseUrl, serviceKey);
+
+    // ── SPOR: den anden vej uden token — kun ansoegning_visninger ───────
+    // Ingen token, ingen persondata, rører aldrig ansoegninger. Loftet tælles
+    // FØR skrivningen og er fail-closed. Svaret bruges ikke af fladen.
+    if (handling === "spor") {
+      const ipHash = await ipDagshash(req);
+      const dom = sporRaekkeAf(body, laesUserAgent(req), ipHash);
+      if (!dom.ok) return jsonResponse({ error: `Ugyldigt spor: ${dom.fejl}` }, 400);
+      if (loftetNaaet(await sporSidsteTime(adminClient, ipHash), await sporSidsteTime(adminClient, null))) {
+        return jsonResponse({ ok: false, grund: "loft" }, 429);
+      }
+      const { error } = await adminClient
+        .from("ansoegning_visninger")
+        .upsert(dom.raekke, { onConflict: "visning_id,trin", ignoreDuplicates: true });
+      if (error) {
+        console.error("[ansoegning-gem] sporet kunne ikke gemmes:", error.message);
+        return jsonResponse({ ok: false }, 500);
+      }
+      return jsonResponse({ ok: true });
+    }
 
     // ── OPRET: den ene vej uden token ──────────────────────────────────
     if (handling === "opret") {
@@ -242,6 +301,8 @@ Deno.serve(async (req) => {
       // METAS COOKIER (22/9): _fbp og _fbc fra theboardroom.dk, dømt igen serverside
       // (metaCookiesAf), i sin EGEN fail-softe update efter GA's. Sendes af meta-send-cron.
       await gemMetaCookies(adminClient, data.id, metaCookiesAf(body?.meta));
+      // VISNINGEN (28/9): rækkens visning kobles på — EGEN fail-soft update, sidst af de fire.
+      await koblVisning(adminClient, data.id, body?.visning_id);
 
       // KLAVIYO: «Ansoegning paabegyndt» sendes IKKE her. Målt 19/9 kl. 22.22:
       // «opret» sker ved FØRSTE gem, og første skærm er CVR — mailen kommer
