@@ -177,7 +177,8 @@ describe("afgoerFremdrift — dommen over de gemte svar, ikke skærmindekset", (
 describe("afgoerKilde — parameter over utm over referrer", () => {
   it("?kilde= kendt → den; ukendt → andet med sporet", () => {
     expect(afgoerKilde({ kilde: "Webinar", utmSource: "linkedin", referrer: "https://l.facebook.com/" })).toEqual({ kilde: "webinar", raa: "webinar" });
-    expect(afgoerKilde({ kilde: "nyhedsbrev", utmSource: null, referrer: null })).toEqual({ kilde: "andet", raa: "nyhedsbrev" });
+    // «nyhedsbrev» blev en kendt kilde 28/9 — det ukendte ord er nu et andet.
+    expect(afgoerKilde({ kilde: "podcast", utmSource: null, referrer: null })).toEqual({ kilde: "andet", raa: "podcast" });
   });
 
   it("?kilde=website er sitets ord for direkte (21/9) — aliasset, ikke «andet», og det rå ord bevares", () => {
@@ -188,9 +189,19 @@ describe("afgoerKilde — parameter over utm over referrer", () => {
     expect(afgoerKilde({ kilde: "site", utmSource: null, referrer: null })).toEqual({ kilde: "andet", raa: "site" });
   });
 
-  it("utm_source: linkedin/webinar genkendes, resten er andet", () => {
+  it("?kilde=nyhedsbrev er en kendt kilde (Jonas 28/9) — og et ukendt ord er stadig andet med sporet", () => {
+    expect(afgoerKilde({ kilde: "nyhedsbrev", utmSource: null, referrer: null })).toEqual({ kilde: "nyhedsbrev", raa: "nyhedsbrev" });
+    expect(afgoerKilde({ kilde: " Nyhedsbrev ", utmSource: "fb", referrer: "https://l.facebook.com/" })).toEqual({ kilde: "nyhedsbrev", raa: "nyhedsbrev" });
+    expect(afgoerKilde({ kilde: "podcast", utmSource: "klaviyo", referrer: null })).toEqual({ kilde: "andet", raa: "podcast" });
+  });
+
+  it("utm_source: linkedin/webinar genkendes, klaviyo/nyhedsbrev → nyhedsbrev, resten er andet", () => {
     expect(afgoerKilde({ kilde: "", utmSource: "LinkedIn_post", referrer: null })).toEqual({ kilde: "linkedin", raa: "linkedin_post" });
     expect(afgoerKilde({ kilde: null, utmSource: "webinar-sept", referrer: null })).toEqual({ kilde: "webinar", raa: "webinar-sept" });
+    // Klaviyos eget ord på sine links, og vores.
+    expect(afgoerKilde({ kilde: null, utmSource: "klaviyo", referrer: null })).toEqual({ kilde: "nyhedsbrev", raa: "klaviyo" });
+    expect(afgoerKilde({ kilde: null, utmSource: "Klaviyo_campaign", referrer: "https://theboardroom.dk/" })).toEqual({ kilde: "nyhedsbrev", raa: "klaviyo_campaign" });
+    expect(afgoerKilde({ kilde: null, utmSource: "nyhedsbrev-okt", referrer: null })).toEqual({ kilde: "nyhedsbrev", raa: "nyhedsbrev-okt" });
     expect(afgoerKilde({ kilde: null, utmSource: "google", referrer: null })).toEqual({ kilde: "andet", raa: "google" });
   });
 

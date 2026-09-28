@@ -372,13 +372,14 @@ grænseflade, §10–11 er prøven og mønstret).
 | 6 | **«0 % ansøgte inden 48 timer» tretten timer efter webinaret.** | En periode, der ikke er gået, er ikke en periode. Samme fejl som annoncepriserne (#1024), set fra den anden side — se `docs/webinaret-og-annoncerne.md` §5. De to steder henviser nu til hinanden. | #1033 (værn-regel 11) |
 | 7 | **Klaviyo ombyttede `trigger_time`** (bad om kl. 11, fik midnat) uden at sige det. | Sammenlign sendt med svar — generelt, ikke pr. kendt fælde. | #1035 |
 | 8 | **Et felt, vi ikke selv sætter, er en observation — aldrig en nøgle** (20/9): `session_tid` er «string» hos Klaviyo, så et datofilter i et flow er dødt (#1040 → `frisk`); `utm_source` er den bogstavelige værdi i linket (#1044); eWebinars `eWebinar`-egenskab er en dato, der overskrives ved gentilmelding. | Nøglen udledes hos os ved læsning, ét sted, med tests — Klaviyo får den færdige dom som egenskab. | #1040, #1044; `docs/webinaret-og-annoncerne.md` §8 |
+| 10 | **«4.375 kr. om måneden» blev kaldt forkert regnet** (28/9, chatten): 50.000/12 = 4.167. Jonas: 4.375 er RATEBETALING med 5 % tillæg (52.500/12). Slides siger 4.167, Klaviyo 4.375 — begge rigtige, hver om sin betalingsform, ingen siger hvilken. | Prisen skal altid stå med begge: «4.167 ved fuld betaling · 4.375 ved rater». Fund til kommunikationen, ikke en regnefejl. Modsigelseslisten i `recon-sitet-webinar-ansoeg.md` §4. | kort `m28-pris-to-tal`; §9 |
 | 9 | **Countdown-forsinkelser regnes fra webinar-datoen, ikke fra forrige trin** — 1 → 2 dage flyttede «Vi ses i morgen» fra mandag til søndag; og **310 faldt ud af optakten**, da fire mails blev nyoprettet (flowet havde syv i sig, ikke 354). | En Klaviyo-forsinkelse måles på en tidligere kørsel, før den rettes; «waiting» pr. trin læses, før nogen stoler på et flow. Optakten er kampagner til en liste. | `UiECQS` slukket 20/9 kl. 16; `koereplan-tirsdag.md` §1b; OVERLEVERING «20. september» §5a–b |
 
 ---
 
 ## 8. Hvad der venter — i rækkefølge
 
-0. **FØR tirsdag 22/9 kl. 13:00 (`koereplan-tirsdag.md` §1.3): det gamle efter-webinar-flow `YcBF9f` slås
+0. ✅ **`YcBF9f` er slukket** (draft siden 20/9 14:50, læst i API'et 28/9). Var: **FØR tirsdag 22/9 kl. 13:00 (`koereplan-tirsdag.md` §1.3): det gamle efter-webinar-flow `YcBF9f` slås
    fra.** Før-webinar-flowet `UiECQS` ER slukket 20/9 kl. 16 og tændes ikke igen —
    optakten er to kampagner til listen `Sz5fdA` (§7 række 9). Lag 5's migration
    `20260920100000` er IKKE kørt, så cronen `klaviyo-hentning` findes ikke i prod endnu.
@@ -397,6 +398,52 @@ grænseflade, §10–11 er prøven og mønstret).
    anbefaling, ingen ændring. Det er RIGTIGT — ikke en fejl.
 4. **Lag 4** (agenten) — først når lag 5 giver tal, og kun gennem
    `maaForeslaas`.
-5. **Efter-webinar-flowet** udvides fra to til fem mails i Klaviyo — som
-   kladde via motoren, med betingelsen «har ikke ansøgt» (`Ansoegning sendt`
-   som `profile-metric`, id `XWaVxK`).
+5. ✅ **Efter-webinar-flowet** er fem mails (`Wq3MkG`, oprettet 20/9 13:18) og no-show-flowet tre (`SDVvCW`), begge med betingelsen «har ikke ansøgt» på mail 2+ (`XWaVxK`, OR-grupperne slipper dog en, der ansøgte FØR webinaret, igennem — `recon-klaviyo-hvem-faar-hvad.md` §1). **28/9: mail 4+5 i `Wq3MkG` slukket**, og begge flows skrives om uden optagelsen (§9).
+6. **Mailprogrammet** — §9 nedenfor: sunset efter 13/10 (afmeld, slet ikke); flowene F1/F2 uden optagelsen; det tidlige ansøgningskort efter Mortens indspilning.
+
+
+---
+
+## 9. Mailprogrammet — hvem ejer hvilken mail (lagt fast 28/9)
+
+Jonas 28/9: alle flows skal tænkes som en helhed — også sitet. Grundlaget er tre reconer samme dag: `~/Downloads/recon-klaviyo-hvem-faar-hvad.md` (Klaviyo), A's `recon-webinar-hvem-faar-hvad.md` (platformen og eWebinar) og `recon-sitet-webinar-ansoeg.md` (theboardroom.dk og topix.dk). **Kilden `~/Downloads/mailprogram-the-boardroom.md` fandtes ikke ved bogføringen** (søgt på navn og på segment-id'erne 28/9 eftermiddag); afsnittet er skrevet efter Jonas' besked 28/9.
+
+### 9.1 Princippet — én ejer pr. mail
+
+| hvornår | ejer | grundlag | hvem |
+|---|---|---|---|
+| FØR webinaret (bekræftelse, 14/7/3/1 dage, dagen, en time) | **platformen** (`webinar-mail-cron`, Mailgun EU, «Morten Larsen \<morten@webinar.topix.dk\>») | servicemail om det, personen selv har tilmeldt sig | ALLE tilmeldte, aldrig en afmeldt |
+| 10 minutter før | eWebinar | — | alle tilmeldte |
+| EFTER webinaret (`Wq3MkG` «Deltog», `SDVvCW` «Moedte ikke op») | **Klaviyo**, udløst af platformens hændelser med `frisk = ja` | markedsføring | kun Hovedliste + samtykke (Jonas 22/9: kravet BLIVER) |
+| løbende («Morten skriver», sunset) | **Klaviyo-kampagner** til segmenter | markedsføring | segmenterne i §9.2, med ekskluderinger |
+| ansøgningen (kvittering, indkaldelse, rykkere) | platformen (rykkerkøen) | transaktion | ansøgeren |
+
+**`tb_naeste_webinar` er ekskluderingsnøglen.** Feltet skrives af `klaviyo-profil-cron` for enhver med en kommende session og fjernes, når den er passeret (§2.2). Den, der har en kommende session, får INGEN efter-webinar- eller kampagnemails om den forrige — så en, der mødte ikke op 22/9 og er tilmeldt 13/10, får platformens før-mails, ikke Klaviyos «her er optagelsen» (konflikt B i `recon-klaviyo-hvem-faar-hvad.md` §3).
+
+### 9.2 Segmenterne (oprettet 28/9 i Klaviyo)
+
+| segment | id | antal 28/9 |
+|---|---|---:|
+| Tilmeldt kommende webinar | `RVwauf` | — |
+| Mødte ikke op — ikke tilmeldt næste | `RKxTH8` | **220** |
+| Deltog — ikke tilmeldt, ikke ansøgt | `Su9sJq` | — |
+| Har ansøgt | `Tc3fFm` | — |
+| Aldrig været tilmeldt | `XPLm5J` | — |
+| Døde — 180 dage | `WNygMq` | **421** |
+
+Listen **«Medlemmer (ekskluderes)» `Xr6Pm9`**: 25 profiler. 3 af de 28 betalende findes ikke i Klaviyo (Bastant Design, Doggybed, Homie) — de kan ikke ekskluderes, fordi de ikke er der.
+
+Tallene 220 og 421 er Klaviyos egne pr. 28/9; de øvrige er dynamiske og aflæses i fladen. Segmenterne bygger på det, platformen sender (§2): «Deltog i webinar»/«Moedte ikke op» med `session_tid`, `set_procent` og `frisk`, «Ansoegning sendt», `tb_naeste_webinar` — og på Klaviyos egne åbne/klik-metrikker for «Døde». Hvad Klaviyo IKKE kan danne: «tilmeldt nogensinde» (en tilmelding er ikke en hændelse; alt før 20/9 findes ikke) — `recon-klaviyo-hvem-faar-hvad.md` §2.
+
+### 9.3 Det, der sendes — og det, der er flyttet eller slukket
+
+- **Kampagnen til de 220** (`RKxTH8`): planlagt **29/9 kl. 10:00**.
+- **«Morten skriver» #4/#5/#6:** flyttet fra 29/9, 6/10 og 13/10 til **30/9, 7/10 og 15/10**, med **fire ekskluderinger** — så de ikke lander samme morgen som platformens 14-dages-, 7-dages- og dagen-mails til 13/10-holdet (konflikt A og E i `recon-klaviyo-hvem-faar-hvad.md` §3).
+- **Mail 4 og 5 i `Wq3MkG`** («Du skal ikke vente på næste møde», «Så stopper jeg her») er **slukket** 28/9. «Sidste mail fra mig» efterfulgt af fem platformmails var konflikt A.
+- **Flowene F1/F2 (`Wq3MkG`, `SDVvCW`) skrives om uden optagelsen** — fire af de otte mails lover den (§9.4).
+
+### 9.4 Beslutninger (Jonas 28/9)
+
+1. **Optagelsen sendes ikke.** `topix.dk/webinar/optagelse` er den producerede webinarvideo — det samme webinar, som 317 er tilmeldt 13/10, og som eWebinar afspiller automatisk. «Det er kikset, at nogen tilmelder sig et webinar med præcis samme optagelse, de lige har set.» Den, der får optagelsen, har ingen grund til at komme; den, der deler linket, tilmelder sig aldrig. Morten indspiller et nyt webinar først; derefter sættes det tidlige ansøgningskort. Optagelsessiden skal noindex + viderestilles (kort `m28-optagelsessiden`), og løftet «du får optagelsen bagefter» i platformens før-mails og i Klaviyos fire mails skrives om (kort `m28-flows-uden-optagelse`).
+2. **Sunset venter til efter 13/10 og AFMELDER frem for at slette.** Segmentet «Døde — 180 dage» (`WNygMq`, 421) røres ikke før webinaret. Afmeldte profiler tæller ikke i Klaviyos betaling (help.klaviyo.com «How Klaviyo billing works»), så en afmelding sparer det samme som en sletning — og beholder historikken.
+3. **Prisen står med begge månedstal** — 4.167 ved fuld betaling, 4.375 ved rater (§7 fejl 10).

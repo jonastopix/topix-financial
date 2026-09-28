@@ -317,7 +317,7 @@ lå før skillelinjen.
 | mail | afsender | tidspunkt | ændret 22/9 |
 |---|---|---|---|
 | Bekræftelse | **platformen** | straks, **kun nye** (efter 19:03) | eWebinars SLUKKET 19:03 · Klaviyos `WFzxH9` slukket |
-| **14 dage før** | **platformen** | 08:00, **MED `invite.ics`** som bekræftelsen | **ny 28/9** (udkast `udkast-fjorten-dage`): lukker hullet for de ~217, der tilmeldte sig 13/10 før 19:03 og aldrig fik en invitation — går til ALLE, uden `BEKRAEFTELSE_FRA`-port; samme 2-timers nåde |
+| **14 dage før** | **platformen** | 08:00, **MED `invite.ics`** som bekræftelsen | **I DRIFT 28/9 10:00** (#1102 + migration `20260928120000`): lukker hullet for de ~217, der tilmeldte sig 13/10 før 19:03 og aldrig fik en invitation — går til ALLE, uden `BEKRAEFTELSE_FRA`-port; samme 2-timers nåde. Prøve til jonas@topix.dk 10:05 ok/200/hentet, prøverækken slettet 10:06. Sender **29/9 08:09–09:59 til 317**; aflæses ~10:05 (§7f) |
 | 7 / 3 / 1 dag før | **platformen** | 08:00 | ny |
 | Dagen | **platformen** | 07:30 | ny |
 | 1 time før | **platformen** | −60 min | eWebinars 1-times SLUKKET |
@@ -348,6 +348,18 @@ Migration `20260922170000` (kørt 18:48) fyldte de tre nye kolonner fra `raa` p�
 uden**. Uden den ville en påmindelse til en gammel tilmelding stå **uden knap** —
 og #1097's rettelse (ingen mail lover et link, der kommer) ville ikke kunne
 holdes.
+
+---
+
+## 7f. 28. september — 14-dagsmailen i drift, tragten målt, sitet og Klaviyo gennemgået
+
+**14-dagsmailen** (`fjorten_dage`, #1102 + migration `20260928120000` kørt 10:00): 14 dage før kl. 08:00, MED invitationen, uden `BEKRAEFTELSE_FRA`-port. Samtidig lukket det hul, hvor teksten sagde «vedhæftet» i en mail uden invitationen — teksten følger nu, om filen faktisk kom med, og det gælder også bekræftelsen. Første hele hold er derfor **29/9** (317), ikke 6/10 (kortet `a22-webinarmail-foerste-hold` er rettet).
+
+**Tragten for sessionen 22/9, målt 28/9 08:28:** 384 tilmeldte · 159 deltog · 113 så ≥ 75 % · 17 klikkede «Ansøg til The Boardroom» inde i webinaret · 17 klikkede «Ikke klar til at ansøge endnu» · **4 af de 17 indsendte samme dag** · 35 så ≥ 75 % og klikkede intet. Skemaet taber næsten ingen: 13 oprettet nogensinde, 11 indsendt (85 %), median 12 minutter. **Frafaldet ligger FØR skemaet** — rækken oprettes først ved skærm 1's «Slå op», så 11 af de 17 forsvandt uden spor (introsiden med prisen, CVR som første spørgsmål). `~/Downloads/recon-ansoegning-frafald.md`, `maal-ansoegning-frafald.sql`; OVERLEVERING «28. september» §3.
+
+**Sitet** (`~/Downloads/recon-sitet-webinar-ansoeg.md`): 13 links på topix.dk og 2 på theboardroom.dk fører til `/webinar`, hvor handlingen er eWebinars tilmelding; tre af /webinar-sidens knapper siger «Få adgang …», og sidens meta lover «webinar – frit tilgængeligt». Optagelsessiden er offentlig, i sitemap (`priority 0.6`), uden noindex, med et offentligt Cloudflare Stream-embed — linket kan deles frit; **beslutning 28/9: noindex + viderestilling** (kort `m28-optagelsessiden`). `kilde=webinar` dækker fire ting, der ikke kan skilles ad (klik i webinaret, takkesiden, en Klaviyo-mail, et delt link); kun Klaviyo-vejen bærer et ekstra spor (`utm_source=klaviyo`). Modsigelserne mellem site, slides, Klaviyo og platformen (4.167/4.375, «kort»/«ti minutter»/«elleve spørgsmål», «2-20 mio.»/«mindst 2 mio.», «konkurrentfelt»/«niche», «ingen faste møder»/«mindst én live session») i §4 dér.
+
+**Klaviyo** (`~/Downloads/recon-klaviyo-hvem-faar-hvad.md`): de to tændte flows mail for mail; flow-rapporten 20–28/9 viser 142 af 159 deltagere og 192 af 224 no-shows i flowene (Hovedliste-gaten); konflikterne 29/9, 6/10 og 13/10 og løftet om optagelsen. Mailprogrammet, der kom ud af det (seks segmenter, listen «Medlemmer (ekskluderes)», kampagnen til de 220 29/9 10:00, «Morten skriver» flyttet, mail 4+5 slukket, optagelsen sendes ikke, sunset efter 13/10): `docs/marketingmotoren.md` §9.
 
 ---
 

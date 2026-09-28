@@ -10,6 +10,7 @@ describe("vejenInd — hvor medlemmet kom fra, på én linje (18/9 aften)", () =
   });
   it("led der mangler udelades; ukendt kilde nævnes ikke; ingen ansøgning → null", () => {
     expect(vejenIndTekst({ ...a, samtale_start: null, kilde: "noget" }, nu)).toBe("Kom ind via ansøgning 12. september · underskrevet 25. september");
+    expect(vejenIndTekst({ ...a, samtale_start: null, kilde: "nyhedsbrev" }, nu)).toBe("Kom ind via ansøgning 12. september (nyhedsbrevet) · underskrevet 25. september");
     expect(vejenIndTekst({ ...a, indsendt_at: null, konverteret_at: null, kilde: null }, nu)).toBe("Kom ind via ansøgning · samtale 18. september");
     expect(vejenIndTekst(null, nu)).toBeNull();
   });

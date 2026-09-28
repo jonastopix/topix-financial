@@ -74,8 +74,14 @@ export const WEBINAR_SVAR = [
 ] as const;
 export type WebinarSvar = (typeof WEBINAR_SVAR)[number]["noegle"];
 
-/** Hvor ansøgeren kom fra. Afgøres af afgoerKilde ved oprettelsen. */
-export const KILDER = ["webinar", "anbefaling", "linkedin", "direkte", "andet"] as const;
+/**
+ * Hvor ansøgeren kom fra. Afgøres af afgoerKilde ved oprettelsen.
+ * «nyhedsbrev» (Jonas 28/9-2026): et link i Klaviyo-mailene — `?kilde=nyhedsbrev`
+ * eller `utm_source` med «klaviyo»/«nyhedsbrev». Listen står også som CHECK på
+ * ansoegninger.kilde (migration 20260928140000; enumsMatcherDatabasen.guard) og
+ * byte-ens i ansoegningTrin.ts (ansoegningMotor.guard).
+ */
+export const KILDER = ["webinar", "anbefaling", "linkedin", "nyhedsbrev", "direkte", "andet"] as const;
 export type Kilde = (typeof KILDER)[number];
 
 // ── Felterne og skærmene ───────────────────────────────────────────────────
@@ -675,6 +681,8 @@ export function afgoerKilde(input: KildeInput): KildeDom {
   if (utm) {
     if (utm.includes("linkedin")) return { kilde: "linkedin", raa: raaAf(utm) };
     if (utm.includes("webinar")) return { kilde: "webinar", raa: raaAf(utm) };
+    // Klaviyo sætter selv utm_source=klaviyo på sine links; «nyhedsbrev» er vores ord (28/9).
+    if (utm.includes("klaviyo") || utm.includes("nyhedsbrev")) return { kilde: "nyhedsbrev", raa: raaAf(utm) };
     return { kilde: "andet", raa: raaAf(utm) };
   }
   const ref = (input.referrer ?? "").trim();

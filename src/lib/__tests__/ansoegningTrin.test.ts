@@ -17,7 +17,7 @@ describe("ansoegningTrin — formen", () => {
     expect(LUKKEAARSAGER.length).toBe(9); // syv + betalte_ikke (dag 60, 18/9 aften) + gensidigt_ikke_match (21/9)
     expect(LUKKEAARSAGER).toContain("betalte_ikke");
     expect(LUKKEAARSAGER).toContain("gensidigt_ikke_match");
-    expect(KILDER).toEqual(["webinar", "anbefaling", "linkedin", "direkte", "andet"]);
+    expect(KILDER).toEqual(["webinar", "anbefaling", "linkedin", "nyhedsbrev", "direkte", "andet"]);
     expect([...KILDER]).toEqual([...SKEMA_KILDER]); // B's liste (ansoegningSkema) — én sandhed
     // Ingen etiket bærer et forsøgsnummer eller en rykker
     for (const t of TRIN) expect(t).not.toMatch(/rykker|\d/);

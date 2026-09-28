@@ -80,7 +80,11 @@ export const migrationenErRigtig = (sql: string): boolean =>
   // den FULDE lighed mod den seneste liste holder enumsMatcherDatabasen.guard (18/9 aften).
   (sqlCheckListe(sql, "lukkeaarsag is null or lukkeaarsag") ?? []).every((v) => (LUKKEAARSAGER as readonly string[]).includes(v)) &&
   (sqlCheckListe(sql, "lukkeaarsag is null or lukkeaarsag") ?? []).length === 7 &&
-  JSON.stringify(sqlCheckListe(sql, "kilde")) === JSON.stringify([...SKEMA_KILDER]);
+  // Samme regel for kilderne (28/9): grundmigrationens fem er stadig koden — nye
+  // («nyhedsbrev», 20260928140000) kommer i egne migrationer; den FULDE lighed
+  // mod den seneste CHECK holder enumsMatcherDatabasen.guard.
+  (sqlCheckListe(sql, "kilde") ?? []).every((v) => (SKEMA_KILDER as readonly string[]).includes(v)) &&
+  (sqlCheckListe(sql, "kilde") ?? []).length === 5;
 export const motorenErRigtig = (k: string): boolean =>
   foer(k, 'if (h.art === "underskrevet") {\n    konvertering = await konverterTilVirksomhed(admin, a, nu);', '.from("ansoegninger")\n    .update(opd)') &&
   k.includes(".eq(\"id\", a.id)\n    .eq(\"trin\", a.trin)") &&
