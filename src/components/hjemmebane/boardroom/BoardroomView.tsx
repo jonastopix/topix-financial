@@ -30,6 +30,7 @@ import { listVaerterForEvents } from "@/lib/hjemmebane/vaerterApi";
 import { HbVaerter } from "../events/HbVaerter";
 import { afgoerFokusTom, type FokusTom } from "@/lib/hjemmebane/fokusTom";
 import { hentefejlTekst, kildeAf, sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
+import { antalFraSvar, rejselinje } from "@/lib/hjemmebane/rejselinje";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { listUpcomingEvents } from "@/lib/hjemmebane/akademiApi";
@@ -1623,6 +1624,22 @@ export const BoardroomView = () => {
     staleTime: 5 * 60_000,
   });
 
+  // Antallet af sendte refleksioner (28/9) — anerkendelseslinjens fjerde del.
+  // Databasen tæller (count, head: ingen rækker over ledningen); dommen og
+  // ordene bor i lib/hjemmebane/rejselinje.
+  const refleksionAntalQuery = useQuery({
+    queryKey: ["boardroom", "refleksion-antal", companyId],
+    queryFn: async () => {
+      const svar = await supabase
+        .from("pulse_checkins")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId!);
+      return antalFraSvar("pulse_checkins", svar);
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60_000,
+  });
+
   // Ugens fokus — query ordret fra DashboardActionCenter:71-85
   // (company_id + week_key + status-listen).
   const weekKey = getISOWeekKey(new Date());
@@ -1895,19 +1912,14 @@ export const BoardroomView = () => {
     const akademiDone = [...akademi.orderedByArea.values()]
       .flat()
       .filter((entry) => isTrackedEntry(entry) && entry.state === "done").length;
-    const parts: string[] = [];
-    if (reportsThisYear > 0)
-      parts.push(
-        reportsThisYear === 1 ? "1 godkendt rapport i år" : `${reportsThisYear} godkendte rapporter i år`,
-      );
-    if (milestonesDone > 0)
-      parts.push(milestonesDone === 1 ? "1 mål nået" : `${milestonesDone} mål nået`);
-    if (akademiDone > 0)
-      parts.push(
-        akademiDone === 1 ? "1 video gennemført i Akademiet" : `${akademiDone} videoer gennemført i Akademiet`,
-      );
-    return parts.length > 0 ? `Og rejsen kan ses: ${parts.join(" · ")}.` : null;
-  }, [committedKeys, milestonesQuery.data, akademi.orderedByArea]);
+    // Ordene og reglen (ental/flertal, 0 udelades) bor i lib/hjemmebane/rejselinje.
+    return rejselinje({
+      rapporterIAar: reportsThisYear,
+      maalNaaet: milestonesDone,
+      videoerGennemfoert: akademiDone,
+      refleksioner: refleksionAntalQuery.data ?? 0,
+    });
+  }, [committedKeys, milestonesQuery.data, akademi.orderedByArea, refleksionAntalQuery.data]);
 
   // Den tomme tilstand (lib/hjemmebane/fokusTom): tre tilstande af det
   // forsiden allerede ved — uploads, godkendte facts, anerkendelseslinjen.
@@ -1927,7 +1939,7 @@ export const BoardroomView = () => {
   // stadig — men med en rolig linje under om hvad der manglede, så et
   // manglende punkt ikke bliver læst som «der er intet». Ordene i
   // lib/hjemmebane/hentefejl; kilden bæres af HentningsFejl.
-  const fejledeKilder = [processedQuery, milestonesQuery, pulseQuery, leversQuery, ownProfileQuery, contractStartQuery]
+  const fejledeKilder = [processedQuery, milestonesQuery, pulseQuery, refleksionAntalQuery, leversQuery, ownProfileQuery, contractStartQuery]
     .filter((q) => q.isError)
     .map((q) => kildeAf(q.error));
   const hentefejlLinje = hentefejlTekst(fejledeKilder);

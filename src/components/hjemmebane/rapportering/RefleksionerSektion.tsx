@@ -17,7 +17,7 @@ import * as React from "react";
 import { useRefleksioner } from "@/hooks/useRefleksioner";
 import { hentetilstand, sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
 import {
-  fremgangLinje, REFLEKSIONER_HENTER, REFLEKSIONER_TOM, refleksionerTilVisning, udenTekstLinje,
+  fremgangLinje, REFLEKSIONER_ANKER, REFLEKSIONER_HENTER, REFLEKSIONER_TOM, refleksionerTilVisning, udenTekstLinje,
 } from "@/lib/hjemmebane/refleksioner";
 import { HbCard } from "../HbCard";
 import { HbSection } from "../HbSection";
@@ -34,7 +34,7 @@ export function RefleksionerSektion({ companyId }: Props) {
   const tilstand = companyId ? hentetilstand(hentning, visninger.length === 0) : "henter";
 
   return (
-    <HbSection id="dine-refleksioner" eyebrow="Dine refleksioner" hairline className="mt-14" data-tilstand={tilstand}>
+    <HbSection id={REFLEKSIONER_ANKER} eyebrow="Dine refleksioner" hairline className="mt-14" data-tilstand={tilstand}>
       {tilstand === "henter" && <p className="text-sm text-hb-ink-soft">{REFLEKSIONER_HENTER}</p>}
       {tilstand === "fejlet" && <p className="text-sm text-hb-ink-soft">{sektionsfejlTekst("pulse_checkins")}</p>}
       {tilstand === "tom" && <p className="text-sm text-hb-ink-soft">{REFLEKSIONER_TOM}</p>}

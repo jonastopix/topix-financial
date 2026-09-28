@@ -110,3 +110,23 @@ export function fremgangLinje(fremgang: number): string {
 
 export const REFLEKSIONER_TOM = "Ingen refleksioner endnu. Den første kommer, når du har godkendt en måneds tal og svaret på de tre spørgsmål.";
 export const REFLEKSIONER_HENTER = "Henter dine refleksioner …";
+
+/* ── Linket den anden vej (udkast 28/9-2026) ───────────────────────────────
+ * Når refleksionen ER skrevet, viser modalen «Tidligere refleksioner» (tre
+ * ældre, kun mens den er åben). Derfra peger én linje på sektionen på
+ * /reports. Ankeret bor HER, ét sted: sektionen bruger det som id, modalen
+ * som mål. */
+export const REFLEKSIONER_ANKER = "dine-refleksioner";
+export const REFLEKSIONER_STI = `/reports#${REFLEKSIONER_ANKER}`;
+export const SE_ALLE_REFLEKSIONER = "Se alle dine refleksioner";
+
+/**
+ * Hvad linket skal gøre, givet hvor medlemmet står. Modalen bruges to steder:
+ * som dialog på /reports og inline på /pulse. Står man allerede på
+ * /reports#dine-refleksioner, skifter en navigation hverken sti eller hash —
+ * så lytter useScrollToHash ikke, og der skal scrolles direkte. Alle andre
+ * steder navigeres, og useScrollToHash på /reports tager scrollet.
+ */
+export function seAlleRefleksionerHandling(pathname: string, hash: string): "scroll" | "naviger" {
+  return pathname === "/reports" && hash === `#${REFLEKSIONER_ANKER}` ? "scroll" : "naviger";
+}
