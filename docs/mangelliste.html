@@ -1634,6 +1634,31 @@
     ebitda_margin_pct-noten. Talt med grep på div-taggene: før 186 (inkl.
     skabelonen i kommentaren) og 56 lukkede; efter 198 og 57 lukkede.
     Lukket: 1 (bliver stående). Omskrevet: 2. Tilføjet: 12.
+  RØRT 28/9 MORGEN — TRE KORT: INVITATIONSLINKET (MADS G. NICOLAISEN / DIN
+  FORSIKRINGSRET) (ikke bogført i OVERLEVERING; grundlag
+  ~/Downloads/maal-mads-invitation.sql og gennemgangen i chatten 28/9)
+    TILFØJET (3, Ny 28/9). Ingen andre kort rørt. Skrevet som FUND — ingen
+    frister, ingen beslutninger.
+    m28-invitationslink-raadgiver — rådgiveren kan ikke hjælpe med et
+    invitationslink: hentInvitationer henter ikke token
+    (src/hooks/invitationer.ts:42), så rådgiverfladen kan hverken vise eller
+    kopiere linket; kun kunden selv kan (CompanyInvitations.tsx:349-353). Målt
+    28/9 08:40: invitationen til mgn@ står pending, ingen auth-bruger, mailen
+    sendt 15/9 17:53 — og Jonas kunne ikke sende Mads linket uden
+    SQL-editoren. Ingen vej i fladen eller i en function opretter en konto
+    for et medlem (attach-user-to-company kræver en eksisterende auth-bruger,
+    :39-64).
+    m28-invitationsopslag-haenger — Auth.tsx:222-224: svarer RPC'en aldrig,
+    står /auth med en spinner for evigt, uden timeout og uden besked. Samme
+    mønster som process-pending-invitation i useAuth (a22-forside-langsom).
+    m28-signupfejl-en-linje — signupFejl.ts:62,69: alle ukendte
+    Supabase-fejl får «Kontoen kunne ikke oprettes …», også adgangskodepolitik,
+    rate limit og «Signups not allowed». Den rå tekst står kun i konsollen
+    (Auth.tsx:176). Intet [auth]-afsnit i supabase/config.toml — politikken
+    bor hos Lovable/Supabase og er umålt.
+    Talt med grep på kortenes div-tag (class card) og på lukket-status:
+    før 253 og 94 lukkede; efter 256 og 94 lukkede.
+    Lukket: 0. Tilføjet: 3.
   RØRT 22/9 SEN NAT — TO KORT: MAILENE NÅR IKKE FREM, OG SPORINGEN AF DEM
   (bogført i docs/OVERLEVERING.md DEL 2 «22. september (dagen)» §14–§15;
   grundlag ~/Downloads/maal-mailmaengde.sql, recon-mailsporing.md og
@@ -2241,6 +2266,25 @@
       <h3>Ventelisten kunne kun betjenes fra virksomhedssiden — og et tidligere medlem står ikke i Virksomheder-listen</h3>
       <p><strong>LØST 22/9 — #1096 merget, Update klikket, i drift.</strong> Jonas 22/9 18:3x (ordret): «Det kunne være smart, at vi havde ventelisten under ansøgninger. Det her er for bøvlet.» <strong>Det målte bøvl:</strong> for at tilbyde Tatti pladsen hos Studio Mini måtte han åbne <code>/virksomhed/&lt;id&gt;</code> direkte fra en URL, fordi Studio Mini er et TIDLIGERE medlem og derfor ikke står i Virksomheder-listen — og knappen «Tilbyd» tegnedes kun dér (<code>VirksomhedView.tsx:1833</code>). <strong>Nu:</strong> fanen «3 VENTELISTE» på <code>/ansoegninger</code> med tilstand pr. plads (kan tilbydes nu · tilbudt til &lt;dato&gt; · venter på dato · venter i kø · venter på pladsen), og «Tilbyd pladsen» også på ansøgningen selv. <strong>Ingen ny motor:</strong> ÉN dom (<code>bygVentelisteOverblik</code>) komponerer husets fem eksisterende domme, og knappen kalder samme <code>tilbydPladsen</code> som før — værnet <code>ventelisteOverblik.guard</code> (6 domme) låser, at fladen ikke regner selv. Historik: OVERLEVERING DEL 2 «22. september (dagen)» §12.</p>
       <div class="meta"><span class="tag loest">Lukket 22/9 — #1096, i drift</span><span class="tag gold">Jonas 22/9: «Det her er for bøvlet»</span><span class="tag ny">Ny 22/9</span></div>
+    </div>
+    <div class="card new" id="m28-invitationslink-raadgiver" data-status="mangler" data-spor="1" data-rammer="raadgiver">
+      <h3>Rådgiveren kan ikke hjælpe med et invitationslink — fladen viser det ikke, og ingen vej opretter et medlems konto i hånden</h3>
+      <p><strong>MÅLT 28/9 kl. 08:40.</strong> Mads G. Nicolaisen (CFO) skrev, at kontoen ikke kunne oprettes på linket fra Tanja Gajic Nicolaisen (Din Forsikringsret). I prod: invitationen til <code>mgn@dinforsikringsret.dk</code> (oprettet af Tanja 15/9 15:53) står <strong>pending, aldrig accepteret</strong> · <strong>ingen auth-bruger</strong> med den mail · invitationsmailen <strong>sendt 15/9 17:53 uden fejl</strong> · ingen fejlede signup-mails i 30 dage. Med tokenet i URL'en finder <code>handle_new_user</code> invitationen på tokenet alene (<code>20260904110000:80-87</code>) og ville have sat rækken til accepted (<code>:154-156</code>) — så intet forsøg er nået igennem, med nogen mail. <strong>Og Jonas kunne ikke sende Mads linket igen uden SQL-editoren.</strong></p>
+      <p><strong>Hvorfor:</strong> <code>hentInvitationer</code> henter ikke <code>token</code> (<code>src/hooks/invitationer.ts:42</code>), så rådgiverfladen (<code>/virksomheder</code> og virksomhedssiden, <code>HbInvitationer.tsx:91-117</code>) kan hverken vise eller kopiere linket. «Gensend» sender samme mail med samme token igen (<code>send-invitation-email/index.ts:105-140</code>) — til en adresse, mailen allerede er nået frem til. <strong>Kun kunden selv kan kopiere linket</strong>, under Indstillinger → Teamet (<code>CompanyInvitations.tsx:349-353</code>). Et afkortet link fælder i øvrigt også med den rigtige mail: castet <code>invite_token_val::uuid</code> (<code>20260904110000:85</code>) fejler, FØR mail-fallbacken på <code>:89-96</code> kører.</p>
+      <p><strong>Og ingen vej opretter kontoen:</strong> <code>attach-user-to-company</code> er rådgiver-gated (<code>:15-24</code>) men kræver en eksisterende auth-bruger — søger <code>listUsers</code> på mailen og svarer «User not found» (<code>:39-64</code>) — og skriver kun <code>company_members</code> (<code>:131-161</code>); fladen er alene «Tilknyt»-trinnet i ansøgningsimporten (<code>HbAnsoegningsimport.tsx:152-178</code>). <code>create-legat-enrollment</code> er den eneste function med <code>auth.admin.createUser</code> (<code>:50-54</code>), men er legat-specifik (<code>is_legat</code>, <code>legat_enrollments</code>, <code>:106-162</code>). Medlemmet skal selv igennem <code>/auth?mode=signup&amp;invite=…</code> med et komplet link i et vindue uden session. Grundlag: <code>~/Downloads/maal-mads-invitation.sql</code> og gennemgangen i chatten 28/9 (beskederne ordret, én tabel).</p>
+      <div class="meta"><span class="tag gold">Målt 28/9 08:40 — mgn@ pending, ingen bruger</span><span class="tag">Fund — ingen frist</span><span class="tag ny">Ny 28/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="m28-invitationsopslag-haenger" data-status="fejl" data-spor="1" data-rammer="medlem">
+      <h3>Invitationsopslaget hænger uden timeout og uden besked — svarer RPC'en aldrig, står /auth med en spinner for evigt</h3>
+      <p><strong>FUND 28/9 (gennemgangen af Mads' vej; ikke målt som hans årsag).</strong> Med et token i URL'en sætter <code>Auth.tsx:62</code> opslaget til «venter», og <code>:222-224</code> tegner <code>HbSpinner</code>, indtil <code>lookup_invite_company_info</code> (<code>20260902190000:47-63</code>) har svaret. Der er <strong>ingen timeout og ingen gren for «intet svar»</strong>: netværk, et blokeret domæne eller en hængende forbindelse giver en tom side med en spinner, som personen ikke kan skelne fra «siden er nede». Dommen i <code>signupFejl.ts:32-42</code> kender kun gyldig · ukendt · fejl — og «fejl» kræver, at RPC'en SVARER.</p>
+      <p><strong>Samme mønster som</strong> <code>process-pending-invitation</code> i <code>useAuth.tsx:285-288</code>, der awaites uden timeout (kortet <code>a22-forside-langsom</code>): to steder på vejen ind, hvor et udeblevet svar er en evig venten uden ord.</p>
+      <div class="meta"><span class="tag">Fund — ingen frist</span><span class="tag ny">Ny 28/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="m28-signupfejl-en-linje" data-status="fejl" data-spor="1" data-rammer="medlem">
+      <h3>«Kontoen kunne ikke oprettes» dækker over alt — adgangskodepolitik, rate limit og «Signups not allowed» får samme linje</h3>
+      <p><strong>FUND 28/9.</strong> <code>signupFejl.ts:53-70</code> kender to tekster fra Supabase Auth: «User already registered» (<code>:54</code>) og «Database error saving new user» (<code>:55</code>). <strong>Alt andet</strong> får «Kontoen kunne ikke oprettes. Prøv igen, eller skriv til kontakt@theboardroom.dk.» (<code>:62</code>, <code>:69</code>). Den rå tekst står kun i browserens konsol som <code>[Auth] signup fejlede: …</code> (<code>Auth.tsx:176</code>) — et skærmbillede fra medlemmet kan ikke skelne årsagerne, og huset kan ikke slå dem op uden Supabases auth-log.</p>
+      <p><strong>Kandidater uden for repoet, som alle ender i den ene linje:</strong> projektets adgangskodepolitik («Password should be at least N characters», «Password should contain …»), «email rate limit exceeded», «For security purposes, you can only request this after N seconds», «Unable to validate email address: invalid format», «Signups not allowed for this instance». <strong>Der er intet <code>[auth]</code>-afsnit i <code>supabase/config.toml</code></strong>, så politikken bor hos Lovable/Supabase og er umålt; fladens eget krav er 2 af 4 kriterier (<code>PasswordStrengthIndicator.tsx:7-12, 22-24</code>; <code>Auth.tsx:153-156</code>). Og «Database error saving new user» dækker selv over to: P0001 «ingen invitation» (<code>20260904110000:98-102</code>) og et token, der ikke er et uuid (<code>:85</code>) — begge vises som «…der er ingen gyldig invitation til den mail».</p>
+      <div class="meta"><span class="tag">Fund — ingen frist</span><span class="tag ny">Ny 28/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" id="a22-mails-naar-ikke-frem" data-status="fejl" data-spor="1" data-rammer="alle">
       <h3>Platformens mails når ikke frem — næsten HALVDELEN af alle udsendelser står hverken som sendt eller fejlet</h3>
