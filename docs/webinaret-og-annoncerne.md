@@ -361,6 +361,12 @@ holdes.
 
 **Klaviyo** (`~/Downloads/recon-klaviyo-hvem-faar-hvad.md`): de to tændte flows mail for mail; flow-rapporten 20–28/9 viser 142 af 159 deltagere og 192 af 224 no-shows i flowene (Hovedliste-gaten); konflikterne 29/9, 6/10 og 13/10 og løftet om optagelsen. Mailprogrammet, der kom ud af det (seks segmenter, listen «Medlemmer (ekskluderes)», kampagnen til de 220 29/9 10:00, «Morten skriver» flyttet, mail 4+5 slukket, optagelsen sendes ikke, sunset efter 13/10): `docs/marketingmotoren.md` §9.
 
+**Eftermiddagen 28/9:**
+
+- **Optagelsen taget ned** (topix.dk #4 14:03, #5 14:12): `/webinar/optagelse` noindex, ude af begge sitemaps, adressen bevaret for fire udsendte Klaviyo-mails; teksten «holdes live med spørgsmål og svar» var forkert og er rettet. Resterne i platformen (webinar-afmelds kvittering, grundlagets `optagelseslink`) i #1107. Platformens syv webinarmails lover ingen optagelse (#1103: «Kan du ikke alligevel? Så meld dig til en anden dag — jeg holder webinaret igen.»).
+- **Kilden «nyhedsbrev»:** migration `20260928140000` kørt 13:18 — CHECK'en har seks kilder; fordeling målt: webinar 6 · andet 5 · direkte 3. **theboardroom.dk #5 (13:19):** en medsendt `?kilde=` følger uændret videre til `/ansoeg`, hvis den er et af platformens seks ord — det rettede også `?kilde=webinar`, som til 28/9 blev til «direkte» på sitet. Målt, ikke rettet: `index.html`s to præ-renderede links har `?kilde=direkte` hårdkodet, indtil React monterer.
+- **Nyhedsbrevet i drift på topix.dk** (footeren og `/webinar/tak` → Klaviyo `client/subscriptions`, Hovedlisten `RZtwMb`, revision 2026-07-15; bevist 14:13). Velkomstserien `TGxxUc` er en kladde — en ny abonnent får i dag intet. `docs/marketingmotoren.md` §9.3.
+
 ---
 
 ## 8. 20. september — sporet lukkes fra klik til ansøgning, og fem felter viste sig at være observationer

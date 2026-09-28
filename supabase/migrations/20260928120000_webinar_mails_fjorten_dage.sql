@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod — 28/9-2026 kl. 10:00 (Jonas, Lovable SQL editor), FØR udrulningen af webinar-mail-cron. EFTER: art_check nævner syv arter; invitation_arter_check findes. Prøven til jonas@topix.dk 10:05 ok/200/hentet (rækken slettet 10:06).
 -- OG FØR webinar-mail-cron UDRULLES. Rækkefølgen er ikke pynt: udrulles functionen
 -- først, sender den «fjorten_dage»-mailen, CHECK'en afviser rækken i sporet
 -- (23514, ikke 23505 — tælles som fejl, ikke dublet), og næste kørsel fem

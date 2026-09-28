@@ -1,6 +1,6 @@
 # Overlevering
 
-> ## 29/9 — START HER (skrevet 28/9 eftermiddag efter #1102 og migrationen `20260928120000` kørt 10:00; HEAD `0f44a102`. Blokken «26/9 — START HER» står ORDRET i DEL 2 «28. september» §0. Dagen 28/9 står i DEL 2 «28. september» §1–§7.)
+> ## 29/9 — START HER (skrevet 28/9 eftermiddag efter #1102 og migrationen `20260928120000` kørt 10:00; OPDATERET 28/9 aften efter #1103–#1106, site-PR'erne (topix.dk #4/#5, theboardroom.dk #5) og migrationen `20260928140000` kørt 13:18 — HEAD `39f5882b`; #1107 (optagelsens rester) er åben. Blokken «26/9 — START HER» står ORDRET i DEL 2 «28. september» §0. Dagen 28/9 står i DEL 2 «28. september» §1–§14.)
 >
 > **INGEN MAILS ER TABT.** 26/9-blokkens punkt 1 («platformens mails når ikke frem — start her, før alt andet») er AFGJORT 28/9 kl. 09:13 og 09:26 og VENDT: de 756 «hverken-eller» var mailloggens dobbelttælling (735 pending-rækker med en sent-søskende på samme `message_id`, 10 afgjort, NUL uden), og de 60 «failed» er 17 mails, hvoraf de 10 er aprils opsætningsfejl og de 7 efter 8/9 ALLE endte som sendt. DEL 2 «28. september» §1; kortet `a22-mails-naar-ikke-frem` er LUKKET. Punktet er fjernet herfra.
 >
@@ -14,9 +14,11 @@
 >
 > **5. MORTEN INDSPILLER WEBINARET** — derefter sættes det tidlige ansøgningskort (kortet findes ikke endnu; det skrives, når optagelsen er der). Indtil da sendes den nuværende optagelse IKKE (§5, beslutning).
 >
-> **6. OPTAGELSESSIDEN `topix.dk/webinar/optagelse` SKAL NOINDEX + VIDERESTILLES.** Målt 28/9: offentlig, i sitemap (`priority 0.6`), canonical sat, ingen noindex, videoen et offentligt Cloudflare Stream-embed med fast id — linket kan deles frit (`~/Downloads/recon-sitet-webinar-ansoeg.md` §3). Kort `m28-optagelsessiden`.
+> **6. ✅ OPTAGELSEN ER TAGET NED** (topix.dk #4 14:03 + #5 14:12): siden er noindex, ude af begge sitemaps, og adressen er bevaret, fordi fire udsendte Klaviyo-mails peger derhen. Teksten sagde FORKERT, at webinaret holdes live med spørgsmål og svar — rettet (fejl i drift, Jonas 28/9). Resterne i platformen — webinar-afmelds kvittering («du får optagelsen som aftalt») og grundlagets `optagelseslink` — ligger i **#1107 (åben)**; R5 fælder linket nu, så den godkendte Klaviyo-mail «Efter 01» får én fejl på det. §9.
 >
-> **7. FLOWENE F1/F2 SKRIVES OM UDEN OPTAGELSEN** — `Wq3MkG` «Deltog» og `SDVvCW` «Moedte ikke op» lover optagelsen i fire mails (`~/Downloads/recon-klaviyo-hvem-faar-hvad.md` §4.1); mail 4+5 i `Wq3MkG` er slukket 28/9. Kort `m28-flows-uden-optagelse`.
+> **7. FLOWENE — STATUS 28/9 AFTEN:** `SDVvCW` «Mødte ikke op»s tre mails er **omskrevet og indsat** (ingen optagelse, næste session, ansøgningslink i den sidste). `Wq3MkG` «Deltog»: mail 1 og 3 er **skrevet, afventer indsættelse**; mail 4 og 5 er slukket. Sunset-flowet `XCqPKg` er bygget som **kladde** (udløser segmentet «Døde — 180 dage», genindtræden 365 dage) og tændes efter 13/10 — afmeldingen sker MANUELT gennem API'et efter egenskaben `sunset_afsluttet`. Kampagner: 220 i morgen 10:00, 158 den 1/10, «Morten skriver» 30/9, 7/10 og 15/10 med fire ekskluderinger. `docs/marketingmotoren.md` §9.3.
+>
+> **8. VELKOMSTSERIEN TIL NYE PÅ HOVEDLISTEN — EN NY ABONNENT FÅR I DAG INTET FRA KLAVIYO.** Nyhedsbrevet er i drift på topix.dk fra 28/9 14:13 (footeren og /webinar/tak → Klaviyos `client/subscriptions`, Hovedlisten `RZtwMb`, bevist: profilen oprettet med consent SUBSCRIBED, `$source` «topix.dk footer», Hovedlisten 3.113 → 3.115). Kladden **`TGxxUc`** findes med fire pladsholder-mails; **Claude skriver teksterne.** Indtil den er tændt, sker der intet, når nogen melder sig til. FUND at rette: profilen bar `utm_source` «Klaviyo» og `utm_medium` «flow» fra en tidligere session — formularen må ikke sende fremmede utm'er som profilfelter (kort `m28-nyhedsbrev-utm-felter`). §8.
 >
 > **STÅR STADIG:** `a22-mailsporing` (fire svar, uge 40) og de tre invitationskort `m28-*` (Mads' konto er løst 28/9 09:05 med egen konto; årsagen er IKKE fastslået — §2). `a21-webinar-tidspunkt` lukkes stadig først efter en Preview.
 >
@@ -10648,7 +10650,7 @@ på det**, som med `meta_send_aktiv` · og om der skal være en lås.
 
 ---
 
-### 28. september — mailloggen talte dobbelt: INGEN mails er tabt (a22-mails-naar-ikke-frem LUKKET, konklusionen fra 22/9 vendt); Mads' konto løst 09:05 (årsag ikke fastslået); webinarets tragt målt — frafaldet ligger FØR skemaet; 14-dagsmailen i drift (#1102, migration kørt 10:00); mailprogrammet lagt fast i Klaviyo (seks segmenter, én liste, kampagnen til de 220); rettelsen 4.167/4.375; tre reconer
+### 28. september — mailloggen talte dobbelt: INGEN mails er tabt (a22-mails-naar-ikke-frem LUKKET, konklusionen fra 22/9 vendt); Mads' konto løst 09:05 (årsag ikke fastslået); webinarets tragt målt — frafaldet ligger FØR skemaet; 14-dagsmailen i drift (#1102, migration kørt 10:00); mailprogrammet lagt fast i Klaviyo (seks segmenter, én liste, kampagnen til de 220); rettelsen 4.167/4.375; tre reconer. EFTERMIDDAG (§8–§14): nyhedsbrevet i drift på topix.dk (bevist 14:13) · optagelsen taget ned · kilden «nyhedsbrev» (migration kørt 13:18) og sitet sender kilden videre · prisen med begge beløb i introen · medlemmet ser sin refleksion (#1105) · Klaviyo-programmets status
 
 #### 0. START HER som den stod 26/9 — flyttet ned 28/9 (ordret)
 
@@ -10779,6 +10781,84 @@ Chatten (Claude) skrev 28/9, at Klaviyo-mailens «4.375 kr. om måneden» var fo
 
 ---
 
+#### 8. Nyhedsbrevet i drift på topix.dk — fejlen 2024-10-15, rettelsen 2026-07-15, beviset 14:13
+
+**topix.dk #4 (14:03 dansk) + #5 (14:12):** en formular i footeren og på `/webinar/tak` sender e-mail + samtykke til Klaviyos **`client/subscriptions`** med Hovedlisten `RZtwMb`. **FEJL OG RETTELSE:** med API-revision `2024-10-15` svarede Klaviyo **400** («not a valid field for the resource profile») — hver tilmelding endte i «Noget gik galt». Med revision **`2026-07-15`** svarer den **202**; den gamle revision udløber 15/10-2026. **Prøven låser revisionsdatoen.**
+
+**BEVIST I DRIFT 28/9 14:13:** profilen `jh+…@jonasherlev.dk` oprettet med consent **SUBSCRIBED**, `$source` «topix.dk footer», og Hovedlisten voksede **3.113 → 3.115**.
+
+**FUND, der skal rettes:** profilen bar `utm_source` «Klaviyo» og `utm_medium` «flow» fra en tidligere session i browseren — formularen må ikke sende fremmede utm'er som profilfelter (kort `m28-nyhedsbrev-utm-felter`; `docs/tracking.md` §2.3).
+
+**Og det, der IKKE sker endnu:** en ny abonnent får INTET fra Klaviyo. Velkomstserien findes som kladden **`TGxxUc`** med fire pladsholder-mails; Claude skriver teksterne (START HER nr. 8).
+
+---
+
+#### 9. Optagelsen taget ned — sitet og resterne i platformen
+
+**Sitet (topix.dk #4/#5):** `/webinar/optagelse` er **noindex**, ude af **begge** sitemaps (`vite.config.ts` og `supabase/functions/sitemap`), og adressen er **bevaret**, fordi fire udsendte Klaviyo-mails peger derhen — den må ikke svare 404. Kildeværnet `optagelse-ned.guard.test.ts` fælder, hvis nogen lister den igen. **Fejl i drift, rettet samme dag (Jonas 28/9):** sidens første tekst sagde, at webinaret holdes LIVE med spørgsmål og svar — det er et automatiseret webinar; teksten er rettet.
+
+**Resterne i platformen (A's grep, #1107 — åben):** (1) `webinar-afmeld`s kvitteringsside sagde «… og du får optagelsen som aftalt» → «… og dit personlige link virker, hvis du dukker op». (2) `src/lib/marketing/grundlag.ts` havde `WEBINAR.optagelseslink` i `KENDTE_LINKS` → fjernet; **R5 fælder nu linket**, så den godkendte Klaviyo-mail «Efter 01» (hentet 19/9, `vaernModVirkelighed.test.ts`) får **præcis én fejl** — `R5 link: https://www.topix.dk/webinar/optagelse` — og går rent uden linket. Det er den mail, Klaviyo skal have (Wq3MkG mail 1 er skrevet, §13). Værn: `optagelseRester.guard`. Undervejs: `udenKommentarer` åd URL'en i selvbeviset (husets fjerde gang) — værnet stripper nu kun linjekommentarer, der starter linjen.
+
+**Hele fundet står i chatten (A 28/9):** de eneste to steder, der sagde noget forkert, var afmeldingssiden og grundlaget; `LiveSessionsSection.tsx:33` på theboardroom.dk («Kan du ikke deltage, ligger optagelsen klar bagefter») handler om medlemmernes live sessions, hvis optagelser stadig lægges på eventet (`EventDetailView.tsx:288-317`) — harmløs.
+
+---
+
+#### 10. Kilden «nyhedsbrev» — migration `20260928140000` kørt 13:18; sitet sender kilden videre
+
+**Platformen (#1103, `a001df1c`):** `ansoegninger.kilde`-CHECK'en har **seks** ord (`webinar · anbefaling · linkedin · nyhedsbrev · direkte · andet`), `KILDER` i alle fire kopier, `afgoerKilde` har utm-grenen `klaviyo`/`nyhedsbrev` → `nyhedsbrev`, og rådgivervisningen siger «nyhedsbrevet». **Migrationen KØRT 13:18** (Jonas, SQL editor). **Fordeling målt efter:** webinar 6 · andet 5 · direkte 3.
+
+**Sitet (theboardroom.dk #5, 13:19):** `ansoegHref` overskrev til 28/9 enhver medsendt `?kilde=` med «direkte», så snart der ikke var et annoncespor — **også `?kilde=webinar`**, som blev til direkte. Nu følger et af platformens seks ord med uændret, et fremmed ord fjernes (listen `KILDER` i `utm.ts` spejler platformens), og «direkte» sættes kun uden både kilde og annoncespor. 23 prøver. **Rækkefølgen holdt:** migrationen 13:18, sitet 13:19.
+
+**Målt før byg (A):** `index.html:114`s to præ-renderede links har `?kilde=direkte` hårdkodet, og React monterer med `createRoot().render` (ikke hydrate) — indtil scriptet kører, og uden JavaScript, peger de to links på «direkte» uden spor. Ikke rettet; rettelsen er at fjerne `?kilde=direkte` fra de statiske links (platformens referrer-gren giver alligevel direkte for theboardroom.dk).
+
+---
+
+#### 11. Prisen med begge beløb — introen var det eneste sted i platformen uden betalingsform
+
+**Jonas 28/9:** 50.000 kr. er fuld betaling (4.167 kr./md.); 4.375 kr./md. er ratebetaling med 5 % tillæg (52.500/12). **A's fulde grep (chatten):** platformen skriver prisen ét sted som et bart tal — ansøgningens intro (`AnsoegIntro.tsx:44` + den ubrugte dublet `INTRO.pris`). Alle andre steder (fornyelses- og indgangsmails, /betal, fornyelsesbåndet, rådgiverens flader, aftalefelterne) tager beløbet fra data og siger formen. **#1106 (14:09):** `prisTekst()` i `spoergsmaal.ts` bygger sætningen af `MEDLEMSKAB_PRIS_KR_AAR` og prismotoren — «Medlemskabet koster 50.000 kr. om året ekskl. moms, betalt på én gang — det svarer til 4.167 kr. om måneden. Vil du hellere betale i tolv rater, er det 4.375 kr. om måneden (5 % tillæg).» — og introen tegner `INTRO.pris`. Prøver: ordret, aldrig 52.500, 40.000-niveauet, ukendt niveau uden rate, kildeværn på introen.
+
+**ÅBENT:** Klaviyos webinarmail 01 siger begge tal uden at sige hvilken form (kort `m28-pris-to-tal`), og aftaleskabelonen er stadig en pladsholder (felterne `pris_kr`/`pris_rate12_kr`/`pris_rate12_samlet_kr` findes).
+
+---
+
+#### 12. Medlemmet ser sin egen refleksion — #1105 i drift; ingen «Ret»-knap; rådgiverens sætning rettet
+
+**#1105 (14:02):** «Dine refleksioner» på `/reports` under årsrapporterne — alle måneder, nyeste øverst, modalens tre spørgsmål med svarene, og milestone-tallet som det blev regnet. Kun læsning (`useRefleksioner` → `pulse_checkins`, RLS «Members manage company checkins»); dommen `src/lib/hjemmebane/refleksioner.ts` genbruger `maanedOrd`, `hentetilstand` og «uden tekst»-reglen. 27 prøver, værn `refleksionMedlem.guard` (fem domme). Udkast: `~/Downloads/udkast-refleksion-medlem/README.md`.
+
+**Jonas 28/9: NEJ til en «Ret»-knap**, og `/pulse?period=` lukkes ikke — refleksionen er et øjebliksbillede, rådgiveren læser; en rettelse bagud ville kræve `updated_at` og et svar på, hvad rådgiveren så har set.
+
+**Rettelse (#1106):** rådgiverens «Milestone-fremgang, som de selv vurderer den» (`VirksomhedView.tsx:552`) var forkert — tallet regnes automatisk som gennemsnittet af de aktive milestones (`PulseCheckinModal.tsx:101-118`). Nu «regnet af de aktive mål, da refleksionen blev sendt»; `virksomhedsside.guard` dom 7 fælder ordet «vurderer».
+
+**Målt, ikke ændret:** klokken `refleksion_hjaelp` er rådgiverens signal og peger allerede på `#section-refleksion`; `nudge-report-no-reflection` og «Send din refleksion» beder om at SKRIVE en refleksion, der ikke findes — `/pulse?period=` er rigtigt for dem. Forslag: et link «Se alle dine refleksioner» i modalens egen liste → `/reports#dine-refleksioner`. Kortene `m28-medlem-ser-refleksion` (LUKKET) og `m28-refleksion-svar` (åbent, forudsætningen er opfyldt).
+
+---
+
+#### 13. Klaviyo-programmet — status 28/9 aften
+
+- **`SDVvCW` «Mødte ikke op»:** de tre mails **omskrevet og indsat** — ingen optagelse, næste session, ansøgningslink i den sidste.
+- **`Wq3MkG` «Deltog»:** mail 1 og 3 **skrevet, afventer indsættelse**; mail 4 og 5 **slukket**. Mail 1 er den, R5 nu fælder på optagelseslinket (§9).
+- **Sunset-flowet `XCqPKg`:** bygget som **kladde** — udløser segmentet «Døde — 180 dage» (`WNygMq`), genindtræden 365 dage. **Tændes efter 13/10.** Afmeldingen sker **MANUELT gennem API'et** efter egenskaben `sunset_afsluttet` (afmeld, slet ikke — §9.4 pkt. 2).
+- **Kampagner:** **220** (`RKxTH8`) i morgen 29/9 kl. 10:00 · **158** den 1/10 · «Morten skriver» 30/9, 7/10 og 15/10 med **fire ekskluderinger**.
+- **Nyhedsbrevet:** i drift (§8); velkomstserien `TGxxUc` er en kladde med fire pladsholder-mails — **en ny abonnent får i dag intet.**
+
+`docs/marketingmotoren.md` §9.3 er ført ajour.
+
+---
+
+#### 14. Merget og udrullet 28/9 eftermiddag
+
+| # | tid (dansk) | hvad | drift |
+|---|---|---|---|
+| theboardroom.dk #5 | 13:19 | en medsendt kilde følger med | sitet publiceres af Lovable |
+| topix.dk #4 | 14:03 | nyhedsbrev på sitet, optagelsen ned | i drift, bevist 14:13 |
+| topix.dk #5 | 14:12 | nyhedsbrevets revision 2026-07-15 | i drift |
+| #1105 | 14:02 | medlemmet ser sine egne refleksioner | `src/` — Update |
+| #1106 | 14:09 | prisen med begge beløb; milestone-tallet er regnet | `src/` — Update |
+| #1107 | åben | ingen rester af optagelsen (webinar-afmeld + grundlaget) | `webinar-afmeld` skal UDRULLES efter merge; beviset er afmeldingssidens nye sætning |
+| migration `20260928140000` | 13:18 | kilden «nyhedsbrev» i CHECK'en | kørt; webinar 6 · andet 5 · direkte 3 |
+
+---
+
 ## DEL 3 · Det der venter
 
 **Tracking (Meta, LinkedIn, GA4, TikTok, Stape, eWebinar, Klaviyo — hvad der sendes til hvem, principperne fra 21/9, det åbne):** `docs/tracking.md` er husets ENE dokument om det fra 21/9; recon-/rapportfilerne i `~/Downloads` er kilder.
@@ -10793,8 +10873,9 @@ Chatten (Claude) skrev 28/9, at Klaviyo-mailens «4.375 kr. om måneden» var fo
 | **29/9 18:28 — ventepladserne til Lev Positiv og Tatti udløber** | Jonas håndterer dem selv; ellers går pladsen videre dag 7 | DEL 2 «22. september (dagen)» §12 |
 | **30/9, 7/10, 15/10 — «Morten skriver» #4/#5/#6** | flyttet fra 29/9, 6/10, 13/10; fire ekskluderinger | `docs/marketingmotoren.md` §9 |
 | **efter Mortens indspilning — det tidlige ansøgningskort** | kortet skrives, når optagelsen er der | DEL 2 «28. september» §3 |
-| **optagelsessiden noindex + viderestilling** | `topix.dk/webinar/optagelse` — sitet, ikke repoet | kort `m28-optagelsessiden`; `recon-sitet-webinar-ansoeg.md` §3 |
-| **flowene F1/F2 uden optagelsen** | `Wq3MkG`/`SDVvCW` skrives om; mail 4+5 i `Wq3MkG` er slukket | kort `m28-flows-uden-optagelse`; `recon-klaviyo-hvem-faar-hvad.md` §4 |
+| **✅ optagelsessiden taget ned 28/9** | noindex, ude af begge sitemaps, adressen bevaret; resterne i platformen i #1107 (åben) | DEL 2 «28. september» §9 |
+| **flowene F1/F2 uden optagelsen — halvt gjort** | `SDVvCW` omskrevet og indsat; `Wq3MkG` mail 1+3 skrevet, afventer indsættelse; 4+5 slukket; sunset `XCqPKg` kladde til efter 13/10 | DEL 2 «28. september» §13; `docs/marketingmotoren.md` §9.3 |
+| **velkomstserien `TGxxUc`** | fire pladsholder-mails; Claude skriver teksterne — indtil da får en ny abonnent intet | DEL 2 «28. september» §8; kort `m28-velkomstserie` |
 | **uge 40 — mailsporingen** | fire svar udestår; måling 4 først | kort `a22-mailsporing` |
 | **efter 13/10 — sunset** | afmelder, sletter ikke (Klaviyo-betaling) | `docs/marketingmotoren.md` §9 |
 

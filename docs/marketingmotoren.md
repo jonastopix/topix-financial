@@ -442,8 +442,17 @@ Tallene 220 og 421 er Klaviyos egne pr. 28/9; de øvrige er dynamiske og aflæse
 - **Mail 4 og 5 i `Wq3MkG`** («Du skal ikke vente på næste møde», «Så stopper jeg her») er **slukket** 28/9. «Sidste mail fra mig» efterfulgt af fem platformmails var konflikt A.
 - **Flowene F1/F2 (`Wq3MkG`, `SDVvCW`) skrives om uden optagelsen** — fire af de otte mails lover den (§9.4).
 
+**Status 28/9 aften:**
+
+- **`SDVvCW` «Mødte ikke op»:** tre mails **omskrevet og indsat** — ingen optagelse, næste session, ansøgningslink i den sidste.
+- **`Wq3MkG` «Deltog»:** mail 1 og 3 **skrevet, afventer indsættelse**; 4 og 5 slukket. Optagelseslinket er ude af grundlagets `KENDTE_LINKS` (#1107), så R5 fælder det — den godkendte «Efter 01» fra 19/9 får nu præcis én fejl på det link og går rent uden (`vaernModVirkelighed.test.ts`).
+- **Sunset-flowet `XCqPKg`:** bygget som **kladde**; udløser «Døde — 180 dage» (`WNygMq`), genindtræden 365 dage; **tændes efter 13/10**. Afmeldingen sker **manuelt gennem API'et** efter egenskaben `sunset_afsluttet` — flowet sætter egenskaben, mennesket afmelder (§9.4 pkt. 2: afmeld, slet ikke).
+- **Kampagner:** 220 (`RKxTH8`) 29/9 kl. 10:00 · **158** den 1/10 · «Morten skriver» 30/9, 7/10, 15/10 med fire ekskluderinger.
+- **Nyhedsbrevet (topix.dk #4/#5, 28/9):** formularen i footeren og på `/webinar/tak` → `client/subscriptions` med samtykke, Hovedlisten `RZtwMb`, revision **`2026-07-15`** (revision `2024-10-15` svarede 400 «not a valid field for the resource profile»; udløber 15/10-2026; prøven låser datoen). Bevist 14:13: consent SUBSCRIBED, `$source` «topix.dk footer», Hovedlisten 3.113 → 3.115. **Velkomstserien `TGxxUc` er en kladde med fire pladsholder-mails — en ny abonnent får i dag intet.** Fund: profilen bar `utm_source` «Klaviyo»/`utm_medium` «flow» fra en tidligere session — formularen må ikke sende fremmede utm'er som profilfelter.
+
 ### 9.4 Beslutninger (Jonas 28/9)
 
 1. **Optagelsen sendes ikke.** `topix.dk/webinar/optagelse` er den producerede webinarvideo — det samme webinar, som 317 er tilmeldt 13/10, og som eWebinar afspiller automatisk. «Det er kikset, at nogen tilmelder sig et webinar med præcis samme optagelse, de lige har set.» Den, der får optagelsen, har ingen grund til at komme; den, der deler linket, tilmelder sig aldrig. Morten indspiller et nyt webinar først; derefter sættes det tidlige ansøgningskort. Optagelsessiden skal noindex + viderestilles (kort `m28-optagelsessiden`), og løftet «du får optagelsen bagefter» i platformens før-mails og i Klaviyos fire mails skrives om (kort `m28-flows-uden-optagelse`).
 2. **Sunset venter til efter 13/10 og AFMELDER frem for at slette.** Segmentet «Døde — 180 dage» (`WNygMq`, 421) røres ikke før webinaret. Afmeldte profiler tæller ikke i Klaviyos betaling (help.klaviyo.com «How Klaviyo billing works»), så en afmelding sparer det samme som en sletning — og beholder historikken.
-3. **Prisen står med begge månedstal** — 4.167 ved fuld betaling, 4.375 ved rater (§7 fejl 10).
+3. **Prisen står med begge månedstal** — 4.167 ved fuld betaling, 4.375 ved rater (§7 fejl 10). Gjort i platformen 28/9 (#1106, `prisTekst()` i ansøgningens intro — det eneste sted uden betalingsform). **Åbent:** Klaviyos webinarmail 01 siger begge tal uden form; aftaleskabelonen er stadig en pladsholder.
+4. **Optagelsessiden er taget ned** (topix.dk #4/#5, 14:03/14:12): noindex, ude af begge sitemaps, adressen bevaret for de fire udsendte mails. Sidens tekst sagde forkert «holdes live med spørgsmål og svar» — rettet. Grundlagets `optagelseslink` er væk (#1107): et udkast, der linker dertil, fældes af R5.
