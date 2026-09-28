@@ -697,6 +697,11 @@ skrivende edge functions bruger `SUPABASE_SERVICE_ROLE_KEY`.
 - `slack_notification_log`
 - `slack_handout_notification_log`
 - `slack_report_notification_log`
+- `ansoegning_visninger` — anonyme trin før en ansøgning (vist/start/tastet),
+  skrevet af `ansoegning-gem` «spor» (token-fri, IP-dagshash-loft, fail-closed).
+  RLS slået til UDEN policies: ingen klient læser eller skriver; læsning i SQL
+  editor. Ingen persondata (værn `ansoegningVisning.guard`). Migration
+  `20260928170000_ansoegning_visninger.sql`, udkast 28/9-2026.
 - `company_actions` — afviger fra de øvrige: klienter HAR SELECT
   (medlem company-scoped, rådgiver bredt); kun skrivning er
   service-role-only, se afsnittet ovenfor

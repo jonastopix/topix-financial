@@ -17,7 +17,9 @@ import {
   indsendAnsoegning,
   opretAnsoegning,
   slaaCvrOp,
+  sporVisning,
 } from "@/lib/ansoegning/api";
+import { lavSporer, nytVisningsId } from "@/lib/ansoegning/visning";
 import { gemLokaltToken, glemLokaltToken, laesLokaltToken } from "@/lib/ansoegning/lokalt";
 import { type Mellemstykke, mellemstykkeEfter } from "@/lib/ansoegning/mellemstykker";
 import {
@@ -132,6 +134,13 @@ const Ansoeg = () => {
   // øjeblik som GA's — én parser, intet gæt. Findes de ikke, er begge null. Værdien røres
   // ikke: Meta vil have cookien ordret («do not apply any modifications before using»).
   const metaCookies = useRef(laesMetaCookies(typeof document !== "undefined" ? document.cookie : null));
+  // SPORET FØR RÆKKEN (28/9): tre anonyme trin — vist, start, tastet — så frafaldet før
+  // CVR-skærmens «Slå op» kan måles. Id'et lever KUN her, i sidens hukommelse (aldrig på
+  // enheden: det kræver samtykke). Hvert trin højst én gang; siden venter aldrig på sporet.
+  const visningsId = useRef(nytVisningsId());
+  const spor = useRef(
+    lavSporer((trin) => sporVisning(visningsId.current, trin, kilde.current.kilde, kilde.current.raa, annoncespor.current)),
+  );
 
   const fremdrift = useMemo(() => afgoerFremdrift(svar), [svar]);
 
@@ -142,6 +151,7 @@ const Ansoeg = () => {
     const t = fraUrl ?? laesLokaltToken();
     if (!t) {
       setFase({ slags: "intro", genoptager: false });
+      spor.current("vist");
       return;
     }
     hentAnsoegning(t)
@@ -166,6 +176,8 @@ const Ansoeg = () => {
         // Ukendt, lukket eller indsendt — tokenet er dødt. Forfra, stille.
         glemLokaltToken();
         setFase({ slags: "intro", genoptager: false });
+        // En ny besøgende fra nu af: introsiden er vist uden en levende ansøgning.
+        spor.current("vist");
       });
     return () => {
       aktiv = false;
@@ -189,7 +201,7 @@ const Ansoeg = () => {
       setGemmer(true);
       try {
         if (!token) {
-          const o = await opretAnsoegning({ kilde: kilde.current.kilde, kilde_raa: kilde.current.raa, annoncespor: annoncespor.current, ga: ga.current, meta: metaCookies.current, svar: del, firma: honning });
+          const o = await opretAnsoegning({ kilde: kilde.current.kilde, kilde_raa: kilde.current.raa, annoncespor: annoncespor.current, ga: ga.current, meta: metaCookies.current, svar: del, firma: honning, visning_id: visningsId.current });
           husk(o.token);
           if (navn) await gemSvar(o.token, {}, false, navn);
         } else {
@@ -369,6 +381,8 @@ const Ansoeg = () => {
   };
 
   const onKladde = (felt: FeltId, vaerdi: string) => {
+    // Første tegn i CVR-feltet, før en ansøgning findes (28/9) — sendes højst én gang.
+    if (felt === "cvr" && token === null && vaerdi.trim() !== "") spor.current("tastet");
     setKladde((k) => ({ ...k, [felt]: vaerdi }));
     setGemt(false);
     if (fejl[felt]) setFejl((f) => ({ ...f, [felt]: undefined }));
@@ -376,6 +390,8 @@ const Ansoeg = () => {
   };
 
   const start = () => {
+    // «Start ansøgningen» uden en levende ansøgning (28/9) — sendes højst én gang.
+    if (token === null) spor.current("start");
     setFase({ slags: "skema", velkommenTilbage: false });
     setSkaerm(token ? Math.min(fremdrift.naesteSkaerm, SKAERME.length - 1) : 0);
     window.scrollTo({ top: 0 });

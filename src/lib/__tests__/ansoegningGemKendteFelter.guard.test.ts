@@ -92,8 +92,9 @@ describe("ansoegning-gem: kendte felter = det, klienten sender", () => {
     expect(kendte.length).toBeGreaterThan(0);
   });
 
-  it("klienten har alle fire handlinger, og hver nøgle står på listen", () => {
-    expect(kald.map((k) => k.handling).sort()).toEqual(["gem", "hent", "indsend", "opret"]);
+  // Fem handlinger fra 28/9: «spor» (sporet før ansøgningen, ansoegningVisning.guard) er den femte.
+  it("klienten har alle fem handlinger, og hver nøgle står på listen", () => {
+    expect(kald.map((k) => k.handling).sort()).toEqual(["gem", "hent", "indsend", "opret", "spor"]);
     for (const k of kald) {
       const mangler = k.noegler.filter((n) => !kendte.includes(n));
       expect(`${k.handling}: ${mangler.join(",")}`).toBe(`${k.handling}: `);

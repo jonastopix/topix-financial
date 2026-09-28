@@ -10,6 +10,7 @@
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Annoncespor, AnsoegningsSvar, CvrVisning, FeltId, Fremdrift, GaOpsamling, Kilde, MetaCookies } from "./skema";
+import type { VisningsTrin } from "./visning";
 
 export class AnsoegningsFejl extends Error {
   status: number;
@@ -39,8 +40,18 @@ export interface OpretSvar {
   fremdrift: Fremdrift;
 }
 /** `firma` er honningfeltet — tomt for et menneske. Serveren svarer som om alt gik godt, når det er udfyldt. */
-export function opretAnsoegning(args: { kilde: Kilde; kilde_raa: string | null; annoncespor: Annoncespor; ga: GaOpsamling; meta: MetaCookies; svar: Partial<AnsoegningsSvar>; firma: string }): Promise<OpretSvar> {
+export function opretAnsoegning(args: { kilde: Kilde; kilde_raa: string | null; annoncespor: Annoncespor; ga: GaOpsamling; meta: MetaCookies; svar: Partial<AnsoegningsSvar>; firma: string; visning_id: string }): Promise<OpretSvar> {
   return kald<OpretSvar>("ansoegning-gem", { handling: "opret", ...args });
+}
+
+/**
+ * Sporet før ansøgningen (28/9): ét anonymt trin til ansoegning-gem «spor».
+ * FIRE-AND-FORGET — returnerer void, fanger alt, og siden venter aldrig på det.
+ * Intet token, ingen persondata: visnings-id'et er tilfældigt og lever kun i
+ * sidens hukommelse (lib/ansoegning/visning.ts).
+ */
+export function sporVisning(visningId: string, trin: VisningsTrin, kilde: Kilde, kildeRaa: string | null, annoncespor: Annoncespor): void {
+  kald("ansoegning-gem", { handling: "spor", visning_id: visningId, trin, kilde, kilde_raa: kildeRaa, annoncespor }).catch(() => undefined);
 }
 
 export interface HentSvar {
