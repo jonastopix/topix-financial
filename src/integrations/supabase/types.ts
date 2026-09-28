@@ -699,6 +699,74 @@ export type Database = {
           },
         ]
       }
+      ansoegning_visninger: {
+        Row: {
+          ansoegning_id: string | null
+          created_at: string
+          fbclid: string | null
+          id: string
+          ip_hash: string
+          kilde: string
+          kilde_raa: string | null
+          landing: string | null
+          referrer: string | null
+          trin: string
+          user_agent: string | null
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+          visning_id: string
+        }
+        Insert: {
+          ansoegning_id?: string | null
+          created_at?: string
+          fbclid?: string | null
+          id?: string
+          ip_hash: string
+          kilde: string
+          kilde_raa?: string | null
+          landing?: string | null
+          referrer?: string | null
+          trin: string
+          user_agent?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+          visning_id: string
+        }
+        Update: {
+          ansoegning_id?: string | null
+          created_at?: string
+          fbclid?: string | null
+          id?: string
+          ip_hash?: string
+          kilde?: string
+          kilde_raa?: string | null
+          landing?: string | null
+          referrer?: string | null
+          trin?: string
+          user_agent?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+          visning_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ansoegning_visninger_ansoegning_id_fkey"
+            columns: ["ansoegning_id"]
+            isOneToOne: false
+            referencedRelation: "ansoegninger"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ansoegninger: {
         Row: {
           afslagsgrund: string | null
