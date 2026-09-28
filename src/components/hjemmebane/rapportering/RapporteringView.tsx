@@ -43,6 +43,7 @@ import { HbButton } from "../HbButton";
 import { hbControlClasses } from "../admin/HbField";
 import { deriveReportCardView, type CardAction, erForTidligt, godkendSpaerret, rapportFejlgrund, rapportNaesteSkridt } from "./reportCardView";
 import { HbReportUploadZone } from "./HbReportUploadZone";
+import { RefleksionerSektion } from "./RefleksionerSektion";
 import { historikFoerst, tomListeTekst } from "@/lib/hjemmebane/rapporteringTekst";
 
 /** Rapportering (/rapportering → /reports ved GO) — LEVERANCEN rendyrket
@@ -815,6 +816,11 @@ export const RapporteringView = () => {
 
       <AnnualSection companyId={companyId ?? null} userId={user?.id ?? null} refreshKey={refreshKey} />
 
+      {/* ── Dine refleksioner (28/9): det, medlemmet skrev i modalen efter hver
+          godkendt måned — nyeste øverst. Kun læsning; dommen i
+          src/lib/hjemmebane/refleksioner.ts. ── */}
+      <RefleksionerSektion companyId={companyId ?? null} />
+
       {/* ── Papirkurv (advisor) — sammenfoldet som default ── */}
       {isAdvisor && companyId && (
         <section className="mt-14 border-t border-hb-line pt-10">
@@ -915,7 +921,11 @@ export const RapporteringView = () => {
       />
       <PulseCheckinModal
         open={pulseState.open}
-        onOpenChange={(open) => setPulseState((prev) => ({ ...prev, open }))}
+        onOpenChange={(open) => {
+          setPulseState((prev) => ({ ...prev, open }));
+          // Lukkes modalen, hentes «Dine refleksioner» igen — så den nye måned står øverst med det samme.
+          if (!open) queryClient.invalidateQueries({ queryKey: ["rapportering", "refleksioner"] });
+        }}
         periodKeyOverride={pulseState.periodKey}
         periodLabelOverride={pulseState.periodLabel}
       />
