@@ -51,6 +51,13 @@
  *      platformen sender «en time før» (arten `en_time`), og eWebinars egen
  *      påmindelse går ti minutter før.
  *
+ *   6. OPTAGELSEN LOVES IKKE (Jonas 28/9-2026: «optagelsen sendes IKKE»). «en_dag»
+ *      og «en_time» sluttede med «Kan du ikke alligevel? Så gør ingenting — du får
+ *      optagelsen bagefter.» — et løfte, KUN Klaviyos efter-flows holdt, og kun for
+ *      dem på Hovedlisten med samtykke (recon-webinar-hvem-faar-hvad.md §5.1). Nu:
+ *      «Så meld dig til en anden dag — jeg holder webinaret igen.» Ordet
+ *      «optagelse» må ikke stå i nogen af de syv arter (prøvet, HTML + tekst + emne).
+ *
  * TEKSTEN FØLGER INVITATIONEN (Jonas 28/9-2026). De to arter i MED_INVITATION
  * bærer eWebinars invite.ics — men hentningen er FAIL-SOFT, og kan filen ikke
  * hentes, går mailen alligevel. Så må mailen ikke sige «invitationen er
@@ -284,14 +291,14 @@ function indhold(art: MailArt, tid: string, medInvitation: boolean): MailIndhold
           BOKS("Tænk på den beslutning, du har skubbet længst foran dig. Den du ved, du skal tage, men bliver ved med at udskyde — ansættelsen, prisen, kunden der fylder for meget, eller samtalen med investoren.<br/><br/>Hold den i baghovedet i morgen. Alt hvad jeg gennemgår, skal kunne bruges på lige netop den.") +
           P("Det er forskellen på at lære noget og at bruge noget.") +
           P("Dit personlige link står herunder og i din kalenderinvitation — gem det, så er du klar i morgen.") +
-          P("Kan du ikke alligevel? Så gør ingenting — du får optagelsen bagefter.", true),
+          P("Kan du ikke alligevel? Så meld dig til en anden dag — jeg holder webinaret igen.", true),
         kropTekst:
           `Vi ses ${tid}. Én ting, du kan gøre i aften, så du får mere ud af timen:\n\n` +
           "Tænk på den beslutning, du har skubbet længst foran dig. Den du ved, du skal tage, men bliver ved med at udskyde — ansættelsen, prisen, kunden der fylder for meget, eller samtalen med investoren.\n\n" +
           "Hold den i baghovedet i morgen. Alt hvad jeg gennemgår, skal kunne bruges på lige netop den.\n\n" +
           "Det er forskellen på at lære noget og at bruge noget.\n\n" +
           "Dit personlige link står herunder og i din kalenderinvitation — gem det, så er du klar i morgen.\n\n" +
-          "Kan du ikke alligevel? Så gør ingenting — du får optagelsen bagefter.",
+          "Kan du ikke alligevel? Så meld dig til en anden dag — jeg holder webinaret igen.",
       };
     case "dagen":
       return {
@@ -320,11 +327,11 @@ function indhold(art: MailArt, tid: string, medInvitation: boolean): MailIndhold
         krop:
           FOERSTE(`Vi starter ${esc(tid)} — om en time.`) +
           BOKS("Knappen herunder er dit personlige link. Du behøver ikke installere noget; det åbner i browseren.") +
-          P("Kan du ikke alligevel? Så gør ingenting — du får optagelsen bagefter.", true),
+          P("Kan du ikke alligevel? Så meld dig til en anden dag — jeg holder webinaret igen.", true),
         kropTekst:
           `Vi starter ${tid} — om en time.\n\n` +
           "Linket herunder er dit personlige link. Du behøver ikke installere noget; det åbner i browseren.\n\n" +
-          "Kan du ikke alligevel? Så gør ingenting — du får optagelsen bagefter.",
+          "Kan du ikke alligevel? Så meld dig til en anden dag — jeg holder webinaret igen.",
       };
   }
 }

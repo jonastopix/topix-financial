@@ -106,7 +106,8 @@ describe("INGEN LØFTER OM ET LINK, DER KOMMER (Jonas 22/9 ca. 19:35)", () => {
    * VERSALER i ren tekst («DIT PERSONLIGE LINK STÅR HERUNDER …»), og «dagen»
    * skriver «du får» med lille d. En følsom prøve ville lade begge slippe.
    */
-  const FORBUDTE = ["kommer en time før", "i god tid", "du får linket"];
+  // «optagelse» (Jonas 28/9): optagelsen sendes IKKE — og må derfor ikke loves.
+  const FORBUDTE = ["kommer en time før", "i god tid", "du får linket", "optagelse"];
 
   it("ingen af de syv mails lover et link, der kommer senere", () => {
     for (const art of ARTER) {
@@ -135,6 +136,16 @@ describe("INGEN LØFTER OM ET LINK, DER KOMMER (Jonas 22/9 ca. 19:35)", () => {
     }
     expect("Du får linket en time før start".toLowerCase()).toContain("du får linket");
     expect("LINKET TIL WEBINARET KOMMER EN TIME FØR.".toLowerCase()).toContain("kommer en time før");
+    // Sætningen, der stod i en_dag og en_time til 28/9 — ordret.
+    expect("Kan du ikke alligevel? Så gør ingenting — du får optagelsen bagefter.".toLowerCase()).toContain("optagelse");
+  });
+
+  it("i stedet peger «en_dag» og «en_time» fremad: en anden dag, ikke en optagelse (Jonas 28/9)", () => {
+    for (const art of ["en_dag", "en_time"] as const) {
+      const m = bygWebinarMail({ ...ARGS, art });
+      expect(m.html, art).toContain("Kan du ikke alligevel? Så meld dig til en anden dag — jeg holder webinaret igen.");
+      expect(m.text, art).toContain("Kan du ikke alligevel? Så meld dig til en anden dag — jeg holder webinaret igen.");
+    }
   });
 
   it("«dagen» lover stadig de to påmindelser, der FAKTISK sendes", () => {

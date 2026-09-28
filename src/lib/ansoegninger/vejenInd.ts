@@ -15,7 +15,7 @@ export interface AnsoegningTilVejenInd {
   kilde: string | null;
 }
 
-const KILDE_ORD: Record<Kilde, string> = { webinar: "webinaret", anbefaling: "en anbefaling", linkedin: "LinkedIn", direkte: "sitet", andet: "andet" };
+const KILDE_ORD: Record<Kilde, string> = { webinar: "webinaret", anbefaling: "en anbefaling", linkedin: "LinkedIn", nyhedsbrev: "nyhedsbrevet", direkte: "sitet", andet: "andet" };
 
 /** «12. september» / «12. september 2025» når året ikke er det nuværende — dansk tid. */
 export function datoOrd(iso: string, nu: Date): string | null {

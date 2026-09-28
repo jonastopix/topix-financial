@@ -49,7 +49,7 @@ async function hentRaadgivere(): Promise<Map<string, string>> {
   return new Map(rows.map((r) => [r.user_id, r.full_name ?? ""]));
 }
 
-const KILDE_ORD: Record<string, string> = { webinar: "webinaret", anbefaling: "anbefaling", linkedin: "LinkedIn", direkte: "direkte", andet: "andet" };
+const KILDE_ORD: Record<string, string> = { webinar: "webinaret", anbefaling: "anbefaling", linkedin: "LinkedIn", nyhedsbrev: "nyhedsbrevet", direkte: "direkte", andet: "andet" };
 const START_ORD: Record<string, string> = { hurtigst_muligt: "hurtigst muligt", inden_1_maaned: "inden for en måned", inden_3_maaneder: "inden for tre måneder", senere: "senere (udgået svar)" };
 
 export const AnsoegningView = ({ id }: { id: string | undefined }) => {

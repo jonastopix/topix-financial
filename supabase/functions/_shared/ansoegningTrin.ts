@@ -129,8 +129,8 @@ export function erLukBegrundelseGyldig(aarsag: Lukkeaarsag, begrundelse: string 
   return !lukKraeverBegrundelse(aarsag) || (begrundelse ?? "").trim().length > 0;
 }
 
-// B's fem (ansoegningSkema.ts KILDER) — byte-ens liste; ansoegningMotor.guard låser den.
-export const KILDER = ["webinar", "anbefaling", "linkedin", "direkte", "andet"] as const;
+// B's seks (ansoegningSkema.ts KILDER; «nyhedsbrev» 28/9) — byte-ens liste; ansoegningMotor.guard låser den.
+export const KILDER = ["webinar", "anbefaling", "linkedin", "nyhedsbrev", "direkte", "andet"] as const;
 export type Kilde = (typeof KILDER)[number];
 
 /**
