@@ -97,12 +97,18 @@ describe("værnet mod den virkelige tekst i Klaviyo (hentet 19/9-2026)", () => {
     expect(dom.tjek[0].regel).toBe("R7 ramme ikke nævnt");
   });
 
-  it("«Efter 01» går igennem HELT rent — hverken fejl eller tjek", () => {
+  it("«Efter 01» (som den så ud 19/9) får nu PRÆCIS én fejl: optagelseslinket — og intet andet", () => {
+    // Til 28/9 gik den HELT rent. Så blev optagelsen taget ned (Jonas 28/9), og
+    // linket røg ud af KENDTE_LINKS — så den godkendte mail fra 19/9 peger på en
+    // nedtaget side, og værnet skal sige det. Prisen, ansøgningslinket og «to
+    // millioner» må stadig ikke give udslag: én fejl, ingen tjek.
     const dom = kontrollerUdkast(EFTER_01);
-    // Prisen, begge links og «to millioner» må ikke give udslag. Larmer værnet
-    // på godkendt tekst, holder ingen op med at læse det.
-    expect(dom.fejl).toEqual([]);
+    expect(dom.fejl.map((f) => `${f.regel}: ${f.fundet}`)).toEqual(["R5 link: https://www.topix.dk/webinar/optagelse"]);
     expect(dom.tjek).toEqual([]);
+    // Og uden det link går den rent — det er DEN mail, Klaviyo skal have nu.
+    const uden = kontrollerUdkast(EFTER_01.replace("Vil du se det igen, eller nåede du ikke det hele, ligger optagelsen her:\nhttps://www.topix.dk/webinar/optagelse\n\n", ""));
+    expect(uden.fejl).toEqual([]);
+    expect(uden.tjek).toEqual([]);
   });
 });
 

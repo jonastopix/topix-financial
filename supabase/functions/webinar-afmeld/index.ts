@@ -117,6 +117,8 @@ Deno.serve(async (req) => {
     ? new Response(null, { status: 200, headers: corsHeaders })
     : side(
         "Du er afmeldt",
-        "Du får ikke flere påmindelser fra os om webinaret. Har du allerede meldt dig til, gælder din plads stadig — og du får optagelsen som aftalt.",
+        // Ingen optagelse (Jonas 28/9): den sendes ikke længere, og siden er taget ned.
+        // Pladsen gælder, og det personlige link virker, hvis de dukker op.
+        "Du får ikke flere påmindelser fra os om webinaret. Har du allerede meldt dig til, gælder din plads stadig — og dit personlige link virker, hvis du dukker op.",
       );
 });

@@ -109,7 +109,8 @@ describe("udkastVaern — VÆRNET VIRKER (selvbevis)", () => {
       ["R1", "Det koster 39.000 kr.", "Det koster 50.000 kr."],
       ["R2", "Et år koster 52.500 kr.", "Et år koster 50.000 kr."],
       ["R4", 'Han siger «noget helt andet end det godkendte».', "Han siger det ligeud."],
-      ["R5", "Se https://fremmed.dk/x", "Se https://www.topix.dk/webinar/optagelse"],
+      // Optagelseslinket var det tiende eksempel til 28/9 — nu er det selv et fremmed link (optagelsen er taget ned).
+      ["R5", "Se https://www.topix.dk/webinar/optagelse", "Se https://app.theboardroom.dk/ansoeg?kilde=webinar"],
       ["R6", "Kom med!", "Kom med."],
       ["R7", LIVE_FORKERT, "Webinaret gennemgår de to områder og de fem spørgsmål."],
       ["R9", "Carsten Guldhammer viser, hvad The Boardroom kan.", "Daniel Sand viser, hvad The Boardroom kan."],
