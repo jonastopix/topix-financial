@@ -5,7 +5,33 @@
  * KUN tekst; rækkefølge, felter og domme bor i skema.ts (spejlet i Deno).
  * Alt her er UDKAST til Jonas' godkendelse (README §7). Jonas' egne ord
  * 18/9 for de tre der filtrerer er brugt ordret.
+ *
+ * PRISEN MED BEGGE BELØB (Jonas 28/9-2026): 50.000 kr. er fuld betaling, og
+ * 4.375 kr./md. er ratebetaling med 5 % tillæg (52.500/12). Til 28/9 sagde
+ * introen kun «50.000 kr. om året» — uden at sige, at det er den fulde
+ * betaling, og uden raten. Sætningen bygges nu ÉT sted (prisTekst) af
+ * skema.ts' MEDLEMSKAB_PRIS_KR_AAR og husets prismotor (indgangspris.ts),
+ * så et nyt prisniveau eller et nyt tillæg aldrig kan stå forkert her.
  */
+import { MEDLEMSKAB_PRIS_KR_AAR } from "./skema";
+import { alleIndgangsmuligheder } from "@/lib/indgangspris";
+
+const kr = (n: number): string => Math.round(n).toLocaleString("da-DK");
+
+/**
+ * «Medlemskabet koster 50.000 kr. om året ekskl. moms, betalt på én gang — det
+ * svarer til 4.167 kr. om måneden. Vil du hellere betale i tolv rater, er det
+ * 4.375 kr. om måneden (5 % tillæg).» Raten kommer fra prismotoren; kan den
+ * ikke regnes (et prisniveau, Stripe ikke kender), står kun den fulde betaling.
+ */
+export function prisTekst(aarKr: number = MEDLEMSKAB_PRIS_KR_AAR): string {
+  const fuld = `Medlemskabet koster ${kr(aarKr)} kr. om året ekskl. moms, betalt på én gang — det svarer til ${kr(aarKr / 12)} kr. om måneden.`;
+  const m = alleIndgangsmuligheder(aarKr * 100);
+  const rate12 = m.ok ? m.muligheder.find((x) => x.betalingsmodel === "rate12") : undefined;
+  if (!rate12) return fuld;
+  const tillaegPct = Math.round((rate12.samlet_oere / (aarKr * 100) - 1) * 100);
+  return `${fuld} Vil du hellere betale i tolv rater, er det ${kr(rate12.rate_oere / 100)} kr. om måneden (${tillaegPct} % tillæg).`;
+}
 import type { FeltId, SkaermId } from "./skema";
 
 export interface SkaermTekst {
@@ -139,7 +165,7 @@ export const INTRO = {
     },
     { titel: "I beslutter jer sammen", tekst: "Er der et match efter snakken, får du et aftalegrundlag. Først når du har sagt ja, sker der mere." },
   ],
-  pris: "Medlemskabet koster 50.000 kr. om året ekskl. moms.",
+  pris: prisTekst(),
   prisNote: "Vi skriver det her, så du ikke bruger tid på en samtale, der ikke giver mening for dig.",
   knap: "Start ansøgningen",
   varighed: "5–7 minutter · gemmes undervejs · ingen konto",

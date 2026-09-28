@@ -22,6 +22,11 @@ import { resolve } from "node:path";
 //   6. ANKRENE følger med: section-chat/-tal/-aftale/-handouts/-refleksion i
 //      VirksomhedView, section-milestones i VirksomhedPlanen (forsideMaal.guard
 //      læser den fil); GRUNDENS_ANKER har ingen_maal → section-milestones.
+//   7. (28/9) MILESTONE-TALLET ER REGNET, IKKE VURDERET: refleksionens tal er
+//      gennemsnittet af de aktive milestones, da den blev sendt
+//      (PulseCheckinModal.tsx:101-118, «Beregnet automatisk fra dine aktive
+//      milestones»). Rådgiverens linje må ikke sige «vurderer» — den sagde det
+//      til 28/9, og medlemmets nye flade siger «regnet af dine aktive mål».
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
 const udenKommentarer = (k: string) =>
@@ -96,6 +101,17 @@ export const ankreneHolder = (view: string, planen: string): boolean =>
   view.includes('maal_uden_bevaegelse: "section-milestones",') &&
   view.includes('fornyelse: "section-aftale",') && view.includes('indgang: "section-aftale",');
 
+/** Dom 7: linjen med milestone-tallet i refleksionskortet — regnet, ikke vurderet. */
+export const milestoneTalletErRegnet = (view: string): boolean => {
+  const linje = view.split("\n").find((l) => l.includes("Milestone-fremgang"));
+  return (
+    linje !== undefined &&
+    !/vurder/i.test(linje) &&
+    linje.includes("regnet af de aktive mål, da refleksionen blev sendt") &&
+    linje.includes("{r.milestone_progress} %")
+  );
+};
+
 /** Bytter to markører om i kompositionen — til selvbevis 1. */
 function bytOm(view: string, a: string, b: string): string {
   const k = komposition(view);
@@ -124,6 +140,9 @@ describe("virksomhedsside.guard — PR 1: Planen før tallene i fuld bredde, cha
   });
   it("dom 6: ankrene følger med — section-milestones i VirksomhedPlanen, ingen_maal peger derhen", () => {
     expect(ankreneHolder(view, planen)).toBe(true);
+  });
+  it("dom 7: milestone-tallet i refleksionen er regnet af de aktive mål — ikke «som de selv vurderer den»", () => {
+    expect(milestoneTalletErRegnet(view)).toBe(true);
   });
 
   it("selvbevis 1: chatten før tallene, eller Planen efter tallene, falder", () => {
@@ -154,5 +173,13 @@ describe("virksomhedsside.guard — PR 1: Planen før tallene i fuld bredde, cha
   it("selvbevis 6: ankeret ude af Planen, eller ingen_maal uden anker, falder", () => {
     expect(ankreneHolder(view, planen.replace('id="section-milestones"', 'id="section-planen"'))).toBe(false);
     expect(ankreneHolder(view.replace('ingen_maal: "section-milestones",', "ingen_maal: null,"), planen)).toBe(false);
+  });
+  it("selvbevis 7: den gamle sætning «som de selv vurderer den», eller linjen fjernet, falder", () => {
+    const NY = "Milestone-fremgang, regnet af de aktive mål, da refleksionen blev sendt:";
+    const gammel = view.replace(NY, "Milestone-fremgang, som de selv vurderer den:");
+    expect(gammel).not.toBe(view);
+    expect(milestoneTalletErRegnet(gammel)).toBe(false);
+    expect(milestoneTalletErRegnet(view.replace(NY, "Milestone-fremgang, regnet af de aktive mål, da refleksionen blev sendt (de vurderer selv):"))).toBe(false);
+    expect(milestoneTalletErRegnet(view.split("\n").filter((l) => !l.includes("Milestone-fremgang")).join("\n"))).toBe(false);
   });
 });
