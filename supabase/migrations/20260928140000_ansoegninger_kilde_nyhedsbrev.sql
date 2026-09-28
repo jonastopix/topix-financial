@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod — 28/9-2026 kl. 13:18 (Jonas, Lovable SQL editor). EFTER: CHECK'en har seks kilder; fordeling målt: webinar 6 · andet 5 · direkte 3. Sitet (theboardroom.dk #5, 13:19) sender ordet fra samme øjeblik.
 -- OG FØR theboardroom.dk sender ordet: sitet skal først rettes, når denne er kørt
 -- i prod — ellers lander hver ansøgning med ?kilde=nyhedsbrev som «andet».
 --

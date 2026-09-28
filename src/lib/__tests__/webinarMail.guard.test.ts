@@ -423,7 +423,10 @@ describe("webinarMail.guard — dommene fanger fejlen på en kopi", () => {
     // Spejlet ude af takt på MED_INVITATION.
     expect(arterITakt(dom, spejl.split('MED_INVITATION: readonly MailArt[] = ["bekraeftelse", "fjorten_dage"]').join('MED_INVITATION: readonly MailArt[] = ["bekraeftelse"]'), migArter, cron)).toBe(false);
     // Migrationens første linje forkert, eller uden ordren «FØR … UDRULLES».
-    expect(arterITakt(dom, spejl, migArter.replace("-- IKKE KØRT. DEPLOY:", "-- DEPLOY:"), cron)).toBe(false);
+    // Første linje uden husets markør — uanset om den står som «IKKE KØRT» eller (efter kørslen) «KØRT i prod».
+    const udenMarkoer = migArter.replace(/^-- (IKKE KØRT\. DEPLOY:|KØRT i prod)/, "-- DEPLOY:");
+    expect(udenMarkoer).not.toBe(migArter);
+    expect(arterITakt(dom, spejl, udenMarkoer, cron)).toBe(false);
     expect(arterITakt(dom, spejl, migArter.split("FØR webinar-mail-cron UDRULLES").join("efter udrulningen"), cron)).toBe(false);
     // Og den gamle CHECK i ROLLBACK-kommentaren dømmes IKKE på: den er i filen.
     expect(migArter).toContain("check (art in ('bekraeftelse', 'syv_dage', 'tre_dage', 'en_dag', 'dagen', 'en_time'));");
