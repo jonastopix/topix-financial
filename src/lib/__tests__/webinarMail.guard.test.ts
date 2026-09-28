@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 /**
- * Kildeværn for platformens før-webinar-mails (22/9-2026). Seks domme, hver
+ * Kildeværn for platformens før-webinar-mails (22/9-2026). Elleve domme, hver
  * bevist på en kopi med fejlen indsat:
  *
  *   1. BUCKET B + LÅS: webinar-mail-cron kalder authenticateServiceRole FØRST,
@@ -25,13 +25,24 @@ import { resolve } from "node:path";
  *      kilden «webinar_mail», og den værdi står BÅDE i AFMELD_KILDER og i
  *      migrationens CHECK. Kaldet er fail-soft og kommer EFTER vores egen
  *      skrivning — Klaviyo må ikke kunne forhindre en afmelding hos os.
- *   8. BEKRÆFTELSEN GÅR GENNEM MIME'EN: kun `bekraeftelse` bruger
- *      sendMailgunMime, invitationen hentes fail-soft, og Content-Type'en er
- *      ORDRET den, Outlook kræver for at vise Ja/Nej.
+ *   8. INVITATIONEN GÅR GENNEM MIME'EN: arterne i dommens MED_INVITATION
+ *      (bekraeftelse, fjorten_dage) bruger sendMailgunMime — cronen dømmer på
+ *      LISTEN (baererInvitation), ikke på et artsnavn — invitationen hentes
+ *      fail-soft, og Content-Type'en er ORDRET den, Outlook kræver for Ja/Nej.
  *   9. BEKRÆFTELSEN GÅR ALDRIG BAGUD: BEKRAEFTELSE_FRA står ORDRET som
  *      22/9-2026 17:03Z i BEGGE spejle, dommen sammenligner tilmeldingens
  *      registreret_at mod den fail-closed, og cronen LÆSER kolonnen.
  *      Uden den linje ville 216 mennesker få en bekræftelse, de har fået før.
+ *  10. ART-LISTERNE ER I TAKT MED DATABASEN (28/9): ARTER og MED_INVITATION i
+ *      dommen er tegn for tegn de to CHECK'er i den nyeste migration, i begge
+ *      spejle — og «fjorten_dage» står i begge med sin plan (14 dage, 08:00).
+ *      En art, CHECK'en ikke kender, ville sende mailen, tabe sin række i
+ *      sporet og sende IGEN fem minutter senere.
+ *  11. TEKSTEN FØLGER INVITATIONEN (28/9): cronen henter filen FØR mailen
+ *      bygges og giver `invitationVedhaeftet: ics !== null` videre; feltet er
+ *      KRÆVET på MailArgs (ikke `?`), og `indhold` får flaget — aldrig en
+ *      konstant. Uden det siger en fail-soft-mail «vedhæftet» om en fil, der
+ *      ikke er der.
  */
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -67,6 +78,7 @@ const AFMELDING = "supabase/functions/_shared/klaviyoAfmelding.ts";
 const MIG_KILDE = "supabase/migrations/20260922180000_klaviyo_afmeldinger_webinar_mail.sql";
 const MIME = "supabase/functions/_shared/mimeInvitation.ts";
 const MIG = "supabase/migrations/20260922171000_webinar_mails.sql";
+const MIG_ARTER = "supabase/migrations/20260928120000_webinar_mails_fjorten_dage.sql";
 const CONFIG = "supabase/config.toml";
 const DOM = "supabase/functions/_shared/webinarMailDom.ts";
 const DOM_SPEJL = "src/lib/webinar/mailDom.ts";
@@ -145,9 +157,9 @@ export const ingenKlaviyoTags = (tekster: string): boolean => {
     !/\{\{\s*person/.test(t) &&
     t.includes("a.afmeldUrl") &&
     t.includes("webinarTekst(new Date(a.sessionTid))") &&
-    // De fem påmindelser har en emnelinje, i rækkefølge; bekraeftelse er
-    // den sjette art og står først i EMNER, før syv_dage.
-    /syv_dage:[\s\S]{0,80}tre_dage:[\s\S]{0,80}en_dag:[\s\S]{0,60}dagen:[\s\S]{0,40}en_time:/.test(t)
+    // De seks påmindelser har en emnelinje, i rækkefølge; bekraeftelse står
+    // først i EMNER, før fjorten_dage (28/9) og syv_dage.
+    /bekraeftelse:[\s\S]{0,80}fjorten_dage:[\s\S]{0,80}syv_dage:[\s\S]{0,80}tre_dage:[\s\S]{0,80}en_dag:[\s\S]{0,60}dagen:[\s\S]{0,40}en_time:/.test(t)
   );
 };
 
@@ -183,7 +195,11 @@ export const etKlikEnBetydning = (afmeld: string, kilder: string, migration: str
 export const bekraeftelsenGaarGennemMime = (cron: string, mime: string): boolean => {
   const c = udenKommentarer(cron), m = udenBlokke(mime);
   return (
-    c.includes('if (s.art === "bekraeftelse") {') &&
+    // På LISTEN (MED_INVITATION via baererInvitation), ikke på et artsnavn —
+    // ellers ville en ny art med invitation gå ad den almindelige vej uden.
+    c.includes('if (baererInvitation(s.art)) {') &&
+    !/s\.art === "bekraeftelse"/.test(c) &&
+    /import \{[^}]*\bbaererInvitation\b[^}]*\} from "\.\.\/_shared\/webinarMailDom\.ts";/.test(c) &&
     c.includes("await hentInvitation(s.kalenderLink)") &&
     c.includes("spor = await sendMailgunMime(mailgunNoegle, s.email, mime);") &&
     // FAIL-SOFT: der er ingen `return` eller `continue` mellem hentningen og afsendelsen.
@@ -223,6 +239,66 @@ export const bekraeftelsenKunFremad = (dom: string, spejl: string, cron: string)
   );
 };
 
+// ── 10 ─────────────────────────────────────────────────────────────────────
+/**
+ * Listerne læses ud af DOMMEN (`export const ARTER … = [...]`,
+ * `MED_INVITATION`) og ud af den NYESTE migration, der sætter CHECK'ene
+ * (udenSql: filhovedets ROLLBACK citerer de GAMLE), og sammenlignes tegn for
+ * tegn og i rækkefølge. Rækkefølgen tæller: ARTER er «i den rækkefølge de
+ * sendes», og CHECK'en skal kunne læses som den samme liste.
+ */
+const listeIKode = (k: string, navn: string): string[] => {
+  const m = udenKommentarer(k).match(new RegExp(`export const ${navn}: readonly MailArt\\[\\] = \\[([^\\]]*)\\];`));
+  return m ? [...m[1].matchAll(/"([a-z_]+)"/g)].map((x) => x[1]) : [];
+};
+const listeICheck = (sql: string, form: RegExp): string[] => {
+  const m = udenSql(sql).match(form);
+  return m ? [...m[1].matchAll(/'([a-z_]+)'/g)].map((x) => x[1]) : [];
+};
+export const arterITakt = (dom: string, spejl: string, migration: string, cron: string): boolean => {
+  const arter = listeIKode(dom, "ARTER"), med = listeIKode(dom, "MED_INVITATION");
+  const artCheck = listeICheck(migration, /check \(art in \(([^)]*)\)\)/);
+  const invCheck = listeICheck(migration, /check \(invitation is null or art in \(([^)]*)\)\)/);
+  const PLAN = '{ art: "fjorten_dage", dageFoer: 14, time: 8, minut: 0, kraeverIkkeBegyndt: false },';
+  return (
+    arter.length === 7 && arter.join(",") === artCheck.join(",") &&
+    med.length === 2 && med.join(",") === invCheck.join(",") &&
+    arter.includes("fjorten_dage") && med.includes("fjorten_dage") &&
+    med.every((a) => arter.includes(a)) &&
+    // Begge spejle.
+    listeIKode(spejl, "ARTER").join(",") === arter.join(",") &&
+    listeIKode(spejl, "MED_INVITATION").join(",") === med.join(",") &&
+    dom.includes(PLAN) && spejl.includes(PLAN) &&
+    // Migrationen bærer husets første linje (IKKE KØRT → KØRT, når den er
+    // kørt) og siger selv, at den skal køres FØR functionen udrulles.
+    /^-- (IKKE KØRT\. DEPLOY: manuelt i Lovable|KØRT i prod)/.test(migration) &&
+    /FØR webinar-mail-cron UDRULLES/.test(migration) &&
+    // Og cronen dømmer på listen — dom 8 siger det samme fra sin side.
+    udenKommentarer(cron).includes("if (baererInvitation(s.art)) {")
+  );
+};
+
+// ── 11 ─────────────────────────────────────────────────────────────────────
+export const tekstenFoelgerInvitationen = (cron: string, tekster: string): boolean => {
+  const c = udenKommentarer(cron), t = udenKommentarer(tekster);
+  const loekke = c.slice(c.indexOf("for (const s of sendinger) {"));
+  return (
+    // Hentningen FØR byggeren — ellers kan flaget ikke være sandt.
+    foer(loekke, "await hentInvitation(s.kalenderLink)", "const mail = bygWebinarMail({") &&
+    loekke.includes("ics = inv.ics;") &&
+    loekke.includes("invitationVedhaeftet: ics !== null,") &&
+    // Og MIME'en bærer den samme fil, som teksten blev dømt på.
+    /bygMime\(\{[\s\S]{0,300}?\bics,/.test(loekke) &&
+    // Feltet er KRÆVET, flaget når dommen, og dommen har begge grene.
+    t.includes("invitationVedhaeftet: boolean;") &&
+    !/invitationVedhaeftet\?:/.test(t) &&
+    t.includes("const i = indhold(a.art, tid, a.invitationVedhaeftet);") &&
+    t.includes("const inv = invitationsTekst(medInvitation);") &&
+    t.includes("export function invitationsTekst(medInvitation: boolean)") &&
+    /if \(medInvitation\) \{/.test(t)
+  );
+};
+
 describe("webinarMail.guard — platformens før-webinar-mails", () => {
   it("1. Bucket B, tørkørsel som standard, og låsen fail-closed", () => expect(bucketBOgLaas(laes(CRON), laes(CONFIG))).toBe(true));
   it("2. Mailgun EU, ingen sporing, nøglen ét sted", () => expect(euOgIngenSporing(laes(SEND), laes(CRON))).toBe(true));
@@ -233,6 +309,8 @@ describe("webinarMail.guard — platformens før-webinar-mails", () => {
   it("7. afmeldingen rammer også Klaviyo, og kilde-listen er i takt med CHECK'en", () => expect(etKlikEnBetydning(laes(AFMELD), laes(AFMELDING), laes(MIG_KILDE))).toBe(true));
   it("8. bekræftelsen går gennem MIME'en med den rigtige Content-Type", () => expect(bekraeftelsenGaarGennemMime(laes(CRON), laes(MIME))).toBe(true));
   it("9. bekræftelsen sendes aldrig bagud, og tidspunktet når dommen", () => expect(bekraeftelsenKunFremad(laes(DOM), laes(DOM_SPEJL), laes(CRON))).toBe(true));
+  it("10. ARTER og MED_INVITATION er i takt med CHECK'ene, i begge spejle", () => expect(arterITakt(laes(DOM), laes(DOM_SPEJL), laes(MIG_ARTER), laes(CRON))).toBe(true));
+  it("11. teksten følger invitationen: hentet FØR byggeren, flaget krævet og brugt", () => expect(tekstenFoelgerInvitationen(laes(CRON), laes(TEKSTER))).toBe(true));
 });
 
 describe("webinarMail.guard — dommene fanger fejlen på en kopi", () => {
@@ -286,9 +364,13 @@ describe("webinarMail.guard — dommene fanger fejlen på en kopi", () => {
     expect(etKlikEnBetydning(afmeld, kilder, migKilde.split("'bagud', 'webinar_mail'").join("'bagud'"))).toBe(false);
   });
 
-  it("bekræftelsen sendt ad den almindelige vej, en tom Content-Type, eller en hentning der stopper mailen, fælder dom 8", () => {
+  it("bekræftelsen sendt ad den almindelige vej, en tom Content-Type, en hentning der stopper mailen, eller en dom på artsnavnet, fælder dom 8", () => {
     const mime = laes(MIME);
     expect(bekraeftelsenGaarGennemMime(cron.split("spor = await sendMailgunMime(mailgunNoegle, s.email, mime);").join("spor = await sendMailgun(mailgunNoegle, {} as never);"), mime)).toBe(false);
+    // Tilbage til artsnavnet: «fjorten_dage» ville så gå UDEN sin invitation.
+    const paaNavn = cron.split("if (baererInvitation(s.art)) {").join('if (s.art === "bekraeftelse") {');
+    expect(paaNavn).not.toBe(cron);
+    expect(bekraeftelsenGaarGennemMime(paaNavn, mime)).toBe(false);
     expect(bekraeftelsenGaarGennemMime(cron, mime.split("text/calendar; charset=utf-8; method=REQUEST").join("text/calendar"))).toBe(false);
     // Fail-soft brudt: hentningen springer mailen over i stedet for at sende uden.
     const haard = cron.replace("      invitation = inv.udfald;", "      invitation = inv.udfald;\n      if (inv.udfald !== \"hentet\") continue;");
@@ -316,5 +398,53 @@ describe("webinarMail.guard — dommene fanger fejlen på en kopi", () => {
     // droppet i cronens select.
     expect(bekraeftelsenKunFremad(dom.split("registreretAt: r.registreret_at,").join(""), spejl, cron)).toBe(false);
     expect(bekraeftelsenKunFremad(dom, spejl, cron.split("session_tid, registreret_at,").join("session_tid,"))).toBe(false);
+  });
+
+  it("en art uden plads i CHECK'en, en invitation uden plads, en plan der er flyttet, eller et spejl ude af takt, fælder dom 10", () => {
+    const dom = laes(DOM), spejl = laes(DOM_SPEJL), migArter = laes(MIG_ARTER);
+    expect(arterITakt(dom, spejl, migArter, cron)).toBe(true);
+    // CHECK'en kender ikke fjorten_dage — mailen ville sendes og sporet afvises.
+    const udenArt = migArter.split("check (art in ('bekraeftelse', 'fjorten_dage', 'syv_dage'").join("check (art in ('bekraeftelse', 'syv_dage'");
+    expect(udenArt).not.toBe(migArter);
+    expect(arterITakt(dom, spejl, udenArt, cron)).toBe(false);
+    // Invitations-CHECK'en kender kun bekræftelsen.
+    const udenInv = migArter.split("check (invitation is null or art in ('bekraeftelse', 'fjorten_dage'))").join("check (invitation is null or art in ('bekraeftelse'))");
+    expect(udenInv).not.toBe(migArter);
+    expect(arterITakt(dom, spejl, udenInv, cron)).toBe(false);
+    // En ottende art i koden uden migration.
+    const enTil = dom.split('"dagen", "en_time"];').join('"dagen", "en_time", "spoegelse"];');
+    expect(enTil).not.toBe(dom);
+    expect(arterITakt(enTil, spejl, migArter, cron)).toBe(false);
+    // Planen flyttet (13 dage) — i det ene spejl, eller i begge.
+    const PLAN = '{ art: "fjorten_dage", dageFoer: 14, time: 8, minut: 0, kraeverIkkeBegyndt: false },';
+    const flyttet = PLAN.replace("dageFoer: 14", "dageFoer: 13");
+    expect(arterITakt(dom.split(PLAN).join(flyttet), spejl, migArter, cron)).toBe(false);
+    expect(arterITakt(dom.split(PLAN).join(flyttet), spejl.split(PLAN).join(flyttet), migArter, cron)).toBe(false);
+    // Spejlet ude af takt på MED_INVITATION.
+    expect(arterITakt(dom, spejl.split('MED_INVITATION: readonly MailArt[] = ["bekraeftelse", "fjorten_dage"]').join('MED_INVITATION: readonly MailArt[] = ["bekraeftelse"]'), migArter, cron)).toBe(false);
+    // Migrationens første linje forkert, eller uden ordren «FØR … UDRULLES».
+    expect(arterITakt(dom, spejl, migArter.replace("-- IKKE KØRT. DEPLOY:", "-- DEPLOY:"), cron)).toBe(false);
+    expect(arterITakt(dom, spejl, migArter.split("FØR webinar-mail-cron UDRULLES").join("efter udrulningen"), cron)).toBe(false);
+    // Og den gamle CHECK i ROLLBACK-kommentaren dømmes IKKE på: den er i filen.
+    expect(migArter).toContain("check (art in ('bekraeftelse', 'syv_dage', 'tre_dage', 'en_dag', 'dagen', 'en_time'));");
+  });
+
+  it("mailen bygget FØR hentningen, et flag der er konstant eller valgfrit, eller en dom der ignorerer det, fælder dom 11", () => {
+    expect(tekstenFoelgerInvitationen(cron, tekster)).toBe(true);
+    // Byggeren flyttet op FØR hentningen (den gamle rækkefølge fra 22/9).
+    const BYG = "    const mail = bygWebinarMail({";
+    const HENT = "      const inv = await hentInvitation(s.kalenderLink);";
+    const foerst = cron.split(BYG).join("    const SENERE = 1;").replace(HENT, `${BYG}\n      art: s.art, sessionTid: s.sessionTid, webinarTitel: s.webinarTitel, joinLink: s.joinLink, kalenderLink: s.kalenderLink, afmeldUrl: link, invitationVedhaeftet: ics !== null,\n    });\n${HENT}`);
+    expect(foerst).not.toBe(cron);
+    expect(tekstenFoelgerInvitationen(foerst, tekster)).toBe(false);
+    // Flaget hårdkodet — så ville «vedhæftet» stå i alle mails igen.
+    expect(tekstenFoelgerInvitationen(cron.split("invitationVedhaeftet: ics !== null,").join("invitationVedhaeftet: true,"), tekster)).toBe(false);
+    // Filen tabt før hentningens svar når MIME'en.
+    expect(tekstenFoelgerInvitationen(cron.split("ics = inv.ics;").join(""), tekster)).toBe(false);
+    // Feltet gjort valgfrit — en glemt værdi ville blive «false» i stilhed, eller «true» hos en kalder med default.
+    expect(tekstenFoelgerInvitationen(cron, tekster.split("invitationVedhaeftet: boolean;").join("invitationVedhaeftet?: boolean;"))).toBe(false);
+    // Dommen ignorerer flaget.
+    expect(tekstenFoelgerInvitationen(cron, tekster.split("const i = indhold(a.art, tid, a.invitationVedhaeftet);").join("const i = indhold(a.art, tid, true);"))).toBe(false);
+    expect(tekstenFoelgerInvitationen(cron, tekster.split("const inv = invitationsTekst(medInvitation);").join("const inv = invitationsTekst(true);"))).toBe(false);
   });
 });
