@@ -1634,6 +1634,31 @@
     ebitda_margin_pct-noten. Talt med grep på div-taggene: før 186 (inkl.
     skabelonen i kommentaren) og 56 lukkede; efter 198 og 57 lukkede.
     Lukket: 1 (bliver stående). Omskrevet: 2. Tilføjet: 12.
+  RØRT 28/9 EFTERMIDDAG, ANDEN RUNDE — TRE KORT: JONAS' TO ØNSKER OG DET,
+  RECONEN AFDÆKKEDE (grundlag ~/Downloads/recon-to-oensker.md; ikke bogført i
+  OVERLEVERING)
+    TILFØJET (3, Ny 28/9), alle i «Chat og rådgiverforløbet», de to første som
+    beslutning uden frist, det tredje som fund med A's udkast i gang:
+    m28-refleksion-svar — rådgiveren skal kunne svare direkte på refleksionens
+    felter, så svaret ender i chatten. Mønstret findes (rapportkommentaren,
+    VirksomhedView.tsx:1024-1090). Forhindringer: felterne har ingen identitet
+    (pulse_checkins, tre kolonner uden id/updated_at, upsert), medlemmet har
+    ingen flade til sin refleksion, klokke + mail bærer ikke indholdet. Hænger
+    sammen med et manglende kort: medlemmet bør kunne se sin egen refleksion.
+    m28-hash-i-chatten — «#» i chatten. Findes i Community
+    (CommunityComposer.tsx:865-900, tre nodetyper, klikbare kort); chatten
+    gemmer HTML renset med ALLOWED_ATTR ['href','target','rel'], så en node
+    strippes; context_* bærer én henvisning som tekstchip. Kun event, lektion
+    og opslag har samme adresse for begge; rabataftaler har ingen pr. aftale.
+    Tre afgørelser før byg: typer, lagerform (JSON eller a-tag), mailen.
+    m28-medlem-ser-refleksion — medlemmet kan ikke se sin egen refleksion:
+    pulse_checkins tegnes kun for rådgiveren (VirksomhedView.tsx:536-556);
+    medlemmet ser felterne i modalen, mens de skrives, og aldrig igen. A
+    bygger et udkast (28/9). Forudsætning for refleksionssvaret — de to kort
+    linker til hinanden.
+    Talt med grep på kortenes div-tag (class card) og på lukket-status:
+    før 260 og 95 lukkede; efter 263 og 95 lukkede.
+    Lukket: 0. Tilføjet: 3.
   RØRT 28/9 EFTERMIDDAG — BOGFØRINGEN AF HELE MANDAGEN (OVERLEVERING DEL 2
   «28. september» §0–§7; docs/marketingmotoren.md §9; docs/webinaret-og-
   annoncerne.md §7e/§7f; grundlag maal-mailstatus.sql, maal-mailfejl.sql,
@@ -3122,6 +3147,27 @@
   <h2>Chat og rådgiverforløbet</h2>
   <p class="lede">Rådgiverens chat er Hjemmebane hele vejen siden 4/9 aften, og emnevælgeren er ude (emner klassificeres automatisk, besluttet 4/9). Det der står, er lækagerne, ulæst-begrebet, emnerne og de sidste gamle rester.</p>
   <div class="grid">
+    <div class="card decision new" id="m28-refleksion-svar" data-status="beslutning" data-spor="6" data-rammer="raadgiver">
+      <h3>Rådgiveren skal kunne svare direkte på refleksionens felter — så svaret ender i chatten (Jonas 28/9)</h3>
+      <p><strong>Jonas 28/9:</strong> «Morten og jeg skal kunne svare/kommentere direkte på felterne i refleksionen på virksomhedssiderne, så svaret ender i chatten.» <strong>Mønstret findes:</strong> rapportkommentaren på virksomhedssiden (<code>VirksomhedView.tsx:1024-1090</code>) skriver en besked direkte i <code>messages</code> med <code>context_type: "report"</code>, <code>context_id</code> og <code>context_meta.title</code>, kalder <code>notifyChatMessage</code>, og medlemmet ser den i chatten med chippen «Re: {filnavn}» (<code>MemberChatPane.tsx:770-786</code>).</p>
+      <p><strong>Forhindringerne, målt i koden:</strong> (1) <strong>felterne har ingen identitet</strong> — <code>pulse_checkins</code> er én række pr. virksomhed pr. måned (<code>UNIQUE (company_id, period_key)</code>, <code>20260326140242:1-11</code>) med tre tekstkolonner (<code>went_well</code>, <code>biggest_challenge</code>, <code>help_needed</code>) uden id, uden <code>updated_at</code>, og medlemmet kan overskrive dem efter kommentaren med <code>upsert</code> (<code>PulseCheckinModal.tsx:201-209</code>) — et frosset citat lyver, et opslået viser noget andet end det, der blev svaret på (huset valgte det opslåede for <code>svar_paa_id</code>, <code>chatSvar.ts:6-10</code>); rådgiveren må kun læse rækken (<code>20260611140000:28-33</code>). (2) <strong>Medlemmet har INGEN flade, hvor refleksionen kan ses igen</strong>: den tegnes kun for rådgiveren (<code>VirksomhedView.tsx:536-556</code>); forsiden spørger blot, om rækken findes (<code>BoardroomView.tsx:1605-1625</code>), og det eneste link, huset sender, fører til modalen for en MÅNED (<code>/pulse?period=</code>, <code>nudge-report-no-reflection</code>). (3) <strong>Klokke og mail bærer ikke beskedens indhold</strong>: <code>notify-chat-reply/index.ts:69-77</code> skriver fast tekst («Ny besked fra din rådgiver»), og mailen bygges af den (<code>send-notification-email:700-716</code>); chippen kender kun fire typer (<code>chatShared.ts:66-71</code>).</p>
+      <p><strong>Forudsætter</strong> <a href="#m28-medlem-ser-refleksion">at medlemmet kan se sin egen refleksion</a> — A bygger et udkast (28/9). Uden en side hos medlemmet peger et svar «på feltet» på noget, medlemmet ikke kan slå op. Recon: <code>~/Downloads/recon-to-oensker.md</code> §4–§6.</p>
+      <div class="meta"><span class="tag gold">Jonas 28/9: ønske</span><span class="tag">Mønster: rapportkommentaren</span><span class="tag">Forudsætter: medlemmet ser sin refleksion</span><span class="tag ny">Ny 28/9</span><span class="tag size">Mellem</span></div>
+    </div>
+    <div class="card new" id="m28-medlem-ser-refleksion" data-status="mangler" data-spor="6" data-rammer="medlem">
+      <h3>Medlemmet kan ikke se sin egen refleksion — den tegnes kun for rådgiveren; medlemmet ser felterne i modalen, mens de skrives, og aldrig igen</h3>
+      <p><strong>Fund 28/9</strong> (<code>~/Downloads/recon-to-oensker.md</code> §4): <code>pulse_checkins</code> (én række pr. virksomhed pr. måned, <code>went_well</code> · <code>biggest_challenge</code> · <code>help_needed</code> · <code>milestone_progress</code>) tegnes i fuld længde på virksomhedssiden for rådgiveren (<code>VirksomhedView.tsx:536-556</code>, blok 2 «Deres ord og din forberedelse»). Medlemmet skriver dem i <code>PulseCheckinModal.tsx:318-372</code> og ser dem ALDRIG igen: forsiden spørger kun, om rækken findes (<code>BoardroomView.tsx:1605-1625</code> henter <code>id</code>), og ingen medlemsflade læser felterne (grep <code>pulse_checkins</code> i <code>src</code>: modal, AppLayout, BoardroomView, AdvisorDashboard, CompanyChatPane, useVirksomhed). RLS giver alle virksomhedens medlemmer læse- og skriveadgang til rækken (<code>20260601120000:22-27</code>), så det er fladen, ikke adgangen, der mangler. Det eneste link, huset sender om refleksionen, åbner modalen for en måned (<code>/pulse?period=</code>, <code>nudge-report-no-reflection</code>).</p>
+      <p><strong>Forudsætning for</strong> <a href="#m28-refleksion-svar">rådgiverens svar på refleksionens felter</a>: et svar «på feltet» i chatten skal kunne følges tilbage til noget, medlemmet kan se. <strong>I GANG — A bygger et udkast (28/9).</strong></p>
+      <div class="meta"><span class="tag gold">A bygger udkast — 28/9</span><span class="tag">Forudsætning for refleksionssvar</span><span class="tag ny">Ny 28/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card decision new" id="m28-hash-i-chatten" data-status="beslutning" data-spor="6" data-rammer="medlem">
+      <h3>«#» i chatten — henvis til events, lektioner og rabatter i en besked (Jonas 28/9): funktionen findes i Community, chatten gemmer HTML, der stripper den</h3>
+      <p><strong>Jonas 28/9:</strong> «Jeg vil kunne henvise med # direkte i en chatbesked til medlemmer — til events, lektioner, rabatter osv.» <strong>Funktionen findes i Community:</strong> <code>CommunityComposer.tsx:865-900</code> har et <code>#</code>-forslag (events kun publicerede og fremtidige, lektioner i tilladte områder, opslag sidst, højst 8), tre nodetyper i et JSON-dokument (<code>communityDokument.ts:32-34</code>: <code>henvisning</code>, <code>eventhenvisning</code>, <code>opslaghenvisning</code>) og klikbare kort hos læseren (<code>CommunityDokument.tsx:237-270</code>). Mention- og Suggestion-extensionerne er installeret (<code>package.json:55</code>, <code>:61</code>).</p>
+      <p><strong>Chatten er bygget anderledes:</strong> <code>ChatRichInput.tsx:203-217</code> har hverken suggestion eller henvisningsnode og sender <code>getHTML()</code>; indholdet vises gennem <code>DOMPurify.sanitize</code> med <code>ALLOWED_ATTR: ['href','target','rel']</code> (<code>MemberChatPane.tsx:800</code>, <code>CompanyChatPane.tsx:1648</code>, <code>:1839</code>), så en node med <code>data-</code>-attributter strippes ved visning. <code>context_type</code>/<code>context_id</code>/<code>context_meta</code> bærer kun ÉN henvisning pr. besked og tegnes som tekstchip uden klik (<code>MemberChatPane.tsx:770-786</code>); chatten skriver dem ikke selv (<code>CompanyChatPane.tsx:222-233</code>). Et <code>#</code> i dag er et tegn som alle andre. Mailen bærer aldrig beskedens tekst (<code>notify-chat-reply:72-74</code>); Slack får 250 tegn ren tekst (<code>send-slack-chat-notification:130</code>).</p>
+      <p><strong>Adresserne:</strong> KUN event (<code>/events/:id</code>), lektion (<code>/akademiet/:area/:slug</code>) og opslag (<code>/community/:id</code>) har samme adresse for medlem og rådgiver — Community's tre. <strong>Rabataftaler har ingen adresse pr. aftale</strong> (<code>RabataftalerView.tsx:153</code>: <code>&lt;article key=…&gt;</code> uden id). Rapporter (<code>/reports?reportId=</code> mod <code>/virksomhed/:id?reportId=</code>), mål (<code>/milestones</code> mod <code>#section-milestones</code>), handouts (<code>/handouts?module=</code> mod <code>#section-handouts</code>) og KPI'er (<code>/kpis</code> mod <code>#section-tal</code>) har to.</p>
+      <p><strong>Tre ting, der skal afgøres FØR byg:</strong> <strong>(1) Hvilke typer</strong> — de tre med én adresse, eller også dem med to og dem uden (rabataftaler kræver en adresse først). <strong>(2) Hvordan en henvisning gemmes</strong> — JSON-dokument som Community (ny lagerform for <code>messages.content</code>, ny renderer, <code>renTekst</code> og Slack-uddraget skal lære noderne) eller et <code>a</code>-tag i den nuværende HTML (overlever rensningen, men er en fuld sideindlæsning i ny fane, <code>ChatRichInput.tsx:212-215</code>, og bærer ingen type). <strong>(3) Hvad der sker i mailen</strong> — i dag fast tekst uden indhold; en henvisning kan kun ses dér, hvis <code>notify-chat-reply</code> og mailen bygges af beskeden, og så gennem <code>renTekst</code>, som fjerner al markup (<code>richtext.ts:18-28</code>). Databasen efterprøver ikke <code>context_id</code> (modsat <code>svar_paa_id</code>, <code>20260917090000:148-156</code>). Recon: <code>~/Downloads/recon-to-oensker.md</code> §1–§3, §6.</p>
+      <div class="meta"><span class="tag gold">Jonas 28/9: ønske</span><span class="tag">Findes i Community — ikke i chatten</span><span class="tag">Tre afgørelser før byg</span><span class="tag ny">Ny 28/9</span><span class="tag size">Mellem</span></div>
+    </div>
     <div class="card new" data-status="ide" data-spor="senere" data-rammer="medlem">
       <h3>«Spørg din rådgiver om det her» som knap på hvert nøgletal — beskeden bærer tallet som en frosset chip</h3>
       <p>Vendt retning af C12 (Jonas 31/8: henvis til et tal): ikke «indsæt et tal i chatten», men en knap ved tallet der starter en besked med tallet som chip (<code>context_meta</code>, frosset som det så ud). Levende henvisning kan vente. Giver medlemmet en grund til at skrive og rådgiveren konteksten. Chattens 10 idéer 16/9 (2); analysens nr. 11. Historik: <code>docs/chat-design.md:272-286</code>.</p>
