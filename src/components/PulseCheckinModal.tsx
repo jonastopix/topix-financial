@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { REFLEKSIONER_ANKER, REFLEKSIONER_STI, SE_ALLE_REFLEKSIONER, seAlleRefleksionerHandling } from "@/lib/hjemmebane/refleksioner";
 import { ThumbsUp, AlertCircle, Target, ChevronRight, CheckCircle2, Loader2, ArrowLeft } from "lucide-react";
 
 interface PulseCheckinModalProps {
@@ -30,6 +32,7 @@ const APP_STYLES = {
   historyCard: "rounded-lg bg-secondary/50 p-3 space-y-1",
   historyDate: "text-[10px] font-medium text-muted-foreground",
   historyText: "text-xs text-foreground",
+  seAlleLink: "text-xs font-medium text-primary hover:underline underline-offset-4",
   colleagueBox: "flex items-start gap-2 rounded-lg bg-primary/5 border border-primary/15 px-3 py-2.5 mb-4 text-xs text-muted-foreground",
   colleagueIcon: "h-3.5 w-3.5 text-primary shrink-0 mt-0.5",
   colleagueName: "font-medium text-foreground",
@@ -64,6 +67,7 @@ const HB_STYLES: typeof APP_STYLES = {
   historyCard: "rounded-lg border border-hb-line bg-hb-surface p-3 space-y-1",
   historyDate: "text-[10px] font-medium text-hb-ink-soft",
   historyText: "text-xs text-hb-ink",
+  seAlleLink: "text-xs font-medium text-hb-evergreen hover:underline underline-offset-4",
   colleagueBox: "flex items-start gap-2 rounded-lg bg-hb-sage/40 border border-hb-line px-3 py-2.5 mb-4 text-xs text-hb-ink-soft",
   colleagueIcon: "h-3.5 w-3.5 text-hb-evergreen shrink-0 mt-0.5",
   colleagueName: "font-medium text-hb-ink",
@@ -94,6 +98,9 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
   const { user, companyId } = useAuth();
   const queryClient = useQueryClient();
   const { viewingAsMember } = useViewMode();
+  // Linket til «Dine refleksioner» (28/9). Hooks i topblokken, før enhver return.
+  const navigate = useNavigate();
+  const location = useLocation();
   const [wentWell, setWentWell] = useState("");
   const [challenge, setChallenge] = useState("");
   const [helpNeeded, setHelpNeeded] = useState("");
@@ -230,6 +237,15 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
     onOpenChange(false);
   };
 
+  const seAlleRefleksioner = () => {
+    onOpenChange(false);
+    if (seAlleRefleksionerHandling(location.pathname, location.hash) === "scroll") {
+      document.getElementById(REFLEKSIONER_ANKER)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    navigate(REFLEKSIONER_STI);
+  };
+
   const alreadyDoneContent = (
     <div className="text-center py-8 animate-fade-in">
       <div className={s.checkBadge}>
@@ -267,6 +283,13 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
           ))}
         </div>
       )}
+      {/* Den anden vej (28/9): altid, når refleksionen er skrevet — også uden
+          ældre måneder, for denne måneds refleksion står dér i fuld længde. */}
+      <div className="mt-6">
+        <button type="button" onClick={seAlleRefleksioner} className={s.seAlleLink}>
+          {SE_ALLE_REFLEKSIONER} →
+        </button>
+      </div>
     </div>
   );
 

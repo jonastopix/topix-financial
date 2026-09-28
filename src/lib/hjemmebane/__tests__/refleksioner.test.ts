@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  fremgangLinje, REFLEKSIONS_FELTER, refleksionerTilVisning, refleksionTilVisning, sorterRefleksioner,
-  udenTekstLinje, type RefleksionRaekke,
+  fremgangLinje, REFLEKSIONER_ANKER, REFLEKSIONER_STI, REFLEKSIONS_FELTER, refleksionerTilVisning, refleksionTilVisning,
+  SE_ALLE_REFLEKSIONER, seAlleRefleksionerHandling, sorterRefleksioner, udenTekstLinje, type RefleksionRaekke,
 } from "@/lib/hjemmebane/refleksioner";
 import { maanedOrd } from "@/lib/factsCsv";
 
@@ -82,5 +82,24 @@ describe("sorterRefleksioner / refleksionerTilVisning — nyeste øverst", () =>
 
   it("tom liste giver tom liste", () => {
     expect(refleksionerTilVisning([])).toEqual([]);
+  });
+});
+
+describe("linket den anden vej — «Se alle dine refleksioner» (28/9)", () => {
+  it("peger på sektionen på /reports, og ordene står ét sted", () => {
+    expect(REFLEKSIONER_ANKER).toBe("dine-refleksioner");
+    expect(REFLEKSIONER_STI).toBe("/reports#dine-refleksioner");
+    expect(SE_ALLE_REFLEKSIONER).toBe("Se alle dine refleksioner");
+  });
+
+  it("scroller direkte, når man allerede står på ankeret — en navigation dér ville ikke skifte hash", () => {
+    expect(seAlleRefleksionerHandling("/reports", "#dine-refleksioner")).toBe("scroll");
+  });
+
+  it("navigerer alle andre steder: /pulse, /reports uden eller med andet anker", () => {
+    expect(seAlleRefleksionerHandling("/pulse", "")).toBe("naviger");
+    expect(seAlleRefleksionerHandling("/reports", "")).toBe("naviger");
+    expect(seAlleRefleksionerHandling("/reports", "#upload")).toBe("naviger");
+    expect(seAlleRefleksionerHandling("/", "#dine-refleksioner")).toBe("naviger");
   });
 });
