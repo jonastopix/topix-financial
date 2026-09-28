@@ -34,7 +34,7 @@ describe("webinarMailDom.paritet — kildeteksten", () => {
 });
 
 describe("webinarMailDom.paritet — dommene svarer ens", () => {
-  it("planlagtTid for alle seks arter, og hen over sommertidsskiftet", () => {
+  it("planlagtTid for alle syv arter, og hen over sommertidsskiftet", () => {
     for (const session of [SESSION, "2026-10-27T10:00:00.000Z", "2026-01-13T10:00:00.000Z"]) {
       for (const art of deno.ARTER) {
         expect(deno.planlagtTid(session, art)?.toISOString(), `${session}/${art}`)
@@ -48,7 +48,7 @@ describe("webinarMailDom.paritet — dommene svarer ens", () => {
       for (const afmeldt of [true, false]) {
         for (const alleredeSendt of [true, false]) {
           for (const registreretAt of [null, "2026-09-22T17:02:59Z", "2026-09-22T17:03:00Z", "2026-09-23T08:00:00Z"]) {
-            for (const nu of ["2026-10-01T06:00:00Z", "2026-10-06T06:05:00Z", "2026-10-13T08:05:00Z", "2026-10-13T12:00:00Z"]) {
+            for (const nu of ["2026-09-29T06:05:00Z", "2026-09-29T08:05:00Z", "2026-10-01T06:00:00Z", "2026-10-06T06:05:00Z", "2026-10-13T08:05:00Z", "2026-10-13T12:00:00Z"]) {
               const i = { art, sessionTid: SESSION, email: "a@x.dk", registreretAt, afmeldt, alleredeSendt, nu: new Date(nu) };
               expect(deno.doemMail(i), `${art}/${registreretAt}/${afmeldt}/${alleredeSendt}/${nu}`).toEqual(src.doemMail(i));
             }
@@ -61,6 +61,13 @@ describe("webinarMailDom.paritet — dommene svarer ens", () => {
   it("BEKRAEFTELSE_FRA er det samme øjeblik i begge spejle", () => {
     expect(deno.BEKRAEFTELSE_FRA).toBe(src.BEKRAEFTELSE_FRA);
     expect(deno.BEKRAEFTELSE_FRA_MS).toBe(src.BEKRAEFTELSE_FRA_MS);
+  });
+
+  it("ARTER, PLANEN og MED_INVITATION er de samme lister — og baererInvitation svarer ens", () => {
+    expect([...deno.ARTER]).toEqual([...src.ARTER]);
+    expect(deno.PLANEN).toEqual(src.PLANEN);
+    expect([...deno.MED_INVITATION]).toEqual([...src.MED_INVITATION]);
+    for (const art of deno.ARTER) expect(deno.baererInvitation(art), art).toBe(src.baererInvitation(art));
   });
 
   it("planlaegKoersel, noegle og kalenderlinkene", () => {

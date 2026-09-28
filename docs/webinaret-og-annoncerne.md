@@ -317,6 +317,7 @@ lå før skillelinjen.
 | mail | afsender | tidspunkt | ændret 22/9 |
 |---|---|---|---|
 | Bekræftelse | **platformen** | straks, **kun nye** (efter 19:03) | eWebinars SLUKKET 19:03 · Klaviyos `WFzxH9` slukket |
+| **14 dage før** | **platformen** | 08:00, **MED `invite.ics`** som bekræftelsen | **ny 28/9** (udkast `udkast-fjorten-dage`): lukker hullet for de ~217, der tilmeldte sig 13/10 før 19:03 og aldrig fik en invitation — går til ALLE, uden `BEKRAEFTELSE_FRA`-port; samme 2-timers nåde |
 | 7 / 3 / 1 dag før | **platformen** | 08:00 | ny |
 | Dagen | **platformen** | 07:30 | ny |
 | 1 time før | **platformen** | −60 min | eWebinars 1-times SLUKKET |

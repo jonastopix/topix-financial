@@ -1,4 +1,4 @@
-// webinar-mail-cron — platformens seks før-webinar-mails (22/9-2026).
+// webinar-mail-cron — platformens syv før-webinar-mails (22/9-2026; den syvende 28/9).
 //
 // JONAS 22/9: platformen sender selv mailene før en session; Klaviyo beholder
 // efter-webinaret, og eWebinars danske bekræftelse (med sin rigtige invite.ics)
@@ -18,7 +18,16 @@
 // BEKRÆFTELSEN GÅR IKKE BAGUD (Jonas 22/9 ca. 19:05): dommens BEKRAEFTELSE_FRA
 // = 22/9-2026 17:03Z holder arten «bekraeftelse» til tilmeldinger, der er
 // kommet EFTER eWebinars egen bekræftelse blev slukket. De ældre tælles som
-// «for_tidlig_tilmelding». De fem påmindelser er urørte og går til alle.
+// «for_tidlig_tilmelding». De seks påmindelser er urørte og går til alle.
+//
+// «FJORTEN_DAGE» (Jonas 28/9): de ~217, der tilmeldte sig 13/10 FØR 22/9 kl.
+// 19:03, har aldrig fået en kalenderinvitation — og bekræftelsen går ikke bagud.
+// Derfor bærer «om to uger»-påmindelsen den samme invite.ics som bekræftelsen
+// (dommens MED_INVITATION) og går ad samme MIME-vej. Den går til ALLE tilmeldte
+// til en kommende session, uden BEKRAEFTELSE_FRA-port; nåden er den samme to
+// timer som de andre påmindelser. Migrationen 20260928120000 (CHECK'ene på art
+// og invitation) SKAL være kørt, FØR den her udrulles: ellers sendes mailen,
+// rækken i sporet afvises, og næste kørsel sender den IGEN.
 //
 // HVEM, HVAD, HVORNÅR bor i _shared/webinarMailDom.ts (ren, spejlet, prøvet).
 // TEKSTEN bor i _shared/webinarMailTekster.ts (Mortens fire fra Klaviyo-flowet
@@ -40,7 +49,7 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateServiceRole, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { ukendteFelter, ukendteFelterBesked } from "../_shared/kendteFelter.ts";
-import { ARTER, type MailArt, noegle, planlaegKoersel, type Sending, type Springgrund, type Tilmeldt } from "../_shared/webinarMailDom.ts";
+import { ARTER, baererInvitation, type MailArt, noegle, planlaegKoersel, type Sending, type Springgrund, type Tilmeldt } from "../_shared/webinarMailDom.ts";
 import { AFSENDER, bygWebinarMail, SVAR_TIL } from "../_shared/webinarMailTekster.ts";
 import { MAILGUN_DOMAENE, MAILGUN_SECRET, PAUSE_MS, sendMailgun, sendMailgunMime } from "../_shared/mailgunAfsendelse.ts";
 import { bygMime, hentInvitation, type InvitationUdfald } from "../_shared/mimeInvitation.ts";
@@ -85,9 +94,9 @@ export interface MailResultat {
   udsat: number;
   /** Den anden kørsel nåede det først (23505 på det unikke indeks). */
   dublet: number;
-  /** Bekræftelser sendt MED den vedhæftede invitation. */
+  /** Mails af en art i MED_INVITATION (bekraeftelse, fjorten_dage) sendt MED den vedhæftede invitation. */
   med_invitation: number;
-  /** Bekræftelser sendt UDEN — hentningen fejlede (fail-soft), grunden står i sporet. */
+  /** Samme arter sendt UDEN — hentningen fejlede (fail-soft), grunden står i sporet. */
   uden_invitation: number;
   eksempler: { email: string; art: MailArt; session_tid: string; udfald?: string }[];
   fejl: string[];
@@ -179,6 +188,20 @@ async function koer(a: { admin: SupabaseClient; toerKoersel: boolean; laas: bool
     if (Date.now() - a.startMs > BUDGET_MS) { r.udsat++; continue; }
     const token = await byggAfmeldToken(afmeldSecret, s.email);
     const link = afmeldUrl(a.basis, token);
+    // BEKRÆFTELSEN OG «OM TO UGER» BÆRER INVITATIONEN (dommens MED_INVITATION)
+    // — og den hentes FØR mailen bygges, fordi TEKSTEN skal vide, om den kom
+    // med (Jonas 28/9): «invitationen er vedhæftet» må kun stå i en mail, der
+    // faktisk bærer den. FAIL-SOFT: kan filen ikke hentes, går mailen alligevel
+    // — uden filen, og med en tekst, der peger på kalenderrækken i stedet.
+    let invitation: InvitationUdfald | null = null;
+    let ics: string | null = null;
+    if (baererInvitation(s.art)) {
+      const inv = await hentInvitation(s.kalenderLink);
+      invitation = inv.udfald;
+      ics = inv.ics;
+      if (inv.udfald === "hentet") r.med_invitation++; else r.uden_invitation++;
+      if (inv.udfald !== "hentet") console.error(`${LOG} invitationen kunne ikke hentes (${inv.udfald}): ${inv.grund ?? ""}`);
+    }
     const mail = bygWebinarMail({
       art: s.art,
       sessionTid: s.sessionTid,
@@ -186,22 +209,17 @@ async function koer(a: { admin: SupabaseClient; toerKoersel: boolean; laas: bool
       joinLink: s.joinLink,
       kalenderLink: s.kalenderLink,
       afmeldUrl: link,
+      invitationVedhaeftet: ics !== null,
     });
-    // BEKRÆFTELSEN BÆRER INVITATIONEN — og den kan Mailguns `/messages` ikke
-    // sætte Content-Type på pr. vedhæftning (se _shared/mimeInvitation.ts).
-    // Derfor bygges MIME'en selv og sendes til `/messages.mime`. De fem
-    // påmindelser har ingen vedhæftning og bliver på den almindelige vej.
-    let invitation: InvitationUdfald | null = null;
+    // Mailguns `/messages` kan ikke sætte Content-Type pr. vedhæftning (se
+    // _shared/mimeInvitation.ts). Derfor bygges MIME'en selv og sendes til
+    // `/messages.mime`. De fem andre påmindelser har ingen vedhæftning og
+    // bliver på den almindelige vej.
     let spor;
-    if (s.art === "bekraeftelse") {
-      // FAIL-SOFT: en bekræftelse uden invitation er stadig en bekræftelse.
-      const inv = await hentInvitation(s.kalenderLink);
-      invitation = inv.udfald;
-      if (inv.udfald === "hentet") r.med_invitation++; else r.uden_invitation++;
-      if (inv.udfald !== "hentet") console.error(`${LOG} invitationen kunne ikke hentes (${inv.udfald}): ${inv.grund ?? ""}`);
+    if (baererInvitation(s.art)) {
       const mime = bygMime({
         til: s.email, fra: AFSENDER, emne: mail.subject, html: mail.html, tekst: mail.text,
-        svarTil: SVAR_TIL, afmeldUrl: link, ics: inv.ics, domaene: MAILGUN_DOMAENE,
+        svarTil: SVAR_TIL, afmeldUrl: link, ics, domaene: MAILGUN_DOMAENE,
       });
       spor = await sendMailgunMime(mailgunNoegle, s.email, mime);
     } else {

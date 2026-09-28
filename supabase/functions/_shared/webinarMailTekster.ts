@@ -1,5 +1,5 @@
 /**
- * webinarMailTekster — de seks før-webinar-mails (22/9-2026).
+ * webinarMailTekster — de syv før-webinar-mails (22/9-2026; den syvende 28/9).
  *
  * TEKSTEN ER MORTENS, IKKE MIN. De fem første er hentet ORDRET fra Klaviyo
  * gennem flowet — fire fra «Jonas - Før webinar» (UiECQS), bekræftelsen fra
@@ -15,8 +15,15 @@
  *   dagen     flow-message Y3Rc7W · skabelon VjzeyN
  *
  * Den sjette, `en_time`, findes ikke i Klaviyo — den er NY og skrevet i samme
- * form og samme længde som «dagen» (30 sekunders læsning). Det er den eneste
- * tekst i filen, der ikke er Mortens egen, og den er markeret som sådan.
+ * form og samme længde som «dagen» (30 sekunders læsning).
+ *
+ * Den syvende, `fjorten_dage` (28/9-2026, Jonas), findes heller ikke i Klaviyo.
+ * Den er «om to uger»-påmindelsen MED eWebinars invite.ics vedhæftet — som
+ * bekræftelsen, og af samme grund: de ~217, der tilmeldte sig 13/10 før 22/9
+ * kl. 19:03, har aldrig fået en invitation, og bekræftelsen går aldrig bagud.
+ * Teksten er skrevet i Mortens form ud fra det, huset VED om webinaret (de to
+ * områder og de fem spørgsmål — ordret fra «tre_dage» og «dagen»); de to er de
+ * eneste tekster i filen, der ikke er Mortens egne, og begge er markeret.
  *
  * ÆNDRET I FORHOLD TIL KLAVIYO, og kun det:
  *   1. `{% unsubscribe %}` → vores eget afmeldingslink (token, ingen login).
@@ -43,6 +50,15 @@
  *      «dagen» beholder sit løfte om flere, fordi begge dele er sande:
  *      platformen sender «en time før» (arten `en_time`), og eWebinars egen
  *      påmindelse går ti minutter før.
+ *
+ * TEKSTEN FØLGER INVITATIONEN (Jonas 28/9-2026). De to arter i MED_INVITATION
+ * bærer eWebinars invite.ics — men hentningen er FAIL-SOFT, og kan filen ikke
+ * hentes, går mailen alligevel. Så må mailen ikke sige «invitationen er
+ * vedhæftet». Byggeren får derfor `invitationVedhaeftet` (cronen ved det, når
+ * den bygger: hentningen sker FØR), og `invitationsTekst` vælger sætningen:
+ * MED — «invitationen er vedhæftet … sig ja til den»; UDEN — samme afsnit
+ * uden løftet, og en sætning, der peger på kalenderrækken herunder. Ordet
+ * «vedhæftet» står ALDRIG i en mail, der sendes uden (prøvet, HTML og tekst).
  *
  * Layoutet er ordret Mortens: Parkinsans/Manrope, #FAF8F5, 600 px, TOPIX-
  * ordmærke, eyebrow i #A3D9C4, portrættet, hårlinjerne, den grønne boks.
@@ -126,6 +142,37 @@ export interface MailArgs {
   joinLink: string | null;
   kalenderLink: string | null;
   afmeldUrl: string;
+  /**
+   * Kom eWebinars invite.ics FAKTISK med i denne mail? KRÆVET, ikke valgfrit:
+   * en glemt værdi må ikke kunne blive til et løfte. Cronen sætter den til
+   * `ics !== null` efter hentningen; for de fem arter uden invitation er den
+   * false og uden virkning på teksten.
+   */
+  invitationVedhaeftet: boolean;
+}
+
+/**
+ * DOMMEN OVER KALENDERSÆTNINGEN — ét sted for begge arter i MED_INVITATION.
+ * Ren funktion: prøves direkte, og på de færdige mails.
+ *
+ *   kalenderHtml / kalenderTekst  det, der står efter «Vi ses <tid>.»
+ *   linkSted                      «herunder og i invitationen» / «herunder»
+ */
+export function invitationsTekst(medInvitation: boolean): { kalenderHtml: string; kalenderTekst: string; linkSted: string } {
+  if (medInvitation) {
+    return {
+      kalenderHtml: "Invitationen er vedhæftet denne mail — sig ja til den, så står tiden reserveret i din kalender, og du får en påmindelse af dig selv.",
+      kalenderTekst: "Invitationen er vedhæftet denne mail — sig ja til den, så står tiden reserveret i din kalender.",
+      linkSted: "herunder og i invitationen",
+    };
+  }
+  // UDEN: intet løfte om en fil, der ikke er der. Kalenderrækken (Google ·
+  // Apple · Outlook) står under knappen i alle mails — pegefingeren går dertil.
+  return {
+    kalenderHtml: "Læg den i din kalender med linkene herunder, så står tiden reserveret, og du får en påmindelse af dig selv.",
+    kalenderTekst: "Læg den i din kalender med linkene herunder, så står tiden reserveret.",
+    linkSted: "herunder",
+  };
 }
 
 export interface Mail {
@@ -139,6 +186,7 @@ export const WEBINAR_TITEL_STANDARD = "Webinar med Morten Larsen";
 /** Emnelinjerne — ORDRET fra Klaviyo-flowet; `en_time` er den nye. */
 export const EMNER: Record<MailArt, string> = {
   bekraeftelse: "Du har en plads — her er hvad der sker nu",
+  fjorten_dage: "Vi ses om to uger — læg det i kalenderen nu",
   syv_dage: "Et spørgsmål, du kan stille dig selv inden webinaret",
   tre_dage: "De fem spørgsmål, jeg stiller alle mine investeringer",
   en_dag: "Vi ses i morgen — tag én beslutning med",
@@ -146,7 +194,8 @@ export const EMNER: Record<MailArt, string> = {
   en_time: "Vi starter om en time — her er dit link",
 };
 
-function indhold(art: MailArt, tid: string): MailIndhold {
+function indhold(art: MailArt, tid: string, medInvitation: boolean): MailIndhold {
+  const inv = invitationsTekst(medInvitation);
   switch (art) {
     case "bekraeftelse":
       return {
@@ -155,14 +204,36 @@ function indhold(art: MailArt, tid: string): MailIndhold {
         laesetid: "1 minuts læsning",
         krop:
           FOERSTE("Tak, fordi du meldte dig til. Din plads er reserveret, og du skal ikke gøre mere lige nu.") +
-          BOKS(`<strong style="font-weight:700;">Vi ses ${esc(tid)}.</strong> Invitationen er vedhæftet denne mail — sig ja til den, så står tiden reserveret i din kalender, og du får en påmindelse af dig selv.<br/><br/><strong style="font-weight:700;">Dit personlige link står herunder og i invitationen</strong> — gem mailen, så har du det, når vi starter.`) +
+          BOKS(`<strong style="font-weight:700;">Vi ses ${esc(tid)}.</strong> ${esc(inv.kalenderHtml)}<br/><br/><strong style="font-weight:700;">Dit personlige link står ${inv.linkSted}</strong> — gem mailen, så har du det, når vi starter.`) +
           P("Webinaret tager en time. Sæt den af, sæt telefonen på lydløs, og hav noget at skrive på. Det er ikke et oplæg, du kan have kørende i baggrunden — det er tal og beslutninger, og du får mest ud af det, hvis du regner med.") +
           P("Vi ses."),
         kropTekst:
           "Tak, fordi du meldte dig til. Din plads er reserveret, og du skal ikke gøre mere lige nu.\n\n" +
-          `VI SES ${tid}. Invitationen er vedhæftet denne mail — sig ja til den, så står tiden reserveret i din kalender.\n\n` +
-          "DIT PERSONLIGE LINK STÅR HERUNDER OG I INVITATIONEN — gem mailen, så har du det, når vi starter.\n\n" +
+          `VI SES ${tid}. ${inv.kalenderTekst}\n\n` +
+          `DIT PERSONLIGE LINK STÅR ${inv.linkSted.toUpperCase()} — gem mailen, så har du det, når vi starter.\n\n` +
           "Webinaret tager en time. Sæt den af, sæt telefonen på lydløs, og hav noget at skrive på. Det er ikke et oplæg, du kan have kørende i baggrunden — det er tal og beslutninger, og du får mest ud af det, hvis du regner med.\n\n" +
+          "Vi ses.",
+      };
+    case "fjorten_dage":
+      // NY MAIL (28/9) — ikke Mortens egen tekst; samme form og længde som
+      // «dagen». Den bærer invitationen (MED_INVITATION), så boksen siger det,
+      // der faktisk er sket — vedhæftet, ELLER «læg den i din kalender med
+      // linkene herunder» (invitationsTekst). Ingen løfter om et link, der
+      // kommer — knappen står herunder.
+      return {
+        eyebrow: "OM TO UGER",
+        overskrift: "Vi ses om to uger.<br/>Læg det i kalenderen nu",
+        laesetid: "30 sekunders læsning",
+        krop:
+          FOERSTE("Om to uger holder jeg webinaret, du har meldt dig til.") +
+          BOKS(`<strong style="font-weight:700;">Vi ses ${esc(tid)}.</strong> Læg den i kalenderen nu. ${esc(inv.kalenderHtml)}<br/><br/><strong style="font-weight:700;">Dit personlige link står ${inv.linkSted}.</strong>`) +
+          P("Jeg bruger timen på de to områder, jeg mener afgør, om en virksomhed vokser eller står stille — og på de fem spørgsmål, jeg stiller alle mine investeringer. Det er tal og beslutninger, ikke et oplæg, du kan have kørende i baggrunden.") +
+          P("Vi ses."),
+        kropTekst:
+          "Om to uger holder jeg webinaret, du har meldt dig til.\n\n" +
+          `VI SES ${tid}. Læg den i kalenderen nu. ${inv.kalenderTekst}\n\n` +
+          `DIT PERSONLIGE LINK STÅR ${inv.linkSted.toUpperCase()}.\n\n` +
+          "Jeg bruger timen på de to områder, jeg mener afgør, om en virksomhed vokser eller står stille — og på de fem spørgsmål, jeg stiller alle mine investeringer. Det er tal og beslutninger, ikke et oplæg, du kan have kørende i baggrunden.\n\n" +
           "Vi ses.",
       };
     case "syv_dage":
@@ -240,7 +311,7 @@ function indhold(art: MailArt, tid: string): MailIndhold {
       };
     case "en_time":
       // NY MAIL (22/9) — ikke Mortens egen tekst, skrevet i samme form og
-      // længde som «dagen». Den korteste af de seks, og den eneste, hvor
+      // længde som «dagen». Den korteste af de syv, og den eneste, hvor
       // knappen er hele ærindet.
       return {
         eyebrow: "OM EN TIME",
@@ -267,7 +338,7 @@ function indhold(art: MailArt, tid: string): MailIndhold {
 export function bygWebinarMail(a: MailArgs): Mail {
   const tid = webinarTekst(new Date(a.sessionTid));
   const titel = (a.webinarTitel ?? "").trim() || WEBINAR_TITEL_STANDARD;
-  const i = indhold(a.art, tid);
+  const i = indhold(a.art, tid, a.invitationVedhaeftet);
   const google = googleKalenderUrl({ titel, sessionTid: a.sessionTid, joinLink: a.joinLink });
   const outlook = outlookKalenderUrl({ titel, sessionTid: a.sessionTid, joinLink: a.joinLink });
 

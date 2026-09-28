@@ -16,10 +16,34 @@
 
 // ── Arterne ────────────────────────────────────────────────────────────────
 
-export type MailArt = "bekraeftelse" | "syv_dage" | "tre_dage" | "en_dag" | "dagen" | "en_time";
+export type MailArt = "bekraeftelse" | "fjorten_dage" | "syv_dage" | "tre_dage" | "en_dag" | "dagen" | "en_time";
 
 /** I den rækkefølge de sendes. Rækkefølgen er dommens, ikke fladens. */
-export const ARTER: readonly MailArt[] = ["bekraeftelse", "syv_dage", "tre_dage", "en_dag", "dagen", "en_time"];
+export const ARTER: readonly MailArt[] = ["bekraeftelse", "fjorten_dage", "syv_dage", "tre_dage", "en_dag", "dagen", "en_time"];
+
+/**
+ * DE ARTER, DER BÆRER EWEBINARS invite.ics — inline og vedhæftet, gennem
+ * mimeInvitation.ts og Mailguns `/messages.mime`. De andre går ad den
+ * almindelige vej uden vedhæftning.
+ *
+ *   bekraeftelse  — invitationen er hele grunden til, at platformen overtog den.
+ *   fjorten_dage  — tilføjet 28/9-2026 (Jonas): de ~217, der tilmeldte sig
+ *                   13/10 FØR 22/9 kl. 19:03, har ALDRIG fået en invitation —
+ *                   eWebinars bekræftelse var slukket til 15:50, og Klaviyos
+ *                   lovede en, der ikke fandtes. Bekræftelsen går aldrig bagud
+ *                   (BEKRAEFTELSE_FRA), så det er DENNE mail, der lukker hullet:
+ *                   påmindelse og invitation i én, to uger før, til ALLE.
+ *
+ * Listen står OGSÅ i databasen som CHECK på webinar_mails.invitation
+ * (migration 20260928120000). Kildeværnet webinarMail.guard dom 10 holder de to
+ * i takt — en art, der vedhæfter uden at stå i CHECK'en, ville sende mailen og
+ * derefter tabe sin række i sporet, og sende IGEN fem minutter senere.
+ */
+export const MED_INVITATION: readonly MailArt[] = ["bekraeftelse", "fjorten_dage"];
+
+export function baererInvitation(art: MailArt): boolean {
+  return MED_INVITATION.includes(art);
+}
 
 /**
  * Planen, som Jonas satte den 22/9. To slags:
@@ -57,6 +81,10 @@ export interface Plan {
 export const PLANEN: readonly Plan[] = [
   // Bekræftelsen FØRST — både i listen og i tid.
   { art: "bekraeftelse", straks: true, kraeverIkkeBegyndt: true },
+  // «Om to uger» kl. 08:00 — påmindelsen MED invitationen (MED_INVITATION).
+  // Samme form og samme nåde som de tre næste: er tidspunktet passeret med mere
+  // end SEN_TILMELDING_NAADE_MS, sendes den aldrig — også for et helt hold.
+  { art: "fjorten_dage", dageFoer: 14, time: 8, minut: 0, kraeverIkkeBegyndt: false },
   { art: "syv_dage", dageFoer: 7, time: 8, minut: 0, kraeverIkkeBegyndt: false },
   { art: "tre_dage", dageFoer: 3, time: 8, minut: 0, kraeverIkkeBegyndt: false },
   { art: "en_dag", dageFoer: 1, time: 8, minut: 0, kraeverIkkeBegyndt: false },
@@ -104,8 +132,10 @@ export const SEN_TILMELDING_NAADE_MS = 2 * 3_600_000;
  * Konstanten har ÉT hjem — her, i dommen, i begge spejle. Cronen kender den
  * ikke, og der er ingen parameter at sætte forkert.
  *
- * KUN bekræftelsen. De fem påmindelser er urørte og går til alle: ingen anden
+ * KUN bekræftelsen. De seks påmindelser er urørte og går til alle: ingen anden
  * har sendt dem, og en påmindelse til en gammel tilmelding er stadig rigtig.
+ * «fjorten_dage» (28/9) går netop TIL de gamle: den bærer den invitation,
+ * bekræftelsen aldrig gav dem.
  */
 export const BEKRAEFTELSE_FRA = "2026-09-22T17:03:00Z";
 
