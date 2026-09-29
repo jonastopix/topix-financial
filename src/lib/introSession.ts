@@ -24,9 +24,6 @@
  *
  * De betalte 1:1-sessioner (advisor 'jonas') er et andet spor med sin egen
  * dom (lib/betaltSession); denne dom kaldes kun med Morten-rækken.
-  *
- * SPEJL: supabase/functions/_shared/introSession.ts (paritetsprøve
- * src/lib/__tests__/medlemsOverblik.paritet.test.ts — kroppen efter filhovedet er ordret ens).
  */
 
 export interface IntroBooking {

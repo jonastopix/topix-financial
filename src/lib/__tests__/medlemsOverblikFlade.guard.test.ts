@@ -11,7 +11,8 @@ import { SORTERINGER, STANDARD_SORTERING } from "@/lib/hjemmebane/branchefilter"
  *   1. HOOKEN BRUGER MOTOREN: hooks/medlemsOverblik.ts henter kun og kalder
  *      byggOverblik — ingen join, ingen egen sessionsregel, ingen egen
  *      dagsgrænse; universet (inkl. is_demo) og navnet (name) fra companies.
- *   2. ALDRIG ET TAVST LOFT: hver kilde side for side, logins til alle brugere.
+ *      Siden oprydningen 29/9 henter den KUN de tre kilder, forsiden læser.
+ *   2. ALDRIG ET TAVST LOFT: de tre kilder side for side, ingen .limit(.
  *   3. /VIRKSOMHEDER ER TILBAGE (som før #1122): listen nævner hverken
  *      useMedlemsOverblik, motoren, overblikOrd eller ?maerke=; standard-
  *      sorteringen er navn, og branchefilter kender ingen «overblik».
@@ -35,39 +36,37 @@ const BLOK = "src/components/hjemmebane/forside/ManglerAtBooke.tsx";
 const BLOK_LIB = "src/lib/hjemmebane/manglerAtBookeBlok.ts";
 
 // ── 1 ──────────────────────────────────────────────────────────────────────
-/** Siden 29/9 (statusmailen): hooken HENTER kun og kalder byggOverblik — joinen og dommene bor i motoren. */
+/** Hooken HENTER kun og kalder byggOverblik — sammenkoblingen og dommene bor i motoren. */
 export const hookenBrugerMotoren = (hook: string, motor: string): boolean => {
   const h = udenKommentarer(hook), m = udenKommentarer(motor);
   return (
     /import \{[^}]*\bbyggOverblik\b[^}]*\} from "@\/lib\/medlemsOverblik";/.test(h) &&
-    h.includes("return byggOverblik({ companies, medlemmer, bookinger, logins, facts, uploads, refleksioner, samtaler, events, progress, traade, svar, reaktioner, maal }, nu);") &&
-    // Ingen join og ingen dom i hooken: hverken motorens tre kald, kort pr. virksomhed eller et univers-filter.
-    !/aktiviteterAf\(|sessionStatus\(|overbliksDom\(|new Map<string, string\[\]>|is_legat \|\||erKunde\(/.test(h) &&
+    h.includes("return byggOverblik({ companies, medlemmer, bookinger }, nu);") &&
+    // Ingen join og ingen dom i hooken: hverken sessionStatus, kort pr. virksomhed eller et univers-filter.
+    !/sessionStatus\(|manglerAtBooke\(|new Map<|is_legat \|\||erKunde\(/.test(h) &&
     // Ingen egen sessionsregel og ingen egen dagsgrænse i hooken.
     !/=== "(booked|booking_sent|cancelled|pending)"|"booked"|"booking_sent"|"cancelled"|slut_tid <|slut_tid >|\* 86_?400_?000|30 \* /.test(h) &&
-    // Motoren gør det: de tre kald i byggOverblik, og universet (inkl. is_demo) ét sted.
+    // Motoren gør det: de to sessionsdomme i byggOverblik, og universet (inkl. is_demo) ét sted.
     (m.match(/sessionStatus\(\{ raadgiver: "(morten|jonas)"/g) ?? []).length === 2 &&
-    m.includes("const aktivitet = aktiviteterAf(input, nu);") &&
-    m.includes("const dom = overbliksDom({") &&
     m.includes("if (c.is_demo === true) return false;") &&
     m.includes("if (!iUniverset(c)) continue;") &&
-    // is_demo hentes — ellers er filtret tomt for hooken.
-    h.includes('select("id, name, status, is_legat, er_kunde, is_demo, intro_session_used_at, jonas_session_used_at")') &&
-    m.includes('ud.set(c.id, { companyId: c.id, navn: c.name || "", antalBrugere: brugere.length, medlemSiden, sessioner, aktivitet, dom });')
+    m.includes('ud.set(c.id, { companyId: c.id, navn: c.name || "", medlemSiden: medlemSidenByCompany.get(c.id) ?? null, sessioner });') &&
+    // is_demo og name hentes — ellers er filtret tomt og navnene tomme.
+    h.includes('select("id, name, status, is_legat, er_kunde, is_demo, intro_session_used_at, jonas_session_used_at")')
   );
 };
 
 // ── 2 ──────────────────────────────────────────────────────────────────────
+/** De tre kilder — og kun dem (oprydningen 29/9): ingen tabel, forsiden ikke læser. */
+export const KILDER = ["companies", "company_members", "session_bookings"] as const;
 export const aldrigEtTavstLoft = (hook: string): boolean => {
   const h = udenKommentarer(hook);
-  const kilder = ["companies", "company_members", "session_bookings", "financial_report_facts", "financial_reports", "pulse_checkins", "conversations", "event_registrations", "member_progress", "community_traade", "community_svar", "community_reaktioner", "milestones"];
+  const tabeller = [...h.matchAll(/supabase\.from\("([a-z_]+)"\)/g)].map((x) => x[1]);
   return (
     !/\.limit\(/.test(h) &&
-    kilder.every((k) => new RegExp(`hentAlleSider<[^>]*>\\(\\(fra, til\\) =>\\s*supabase\\.from\\("${k}"\\)[\\s\\S]{0,400}?\\.range\\(fra, til\\)\\.then\\(side\\("${k}"\\)\\)`).test(h)) &&
-    // Logins: nyeste først, og løkken stopper på brugerne (mangler.size), ikke på et tal.
-    h.includes('supabase.from("user_login_log").select("user_id, logged_in_at").in("user_id", del)') &&
-    h.includes("for (let fra = 0; mangler.size > 0; fra += SIDE) {") &&
-    h.includes('"user_login_log",')
+    tabeller.length === KILDER.length && KILDER.every((k) => tabeller.includes(k)) &&
+    KILDER.every((k) => new RegExp(`hentAlleSider<[^>]*>\\(\\(fra, til\\) =>\\s*supabase\\.from\\("${k}"\\)[\\s\\S]{0,400}?\\.range\\(fra, til\\)\\.then\\(side\\("${k}"\\)\\)`).test(h)) &&
+    h.includes('.eq("amount_dkk", 0)')
   );
 };
 
@@ -113,21 +112,23 @@ describe("medlemsOverblikFlade.guard — overblikket på /virksomheder", () => {
 describe("medlemsOverblikFlade.guard — dommene fanger fejlen på en kopi", () => {
   const hook = laes(HOOK), view = laes(VIEW), sort = laes(SORT);
 
-  it("en join tilbage i hooken, byggOverblik sprunget over, is_demo glemt, eller en egen sessionsregel, fælder dom 1", () => {
+  it("en join tilbage i hooken, byggOverblik sprunget over, is_demo eller name glemt, eller en egen sessionsregel, fælder dom 1", () => {
     const motor = laes(MOTOR);
+    expect(hookenBrugerMotoren(hook, motor)).toBe(true);
     expect(hookenBrugerMotoren(`${hook}\nconst x = rk[0]?.status === "booked" ? "afholdt" : "booket";\n`, motor)).toBe(false);
-    expect(hookenBrugerMotoren(hook.replace("return byggOverblik({ companies, medlemmer, bookinger, logins, facts, uploads, refleksioner, samtaler, events, progress, traade, svar, reaktioner, maal }, nu);", "return new Map();"), motor)).toBe(false);
+    expect(hookenBrugerMotoren(hook.replace("return byggOverblik({ companies, medlemmer, bookinger }, nu);", "return new Map();"), motor)).toBe(false);
     expect(hookenBrugerMotoren(`${hook}\nconst brugereByCompany = new Map<string, string[]>();\n`, motor)).toBe(false);
     expect(hookenBrugerMotoren(hook.replace('select("id, name, status, is_legat, er_kunde, is_demo, intro_session_used_at, jonas_session_used_at")', 'select("id, name, status, is_legat, er_kunde, intro_session_used_at, jonas_session_used_at")'), motor)).toBe(false);
     expect(hookenBrugerMotoren(hook.replace('select("id, name, status,', 'select("id, status,'), motor)).toBe(false);
     expect(hookenBrugerMotoren(hook, motor.replace("if (c.is_demo === true) return false;", ""))).toBe(false);
-    expect(hookenBrugerMotoren(hook, motor.replace("const aktivitet = aktiviteterAf(input, nu);", "const aktivitet = {} as never;"))).toBe(false);
   });
 
-  it("et .limit(, en kilde uden sider, eller en login-løkke der stopper på et tal, fælder dom 2", () => {
-    expect(aldrigEtTavstLoft(hook.replace('.order("created_at").order("id").range(fra, til).then(side("pulse_checkins"))', '.limit(1000).then(side("pulse_checkins"))'))).toBe(false);
-    expect(aldrigEtTavstLoft(hook.replace("for (let fra = 0; mangler.size > 0; fra += SIDE) {", "for (let fra = 0; fra < 3000; fra += SIDE) {"))).toBe(false);
-    expect(aldrigEtTavstLoft(hook.replace('.then(side("milestones"))', ".then((r) => r)"))).toBe(false);
+  it("et .limit(, en kilde uden sider, en kilde mindre, eller en fjerde tabel tilbage, fælder dom 2", () => {
+    expect(aldrigEtTavstLoft(hook)).toBe(true);
+    expect(aldrigEtTavstLoft(hook.replace('.order("created_at").order("id").range(fra, til).then(side("session_bookings"))', '.limit(1000).then(side("session_bookings"))'))).toBe(false);
+    expect(aldrigEtTavstLoft(hook.replace('.then(side("company_members"))', ".then((r) => r)"))).toBe(false);
+    expect(aldrigEtTavstLoft(hook.replace('.eq("amount_dkk", 0)', ""))).toBe(false);
+    expect(aldrigEtTavstLoft(`${hook}\nconst x = supabase.from("user_login_log").select("user_id");\n`)).toBe(false);
   });
 
   /** Én mutation = præcis én forekomst byttet — ellers er beviset tavst. */
