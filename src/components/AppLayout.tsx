@@ -12,6 +12,10 @@ import topixIconGreen from "@/assets/topix-icon-green.png";
 import FeedbackButton from "@/components/FeedbackButton";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { taelUlaesteBadge } from "@/lib/chatStroem";
+
+// Hvilke beskedtyper mobil-badgen tæller (uændret dom); chatStroem lægges oven på.
+const MOBIL_ULAEST_TYPER = ["user", "system"];
 
 // ⚠️ HUSK: Opdatér også DashboardActionCenter.tsx når du skifter announcement
 const CURRENT_ANNOUNCEMENT = {
@@ -51,14 +55,15 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
       if (!convs?.length) return 0;
       let total = 0;
       for (const conv of convs) {
-        const { count } = await supabase
+        // Rækker i stedet for head-tælling: chatstrømmens dom (lib/chatStroem.ts).
+        const { data: ulaeste } = await supabase
           .from("messages")
-          .select("*", { count: "exact", head: true })
+          .select("sender_id, read_at, message_type, context_type")
           .eq("conversation_id", conv.id)
           .neq("sender_id", user.id)
           .is("read_at", null)
-          .in("message_type", ["user", "system"]);
-        total += count ?? 0;
+          .in("message_type", MOBIL_ULAEST_TYPER);
+        total += taelUlaesteBadge(ulaeste ?? [], user.id, MOBIL_ULAEST_TYPER);
       }
       return total;
     },

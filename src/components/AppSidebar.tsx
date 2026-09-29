@@ -36,9 +36,13 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
+import { taelUlaesteBadge } from "@/lib/chatStroem";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useQuery } from "@tanstack/react-query";
 import topixIconWhite from "@/assets/topix-icon-white.png";
+
+// Hvilke beskedtyper badgen tæller (uændret dom); chatStroem lægges oven på.
+const ULAEST_TYPER = ["user", "system", "ai"];
 
 const baseNavItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
@@ -207,14 +211,16 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
       const { data: convs } = await supabase.from("conversations").select("id");
       if (convs && convs.length > 0) {
         const convIds = convs.map((c) => c.id);
-        const { count } = await supabase
+        // Rækker i stedet for head-tælling: chatstrømmens dom (lib/chatStroem.ts)
+        // er en funktion, ikke et filter — et skjult forslag må ikke blive et badge-tal.
+        const { data: ulaeste } = await supabase
           .from("messages")
-          .select("id", { count: "exact", head: true })
+          .select("sender_id, read_at, message_type, context_type")
           .in("conversation_id", convIds)
           .neq("sender_id", user.id)
           .is("read_at", null)
-          .in("message_type", ["user", "system", "ai"]);
-        totalUnread += count || 0;
+          .in("message_type", ULAEST_TYPER);
+        totalUnread += taelUlaesteBadge(ulaeste ?? [], user.id, ULAEST_TYPER);
       }
 
       setUnreadChat(totalUnread);

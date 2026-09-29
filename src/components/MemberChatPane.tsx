@@ -34,6 +34,8 @@ import { bygBeskedMeta, laesChipFraState, type NoegletalChip } from "@/lib/noegl
 // Citatet over et svar på et refleksionsfelt (29/9) — egen linje: chatSvar.guard dom 3 læser linjen ovenfor ordret.
 import { RefleksionCitat } from "@/components/ChatSvarCitat";
 import { kanBesvares, svarUddrag } from "@/lib/chatSvar";
+// Systembeskeder ud af chatstrømmen: ÉN dom for strøm, uddrag og ulæst (lib/chatStroem.ts).
+import { chatStroem, taelUlaesteIListen, uddragsBesked, visesIChatstroem } from "@/lib/chatStroem";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 import { format, startOfDay } from "date-fns";
 import { da } from "date-fns/locale";
@@ -221,10 +223,9 @@ const MemberChatPane = () => {
       const enriched: ConversationWithProfile[] = filteredConvs.map((c: any) => {
         const profile = profiles.find((p) => p.user_id === c.member_id) || null;
         const convMsgs = msgsByConv.get(c.id) || [];
-        const lastMsg = convMsgs[0];
-        const unreadCount = convMsgs.filter(
-          (m) => m.sender_id !== user.id && !m.read_at && m.message_type === "user"
-        ).length;
+        // Uddrag og ulæst følger chatstrømmens dom (lib/chatStroem.ts) — aldrig en skjult systemlinje.
+        const lastMsg = uddragsBesked(convMsgs);
+        const unreadCount = taelUlaesteIListen(convMsgs, user.id);
 
         const companyData = c.companies as any;
         const cid = c.company_id || undefined;
@@ -302,7 +303,7 @@ const MemberChatPane = () => {
         .eq("conversation_id", activeConvId)
         .order("created_at", { ascending: false })
         .limit(500);
-      setMessages((data || []).reverse());
+      setMessages(chatStroem((data || []).reverse()));
       setSvarPaa(null);
 
       if (user) {
@@ -324,7 +325,8 @@ const MemberChatPane = () => {
         },
         async (payload) => {
           const newMsg = payload.new as Message;
-          setMessages((prev) => [...prev, newMsg]);
+          // Skjult besked (fx opgave_forslag) når aldrig strømmen; den markeres stadig læst nedenfor.
+          if (visesIChatstroem(newMsg)) setMessages((prev) => [...prev, newMsg]);
 
           if (newMsg.message_type !== 'system') {
             setParticipants((prev) => {
