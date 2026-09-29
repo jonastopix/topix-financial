@@ -6,7 +6,8 @@ import { resolve } from "node:path";
 // dage» (mangellisten w2, recon-signup-daarlige-dage.md). Fladerne rører
 // Supabase og React Router og kan ikke køres rent i vitest, så tre ting
 // læses i kilden:
-//   1. Auth.tsx' signup-fejlgren kalder signupFejl( og viser ALDRIG
+//   1. Auth.tsx' signup-fejlgren sender HELE fejlobjektet til signupFejl(error)
+//      (30/9: code først, message bagefter) og viser ALDRIG
 //      error.message direkte (den går til console.warn).
 //   2. Auth.tsx' opslag går gennem afgoerInvitationslink( med data OG error,
 //      og «ukendt» åbner siden på login (setIsLogin(true)).
@@ -33,13 +34,13 @@ function blokTil(kilde: string, signatur: string, slutMarkoer: string): string {
   return kilde.slice(start, slut === -1 ? kilde.length : slut + slutMarkoer.length);
 }
 
-/** 1. handleSignup: fejlgrenen kalder signupFejl(error.message), toaster dom.tekst,
+/** 1. handleSignup: fejlgrenen kalder signupFejl(error) — hele objektet, ikke kun teksten, toaster dom.tekst,
     skifter til login på skiftTilLogin — og toaster IKKE error.message. */
 export function signupFejlgrenBrugerDommen(kilde: string): boolean {
   const k = udenKommentarer(kilde);
   const blok = blokTil(k, "const handleSignup = async (", "\n  };");
   return (
-    blok.includes("const dom = signupFejl(error.message);") &&
+    blok.includes("const dom = signupFejl(error);") &&
     blok.includes("toast.error(dom.tekst);") &&
     blok.includes("if (dom.skiftTilLogin) setIsLogin(true);") &&
     !blok.includes("toast.error(error.message)") &&
@@ -125,7 +126,8 @@ describe("signupDaarligeDage.guard — VÆRNET VIRKER (dommene på kopier med fe
   it("1. den rå tekst toastes, dommen fjernet, eller skiftet til login fjernet → falsk", () => {
     const k = laes(AUTH);
     expect(signupFejlgrenBrugerDommen(k.replace("toast.error(dom.tekst);", "toast.error(error.message);"))).toBe(false);
-    expect(signupFejlgrenBrugerDommen(k.replace("const dom = signupFejl(error.message);", "const dom = { tekst: error.message, skiftTilLogin: false };"))).toBe(false);
+    expect(signupFejlgrenBrugerDommen(k.replace("const dom = signupFejl(error);", "const dom = { tekst: error.message, skiftTilLogin: false };"))).toBe(false);
+    expect(signupFejlgrenBrugerDommen(k.replace("const dom = signupFejl(error);", "const dom = signupFejl(error.message);"))).toBe(false);
     expect(signupFejlgrenBrugerDommen(k.replace("if (dom.skiftTilLogin) setIsLogin(true);", ""))).toBe(false);
   });
   it("2. error ikke læst, dommen fjernet, ukendt uden login, eller ingen ventetilstand → falsk", () => {

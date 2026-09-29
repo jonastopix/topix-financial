@@ -171,10 +171,10 @@ const Auth = () => {
     });
     if (error) {
       // Supabases rå tekst («User already registered», «Database error saving
-      // new user») vises aldrig — signupFejl oversætter (16/9, w2). Den rå
-      // står i konsollen, så den kan genfindes.
-      console.warn("[Auth] signup fejlede:", error.message);
-      const dom = signupFejl(error.message);
+      // new user») vises aldrig — signupFejl oversætter (16/9, w2), på `code`
+      // først og teksten bagefter (30/9). Den rå står i konsollen, så den kan genfindes.
+      console.warn("[Auth] signup fejlede:", error.code, error.status, error.message);
+      const dom = signupFejl(error);
       toast.error(dom.tekst);
       if (dom.skiftTilLogin) setIsLogin(true); // mailen bliver i feltet
     } else {
