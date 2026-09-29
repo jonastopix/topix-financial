@@ -1,3 +1,68 @@
+# Morgenrapport — natten til 30/9 (Claude, «Kør selv» fra 29/9 19:50)
+
+## A. Det, Jonas skal gøre (i denne rækkefølge)
+
+1. **Update i Lovable.** Den bringer #1135, #1138, #1140, #1143, #1144, #1148, #1150 og #1151 ud. Main er Update-sikker (regelsæt §1a).
+2. **Deploy `chat-video`** fra build-chatten (#1142: videoer starter ikke af sig selv og hentes ikke på forhånd).
+3. **Deploy `webinar-mail-cron`** (#1152: Mailgun-loftet 90 → 1000 i timen). Nået før 7-dagsholdet 6/10.
+4. **Beslut Sunset før 14/10.** Det er ikke klar. Se `docs/analyser-30-09/klaviyo-gennemgang.md` §0. Jeg har ikke rørt Klaviyo.
+5. **Læs `docs/vision-uafhaengighed.md`.** Den samler bogholderi, Meta, webinarmotor, referater, gamification og community, og §5 har ni beslutninger.
+6. **Tjek bogholderens opsigelsesvarsel.** Det sætter tidsplanen for spor 1.
+7. **Valgfrit: tre målinger i SQL editor.** De står klar i `docs/analyser-30-09/vaerdivurdering.md` (a19 betaling uden adgang, a29-vedhaeftning og `company_invitations`' policies). Gamification- og community-målingerne står i deres rapporter.
+8. **Afgør #1146** (lokation på events). Den står åben med en migration, der ikke er kørt. Byg den, eller luk den.
+9. **Slet grenen `claude-adgangstest`** på GitHub. Slå også «Automatically delete head branches» til under Settings → General; proxyen lader mig ikke slette grene.
+
+## B. Merget i nat (alle med grøn CI på alle kørsler)
+
+| PR | Hvad | Venter på |
+|---|---|---|
+| #1142 | Chatvideo uden autostart og forhåndshentning | deploy `chat-video` |
+| #1143 | #-forslag tilbyder Community-opslag og viser lektionens område | Update |
+| #1144 | «Spørg din rådgiver» ved hvert nøgletal | Update. NB: valgt FØR regel §4a. Kan beholdes, men værdien er ikke målt. |
+| #1148 | Mobil-chat: header, ingen onboarding-pille over sendefeltet, 16 px felter (ingen iOS-zoom), død pil væk | Update + skærmbevis på telefon |
+| #1150 | Signup-fejl dømmes på Supabases `code` (svag adgangskode, rate limit m.fl.) | Update |
+| #1151 | Rådgiveren kan kopiere invitationslinket | Update |
+| #1152 | Mailgun-loftet 1000 i timen. Én kørsel når realistisk ~80–150 mails (BUDGET_MS 45 s); de elleve kørsler i timen tager resten. | deploy `webinar-mail-cron` |
+| #1141, #1147, #1149 | Regelsættet (tre kommandoer, «Værdi før byg», main altid Update-sikker) | — |
+
+- **Lukket uden merge:** #1145 (systembeskeder ud af chatten). Den ramte kun én type og blev lukket efter reglen «Værdi før byg».
+
+## C. Analyser i nat (kun læst, intet ændret)
+
+Alle ligger i `docs/analyser-30-09/`:
+
+- `klaviyo-gennemgang.md`:
+  - 1.743 har aktivt samtykke, men 3.807 kan modtage markedsføring.
+  - Sunset-flowet har tre fejl.
+  - Velkomstserien er LIVE, så `m28-velkomstserie` er forældet.
+  - 417 døde profiler.
+- `gamification-analyse.md`:
+  - Rammen fra 13/8 forbyder ranglister, og det skal Jonas afgøre.
+  - Svartiden kan måles, men chatten lover «24 timer» uden at nogen måler det.
+- `community-analyse.md`: medlemmerne kan ikke skrive til hinanden. Forslaget er en manuel intro-pilot før kode.
+- `bogholderi-automatisering.md`: e-conomics egne funktioner først, og kun forslag, aldrig autobogføring. Anpartshaverlån-forbuddet er ophævet 1/1-2025.
+- `meta-automatisering.md`: fem faser. Tilmeldinger må ikke deles med Meta (vores eget løfte).
+- `webinar-og-referater.md`:
+  - En egen webinarmotor er 6–9 uger, og gevinsten er koblingen, ikke de 99 $.
+  - Referater er en MVP på 6–8 dage efter en måling af dansk transskription.
+- `vaerdivurdering.md`: 13 kort værdivurderet (bygget: signupfejl, invitationslink).
+- `mobil-chat-fejl.md`: målingen bag #1148.
+
+## D. Modeller
+
+| Opgave | Model |
+|---|---|
+| Recon, Klaviyo-gennemgang, gamification-, community-, Meta- og webinaranalyser, signup, invitationslink, mobil-chat | mellem (sonnet) |
+| Mailgun-loftet | mellem (sonnet) |
+| Bogholderi-analysen (penge og lov) | stor (opus) |
+| Syntesen `vision-uafhaengighed.md`, gennemsyn af alle diffs og merges | hovedsessionen |
+
+## E. Lærestreg
+
+**(x) En mangelliste-status kan være forældet i den modsatte retning.** `m28-velkomstserie` sagde «pladsholdere», men Klaviyo viser flowet LIVE. Mål i kilden (Klaviyo), før et kort bygges.
+
+---
+
 # Opstart — onsdag 30. september 2026
 
 **Rækkefølgen er et FORSLAG — Jonas godkender den, før der bygges.**
