@@ -3506,6 +3506,7 @@ export type Database = {
           created_at: string
           edited_at: string | null
           id: string
+          indhold_json: Json | null
           message_type: string
           pinned_at: string | null
           read_at: string | null
@@ -3521,6 +3522,7 @@ export type Database = {
           created_at?: string
           edited_at?: string | null
           id?: string
+          indhold_json?: Json | null
           message_type?: string
           pinned_at?: string | null
           read_at?: string | null
@@ -3536,6 +3538,7 @@ export type Database = {
           created_at?: string
           edited_at?: string | null
           id?: string
+          indhold_json?: Json | null
           message_type?: string
           pinned_at?: string | null
           read_at?: string | null

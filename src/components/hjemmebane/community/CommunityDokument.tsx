@@ -5,6 +5,7 @@ import { Download, File, FileCode, FileSpreadsheet, FileText, Loader2 } from "lu
 import { toast } from "sonner";
 import { hentBilledUrl, hentFilUrl } from "@/lib/hjemmebane/communityApi";
 import { linkKortIDokument } from "@/lib/hjemmebane/linkKort";
+import { rabataftaleAdresse } from "@/lib/hjemmebane/rabataftaleAdresse";
 import { CommunityLinkKortListe } from "./CommunityLinkKort";
 import {
   parseCommunityDokument,
@@ -271,6 +272,21 @@ function renderNode(node: CommunityNode, key: number): ReactNode {
         <Link
           key={key}
           to={`/community/${node.traadId}`}
+          className="font-medium text-hb-rust hover:underline"
+        >
+          #{node.titel}
+        </Link>
+      );
+
+    case "rabathenvisning":
+      /* Ruten er MemberRoute-gated. Adressen er rabataftaleAdresse — den
+         ENESTE bygger af en aftales adresse (hjemmebane/rabataftaleAdresse.ts);
+         aldrig en streng her. Community's composer tilbyder ikke noden
+         (29/9-2026), men motoren kender den, så visningen gør også. */
+      return (
+        <Link
+          key={key}
+          to={rabataftaleAdresse(node.aftaleId)}
           className="font-medium text-hb-rust hover:underline"
         >
           #{node.titel}

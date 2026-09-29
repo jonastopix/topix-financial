@@ -15,7 +15,6 @@ import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
 import Mention from "@tiptap/extension-mention";
 import Placeholder from "@tiptap/extension-placeholder";
-import type { SuggestionKeyDownProps, SuggestionProps } from "@tiptap/suggestion";
 import { useQuery } from "@tanstack/react-query";
 import {
   Bold,
@@ -47,6 +46,11 @@ import type { ContentItem, EventRow } from "@/lib/hjemmebane/adminContentApi";
 import { HbCard } from "@/components/hjemmebane/HbCard";
 import { sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
 import { HbButton } from "@/components/hjemmebane/HbButton";
+import {
+  EventHenvisningNode,
+  HenvisningNode,
+  opretForslagsDropdown,
+} from "@/components/henvisninger";
 
 /** Billed-noden bærer `path` og `alt` som ENESTE attributter — ingen
     `src`: motoren (parseCommunityDokument) accepterer kun `path`, og en
@@ -242,151 +246,6 @@ const NaevnelseNode = Mention.extend({
   },
 });
 
-/** Fælles dropdown-maskineri for editor-forslag (@-nævnelser og
-    #-henvisninger) — ren DOM (ingen ReactRenderer/tippy): rækkerne
-    bygges med createElement + textContent, så brugerdata aldrig
-    fortolkes som markup. Kun rækkens INDHOLD varierer (tegnRaekke);
-    ramme, positionering, lyttere og tastatur deles. Hb-stil:
-    HbCard-lignende ramme, valgt række i bg-hb-sage. Piletaster op/ned,
-    Enter vælger, Escape lukker. */
-function opretForslagsDropdown<T>(tegnRaekke: (item: T, raekke: HTMLButtonElement) => void) {
-  let element: HTMLDivElement | null = null;
-  let items: T[] = [];
-  let valgt = 0;
-  let vaelg: ((item: T) => void) | null = null;
-  let sidsteRect: (() => DOMRect | null) | null | undefined = null;
-  let scrollLytter: (() => void) | null = null;
-  let klikLytter: ((e: MouseEvent) => void) | null = null;
-  let resizeLytter: (() => void) | null = null;
-
-  /* Idempotent: luk() kaldes af onExit, af klik udenfor OG af Escape —
-     gentagne kald må ikke fejle. ALLE tre lyttere fjernes og nulstilles
-     her, så en composer der monteres og unmountes gentagne gange ikke
-     efterlader lyttere på window/document. */
-  const luk = () => {
-    if (scrollLytter) {
-      window.removeEventListener("scroll", scrollLytter, { capture: true });
-      scrollLytter = null;
-    }
-    if (klikLytter) {
-      document.removeEventListener("mousedown", klikLytter);
-      klikLytter = null;
-    }
-    if (resizeLytter) {
-      window.removeEventListener("resize", resizeLytter);
-      resizeLytter = null;
-    }
-    element?.remove();
-    element = null;
-  };
-
-  const tegn = () => {
-    if (!element) return;
-    element.replaceChildren();
-    if (items.length === 0) {
-      element.style.display = "none";
-      return;
-    }
-    element.style.display = "block";
-    items.forEach((item, i) => {
-      const raekke = document.createElement("button");
-      raekke.type = "button";
-      raekke.className = cn(
-        "flex w-full items-center gap-3 px-3 py-2 text-left transition-colors",
-        i === valgt ? "bg-hb-sage" : "hover:bg-hb-sage/40",
-      );
-      tegnRaekke(item, raekke);
-      raekke.addEventListener("mousedown", (e) => {
-        e.preventDefault();
-        vaelg?.(item);
-      });
-      element!.appendChild(raekke);
-    });
-    const rect = sidsteRect?.();
-    if (rect) {
-      element.style.left = `${rect.left}px`;
-      element.style.top = `${rect.bottom + 4}px`;
-    }
-  };
-
-  return {
-    onStart: (props: SuggestionProps<T, any>) => {
-      items = props.items;
-      valgt = 0;
-      vaelg = props.command;
-      sidsteRect = props.clientRect;
-      element = document.createElement("div");
-      /* "theme-hjemmebane" FØRST: elementet hænges på document.body,
-         altså UDEN FOR .theme-hjemmebane. Hb-tokens er scoped til netop
-         den klasse (src/styles/hjemmebane.css:8 — filens egen header:
-         "variablerne findes kun under .theme-hjemmebane"), så
-         --hb-surface, --hb-line, --hb-radius og skyggen er alle
-         UDEFINEREDE på body. hsl(var(--hb-surface)) bliver ugyldig, og
-         elementet males ikke — hverken baggrund, kant eller radius.
-         Hverken bg-hb-paper eller bg-hb-surface kunne have virket uden
-         denne klasse; med den er tokens defineret i dropdown'ens eget
-         undertræ.
-
-         hb-surface (ikke hb-paper): flade-farven, samme valg som HbCard
-         — en flade må aldrig males i sidens egen farve. */
-      element.className =
-        "theme-hjemmebane fixed z-50 w-64 overflow-hidden rounded-hb border border-hb-line bg-hb-surface py-1 shadow-hb-hover";
-      document.body.appendChild(element);
-
-      // Positionen følger med scroll — capture er nødvendigt, fordi
-      // scroll ikke bobler fra indre containere (kun capture-fasen ser
-      // scroll i fx en overflow-container).
-      scrollLytter = () => tegn();
-      window.addEventListener("scroll", scrollLytter, { capture: true, passive: true });
-
-      // Klik udenfor lukker. Rækkernes egen mousedown rammer INDE i
-      // elementet, så element.contains(e.target) springer luk() over —
-      // valget når altid igennem før en eventuel lukning.
-      klikLytter = (e: MouseEvent) => {
-        if (element && e.target instanceof Node && !element.contains(e.target)) {
-          luk();
-        }
-      };
-      document.addEventListener("mousedown", klikLytter);
-
-      resizeLytter = () => tegn();
-      window.addEventListener("resize", resizeLytter);
-
-      tegn();
-    },
-    onUpdate: (props: SuggestionProps<T, any>) => {
-      items = props.items;
-      vaelg = props.command;
-      sidsteRect = props.clientRect;
-      if (valgt >= items.length) valgt = 0;
-      tegn();
-    },
-    onKeyDown: ({ event }: SuggestionKeyDownProps) => {
-      if (event.key === "Escape") {
-        luk();
-        return true;
-      }
-      if (!element || items.length === 0) return false;
-      if (event.key === "ArrowDown") {
-        valgt = (valgt + 1) % items.length;
-        tegn();
-        return true;
-      }
-      if (event.key === "ArrowUp") {
-        valgt = (valgt + items.length - 1) % items.length;
-        tegn();
-        return true;
-      }
-      if (event.key === "Enter") {
-        vaelg?.(items[valgt]);
-        return true;
-      }
-      return false;
-    },
-    onExit: luk,
-  };
-}
-
 /** Rækkerne til @-forslag: avatar (img eller sage-cirkel med
     forbogstav), navn og virksomhed. */
 const opretNaevnelsesDropdown = () =>
@@ -491,105 +350,6 @@ const opretHenvisningsDropdown =
       tekst.appendChild(under);
       raekke.appendChild(tekst);
     });
-
-/** #-henvisninger — Mention-extensionen omdøbt til motorens nodetype
-    "henvisning" med area/slug/titel som eneste attributter. renderHTML
-    og parseHTML spejler hinanden: span med data-area, data-slug og
-    data-titel; parseren matcher span[data-area][data-slug][data-titel]
-    — INGEN overlap med naevnelse-nodens span[data-user-id][data-navn]
-    (attributsættene er disjunkte, ingen af selektorerne kan matche den
-    andens markup). */
-const HenvisningNode = Mention.extend({
-  name: "henvisning",
-  addAttributes() {
-    return {
-      area: {
-        default: null,
-        parseHTML: (element: HTMLElement) => element.getAttribute("data-area"),
-        renderHTML: (attributes: { area?: string | null }) =>
-          attributes.area ? { "data-area": attributes.area } : {},
-      },
-      slug: {
-        default: null,
-        parseHTML: (element: HTMLElement) => element.getAttribute("data-slug"),
-        renderHTML: (attributes: { slug?: string | null }) =>
-          attributes.slug ? { "data-slug": attributes.slug } : {},
-      },
-      titel: {
-        default: "",
-        parseHTML: (element: HTMLElement) => element.getAttribute("data-titel") ?? "",
-        renderHTML: (attributes: { titel?: string }) =>
-          attributes.titel ? { "data-titel": attributes.titel } : {},
-      },
-    };
-  },
-  parseHTML() {
-    return [{ tag: "span[data-area][data-slug][data-titel]" }];
-  },
-  renderHTML({ node, HTMLAttributes }) {
-    return [
-      "span",
-      mergeAttributes(HTMLAttributes, { class: "font-medium text-hb-rust" }),
-      `#${node.attrs.titel ?? ""}`,
-    ];
-  },
-  renderText({ node }) {
-    return `#${node.attrs.titel ?? ""}`;
-  },
-});
-
-/** #-eventhenvisninger — samme snit som HenvisningNode, men mod events.
-    Events og akademi-indhold DELER tegnet '#': et medlem skal ikke lære
-    to tegn for "henvis til noget på platformen" — listen skelner dem
-    visuelt i stedet ("Event · dato"-undertekst).
-
-    renderHTML/parseHTML spejler hinanden: span med data-event-id og
-    data-titel; parseren matcher span[data-event-id][data-titel] —
-    ingen overlap med HenvisningNode (kræver data-area+data-slug, som
-    en event-span mangler) eller NaevnelseNode (kræver data-user-id,
-    som en event-span mangler); omvendt mangler deres markup
-    data-event-id. Hver af de tre selektorer kræver mindst én attribut,
-    de to andre aldrig skriver. */
-const EventHenvisningNode = Mention.extend({
-  name: "eventhenvisning",
-  addAttributes() {
-    return {
-      eventId: {
-        default: null,
-        parseHTML: (element: HTMLElement) => element.getAttribute("data-event-id"),
-        renderHTML: (attributes: { eventId?: string | null }) =>
-          attributes.eventId ? { "data-event-id": attributes.eventId } : {},
-      },
-      titel: {
-        default: "",
-        parseHTML: (element: HTMLElement) => element.getAttribute("data-titel") ?? "",
-        renderHTML: (attributes: { titel?: string }) =>
-          attributes.titel ? { "data-titel": attributes.titel } : {},
-      },
-    };
-  },
-  parseHTML() {
-    return [{ tag: "span[data-event-id][data-titel]" }];
-  },
-  renderHTML({ node, HTMLAttributes }) {
-    return [
-      "span",
-      mergeAttributes(HTMLAttributes, { class: "font-medium text-hb-rust" }),
-      `#${node.attrs.titel ?? ""}`,
-    ];
-  },
-  renderText({ node }) {
-    return `#${node.attrs.titel ?? ""}`;
-  },
-  /* INGEN egen suggestion-plugin: uden dette ville Mention-defaulten
-     montere et ekstra '@'-suggestion-plugin for denne node ved siden af
-     nævnelses-pickeren. Event-forslagene bor i HenvisningNodes
-     #-suggestion, som indsætter begge nodetyper — denne node er kun
-     skema (parse/render). */
-  addProseMirrorPlugins() {
-    return [];
-  },
-});
 
 /** #-opslagshenvisninger (17/9, valg 2: «#-menuen udvides med opslag») —
     samme snit som EventHenvisningNode, men mod community_traade.

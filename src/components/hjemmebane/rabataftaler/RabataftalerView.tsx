@@ -6,7 +6,7 @@ import { hasRichTextContent } from "@/lib/hjemmebane/richtext";
 import { getAssetPreviewUrl } from "@/lib/hjemmebane/adminContentApi";
 import { listMedlemsPartnere, type MedlemsPartner } from "@/lib/hjemmebane/akademiApi";
 import {
-  afgoerAftaleMaal, AFTALE_FINDES_IKKE, laesRabataftaleId, MARKERING_MS, rabataftaleElementId,
+  afgoerAftaleMaal, AFTALE_FINDES_IKKE, aftalenErUdloebet, laesRabataftaleId, MARKERING_MS, rabataftaleElementId,
 } from "@/lib/hjemmebane/rabataftaleAdresse";
 import { hbButtonVariants } from "../HbButton";
 
@@ -32,12 +32,6 @@ import { hbButtonVariants } from "../HbButton";
     id="aftale-{id}". Findes aftalen blandt dem, der vises: scroll til midten og
     en ring i to sekunder. Findes den ikke (arkiveret, udløbet, ukendt): listen
     som altid, med én rolig linje over. Parameteren ryddes bagefter, hash bevares. */
-
-/** Udløbet aftale = valid_until er passeret. Aftalen gælder TIL OG MED
-    dagen (kolonnen er DATE), så grænsen lægges ved døgnets udgang —
-    udløbne aftaler vises slet ikke (filtreres fra i afledningen). */
-const erUdloebet = (validUntil: string | null): boolean =>
-  !!validUntil && new Date(`${validUntil}T23:59:59`) < new Date();
 
 const fmtDato = (iso: string): string =>
   new Date(iso).toLocaleDateString("da-DK", { day: "numeric", month: "long", year: "numeric" });
@@ -138,7 +132,7 @@ export const RabataftalerView = () => {
   // Udløbne aftaler vises slet ikke — en aftale der er gældende til en
   // passeret dato er ikke en aftale, og en "udløbet"-markering ville
   // bare være støj i en kurateret liste.
-  const aftaler = (aftalerQuery.data ?? []).filter((aftale) => !erUdloebet(aftale.valid_until));
+  const aftaler = (aftalerQuery.data ?? []).filter((aftale) => !aftalenErUdloebet(aftale.valid_until));
 
   // ── Adressen: ?aftaleId= (29/9). Hooks i topblokken, før enhver return. ──
   const location = useLocation();

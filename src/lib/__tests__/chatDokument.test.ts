@@ -79,11 +79,11 @@ describe("parseChatDokument — hvidlisten: ChatRichInputs noder + de tre #-henv
     expect(parseChatDokument(d)).toEqual(parseCommunityDokument(d));
   });
 
-  it("listen: ChatRichInputs noder og de tre henvisninger — intet andet", () => {
+  it("listen: ChatRichInputs noder og de fire henvisninger — intet andet (trin 3: + rabathenvisning)", () => {
     expect([...CHAT_NODER].sort()).toEqual(
-      ["bulletList", "eventhenvisning", "hardBreak", "henvisning", "listItem", "opslaghenvisning", "orderedList", "paragraph", "text"],
+      ["bulletList", "eventhenvisning", "hardBreak", "henvisning", "listItem", "opslaghenvisning", "orderedList", "paragraph", "rabathenvisning", "text"],
     );
-    expect([...HENVISNINGS_NODER]).toEqual(["henvisning", "eventhenvisning", "opslaghenvisning"]);
+    expect([...HENVISNINGS_NODER]).toEqual(["henvisning", "eventhenvisning", "opslaghenvisning", "rabathenvisning"]);
   });
 });
 

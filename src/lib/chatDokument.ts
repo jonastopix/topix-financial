@@ -15,8 +15,9 @@
  * dens værn (links kun https/http/mailto, uuid-mønstre, områdelisten, slug-
  * mønstret, 120-tegns titler, dybdegrænsen, kast aldrig) gælder også her.
  *
- * CHATTENS HVIDLISTE = det ChatRichInput kan skrive + de tre #-noder (Jonas 29/9,
- * trin 1: events, lektioner og opslag — samme adresse for medlem og rådgiver):
+ * CHATTENS HVIDLISTE = det ChatRichInput kan skrive + fire #-noder (Jonas 29/9,
+ * trin 1: events, lektioner og opslag — samme adresse for medlem og rådgiver;
+ * trin 3: rabataftaler, når en aftale har en adresse — rabataftaleAdresse):
  *   ChatRichInput (ChatRichInput.tsx:203-217, @tiptap/starter-kit 2.27.2):
  *     StarterKit uden heading, codeBlock, blockquote, horizontalRule — tilbage
  *     er doc, paragraph, text, hardBreak, bulletList, orderedList, listItem og
@@ -36,6 +37,7 @@
  * husets paritetsmønster DENGANG, med parseCommunityDokument som del af spejlet.
  */
 import { parseCommunityDokument, type CommunityNode } from "@/lib/hjemmebane/communityDokument";
+import { rabataftaleAdresse } from "@/lib/hjemmebane/rabataftaleAdresse";
 
 /** Nodetyperne, en chatbesked må bære — alt andet fjernes stille (med sit indhold). */
 export type ChatNodeType =
@@ -47,7 +49,8 @@ export type ChatNodeType =
   | "text"
   | "henvisning"
   | "eventhenvisning"
-  | "opslaghenvisning";
+  | "opslaghenvisning"
+  | "rabathenvisning";
 
 export const CHAT_NODER: ReadonlySet<string> = new Set<ChatNodeType>([
   "paragraph",
@@ -59,10 +62,11 @@ export const CHAT_NODER: ReadonlySet<string> = new Set<ChatNodeType>([
   "henvisning",
   "eventhenvisning",
   "opslaghenvisning",
+  "rabathenvisning",
 ]);
 
-/** De tre #-henvisninger (trin 1). Rabataftaler kommer i trin 2, når en aftale har en adresse. */
-export const HENVISNINGS_NODER = ["henvisning", "eventhenvisning", "opslaghenvisning"] as const;
+/** De fire #-henvisninger: lektion, event og opslag (trin 1) og rabataftale (trin 3). */
+export const HENVISNINGS_NODER = ["henvisning", "eventhenvisning", "opslaghenvisning", "rabathenvisning"] as const;
 
 export type ChatNode = Extract<CommunityNode, { type: ChatNodeType }>;
 
@@ -100,7 +104,9 @@ export function parseChatDokument(input: unknown): ChatNode[] {
  * (20260917160000_community_tekst_med_opslaghenvisninger.sql:65-113):
  *   - noderne besøges i dokumentorden (pre-order)
  *   - en text-node bidrager med sin tekst ORDRET (ingen trim)
- *   - henvisning, eventhenvisning, opslaghenvisning bidrager med «#» + titel
+ *   - henvisning, eventhenvisning, opslaghenvisning og rabathenvisning bidrager
+ *     med «#» + titel (rabathenvisning kendes ikke af SQL'en — Community
+ *     skriver den ikke; chattens tekst udledes her, ikke i databasen)
  *   - alle andre noder (afsnit, lister, hardBreak) bidrager med intet
  *   - bidragene samles med ÉT mellemrum, og kun mellemrum trimmes i enderne
  *     (btrim uden tegnliste trimmer kun ' ')
@@ -118,6 +124,7 @@ export function chatDokumentTilTekst(noder: readonly ChatNode[]): string | null 
         case "henvisning":
         case "eventhenvisning":
         case "opslaghenvisning":
+        case "rabathenvisning":
           if (node.titel !== "") dele.push(`#${node.titel}`);
           break;
         case "hardBreak":
@@ -168,4 +175,50 @@ export function byggChatBesked(input: unknown): ChatBesked | null {
   const tekst = chatDokumentTilTekst(parseChatDokument(input));
   if (tekst === null) return null;
   return { content: tekstTilContent(tekst), indhold_json: input as Record<string, unknown> };
+}
+
+type Henvisning = Extract<ChatNode, { type: (typeof HENVISNINGS_NODER)[number] }>;
+
+/** Bærer dokumentet mindst én (gyldig) #-henvisning? Kaster aldrig. */
+export function harHenvisning(input: unknown): boolean {
+  const gaa = (noder: readonly ChatNode[]): boolean =>
+    noder.some((n) =>
+      (HENVISNINGS_NODER as readonly string[]).includes(n.type) || ("content" in n && gaa(n.content as ChatNode[])),
+    );
+  return gaa(parseChatDokument(input));
+}
+
+/**
+ * Henvisningens adresse i appen — ét sted for chattens visning. Samme ruter som
+ * Community's renderer (CommunityDokument.tsx); aftalens adresse bygges KUN af
+ * rabataftaleAdresse (værn: chatHenvisningFlade.guard dom d).
+ */
+export function henvisningsAdresse(node: Henvisning): string {
+  switch (node.type) {
+    case "henvisning":
+      return `/akademiet/${node.area}/${node.slug}`;
+    case "eventhenvisning":
+      return `/events/${node.eventId}`;
+    case "opslaghenvisning":
+      return `/community/${node.traadId}`;
+    case "rabathenvisning":
+      return rabataftaleAdresse(node.aftaleId);
+  }
+}
+
+/**
+ * Sendefeltets afsendelse (ChatRichInput og redigeringsdialogen): teksten, som
+ * den ALTID er blevet sendt — ren tekst, når editorens HTML kun er ét afsnit af
+ * samme tekst, ellers HTML (isPlain-reglen, uændret) — og dokumentet, KUN når
+ * det bærer en #-henvisning. Uden henvisning er der intet dokument, og content
+ * bliver tegn for tegn det samme som før (prøve: chatAfsendelse.test.ts).
+ */
+export function chatAfsendelse(
+  tekst: string,
+  html: string,
+  dokument: unknown,
+): { content: string; dokument?: Record<string, unknown> } {
+  const isPlain = html === `<p>${tekst}</p>`;
+  const content = isPlain ? tekst : html;
+  return harHenvisning(dokument) ? { content, dokument: dokument as Record<string, unknown> } : { content };
 }

@@ -6,6 +6,8 @@ import {
   Bold, Italic, List, ListOrdered, Link as LinkIcon, Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useChatHenvisninger } from "@/components/chatHenvisninger";
+import { chatAfsendelse, parseChatDokument } from "@/lib/chatDokument";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -14,7 +16,14 @@ interface MessageEditDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialHTML: string;
-  onSave: (html: string) => Promise<boolean> | boolean;
+  /** Beskedens indhold_json (29/9-2026, «#» i chatten). Er det et gyldigt
+      chatdokument, åbner editoren DOKUMENTET (med #-mærkerne) i stedet for
+      content — content er for en sådan besked kun den udledte tekst. */
+  initialDokument?: unknown;
+  /** `dokument` følger med, når beskeden HAVDE et dokument, eller når den
+      redigerede tekst bærer en #-henvisning — så opdateres content og
+      indhold_json sammen gennem byggChatBesked (useMessageActions.saveEdit). */
+  onSave: (html: string, dokument?: Record<string, unknown>) => Promise<boolean> | boolean;
   saving?: boolean;
   /** variant="hb" (C4): Hjemmebane-udtrykket. DialogContent er en
       PORTAL uden for .theme-hjemmebane-wrapperen — klassen sættes
@@ -146,10 +155,13 @@ function Toolbar({ editor, hb }: { editor: Editor; hb?: boolean }) {
 }
 
 const MessageEditDialog: React.FC<MessageEditDialogProps> = ({
-  open, onOpenChange, initialHTML, onSave, saving = false, variant,
+  open, onOpenChange, initialHTML, initialDokument, onSave, saving = false, variant,
 }) => {
   const hb = variant === "hb";
   const [submitting, setSubmitting] = useState(false);
+  // «#» som i sendefeltet — samme udvidelser (chatHenvisninger.ts).
+  const henvisninger = useChatHenvisninger();
+  const harDokument = parseChatDokument(initialDokument).length > 0;
 
   // Samme restriktive StarterKit som compose. Tilladte formater (fed/kursiv/
   // lister/links/afsnit/linjeskift) matcher praecist render-sanitizens
@@ -168,6 +180,7 @@ const MessageEditDialog: React.FC<MessageEditDialogProps> = ({
         openOnClick: false,
         HTMLAttributes: { rel: "noopener noreferrer", target: "_blank" },
       }),
+      ...henvisninger,
     ],
     editorProps: {
       attributes: {
@@ -186,10 +199,14 @@ const MessageEditDialog: React.FC<MessageEditDialogProps> = ({
   // staeler dialogen fokus.
   useEffect(() => {
     if (!editor || !open) return;
-    editor.commands.setContent(initialHTML || "", false);
+    // Dokumentet, når beskeden har et gyldigt; ellers content som før.
+    editor.commands.setContent(
+      harDokument ? (initialDokument as Record<string, unknown>) : initialHTML || "",
+      false,
+    );
     const t = setTimeout(() => editor.commands.focus("end"), 80);
     return () => clearTimeout(t);
-  }, [open, editor, initialHTML]);
+  }, [open, editor, initialHTML, initialDokument, harDokument]);
 
   const isEmpty = !editor || editor.getText().trim().length === 0;
   const busy = saving || submitting;
@@ -198,19 +215,21 @@ const MessageEditDialog: React.FC<MessageEditDialogProps> = ({
     if (!editor) return;
     const text = editor.getText().trim();
     if (!text) return; // Faldgrube 4: tom besked gemmer aldrig (og sletter aldrig).
-    const html = editor.getHTML();
     // Faldgrube 6 (isPlain-paritet): gem ren tekst hvis der ingen formatering er,
-    // ellers HTML. Samme regel som compose, saa data forbliver konsistent.
-    const isPlain = html === `<p>${text}</p>`;
-    const payload = isPlain ? text : html;
+    // ellers HTML. Samme regel som compose (chatAfsendelse), saa data forbliver
+    // konsistent. En besked, der HAVDE et dokument, gemmer altid dokumentet —
+    // ogsaa hvis henvisningerne er slettet — saa indhold_json aldrig staar
+    // tilbage med en gammel udgave.
+    const json = editor.getJSON();
+    const { content: payload, dokument } = chatAfsendelse(text, editor.getHTML(), json);
     setSubmitting(true);
     try {
-      const ok = await onSave(payload);
+      const ok = await onSave(payload, dokument ?? (harDokument ? (json as Record<string, unknown>) : undefined));
       if (ok) onOpenChange(false);
     } finally {
       setSubmitting(false);
     }
-  }, [editor, onSave, onOpenChange]);
+  }, [editor, onSave, onOpenChange, harDokument]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // Cmd/Ctrl+Enter gemmer. Esc lukker via radix default.
