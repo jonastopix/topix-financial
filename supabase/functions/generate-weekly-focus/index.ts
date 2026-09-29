@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
         .eq("user_id", callerId)
         .in("role", ["admin"])
         .limit(1);
-      isAdminUser = (roleCheck && roleCheck.length > 0);
+      isAdminUser = !!(roleCheck && roleCheck.length > 0);
     }
   }
 
@@ -188,7 +188,7 @@ async function processCompany(
 
   // T1: REPORT_UPLOADED — new report committed since last week
   const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
-  const recentReport = (recentFacts || []).find(f => f.committed_at >= oneWeekAgo);
+  const recentReport = (recentFacts || []).find((f: any) => f.committed_at >= oneWeekAgo);
   if (recentReport) {
     triggers.push("REPORT_UPLOADED");
     triggerData.REPORT_UPLOADED = { period_key: recentReport.period_key, committed_at: recentReport.committed_at };
@@ -258,7 +258,7 @@ async function processCompany(
 
   if ((dueSoonMilestones || []).length > 0) {
     triggers.push("MILESTONE_DUE_SOON");
-    triggerData.MILESTONE_DUE_SOON = dueSoonMilestones!.map(m => ({
+    triggerData.MILESTONE_DUE_SOON = dueSoonMilestones!.map((m: any) => ({
       id: m.id, title: m.title, deadline: m.deadline, progress: m.progress,
       target_value: (m as any).target_value ?? null, current_value: (m as any).current_value ?? null, unit: (m as any).unit ?? null,
     }));
@@ -277,7 +277,7 @@ async function processCompany(
 
   if ((stalledMilestones || []).length > 0) {
     triggers.push("MILESTONE_STALLED");
-    triggerData.MILESTONE_STALLED = stalledMilestones!.map(m => ({
+    triggerData.MILESTONE_STALLED = stalledMilestones!.map((m: any) => ({
       id: m.id, title: m.title, progress: m.progress,
       days_stalled: Math.floor((now.getTime() - new Date(m.updated_at).getTime()) / (1000 * 60 * 60 * 24)),
       target_value: (m as any).target_value ?? null, current_value: (m as any).current_value ?? null, unit: (m as any).unit ?? null,
@@ -363,7 +363,7 @@ async function processCompany(
 
   if ((overdueHandouts || []).length > 0) {
     triggers.push("HANDOUT_OVERDUE");
-    triggerData.HANDOUT_OVERDUE = overdueHandouts!.map(h => ({
+    triggerData.HANDOUT_OVERDUE = overdueHandouts!.map((h: any) => ({
       module: h.module,
       days_overdue: Math.floor((now.getTime() - new Date(h.created_at).getTime()) / (1000 * 60 * 60 * 24)),
     }));
@@ -371,8 +371,8 @@ async function processCompany(
 
   // T9: POSITIVE_MOMENTUM — revenue >10% above budget 2 months in a row
   if (recentFacts && recentFacts.length >= 2) {
-    const t9Facts = recentFacts.slice(0, 2).filter(f => f.period_key);
-    const t9PeriodKeys = t9Facts.map(f => {
+    const t9Facts = recentFacts.slice(0, 2).filter((f: any) => f.period_key);
+    const t9PeriodKeys = t9Facts.map((f: any) => {
       const pp = f.period_key.split("-");
       return `${pp[0]}-base-${parseInt(pp[1]) - 1}`;
     });

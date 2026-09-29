@@ -170,11 +170,12 @@ Deno.serve(async (req) => {
       }
 
       // Also clear ALL company_invitations
-      const { count: invitationsDeleted } = await adminSupabase
+      const { data: invitationsRows } = await adminSupabase
         .from('company_invitations')
         .delete()
         .neq('id', '00000000-0000-0000-0000-000000000000') // delete all
-        .select('id', { count: 'exact', head: true });
+        .select('id');
+      const invitationsDeleted = (invitationsRows || []).length;
 
       console.log(`[bulk-remove] Deleted ${deleted} members (${notDeleted.length} not deleted), cleared ${invitationsDeleted || 0} invitations`);
 
@@ -503,7 +504,7 @@ Deno.serve(async (req) => {
           .in('user_id', advisorUserIds);
         
         const allUsersForList = await listAllUsers(adminSupabase);
-        const userEmailMap = new Map(allUsersForList.map((u: any) => [u.id, u.email || '']));
+        const userEmailMap = new Map<string, string>(allUsersForList.map((u: any) => [u.id as string, (u.email as string) || ''] as [string, string]));
 
         for (const uid of advisorUserIds) {
           const profile = (profiles || []).find((p: any) => p.user_id === uid);

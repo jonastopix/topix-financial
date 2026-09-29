@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { SENDER_FROM, sendManagedEmail } from "../_shared/managedEmail.ts";
 import { introPaamindelseModen, introPaamindelseTekst, type RytmeTekst } from "../_shared/onboardingRytme.ts";
 import { authenticateServiceRole, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
@@ -104,7 +104,7 @@ interface IntroPaamindelsesResultat {
 }
 
 async function koerIntroPaamindelser(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   toerKoersel: boolean,
 ): Promise<IntroPaamindelsesResultat> {
   const resultat: IntroPaamindelsesResultat = {
