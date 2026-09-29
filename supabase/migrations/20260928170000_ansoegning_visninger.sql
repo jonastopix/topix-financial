@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod — kørselstidspunkt ikke bogført; målt kørt 29/9-2026 kl. 14:26 dansk tid (Lovable SQL editor, katalog-SELECT'en fra rapport-bogfoering-29-09.md). EFTER: tabel_findes true · kolonner 17 · rls_slaaet_til true · policies 0 · indekser 3 · unik_regel 1 · raekker_skoen 3 · kommentar «Anonyme trin før en ansøgning findes (vist/start/tastet), skrevet af ansoegning-gem «spor». Service-role-only. Udkast 28/9-2026.».
 -- Og FØR ansoegning-gem udrulles: grenen «spor» skriver hertil. Mangler tabellen,
 -- svarer grenen 500, fladen mærker intet (sporet er fire-and-forget), men intet
 -- gemmes. «opret»s kobling (update ansoegning_id) er fail-soft og logges.

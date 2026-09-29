@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod — 29/9-2026 kl. 13:58 dansk tid (Lovable SQL editor), FØR merget af #1125 (80889e54). FØR: kolonner 0, constraints 0. EFTER: kolonne «indhold_json · jsonb · nullable=YES», constraint «messages_indhold_json_er_objekt», rækker med dokument 0, rækker i alt 695; derefter NOTIFY pgrst 'reload schema'. Målt udefra kl. 13:59: GET /rest/v1/messages?select=indhold_json&limit=0 med anon-nøglen → HTTP 200 [].
 --
 -- «#» I CHATTEN — dokumentkolonnen (kort m28-hash-i-chatten; Jonas 29/9-2026).
 -- Motoren: src/lib/chatDokument.ts. Recon: ~/Downloads/recon-hash-i-chatten.md.

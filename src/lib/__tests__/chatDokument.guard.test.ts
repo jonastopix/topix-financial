@@ -6,7 +6,9 @@ import { join, resolve } from "node:path";
  * Kildeværn for «#» i chatten, motoren og migrationen (29/9-2026). Tre domme,
  * hver bevist nedenfor på en kopi med fejlen indsat:
  *
- *   1. MIGRATIONEN: første linje «-- IKKE KØRT. DEPLOY:», kolonnen
+ *   1. MIGRATIONEN: første linje bogført «-- KØRT i prod — 29/9-2026 kl. 13:58»
+ *      (vendt 29/9; var «-- IKKE KØRT. DEPLOY:» indtil migrationen var kørt og
+ *      målt, FØR merget af #1125), kolonnen
  *      messages.indhold_json jsonb NULL, og CHECK (indhold_json IS NULL OR
  *      jsonb_typeof(indhold_json) = 'object').
  *   2. CONTENT UDLEDES AF DOKUMENTET: byggChatBesked bygger content af
@@ -31,7 +33,8 @@ const MOTOR = "src/lib/chatDokument.ts";
 export const migrationenErRigtig = (sql: string): boolean => {
   const s = udenSql(sql).replace(/\s+/g, " ");
   return (
-    sql.split("\n")[0].startsWith("-- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).") &&
+    sql.split("\n")[0].startsWith("-- KØRT i prod — 29/9-2026 kl. 13:58 dansk tid (Lovable SQL editor)") &&
+    sql.split("\n")[0].includes("EFTER: kolonne «indhold_json · jsonb · nullable=YES», constraint «messages_indhold_json_er_objekt»") &&
     s.includes("ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS indhold_json jsonb NULL;") &&
     s.includes("CHECK (indhold_json IS NULL OR jsonb_typeof(indhold_json) = 'object');")
   );
@@ -94,18 +97,20 @@ const kildefiler = (): Map<string, string> => {
 };
 
 describe("chatDokument.guard", () => {
-  it("1. migrationen: IKKE KØRT, kolonnen og CHECK'en", () => expect(migrationenErRigtig(laes(MIG))).toBe(true));
+  it("1. migrationen: bogført KØRT (29/9 13:58), kolonnen og CHECK'en", () => expect(migrationenErRigtig(laes(MIG))).toBe(true));
   it("2a. motoren udleder content af dokumentet", () => expect(contentUdledesIMotoren(laes(MOTOR))).toBe(true));
   it("2b. ingen skriver til messages sætter indhold_json uden om motoren", () => expect(fremmedeSkrivere(kildefiler())).toEqual([]));
   it("3. parseren genbruges — ingen kopi af Community's oversætter", () => expect(parserenGenbruges(laes(MOTOR))).toBe(true));
 });
 
 describe("chatDokument.guard — dommene fælder på en kopi", () => {
-  it("en migration uden CHECK, uden kolonnen eller uden IKKE KØRT-linjen, fælder dom 1", () => {
+  it("en migration uden CHECK, uden kolonnen, uden KØRT-linjen eller tilbage på IKKE KØRT, fælder dom 1", () => {
     const sql = laes(MIG);
     expect(migrationenErRigtig(sql.split("CHECK (indhold_json IS NULL OR jsonb_typeof(indhold_json) = 'object');").join("CHECK (true);"))).toBe(false);
     expect(migrationenErRigtig(sql.split("ADD COLUMN IF NOT EXISTS indhold_json jsonb NULL;").join("ADD COLUMN IF NOT EXISTS indhold_json text NULL;"))).toBe(false);
     expect(migrationenErRigtig(sql.split("\n").slice(1).join("\n"))).toBe(false);
+    const tilbage = ["-- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).", ...sql.split("\n").slice(1)].join("\n");
+    expect(migrationenErRigtig(tilbage)).toBe(false);
   });
 
   it("content skrevet frit i motoren, eller et ekstra indhold_json-felt, fælder dom 2a", () => {

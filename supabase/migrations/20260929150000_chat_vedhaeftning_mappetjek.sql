@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod — 29/9-2026, formiddag (klokkeslæt ikke bogført; Lovable SQL editor). FØR = EFTER: pg_policies «Authenticated users can upload chat attachments» with_check ((bucket_id = 'chat-attachments'::text) AND ((storage.foldername(name))[1] = (auth.uid())::text)) — mappetjekket fandtes allerede (#1123).
 --
 -- CHAT-VEDHÆFTNINGER: mappetjek på upload (29/9-2026, ~/Downloads/recon-video-i-chatten.md §2).
 --

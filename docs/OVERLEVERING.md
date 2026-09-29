@@ -10859,9 +10859,182 @@ Chatten (Claude) skrev 28/9, at Klaviyo-mailens «4.375 kr. om måneden» var fo
 
 ---
 
+### 29. september — 14-dagsmailen ramte Mailguns probation (134 af 319 ude kl. 10:45; resten indhentes i hold af 26 i timen); loft, indhentning, Mailgun-dom og alarm (#1112–#1115, alarmen bevist i drift 11:09); vedhæftningens sti (#1116); rådgiverens svar på refleksioner i drift (#1117); «#» i chatten (#1118, #1120, #1125 — migrationen kørt 13:58 FØR merget); chat-video (#1119, #1121); medlemsoverblikket og dets nulpunkt (#1122); påstanden om et åbent upload-hul trukket tilbage (#1123); statusmail trin 1 (#1124). Update i Lovable ikke bekræftet.
+
+#### 0. Opstarten — `docs/opstart-29-09.md`
+
+Lagt ind uændret fra `~/Downloads/opstart-29-09-v2.md` (skrevet 09:06; erstattede udgaven fra 08:50).
+
+#### 1. Merget 29/9
+
+Tiderne er commit-tiden på main (dansk). Titlerne er ordret fra `git log --oneline`.
+
+| # | tid | titel | drift |
+|---|---|---|---|
+| #1112 | 10:03 | fix(webinar-mail-cron): loft pr. kørsel og pause, når Mailgun siger stop | loftet er 90/time i koden; stop og pause 60 min ved 403/420/429 |
+| #1113 | 10:24 | fix(webinar-mail-cron): fejlede mails indhentes til næste påmindelse; bekræftelser først | — |
+| #1114 | 10:24 | fix(mailgun): udfaldet afgøres af Mailguns svartekst, ikke kun statuskoden | loft-mønstrene: «probation», «limit (N) exceeded», «limited to N messages» |
+| #1115 | 10:46 | feat(webinar-mail-cron): alarm, når webinarmails fejler eller Mailgun siger stop | mail + drift-klokke; **bevist i drift 11:09** |
+| #1116 | 11:17 | fix(chat): en vedhæftnings sti skal tilhøre beskedens afsender | — |
+| #1117 | 11:23 | feat(virksomhed): rådgiveren svarer direkte på refleksionens felter — svaret lander i chatten | **i drift, set af Jonas** |
+| #1118 | 11:23 | feat(chat): motoren til #-henvisninger — dokumentet ved siden af content | — |
+| #1119 | 11:30 | feat(chat-video): serverdelen til videosvar i chatten via Bunny Stream | ikke udrullet: secret og collection mangler (§5) |
+| #1120 | 12:37 | feat(rabataftaler): én aftales adresse — /rabataftaler?aftaleId={id} (trin 2 af #-henvisningerne) | `src/` — Update |
+| #1121 | 12:44 | feat(chat-video): fladen — kameraknap, optagelse, upload og afspilning i chatten | `src/` — Update |
+| #1122 | 12:44 | feat(virksomheder): medlemsoverblikket — sessioner, aktivitet og mærker på listen | `src/` — Update |
+| #1123 | 13:47 | docs(sikkerhed): mappetjekket fandtes allerede i prod — ret påstanden om et åbent hul | kun tekst |
+| #1125 | 13:59 | feat(chat): #-henvisninger i chatten — events, lektioner og rabataftaler (trin 3, fladen) | migrationen kørt 13:58 FØR merget (§2); `src/` — Update |
+| #1124 | 14:00 | feat(statusmail): én sammenkobling (byggOverblik), Deno-spejle og mailens tekst — trin 1 | trin 2 (edge function + cron, mandag 07:00 dansk tid) er under bygning |
+
+Ud over PR'erne står to commits fra `gpt-engineer-app[bot]` på main kl. 11:20 og 11:21 («Changes» `657fe4ed`, «Udrullede get-chat-attachment-url» `246b0fad`), begge med 2 linjer i `supabase/functions/run-company-agent/index.ts`. Se lærestreg (b) i §6.
+
+**Update i Lovable er IKKE bekræftet 29/9.** Alt mærket `src/` er derfor kode, ikke drift. Drift-beviset står som åbent punkt (§5).
+
+#### 2. «#» i chatten — rækkefølgen migration → måling → merge blev holdt
+
+Migrationen `20260929160000_messages_indhold_json.sql` blev **kørt i prod kl. 13:58** i Lovables SQL editor. Resultatet ordret:
+- **FØR:** kolonner 0, constraints 0.
+- **EFTER:** kolonne «indhold_json · jsonb · nullable=YES», constraint «messages_indhold_json_er_objekt», rækker med dokument 0, rækker i alt 695.
+- Derefter `NOTIFY pgrst 'reload schema'`.
+
+**Målt udefra kl. 13:59:** `GET /rest/v1/messages?select=indhold_json&limit=0` med anon-nøglen → HTTP 200 `[]`.
+
+**Først derefter blev #1125 merget** (`80889e54`). Uden kolonnen i prod ville en udrullet flade have givet en tom chat for alle.
+
+Migrationens filhoved er vendt fra «IKKE KØRT» til husets KØRT-form med dato, klokkeslæt og EFTER-resultatet. Kildeværnet `chatDokument.guard` dom 1 er vendt med: det kræver nu KØRT-linjen og fælder, hvis hovedet går tilbage til IKKE KØRT.
+
+**Mappetjek-migrationen `20260929150000_chat_vedhaeftning_mappetjek.sql` er også vendt til KØRT.** Den blev kørt i prod 29/9 om formiddagen, men klokkeslættet blev ikke bogført. EFTER = FØR: `pg_policies` havde allerede mappetjekket (#1123, lærestreg (a)). Kildeværnet `chatVedhaeftningSti.guard` dom 2 er vendt med.
+
+**`metaSend.guard` dom 11 var rød et øjeblik 29/9 — nu grøn.** Husets invariant er, at ingen ukørt migration må sortere før den sidst kørte. Efter flippet lå `20260928170000_ansoegning_visninger.sql` stadig med «IKKE KØRT» før `20260929160000`, og det var ikke kendt, om den var kørt. **Målt 29/9 kl. 14:26 i Lovables SQL editor** med katalog-SELECT'en fra `~/Downloads/rapport-bogfoering-29-09.md`, ordret: tabel_findes true · kolonner 17 · rls_slaaet_til true · policies 0 · indekser 3 · unik_regel 1 · raekker_skoen 3 · kommentar «Anonyme trin før en ansøgning findes (vist/start/tastet), skrevet af ansoegning-gem «spor». Service-role-only. Udkast 28/9-2026.». **Den er altså kørt.** Kørselstidspunktet er ikke bogført. Hovedet er vendt til KØRT («kørselstidspunkt ikke bogført; målt kørt 29/9 14:26»), og `ansoegningVisning.guard` dom 7 er vendt med. Dom 11 er grøn.
+
+#### 3. Mailgun — fjorten-dages-påmindelsen til webinaret
+
+- **Kontoen:** Mailgun-kontoen (EU) er i **probation**. Grænserne er 100 mails i timen, 420 «recipient limit (26) exceeded» med ukendt vindue, og 429 «request limit (101)».
+- **Ticket:** support-ticket oprettet 29/9 (nummer: **indsættes af Jonas**). Mailgun-formularen startede forfra, og det blev løst med ticketen (lærestreg (i)).
+- **Status:** kl. 10:45 var **134 af 319** ude. Resten indhentes i hold af 26 i timen, og det forventes færdigt ca. kl. 18–19. Fristen er **5/10 23:59**.
+- **Jonas:** «ingen panik … men det må ikke ske igen». Derfor dagens tre rettelser:
+  - loftet (#1112)
+  - indhentningen (#1113) og Mailgun-dommen (#1114)
+  - alarmen (#1115, bevist i drift 11:09)
+- Kort: [`a22-webinarmail-foerste-hold`](mangelliste.html#a22-webinarmail-foerste-hold).
+
+#### 4. Medlemsoverblikket — nulpunktet målt i prod 29/9
+
+**Nævnerne:** 28 kunder, 27 medlemmer, 3 kunder uden bruger.
+
+**De sidste 30 dage:**
+
+| aktivitet | antal |
+|---|---|
+| login | 24/27 |
+| godkendt rapport | 15/28 |
+| uploadet rapport | 11/28 |
+| events | 14/27 |
+| chat | 13/27 |
+| refleksion | 7/28 |
+| akademi | 5/27 |
+| community | 4/27 |
+| mål | 2/28 |
+| handouts | 0/27 |
+
+**Sessionerne:**
+- **Jonas-retten** blev sat i hånden for 23 virksomheder 13/9 kl. 20:50–20:54 UTC (Jonas: «det var mig»). Jonas-sessionen er kun en del af medlemskabet for NYE medlemmer, så de 23 vises som «ikke omfattet».
+- **Mortens ret** står som brugt hos 12 virksomheder, der ikke har en række i `session_bookings`. Årsagen er **IKKE målt**: det kan være en håndafkrydsning, et fejlet rollback eller en slettet række. Kort: [`a29-morten-retter-uden-booking`](mangelliste.html#a29-morten-retter-uden-booking).
+- **Kun 11 rækker nogensinde** i `session_bookings`. Medlemmer booker gennem platformen (Calendly).
+
+**Demo-virksomheden** blev set af admin/service role. Den er nu filtreret fra (`is_demo`) i `byggOverblik`.
+
+**Beviset efter Update:** «Ingen bruger» = 3, Morten «Markeret (ingen booking)» ≈ 12, Jonas «Ikke omfattet» ≈ 23. Kort: [`a29-overblik-bevis`](mangelliste.html#a29-overblik-bevis).
+
+#### 5. Åbne punkter 29/9
+
+Hvert punkt har et kort. Mangellistens ændringslog «RØRT 29/9» har tallene.
+
+- **Drift-beviset efter Update:**
+  - #-henvisninger i chatten (kort [`m28-hash-i-chatten`](mangelliste.html#m28-hash-i-chatten))
+  - rabataftalens adresse `?aftaleId=`
+  - videoknappen, som skal sige «Video er ikke sat op endnu.», indtil secret'en findes
+  - overblikkets tal (§4)
+- **Chat-video i drift:**
+  - Bunny-collectionen «chat» + secret `BUNNY_STREAM_CHAT_COLLECTION_ID` + eksplicit deploy af `chat-video`
+  - bevis i browseren
+  - Chrome optager WebM/Opus; om Bunny encoder Opus, er ikke målt
+  - Bunnys referrer på Lovables preview-domæne er ikke målt
+
+  Kort: [`a29-chat-video-i-drift`](mangelliste.html#a29-chat-video-i-drift).
+- **Chat-videoens huller:**
+  - en video kan blive forældreløs hos Bunny, hvis beskeden ikke kan gemmes efter upload
+  - «behandles» spørges kun i 10 min
+  - loftet på 180 s håndhæves ikke af serveren
+
+  Kort: [`a29-chat-video-huller`](mangelliste.html#a29-chat-video-huller).
+- **Rabataftaler:** en fejlet hentning viser samme tekst som en tom liste. Det står allerede på kortet om de tavse queryFn'er (afsnittet «Drift og fundament»), som er ajourført.
+- **#-henvisningernes huller:**
+  - `community_json_til_tekst` (SQL) kender ikke rabathenvisningen
+  - chatten tilbyder ikke opslag
+  - chatten mangler en «forslag kunne ikke hentes»-linje
+  - lektioner vises uden områdenavne
+
+  Kort: [`a29-hash-huller`](mangelliste.html#a29-hash-huller).
+- **Statusmail:** trin 2 (edge function + cron, mandag 07:00 dansk tid) er under bygning. v2 skal sammenligne med sidste uge, hvilket kræver et ugentligt øjebliksbillede, og `MAERKE_PARAM` står to steder. Kort: [`a29-statusmail-v2`](mangelliste.html#a29-statusmail-v2).
+- **Mortens 12 retter uden booking-række:** årsag ikke målt (§4).
+- ~~`metaSend.guard` dom 11 er rød, indtil det er målt, om `20260928170000_ansoegning_visninger.sql` er kørt~~ — **LØST 29/9 14:26:** målt kørt, hovedet vendt, dom 11 grøn (§2).
+
+#### 6. Lærestreger 29/9
+
+Huset har intet eget lærestreg-dokument. Fælderne står i DEL 4. Dagens lærestreger skrives her, som besluttet 29/9.
+
+**(a) Upload-hullet i `chat-attachments`, der ikke fandtes (#1123).**
+- *Troet (Claude):* upload-politikken havde intet mappetjek i prod, fordi repoets eneste version (`20260317133757`) kun tjekker `bucket_id`.
+- *Viste sig:* `pg_policies` i prod viste mappetjekket FØR migrationen — FØR = EFTER. Der var intet hul. Migrationen `20260929150000` bringer repoet i overensstemmelse med prod og er idempotent.
+- *Ændrer:* en påstand om prods politikker måles i **`pg_policies`, ikke i migrationshistorikken**.
+
+**(b) Lovable committede kode trods «rør ingen kode».**
+- *Troet:* «rør ingen kode» i beskeden til Lovable var nok.
+- *Viste sig:* Lovable ændrede og committede kode på main. Loggen viser de to bot-commits i `run-company-agent/index.ts` kl. 11:20/11:21 (§1).
+- *Ændrer:* **skriv «commit intet» i hver Lovable-besked.**
+
+**(c) Grenen `origin/lovable-sync`** (package.json + 6 functions) **må ikke merges.**
+
+**(d) Parallelle vinduer deler træ og index.**
+- *Ændrer:* hvert vindue stager → differ → `restore --staged`. Commits sker med stier på egen gren.
+
+**(e) Merge-guarden talte kørsler.**
+- *Troet:* et bestemt antal kørsler betød grønt.
+- *Viste sig:* for en PR, der kun rører `src/`, kører kun «Tests».
+- *Ændrer:* guarden skal kræve **«alle kørsler færdige og grønne»**, ikke et antal.
+
+**(f) Uprøvede Mailgun-loftmønstre.**
+- *Troet (Claude):* «too fast» og «rate» betyder loft.
+- *Viste sig:* de var ikke målt, og «limit» alene var for bredt.
+- *Ændrer:* mønstrene er strammet til de tre målte former (#1114). En ny form tilføjes først, når den er målt i `webinar_mails.svar`.
+
+**(g) `verify_jwt` for chat-video.**
+- *Troet (Claude):* `false` «efter husets mønster».
+- *Viste sig:* husets regel for NYE functions er `true` (PR #267-fundet).
+- *Ændrer:* Jonas valgte `true`. En opgave, der beder om `false` for en ny Bucket A-function, er en forudsætning, der ikke holder.
+
+**(h) Lovable havde ikke synket main ved første udrulning af alarmen.**
+- *Ændrer:* **tjek filerne hos Lovable før udrulning.** «Udrullet» beviser intet, hvis kilden er den gamle.
+
+**(i) Mailgun-formularen startede forfra.** Løst med en support-ticket (§3).
+
+---
+
 ## DEL 3 · Det der venter
 
 **Tracking (Meta, LinkedIn, GA4, TikTok, Stape, eWebinar, Klaviyo — hvad der sendes til hvem, principperne fra 21/9, det åbne):** `docs/tracking.md` er husets ENE dokument om det fra 21/9; recon-/rapportfilerne i `~/Downloads` er kilder.
+
+### 30/9 og frem — de åbne fra 29/9 (skrevet 29/9 eftermiddag)
+
+| hvornår | hvad | hvor det står |
+|---|---|---|
+| **29/9 ~18–19 — 14-dagsmailen indhentet** | 134 af 319 ude kl. 10:45; hold af 26 i timen; frist 5/10 23:59; ticket-nummer indsættes af Jonas | DEL 2 «29. september» §3; kort `a22-webinarmail-foerste-hold` |
+| **efter Update — drift-beviset** | #-henvisninger i chatten, rabataftalens adresse, videoknappen «ikke sat op endnu», overblikkets tal (3 · ≈12 · ≈23) | DEL 2 «29. september» §5; kort `m28-hash-i-chatten`, `a29-overblik-bevis` |
+| **chat-video i drift** | collection «chat» + secret + eksplicit deploy; bevis i browseren | kort `a29-chat-video-i-drift` |
+| **statusmail trin 2** | edge function + cron, mandag 07:00 dansk tid — under bygning | DEL 2 «29. september» §1; kort `a29-statusmail-v2` |
+| **Mortens 12 retter uden booking** | årsagen ikke målt | kort `a29-morten-retter-uden-booking` |
+| **✅ `ansoegning_visninger` målt kørt 29/9 14:26** | hovedet vendt til KØRT; `metaSend.guard` dom 11 grøn | DEL 2 «29. september» §2 |
 
 ### 29/9 og frem — rækkefølgen (matcher «29/9 — START HER»; skrevet 28/9 eftermiddag)
 

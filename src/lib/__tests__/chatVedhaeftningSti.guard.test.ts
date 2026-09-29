@@ -14,7 +14,9 @@ import { resolve } from "node:path";
  *   2. UPLOAD HAR MAPPETJEK: den NYESTE migration, der opretter «Authenticated
  *      users can upload chat attachments», droppede den gamle først og har
  *      (storage.foldername(name))[1] = auth.uid()::text i WITH CHECK — og dens
- *      første linje er «-- IKKE KØRT. DEPLOY:» (CLAUDE.md, 19/9-lærdommen).
+ *      første linje er bogført «-- KØRT i prod — 29/9-2026» med FØR = EFTER
+ *      (vendt 29/9; var «-- IKKE KØRT. DEPLOY:», CLAUDE.md 19/9-lærdommen, indtil
+ *      migrationen var kørt — mappetjekket fandtes allerede i prod, #1123).
  *   3. KLIENTEN UPLOADER I EGEN MAPPE: uploadChatAttachments bygger stien som
  *      `${userId}/…`. Det er præmissen for dom 1 og 2 — uden den ville en ægte
  *      vedhæftning blive afvist af begge.
@@ -68,7 +70,8 @@ export const uploadHarMappetjek = (filer: ReadonlyMap<string, string>): boolean 
   const [, raa] = n;
   const sql = udenSql(raa).replace(/\s+/g, " ");
   return (
-    raa.split("\n")[0].startsWith("-- IKKE KØRT. DEPLOY:") &&
+    raa.split("\n")[0].startsWith("-- KØRT i prod — 29/9-2026") &&
+    raa.split("\n")[0].includes("FØR = EFTER") &&
     foer(sql, `DROP POLICY IF EXISTS ${POLITIK} ON storage.objects;`, `CREATE POLICY ${POLITIK}`) &&
     sql.includes(`CREATE POLICY ${POLITIK} ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'chat-attachments' AND (storage.foldername(name))[1] = auth.uid()::text);`)
   );
@@ -88,7 +91,7 @@ const migrationer = (): Map<string, string> => {
 
 describe("chatVedhaeftningSti.guard", () => {
   it("1. stien tjekkes mod afsenderen FØR adminClient og createSignedUrl — nej er 403", () => expect(stienTjekkesFoerSignering(laes(FN))).toBe(true));
-  it("2. den nyeste upload-politik har mappetjekket, og migrationen er mærket IKKE KØRT", () => expect(uploadHarMappetjek(migrationer())).toBe(true));
+  it("2. den nyeste upload-politik har mappetjekket, og migrationen er bogført KØRT (FØR = EFTER)", () => expect(uploadHarMappetjek(migrationer())).toBe(true));
   it("3. klienten uploader i sin egen mappe", () => expect(klientenUploaderIEgenMappe(laes(UPLOAD))).toBe(true));
 });
 
@@ -105,7 +108,7 @@ describe("chatVedhaeftningSti.guard — dommene fælder på en kopi", () => {
     expect(stienTjekkesFoerSignering(fn.split('    return jsonResponse({ error: "Forbidden" }, 403);\n  }\n\n  // ── 7.').join("  }\n\n  // ── 7."))).toBe(false);
   });
 
-  it("en genskabt politik uden mappetjek, uden DROP først, eller uden IKKE KØRT-linjen, fælder dom 2", () => {
+  it("en genskabt politik uden mappetjek, uden DROP først, uden KØRT-linjen eller tilbage på IKKE KØRT, fælder dom 2", () => {
     const m = migrationer();
     const [navn, sql] = nyestePolitikMigration(m)!;
     const uden = new Map(m); uden.set(navn, sql.split(" AND (storage.foldername(name))[1] = auth.uid()::text").join(""));
@@ -114,6 +117,8 @@ describe("chatVedhaeftningSti.guard — dommene fælder på en kopi", () => {
     expect(uploadHarMappetjek(udenDrop)).toBe(false);
     const udenHoved = new Map(m); udenHoved.set(navn, sql.split("\n").slice(1).join("\n"));
     expect(uploadHarMappetjek(udenHoved)).toBe(false);
+    const tilbage = new Map(m); tilbage.set(navn, ["-- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).", ...sql.split("\n").slice(1)].join("\n"));
+    expect(uploadHarMappetjek(tilbage)).toBe(false);
     // En SENERE migration, der genskaber den gamle politik, vinder og fælder dommen.
     const senere = new Map(m); senere.set("20991231000000_tilbage.sql", `-- IKKE KØRT. DEPLOY: x\nCREATE POLICY "Authenticated users can upload chat attachments"\nON storage.objects FOR INSERT\nTO authenticated\nWITH CHECK (bucket_id = 'chat-attachments');\n`);
     expect(uploadHarMappetjek(senere)).toBe(false);
