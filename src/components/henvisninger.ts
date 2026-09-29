@@ -28,8 +28,17 @@ import { cn } from "@/lib/utils";
     fortolkes som markup. Kun rækkens INDHOLD varierer (tegnRaekke);
     ramme, positionering, lyttere og tastatur deles. Hb-stil:
     HbCard-lignende ramme, valgt række i bg-hb-sage. Piletaster op/ned,
-    Enter vælger, Escape lukker. */
-export function opretForslagsDropdown<T>(tegnRaekke: (item: T, raekke: HTMLButtonElement) => void) {
+    Enter vælger, Escape lukker.
+
+    `fodnote` (29/9-2026, valgfri): en rolig linje nederst i listen — chatten
+    bruger den til «forslagene kunne ikke hentes» (chatHenvisningsForslag:
+    forslagsFejlTekst). Står der en fodnote, vises listen også uden rækker,
+    så en fejl ikke ligner «intet matcher». Uden fodnote (Community) er
+    adfærden den samme som før. */
+export function opretForslagsDropdown<T>(
+  tegnRaekke: (item: T, raekke: HTMLButtonElement) => void,
+  fodnote?: () => string | null,
+) {
   let element: HTMLDivElement | null = null;
   let items: T[] = [];
   let valgt = 0;
@@ -63,7 +72,8 @@ export function opretForslagsDropdown<T>(tegnRaekke: (item: T, raekke: HTMLButto
   const tegn = () => {
     if (!element) return;
     element.replaceChildren();
-    if (items.length === 0) {
+    const note = fodnote?.() ?? null;
+    if (items.length === 0 && note === null) {
       element.style.display = "none";
       return;
     }
@@ -82,6 +92,12 @@ export function opretForslagsDropdown<T>(tegnRaekke: (item: T, raekke: HTMLButto
       });
       element!.appendChild(raekke);
     });
+    if (note !== null) {
+      const linje = document.createElement("p");
+      linje.className = "px-3 py-2 text-xs text-hb-ink-soft";
+      linje.textContent = note;
+      element.appendChild(linje);
+    }
     const rect = sidsteRect?.();
     if (rect) {
       element.style.left = `${rect.left}px`;

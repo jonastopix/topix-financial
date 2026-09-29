@@ -5,7 +5,7 @@ import {
 import { parseCommunityDokument } from "@/lib/hjemmebane/communityDokument";
 import { aftalenErUdloebet, rabataftaleAdresse } from "@/lib/hjemmebane/rabataftaleAdresse";
 import {
-  chatForslagsTekst, chatForslagTilNode, MAKS_FORSLAG, vaelgChatForslag, type ChatForslagsKilder,
+  chatForslagsTekst, chatForslagTilNode, forslagsFejlTekst, MAKS_FORSLAG, vaelgChatForslag, type ChatForslagsKilder,
 } from "@/lib/chatHenvisningsForslag";
 import type { ContentItem, EventRow } from "@/lib/hjemmebane/adminContentApi";
 import type { MedlemsPartner } from "@/lib/hjemmebane/akademiApi";
@@ -162,5 +162,20 @@ describe("chattens #-forslag — vaelgChatForslag", () => {
     expect(chatForslagsTekst({ slags: "item", item: it_("i1", "Budget", "academy") }, "Økonomi")).toEqual({ titel: "Budget", undertekst: "Lektion · Økonomi · 10 min" });
     expect(chatForslagsTekst({ slags: "rabat", aftale: af("a1", "Dinero") }, null)).toEqual({ titel: "Dinero", undertekst: "Rabataftale · 20 %" });
     expect(chatForslagsTekst({ slags: "event", event: ev("e1", "Vækstdag", "2026-10-02T10:00:00Z") }, null).undertekst).toMatch(/^Event · /);
+  });
+});
+
+describe("forslagsFejlTekst — chattens linje, når en kilde fejlede", () => {
+  const ingen = { events: false, items: false, samlinger: false, aftaler: false };
+  it("ingen fejl → ingen linje", () => {
+    expect(forslagsFejlTekst(ingen)).toBeNull();
+  });
+  it("hver af de fire kilder alene giver linjen — også samlingerne, som i Community", () => {
+    for (const k of Object.keys(ingen) as (keyof typeof ingen)[]) {
+      expect(forslagsFejlTekst({ ...ingen, [k]: true })).toBe("Forslagene til # kunne ikke hentes lige nu. Du kan stadig skrive og sende.");
+    }
+  });
+  it("husets form: sektionsfejlTekst's sætning, ingen teknik", () => {
+    expect(forslagsFejlTekst({ ...ingen, events: true })).not.toMatch(/_|fejl|error|@/i);
   });
 });

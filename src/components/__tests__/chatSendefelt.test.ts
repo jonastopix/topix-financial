@@ -41,7 +41,7 @@ const kilder = { current: { events: [], items: [], aftaler: [] } as ChatForslags
 const samlinger = { current: new Map<string, string>() };
 const editorer: Editor[] = [];
 const ny = (content: string | Record<string, unknown> = "") => {
-  const e = new Editor({ extensions: [...grund(), ...chatHenvisningsUdvidelser(kilder, samlinger)], content });
+  const e = new Editor({ extensions: [...grund(), ...chatHenvisningsUdvidelser(kilder, samlinger, { current: null })], content });
   editorer.push(e);
   return e;
 };
