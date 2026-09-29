@@ -4,7 +4,7 @@ import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import {
-  Bold, Italic, List, ListOrdered, Link as LinkIcon, Paperclip, Send, Loader2,
+  Bold, Italic, List, ListOrdered, Link as LinkIcon, Paperclip, Send, Loader2, Video,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -29,6 +29,26 @@ interface ChatRichInputProps {
       loftet (advarsel). Uden variant er alt tegn-for-tegn som før
       (rådgiverens mørke composer er urørt). */
   variant?: "hb";
+  /** Kameraknappen (videosvar, 29/9-2026). VALGFRI — KUN rådgiverens pane
+      (CompanyChatPane) sætter den; uden prop er der ingen knap, og
+      medlemmets input er tegn-for-tegn som før. Knappen står ved siden af
+      vedhæft-knappen, begge steder (værktøjslinjen og den kompakte).
+      `fremdrift` (0–100) mens videoen uploades: knappen viser procenten og
+      er spærret. Låst af chatVideoFlade.guard. */
+  videoKnap?: VideoKnap;
+}
+
+export interface VideoKnap {
+  onClick: () => void;
+  fremdrift: number | null;
+}
+
+/** Knappens indhold: kameraet, eller procenten mens videoen uploades. */
+function VideoKnapIndhold({ videoKnap, stor }: { videoKnap: VideoKnap; stor: boolean }) {
+  if (videoKnap.fremdrift !== null) {
+    return <span className="text-[10px] font-medium tabular-nums">{videoKnap.fremdrift}%</span>;
+  }
+  return <Video className={stor ? "h-4 w-4" : "h-3.5 w-3.5"} />;
 }
 
 function ToolbarBtn({
@@ -74,7 +94,7 @@ const normalizeLinkUrl = (rawUrl: string): string => {
   return `https://${trimmed.replace(/^\/+/, "")}`;
 };
 
-function Toolbar({ editor, onAttach, hb }: { editor: Editor; onAttach: () => void; hb?: boolean }) {
+function Toolbar({ editor, onAttach, hb, videoKnap }: { editor: Editor; onAttach: () => void; hb?: boolean; videoKnap?: VideoKnap }) {
   const setLink = useCallback(() => {
     const { from, to } = editor.state.selection;
     const hasSelection = from !== to;
@@ -160,6 +180,16 @@ function Toolbar({ editor, onAttach, hb }: { editor: Editor; onAttach: () => voi
       >
         <Paperclip className="h-3.5 w-3.5" />
       </ToolbarBtn>
+      {videoKnap && (
+        <ToolbarBtn
+          hb={hb}
+          active={videoKnap.fremdrift !== null}
+          onClick={() => { if (videoKnap.fremdrift === null) videoKnap.onClick(); }}
+          title={videoKnap.fremdrift !== null ? "Videoen sendes …" : "Optag video"}
+        >
+          <VideoKnapIndhold videoKnap={videoKnap} stor={false} />
+        </ToolbarBtn>
+      )}
     </div>
   );
 }
@@ -173,6 +203,7 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
   compact,
   showInnerSend,
   variant,
+  videoKnap,
 }) => {
   const hb = variant === "hb";
   const isMobile = useIsMobile();
@@ -379,7 +410,7 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {editor && !isCompact && <Toolbar editor={editor} hb={hb} onAttach={() => fileInputRef.current?.click()} />}
+      {editor && !isCompact && <Toolbar editor={editor} hb={hb} onAttach={() => fileInputRef.current?.click()} videoKnap={videoKnap} />}
       {isCompact ? (
         <div className="flex items-center gap-1 pr-1.5 pl-1">
           <button
@@ -396,6 +427,23 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
           >
             <Paperclip className="h-4 w-4" />
           </button>
+          {videoKnap && (
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => { if (videoKnap.fremdrift === null) videoKnap.onClick(); }}
+              disabled={videoKnap.fremdrift !== null}
+              className={cn(
+                "flex-shrink-0 p-2 rounded-lg transition-colors",
+                hb
+                  ? "text-hb-ink-soft hover:text-hb-ink hover:bg-hb-sage/30"
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary/80"
+              )}
+              aria-label={videoKnap.fremdrift !== null ? "Videoen sendes" : "Optag video"}
+            >
+              <VideoKnapIndhold videoKnap={videoKnap} stor />
+            </button>
+          )}
           <div className="flex-1 min-w-0">
             <EditorContent editor={editor} />
           </div>

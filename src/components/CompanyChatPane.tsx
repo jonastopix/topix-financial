@@ -33,6 +33,10 @@ import {
   TrendingUp, TrendingDown, Minus,
 } from "lucide-react";
 import ChatRichInput from "@/components/ChatRichInput";
+import ChatVideoOptager from "@/components/ChatVideoOptager";
+import { ChatVideoBesked } from "@/components/ChatVideoBesked";
+import { uploadChatVideo } from "@/lib/chatVideoUpload";
+import { byggVideoBesked, erSkjultBobletekst } from "@/lib/chatVideoFlade";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 import { HbTag } from "@/components/hjemmebane/HbTag";
 import { hbControlClasses } from "@/components/hjemmebane/admin/HbField";
@@ -220,6 +224,10 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
   // ved send, ved × i banneret og ved skift af samtale. Aldrig gemt — kun id'et
   // sendes (svar_paa_id); citatet følger originalen (lib/chatSvar.ts).
   const [svarPaa, setSvarPaa] = useState<Message | null>(null);
+  // Videosvar (29/9): optagedialogen og uploadens fremdrift (procent, vises på
+  // kameraknappen i inputtet). KUN rådgiveren — medlemmets pane har ingen knap.
+  const [videoOptagerAaben, setVideoOptagerAaben] = useState(false);
+  const [videoFremdrift, setVideoFremdrift] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
   // INGEN emnevælger (Jonas 4/9): emner klassificeres AUTOMATISK af AI
@@ -734,6 +742,30 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
+  // Efter en sendt besked (tekst eller video): notifikationen, og når
+  // rådgiveren sender, samtalens tilstand og medlemmets klokke.
+  const efterSendt = useCallback((messageId: string, convId: string | null = activeConvId) => {
+    notifyChatMessage(messageId);
+
+    // If advisor sends — auto-update conversation to awaiting member reply
+    if (isAdvisor && convId) {
+      supabase.from("conversations").update({
+        awaiting_reply_from: "company",
+        last_message_at: new Date().toISOString(),
+      } as any).eq("id", convId).then(() => {
+        queryClient.invalidateQueries({ queryKey: ["advisor-dashboard"] });
+      });
+
+      // Notify founder via in-app notification
+      supabase.functions.invoke("notify-chat-reply", {
+        body: {
+          conversation_id: convId,
+          message_id: messageId,
+        },
+      }).catch(() => {}); // fire-and-forget
+    }
+  }, [activeConvId, isAdvisor, queryClient]);
+
   const handleSend = useCallback(async (content: string, files?: File[]) => {
     const trimmed = content.trim();
     const hasFiles = files && files.length > 0;
@@ -790,30 +822,54 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
       if (!error && data) {
         setNewMessage("");
         setSvarPaa(null);
-        notifyChatMessage((data as any).id);
-
-        // If advisor sends — auto-update conversation to awaiting member reply
-        if (isAdvisor && activeConvId) {
-          supabase.from("conversations").update({
-            awaiting_reply_from: "company",
-            last_message_at: new Date().toISOString(),
-          } as any).eq("id", activeConvId).then(() => {
-            queryClient.invalidateQueries({ queryKey: ["advisor-dashboard"] });
-          });
-
-          // Notify founder via in-app notification
-          supabase.functions.invoke("notify-chat-reply", {
-            body: {
-              conversation_id: activeConvId,
-              message_id: (data as any).id,
-            },
-          }).catch(() => {}); // fire-and-forget
-        }
+        efterSendt((data as any).id);
       }
     }
 
     setSending(false);
-  }, [activeConvId, user, conversations, svarPaa]);
+  }, [activeConvId, user, conversations, svarPaa, efterSendt]);
+
+  // Videosvar (29/9): opret hos Bunny (chat-video, rådgiver-gated) → TUS-upload
+  // med fremdrift på kameraknappen → FØRST når Bunny har modtaget filen,
+  // indsættes beskeden: content = markøren («🎥 Video»), context_meta =
+  // { video: { guid, varighed } }. Samme efterløb som en tekstbesked.
+  const handleSendVideo = useCallback(async ({ fil, varighed }: { fil: Blob; varighed: number }) => {
+    if (!activeConvId || !user || videoFremdrift !== null) return;
+    const convForSend = conversations.find(c => c.id === activeConvId);
+    if (convForSend?.membershipTier === "expired") {
+      toast.error("Denne virksomhed er udløbet — beskeder kan ikke sendes");
+      return;
+    }
+    const convId = activeConvId;
+    const svar = svarPaa;
+    setVideoFremdrift(0);
+    try {
+      const titel = `Chatvideo ${convForSend?.companyName ?? ""} ${new Date().toISOString()}`.replace(/\s+/g, " ").trim();
+      const upload = await uploadChatVideo(fil, { titel, onFremdrift: setVideoFremdrift });
+      if (upload.ok === false) {
+        toast.error(upload.besked);
+        return;
+      }
+      const besked = byggVideoBesked({ guid: upload.guid, varighed });
+      const insertData: any = {
+        conversation_id: convId,
+        sender_id: user.id,
+        content: besked.content,
+        context_meta: besked.context_meta,
+      };
+      if (svar) insertData.svar_paa_id = svar.id;
+      const { data, error } = await supabase.from("messages").insert(insertData).select().single();
+      if (error || !data) {
+        console.error("Failed to insert video message:", error);
+        toast.error("Videoen er uploadet, men beskeden kunne ikke gemmes. Prøv igen.");
+        return;
+      }
+      setSvarPaa(null);
+      efterSendt((data as any).id, convId);
+    } finally {
+      setVideoFremdrift(null);
+    }
+  }, [activeConvId, user, conversations, svarPaa, videoFremdrift, efterSendt]);
 
   const activeConv = conversations.find((c) => c.id === activeConvId);
 
@@ -1122,7 +1178,8 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
   };
 
   const handleDeleteMsg = async (messageId: string) => {
-    const ok = await deleteMessageAction(messageId);
+    // context_meta med: har beskeden en video, slettes den hos Bunny FØRST (useMessageActions).
+    const ok = await deleteMessageAction(messageId, messages.find(m => m.id === messageId)?.context_meta);
     if (ok) {
       setMessages(prev => prev.filter(m => m.id !== messageId));
     }
@@ -1839,10 +1896,11 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                                       {senderName}
                                     </p>
                                   )}
-                                  {msg.content !== "📎" && (
+                                  {!erSkjultBobletekst(msg.content) && (
                                     <div className="text-sm leading-relaxed chat-html-content" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content, { ALLOWED_TAGS: ['b','strong','i','em','ul','ol','li','a','p','br'], ALLOWED_ATTR: ['href','target','rel'] }) }} />
                                   )}
                                   <MessageAttachments attachments={msg.context_meta?.attachments} isMine={isMine} messageId={msg.id} source="messages" variant="hb" />
+                                  <ChatVideoBesked messageId={msg.id} contextMeta={msg.context_meta} />
                                   <div className={`flex items-center gap-1 mt-1 ${isMine ? "justify-end" : ""}`}>
                                     {(msg as any).edited_at && (
                                       <span className="text-[9px] italic text-hb-ink-soft/70">
@@ -1889,10 +1947,11 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                                       {senderName}
                                     </p>
                                   )}
-                                  {msg.content !== "📎" && (
+                                  {!erSkjultBobletekst(msg.content) && (
                                     <div className="text-sm leading-relaxed chat-html-content" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content, { ALLOWED_TAGS: ['b','strong','i','em','ul','ol','li','a','p','br'], ALLOWED_ATTR: ['href','target','rel'] }) }} />
                                   )}
                                   <MessageAttachments attachments={msg.context_meta?.attachments} isMine={isMine} messageId={msg.id} source="messages" variant="hb" />
+                                  <ChatVideoBesked messageId={msg.id} contextMeta={msg.context_meta} />
                                   <div className={`flex items-center gap-1 mt-1 ${isMine ? "justify-end" : ""}`}>
                                     {(msg as any).edited_at && (
                                       <span className="text-[9px] italic text-hb-ink-soft/70">
@@ -1966,6 +2025,7 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                       placeholder={`Skriv til ${modtagerLabel}...`}
                       maxLength={MAX_MESSAGE_LENGTH}
                       variant="hb"
+                      videoKnap={isAdvisor ? { onClick: () => setVideoOptagerAaben(true), fremdrift: videoFremdrift } : undefined}
                     />
                     {!isMobile && (
                       <HbButton
@@ -1980,6 +2040,13 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                     )}
                   </div>
                   {!isMobile && <div className="safe-bottom-spacer" />}
+                  {isAdvisor && (
+                    <ChatVideoOptager
+                      open={videoOptagerAaben}
+                      onOpenChange={setVideoOptagerAaben}
+                      onSend={(video) => { void handleSendVideo(video); }}
+                    />
+                  )}
                   </>
                   )}
                 </div>

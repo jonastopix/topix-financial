@@ -34,6 +34,7 @@
  * Databasen dømmer det samme i triggeren; fladen skjuler bare knappen.
  */
 
+import { VIDEO_MARKOER } from "@/lib/chatVideoFlade";
 import { renTekst } from "./hjemmebane/richtext";
 
 /** Højeste længde på citatets uddrag — én linje i boblen. */
@@ -57,10 +58,11 @@ export type CitatTilstand =
   | { art: "citat"; besked: SvarBesked; uddrag: string }
   | { art: "slettet" };
 
-/** Ren tekst, én linje, højst SVAR_UDDRAG_MAKS tegn. Tom besked → «📎» (vedhæftning uden tekst, som panerne sender). */
+/** Ren tekst, én linje, højst SVAR_UDDRAG_MAKS tegn. Tom besked → «📎» (vedhæftning uden tekst, som panerne sender). Videomarkøren → «🎥 Video». */
 export function svarUddrag(content: string | null | undefined): string {
   const tekst = renTekst(content).replace(/\s+/g, " ").trim();
   if (tekst === "" || tekst === "📎") return "📎 Vedhæftning";
+  if (tekst === VIDEO_MARKOER) return VIDEO_MARKOER;
   if (tekst.length <= SVAR_UDDRAG_MAKS) return tekst;
   return `${tekst.slice(0, SVAR_UDDRAG_MAKS - 1).trimEnd()}…`;
 }

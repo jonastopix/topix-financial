@@ -3,6 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 import { indenForVinduet, kanRedigereBesked, kanSletteBesked } from "@/lib/beskedRegler";
+import { laesChatVideo } from "@/lib/chatVideo";
+import { sletGennemfoert } from "@/lib/chatVideoFlade";
 
 /** 15 minutter — reglen bor i src/lib/beskedRegler.ts (delt af redigering og sletning, 10/9). */
 export function canEditMessage(createdAt: string): boolean {
@@ -52,7 +54,23 @@ export function useMessageActions(
     return true;
   }, [editContent, currentUserId, messageTable, cancelEdit]);
 
-  const deleteMessage = useCallback(async (messageId: string) => {
+  const deleteMessage = useCallback(async (messageId: string, contextMeta?: unknown) => {
+    // VIDEOEN FØRST (29/9-2026): en besked med en chatvideo sletter også
+    // videoen hos Bunny (chat-video «slet»). Rækkefølgen er bindende — når
+    // beskeden er væk, kan videoen ikke længere findes (den eneste reference
+    // er context_meta.video.guid). Fejler sletningen hos Bunny, slettes
+    // beskeden IKKE. «Allerede væk» (fandtes: false) er en gennemført sletning.
+    if (laesChatVideo(contextMeta)) {
+      const { data: sletSvar, error: sletFejl } = await supabase.functions.invoke("chat-video", {
+        body: { action: "slet", messageId },
+      });
+      if (sletFejl || !sletGennemfoert(sletSvar)) {
+        console.error("Failed to delete chat video:", sletFejl ?? sletSvar);
+        toast.error("Videoen kunne ikke slettes — beskeden står uændret.");
+        return false;
+      }
+    }
+
     const { error } = await supabase
       .from(messageTable as any)
       .delete()
