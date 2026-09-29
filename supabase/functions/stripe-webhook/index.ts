@@ -49,29 +49,25 @@ import { kvitteringMail, LABEL_KVITTERING } from "../_shared/fornyelsesMail.ts";
 import { formatDanskDato } from "../_shared/indgangsMailAfsendelse.ts";
 import type { Betalingsmodel } from "../_shared/fornyelsespris.ts";
 import { bygKontraktRaekke, type KontraktInput } from "../_shared/kontraktRaekke.ts";
+import { STRIPE_TOLERANCE_SEK, type TV1Dom, verificerTV1Signatur } from "../_shared/webhookSignatur.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, stripe-signature",
 };
 
-async function verifyStripeSignature(payload: string, signature: string, secret: string): Promise<boolean> {
-  const parts = signature.split(",");
-  const timestamp = parts.find(p => p.startsWith("t="))?.slice(2);
-  const v1 = parts.find(p => p.startsWith("v1="))?.slice(3);
-  if (!timestamp || !v1) return false;
-
-  const signedPayload = `${timestamp}.${payload}`;
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
-  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(signedPayload));
-  const expected = Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, "0")).join("");
-  return expected === v1;
+// Signaturen (30/9-2026, sikkerhedsanalysen C7/F1): konstant tid, ALLE v1 prøves
+// (Stripe sender flere under nøglerotation), og et tidsvindue på 300 s som
+// stripe-node's DEFAULT_TOLERANCE — Stripe signerer hver levering på ny, også
+// gentagelser. Samme hemmelighed og samme HMAC-form som før. _shared/webhookSignatur.ts.
+async function verifyStripeSignature(payload: string, signature: string, secret: string): Promise<TV1Dom> {
+  return await verificerTV1Signatur({
+    payload,
+    header: signature,
+    secret,
+    nuSek: Math.floor(Date.now() / 1000),
+    toleranceSek: STRIPE_TOLERANCE_SEK,
+  });
 }
 
 /**
@@ -982,9 +978,9 @@ Deno.serve(async (req) => {
   const stripeSignature = req.headers.get("stripe-signature") || "";
   const payload = await req.text();
 
-  const isValid = await verifyStripeSignature(payload, stripeSignature, webhookSecret);
-  if (!isValid) {
-    console.error("Invalid Stripe signature");
+  const signaturDom = await verifyStripeSignature(payload, stripeSignature, webhookSecret);
+  if (!signaturDom.ok) {
+    console.error(`Invalid Stripe signature (${signaturDom.grund}${signaturDom.alderSek !== undefined ? `, alder ${signaturDom.alderSek} s` : ""})`);
     return new Response("Invalid signature", { status: 400 });
   }
 

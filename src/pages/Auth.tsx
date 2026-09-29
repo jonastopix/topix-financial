@@ -12,6 +12,7 @@ import { HB_EYEBROW, HB_H1, HB_INPUT, HB_INPUT_LAAST, HB_LABEL, HB_RAMME } from 
 import { HbSpinner } from "@/components/hjemmebane/HbSpinner";
 import { useHbDokumentGrund } from "@/hooks/useHbDokumentGrund";
 import { afgoerInvitationslink, LINK_UKENDT_TEKST, signupFejl, type Invitationslink } from "@/lib/signupFejl";
+import { sikkerReturSti } from "@/lib/sikkerReturUrl";
 
 /* Rammen, eyebrow, overskrift og felterne deles med ResetPassword og
    NotFound — de bor i hjemmebane/hbFormKlasser.ts (trin 10-12). */
@@ -29,7 +30,12 @@ const Auth = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const inviteToken = searchParams.get("invite") || "";
-  const returnUrl = searchParams.get("returnUrl") || "";
+  /* returnUrl er ALTID en intern sti (30/9-2026, sikkerhedsanalysen fund 4 —
+     åben redirect): sikkerReturSti oversætter vores egen https-adresse
+     (create-legat-enrollments …?returnUrl=https://app.theboardroom.dk/legat)
+     til stien og gør alt andet til «/». Tom = ingen returnUrl givet. */
+  const raaReturUrl = searchParams.get("returnUrl") || "";
+  const returnUrl = raaReturUrl ? sikkerReturSti(raaReturUrl, window.location.origin) : "";
   const modeParam = searchParams.get("mode");
   // Signup is only allowed with an invite token OR explicit mode=signup (advisor invitations)
   const hasInvitation = !!inviteToken || modeParam === "signup";
@@ -69,11 +75,6 @@ const Auth = () => {
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "SIGNED_IN" && session) {
-        if (returnUrl && returnUrl.startsWith("https://")) {
-          window.location.href = returnUrl;
-          return;
-        }
-
         // Check if user is a legat user and redirect accordingly
         const { data: legatRow } = await (supabase as any)
           .from("legat_enrollments")
@@ -92,15 +93,16 @@ const Auth = () => {
     return () => subscription.unsubscribe();
   }, [returnUrl, navigate]);
 
-  // If already logged in and returnUrl is set, redirect immediately
+  // If already logged in and returnUrl was an absolute address, redirect immediately
+  // — til den SIKRE sti (aldrig window.location.href med en fremmed adresse).
   useEffect(() => {
-    if (!returnUrl) return;
+    if (!returnUrl || !raaReturUrl.startsWith("https://")) return;
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session && returnUrl.startsWith("https://")) {
-        window.location.href = returnUrl;
+      if (session) {
+        navigate(returnUrl, { replace: true });
       }
     });
-  }, [returnUrl]);
+  }, [returnUrl, raaReturUrl, navigate]);
 
   // Look up company info from invite token — og forudfyld mail + navn.
   // Dommen (16/9, lib/signupFejl.ts): gyldig → som før; ukendt (brugt,
