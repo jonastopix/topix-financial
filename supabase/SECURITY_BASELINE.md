@@ -1012,12 +1012,17 @@ the database, so a member could put another user's path into their own
 message and get it signed.
 
 **INSERT policy (`Authenticated users can upload chat attachments`)**:
-tightened to `bucket_id = 'chat-attachments' AND (storage.foldername(name))[1]
-= auth.uid()::text` by `20260929150000_chat_vedhaeftning_mappetjek.sql` —
-**IKKE KØRT** at the time of writing (29/9). Until it is run, any authenticated
-user can write anywhere in the bucket. Two older migration comments claimed
-the folder check existed (`20260911030000:12-13`, `20260903233000:56-57`);
-they were wrong — see the new migration's header.
+`bucket_id = 'chat-attachments' AND (storage.foldername(name))[1]
+= auth.uid()::text`, written into the repo by
+`20260929150000_chat_vedhaeftning_mappetjek.sql`. What was believed (Claude,
+29/9): the repo's only version of the policy (`20260317133757`) checks
+`bucket_id` alone, so prod was assumed to have an open upload hole. That was
+wrong — measured in prod 29/9 BEFORE the migration was run, `pg_policies`
+already carried the folder check (BEFORE = AFTER); there was no hole in prod.
+The migration therefore brings the repo in line with prod and is idempotent.
+The two older migration comments that say the folder check exists
+(`20260911030000:12-13`, `20260903233000:56-57`) describe prod correctly; how
+the check got into prod is not recorded in the repo.
 
 - `uploadChatAttachments` writes the `path` form (`{userId}/{ts}-{name}`);
   the historical public-URL form in `attachments[].url` is still read.
