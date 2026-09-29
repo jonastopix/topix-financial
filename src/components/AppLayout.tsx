@@ -8,7 +8,7 @@ import { useStandalone } from "@/hooks/useStandalone";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { Eye, Building2, Menu, X, Home, MessageCircle, Zap, MoreHorizontal } from "lucide-react";
 import AddToHomescreenPrompt from "./AddToHomescreenPrompt";
-import topixIconGreen from "@/assets/topix-icon-green.png";
+import topixIconGreen from "@/assets/topix-icon-green-96.png";
 import FeedbackButton from "@/components/FeedbackButton";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";

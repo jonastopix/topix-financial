@@ -1,7 +1,7 @@
 import * as React from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
-import topixIcon from "@/assets/topix-icon-green.png";
+import topixIcon from "@/assets/topix-icon-green-96.png";
 import { cn } from "@/lib/utils";
 import { HbVisningSom } from "../HbVisningSom";
 import { useHbDokumentGrund } from "@/hooks/useHbDokumentGrund";

@@ -1,5 +1,9 @@
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Parkinsans:wght@400;500;600;700&display=swap');
+/* Skrifttyperne hentes i index.html (<link rel="preconnect"> + ét
+   stylesheet med display=swap), ikke med @import her: en @import i den
+   bundtede CSS er en render-blokerende kæde HTML → CSS → googleapis →
+   gstatic (analyse-hastighed.md #6). Space Grotesk og Inter er fjernet —
+   de stod kun som fallback i tailwind.config.ts, og Manrope 300 bruges
+   ingen steder (målt med grep 29/9). */
 
 @tailwind base;
 @tailwind components;
