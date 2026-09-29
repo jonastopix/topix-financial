@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 /**
- * Kildeværn for platformens før-webinar-mails (22/9-2026). Elleve domme, hver
+ * Kildeværn for platformens før-webinar-mails (22/9-2026). Seksten domme, hver
  * bevist på en kopi med fejlen indsat:
  *
  *   1. BUCKET B + LÅS: webinar-mail-cron kalder authenticateServiceRole FØRST,
@@ -65,6 +65,17 @@ import { resolve } from "node:path";
  *      går til driftModtager() (aldrig Mailgun), og klokken skrives med type
  *      WEBINAR_ALARM_KLOKKE_TYPE og reference_type WEBINAR_ALARM_REFERENCE.
  *      Uden det fejlede 211 mails 29/9 over to timer, og ingen fik besked.
+ *  15. INGEN BLIND GENSENDELSE (29/9): cronen læser udfald og status på de
+ *      fejlede og deler dem med afsendelseUkendt (timeout · fejl uden status ·
+ *      fejl ≥ 500) i `fejlede` og `ukendte`; dommen slår `ukendte` op FØR nåden og
+ *      indhentningen, i begge spejle, og svaret bærer ukendt_ikke_indhentet.
+ *      Uden det blev en timeout — hvor Mailgun kan have taget imod — sendt igen
+ *      ved næste kørsel: en dublet, som den en deltager klagede over 22/9.
+ *  16. KUN NÆRMESTE SESSION FÅR PÅMINDELSER (29/9): planlaegKoersel regner den
+ *      nærmeste IKKE-begyndte session pr. mail og giver `senereSession` til
+ *      doemMail, som springer PÅMINDELSER (erPaamindelse, læst af PLANEN — ikke
+ *      bekræftelsen) over FØR nåden. Uden det fik en person tilmeldt to sessioner
+ *      to hele serier, to mails i samme minut (mail-worstcase §3 scenarie C).
  */
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -369,11 +380,73 @@ export const fejledeIndhentes = (cron: string, dom: string, spejl: string): bool
     );
   };
   return (
-    f.includes('a.admin.from("webinar_mails").select("email, session_tid, art").neq("udfald", "ok")\n      .gte("session_tid", graense)') &&
-    f.includes("const fejlede = new Set(fejledeRaekker.map((x) => noegle(x.email, x.session_tid, x.art)));") &&
-    f.includes("const plan = planlaegKoersel({ raekker, afmeldte, sendte, fejlede, nu: a.nu });") &&
+    f.includes('a.admin.from("webinar_mails").select("email, session_tid, art, udfald, status").neq("udfald", "ok")\n      .gte("session_tid", graense)') &&
+    f.includes("const fejlede = new Set(fejledeRaekker.filter((x) => !afsendelseUkendt(x)).map((x) => noegle(x.email, x.session_tid, x.art)));") &&
+    f.includes("const plan = planlaegKoersel({ raekker, afmeldte, sendte, fejlede, ukendte, nu: a.nu });") &&
     foer(f, "const fejlede = new Set(", "const plan = planlaegKoersel(") &&
     f.includes("for_sent_efter_fejl: 0") &&
+    iDommen(dom) && iDommen(spejl)
+  );
+};
+
+// ── 15 ─────────────────────────────────────────────────────────────────────
+/**
+ * 29/9: et forsøg med UKENDT udfald (timeout, afbrudt forbindelse, 5xx) gensendes
+ * aldrig automatisk. Cronen læser udfald og status, deler de fejlede efter
+ * afsendelseUkendt og giver `ukendte` til dommen; dommen slår nøglen op FØR
+ * nåden og indhentningen, i begge spejle.
+ */
+export const ukendteGensendesIkke = (cron: string, dom: string, spejl: string): boolean => {
+  const f = udenKommentarer(cron);
+  const iDommen = (k: string) => {
+    const d = udenKommentarer(k);
+    return (
+      d.includes('if (forsoeg.udfald === "timeout") return true;') &&
+      d.includes('if (forsoeg.udfald === "fejl" && (forsoeg.status === null || forsoeg.status >= 500)) return true;') &&
+      d.includes("ukendte?: ReadonlySet<string>;") &&
+      d.includes("if (i.ukendte?.has(noegle(mail, i.sessionTid, art)) ?? false) {") &&
+      d.includes("ukendte: i.ukendte,") &&
+      // FØR nåden og indhentningen — ellers ville et ukendt inden for to timer gå igen.
+      foer(d, 'grund: "levering_ukendt"', "const forsinkelse = ") &&
+      foer(d, 'grund: "levering_ukendt"', "if (plan.straks === true) return { send: true")
+    );
+  };
+  return (
+    f.includes('select("email, session_tid, art, udfald, status").neq("udfald", "ok")') &&
+    f.includes("const ukendte = new Set(fejledeRaekker.filter((x) => afsendelseUkendt(x)).map((x) => noegle(x.email, x.session_tid, x.art)));") &&
+    f.includes("const fejlede = new Set(fejledeRaekker.filter((x) => !afsendelseUkendt(x)).map(") &&
+    f.includes("planlaegKoersel({ raekker, afmeldte, sendte, fejlede, ukendte, nu: a.nu })") &&
+    f.includes("r.ukendt_ikke_indhentet = plan.sprunget.levering_ukendt;") &&
+    f.includes("levering_ukendt: 0") &&
+    iDommen(dom) && iDommen(spejl)
+  );
+};
+
+// ── 16 ─────────────────────────────────────────────────────────────────────
+/**
+ * 29/9: kun den NÆRMESTE kommende session pr. mail får påmindelser; bekræftelsen
+ * går stadig pr. session. planlaegKoersel regner den nærmeste (ikke begyndt) og
+ * giver `senereSession` til doemMail, der springer påmindelser (erPaamindelse,
+ * læst af PLANEN) over FØR nåden — så en senere session aldrig «indhenter».
+ */
+export const kunNaermesteSession = (cron: string, dom: string, spejl: string): boolean => {
+  const f = udenKommentarer(cron);
+  const iDommen = (k: string) => {
+    const d = udenKommentarer(k);
+    return (
+      d.includes("return plan !== undefined && plan.straks !== true;") &&
+      d.includes("if (i.senereSession === true && erPaamindelse(art)) {") &&
+      d.includes("if (ms <= i.nu.getTime()) continue;") &&
+      d.includes("if (har === undefined || ms < har) naermeste.set(mail, ms);") &&
+      d.includes("const senereSession = foersteKommende !== undefined && Date.parse(r.session_tid as string) > foersteKommende;") &&
+      /ukendte: i\.ukendte,\n\s*senereSession,\n/.test(d) &&
+      foer(d, 'grund: "senere_session"', "const forsinkelse = ") &&
+      foer(d, 'grund: "senere_session"', "if (plan.straks === true) return { send: true")
+    );
+  };
+  return (
+    f.includes("r.sprunget_senere_session = plan.sprunget.senere_session;") &&
+    f.includes("senere_session: 0") &&
     iDommen(dom) && iDommen(spejl)
   );
 };
@@ -438,6 +511,8 @@ describe("webinarMail.guard — platformens før-webinar-mails", () => {
   it("12. loftet regnes før løkken, pause sender intet, og 403/420/429 bryder løkken efter sporet", () => expect(loftetFoerLoekken(laes(CRON), laes(LOFT))).toBe(true));
   it("13. de fejlede læses med samme afgrænsning og gives til dommen, og bekræftelser sorteres først", () => expect(fejledeIndhentes(laes(CRON), laes(DOM), laes(DOM_SPEJL))).toBe(true));
   it("14. alarmen kaldes kun i en rigtig kørsel, opslaget står før mailen, mailen går til driftModtager, klokken bærer referencen", () => expect(alarmenKunIRigtigKoersel(laes(CRON), laes(ALARM))).toBe(true));
+  it("15. et forsøg med ukendt udfald gensendes aldrig automatisk, i begge spejle", () => expect(ukendteGensendesIkke(laes(CRON), laes(DOM), laes(DOM_SPEJL))).toBe(true));
+  it("16. kun den nærmeste kommende session får påmindelser, i begge spejle", () => expect(kunNaermesteSession(laes(CRON), laes(DOM), laes(DOM_SPEJL))).toBe(true));
 });
 
 describe("webinarMail.guard — dommene fanger fejlen på en kopi", () => {
@@ -446,13 +521,48 @@ describe("webinarMail.guard — dommene fanger fejlen på en kopi", () => {
   it("fejlede ikke givet ind, læst som ok, uden afgrænsning, ikke slået op i dommen, eller bekræftelser ikke først, fælder dom 13", () => {
     const dom = laes(DOM), spejl = laes(DOM_SPEJL);
     // Selve fejlen, opgaven nævner: fejlede læses, men gives IKKE til planlaegKoersel.
-    expect(fejledeIndhentes(cron.split("planlaegKoersel({ raekker, afmeldte, sendte, fejlede, nu: a.nu })").join("planlaegKoersel({ raekker, afmeldte, sendte, nu: a.nu })"), dom, spejl)).toBe(false);
+    expect(fejledeIndhentes(cron.split("planlaegKoersel({ raekker, afmeldte, sendte, fejlede, ukendte, nu: a.nu })").join("planlaegKoersel({ raekker, afmeldte, sendte, ukendte, nu: a.nu })"), dom, spejl)).toBe(false);
     expect(fejledeIndhentes(cron.split('.neq("udfald", "ok")').join('.eq("udfald", "ok")'), dom, spejl)).toBe(false);
     expect(fejledeIndhentes(cron.split('.neq("udfald", "ok")\n      .gte("session_tid", graense)').join('.neq("udfald", "ok")\n     '), dom, spejl)).toBe(false);
     expect(fejledeIndhentes(cron.split("for_sent_efter_fejl: 0").join(""), dom, spejl)).toBe(false);
     expect(fejledeIndhentes(cron, dom.split("        fejlede: i.fejlede,\n").join(""), spejl)).toBe(false);
     expect(fejledeIndhentes(cron, dom, spejl.split("if (!(i.fejlede?.has(noegle(mail, i.sessionTid, art)) ?? false)) {").join("if (true) {"))).toBe(false);
     expect(fejledeIndhentes(cron, dom.split("    Number(erStraks(b.art)) - Number(erStraks(a.art)) ||\n").join(""), spejl)).toBe(false);
+  });
+
+  it("ukendte ikke givet ind, timeout som afvisning, 5xx som afvisning, opslaget fjernet eller efter nåden, eller delingen byttet om, fælder dom 15", () => {
+    const dom = laes(DOM), spejl = laes(DOM_SPEJL);
+    expect(ukendteGensendesIkke(cron, dom, spejl)).toBe(true);
+    // Selve fejlen: ukendte læses, men gives IKKE til dommen — timeouten indhentes som før.
+    expect(ukendteGensendesIkke(cron.split("fejlede, ukendte, nu: a.nu })").join("fejlede, nu: a.nu })"), dom, spejl)).toBe(false);
+    expect(ukendteGensendesIkke(cron.split('select("email, session_tid, art, udfald, status")').join('select("email, session_tid, art")'), dom, spejl)).toBe(false);
+    expect(ukendteGensendesIkke(cron.split("filter((x) => afsendelseUkendt(x))").join("filter((x) => !afsendelseUkendt(x))"), dom, spejl)).toBe(false);
+    expect(ukendteGensendesIkke(cron, dom.split('if (forsoeg.udfald === "timeout") return true;').join('if (forsoeg.udfald === "timeout") return false;'), spejl)).toBe(false);
+    expect(ukendteGensendesIkke(cron, dom, spejl.split("forsoeg.status >= 500").join("forsoeg.status >= 600"))).toBe(false);
+    expect(ukendteGensendesIkke(cron, dom, spejl.split("if (i.ukendte?.has(noegle(mail, i.sessionTid, art)) ?? false) {").join("if (false) {"))).toBe(false);
+    expect(ukendteGensendesIkke(cron, dom.split("        ukendte: i.ukendte,\n").join(""), spejl)).toBe(false);
+    // Opslaget flyttet ned efter nåden: et ukendt inden for to timer ville gå igen.
+    const blok = dom.slice(dom.indexOf("  if (i.ukendte?.has("), dom.indexOf("  // BEKRÆFTELSEN KUN FREMAD."));
+    const flyttet = dom.split(blok).join("").split("  return { send: true, art, planlagt: tid };\n}").join(blok + "  return { send: true, art, planlagt: tid };\n}");
+    expect(flyttet).not.toBe(dom);
+    expect(ukendteGensendesIkke(cron, flyttet, spejl)).toBe(false);
+  });
+
+  it("senereSession ikke givet ind, en begyndt session som nærmeste, den fjerneste som nærmeste, bekræftelsen holdt tilbage, eller tjekket efter nåden, fælder dom 16", () => {
+    const dom = laes(DOM), spejl = laes(DOM_SPEJL);
+    expect(kunNaermesteSession(cron, dom, spejl)).toBe(true);
+    // Selve fejlen: planlaegKoersel regner den nærmeste, men giver den IKKE til doemMail.
+    expect(kunNaermesteSession(cron, dom.split("        senereSession,\n").join(""), spejl)).toBe(false);
+    expect(kunNaermesteSession(cron, dom, spejl.split("if (ms <= i.nu.getTime()) continue;").join(""))).toBe(false);
+    expect(kunNaermesteSession(cron, dom.split("ms < har) naermeste").join("ms > har) naermeste"), spejl)).toBe(false);
+    expect(kunNaermesteSession(cron, dom, spejl.split("if (i.senereSession === true && erPaamindelse(art)) {").join("if (i.senereSession === true) {"))).toBe(false);
+    expect(kunNaermesteSession(cron, dom.split("return plan !== undefined && plan.straks !== true;").join("return true;"), spejl)).toBe(false);
+    expect(kunNaermesteSession(cron.split("r.sprunget_senere_session = plan.sprunget.senere_session;").join(""), dom, spejl)).toBe(false);
+    const start = dom.indexOf("  // KUN NÆRMESTE SESSION FÅR PÅMINDELSER (29/9).");
+    const blok = dom.slice(start, dom.indexOf("  const plan = PLANEN.find(", start));
+    const flyttet = dom.split(blok).join("").split("  return { send: true, art, planlagt: tid };\n}").join(blok + "  return { send: true, art, planlagt: tid };\n}");
+    expect(flyttet).not.toBe(dom);
+    expect(kunNaermesteSession(cron, flyttet, spejl)).toBe(false);
   });
 
   it("alarm i tørkørsel, kald uden dommen, opslag efter mailen, Mailgun eller rådgiveradressen, en loft-nøgle pr. time, eller loft-grenen foran de rigtige, fælder dom 14", () => {

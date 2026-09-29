@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  ARTER, baererInvitation, BEKRAEFTELSE_FRA, BEKRAEFTELSE_FRA_MS, doemMail, erAfmeldtIEwebinar,
+  afsendelseUkendt, ARTER, baererInvitation, BEKRAEFTELSE_FRA, erPaamindelse, BEKRAEFTELSE_FRA_MS, doemMail, erAfmeldtIEwebinar,
   googleKalenderUrl, kbhTilUtc, MED_INVITATION, noegle, outlookKalenderUrl, PLANEN, planlaegKoersel,
   naesteTidssatteArt, planlagtTid, sammeDanskeDato, SEN_TILMELDING_NAADE_MS,
   type MailArt, type Tilmeldt,
@@ -635,5 +635,142 @@ describe("INDHENTNING — en mail, VI fejlede med at sende, droppes ikke efter n
       const { sendinger } = planlaegKoersel({ raekker: [R({ email: MAIL })], afmeldte: new Set(), sendte: new Set(), nu: dansk("2026-09-29T06:05:00.000Z") });
       expect(sendinger.find((x) => x.art === "fjorten_dage")).not.toHaveProperty("indhentning");
     });
+  });
+});
+
+// ── 29/9-2026: dubletværnet (mail-worstcase §4 P1-9 og P1-10) ───────────────
+
+describe("KUN NÆRMESTE SESSION FÅR PÅMINDELSER (29/9)", () => {
+  const SENERE = "2026-10-20T09:00:00.000Z"; // tirsdag 20/10 kl. 11 dansk
+  const MAIL = "to@x.dk";
+  const begge = [R({ email: MAIL }), R({ email: MAIL, session_tid: SENERE, ewebinar_id: "r2" })];
+  const koer = (nu: string, raekker: Tilmeldt[] = begge) =>
+    planlaegKoersel({ raekker, afmeldte: new Set(), sendte: new Set(), nu: dansk(nu) });
+
+  it("erPaamindelse læses af PLANEN: alt undtagen «straks» (bekræftelsen)", () => {
+    expect(ARTER.filter(erPaamindelse)).toEqual(["fjorten_dage", "syv_dage", "tre_dage", "en_dag", "dagen", "en_time"]);
+    expect(erPaamindelse("bekraeftelse")).toBe(false);
+  });
+
+  it("6/10 kl. 08:05: «om en uge» til 13/10 — og IKKE «om to uger» til 20/10 i samme minut", () => {
+    const { sendinger, sprunget } = koer("2026-10-06T06:05:00.000Z");
+    expect(sendinger.map((s) => `${s.art}:${s.sessionTid}`)).toEqual([
+      `bekraeftelse:${SESSION}`, `bekraeftelse:${SENERE}`, `syv_dage:${SESSION}`,
+    ]);
+    // 20/10's seks påmindelser holdes alle tilbage (en af dem, fjorten_dage, var forfalden).
+    expect(sprunget.senere_session).toBe(6);
+  });
+
+  it("BEKRÆFTELSEN går stadig pr. session — den er svaret på personens egen handling", () => {
+    const { sendinger } = koer("2026-10-06T06:05:00.000Z");
+    expect(sendinger.filter((s) => s.art === "bekraeftelse").map((s) => s.sessionTid).sort()).toEqual([SESSION, SENERE]);
+  });
+
+  it("uden den tidligere session får 20/10 sin «om to uger» som før", () => {
+    const { sendinger, sprunget } = koer("2026-10-06T06:05:00.000Z", [begge[1]]);
+    expect(sendinger.map((s) => s.art)).toEqual(["bekraeftelse", "fjorten_dage"]);
+    expect(sprunget.senere_session).toBe(0);
+  });
+
+  it("13/10 kl. 10:00 (en time før): «om en time» til 13/10, intet til 20/10", () => {
+    const gamle = [R({ email: MAIL, registreret_at: "2026-09-10T08:00:00Z" }), R({ email: MAIL, session_tid: SENERE, registreret_at: "2026-09-10T08:00:00Z" })];
+    const { sendinger } = koer("2026-10-13T08:00:00.000Z", gamle);
+    expect(sendinger.map((s) => `${s.art}:${s.sessionTid}`)).toEqual([`en_time:${SESSION}`]);
+  });
+
+  it("NÅR 13/10 ER BEGYNDT, OVERTAGER 20/10 — men «om en uge» (13/10 kl. 08) er passeret og indhentes IKKE", () => {
+    const gamle = [R({ email: MAIL, registreret_at: "2026-09-10T08:00:00Z" }), R({ email: MAIL, session_tid: SENERE, registreret_at: "2026-09-10T08:00:00Z" })];
+    const { sendinger, sprunget } = koer("2026-10-13T09:05:00.000Z", gamle); // 11:05 dansk
+    expect(sendinger).toEqual([]);
+    expect(sprunget.senere_session).toBe(0);
+    // 20/10's fjorten_dage (6/10) og syv_dage (13/10 08:00, 3 t 5 min siden) er for_sent.
+    expect(sprunget.for_sent).toBeGreaterThanOrEqual(2);
+    // Og 17/10 kl. 08:00 går «om tre dage» til 20/10 som normalt.
+    const tre = koer("2026-10-17T06:05:00.000Z", gamle);
+    expect(tre.sendinger.map((s) => `${s.art}:${s.sessionTid}`)).toEqual([`tre_dage:${SENERE}`]);
+  });
+
+  it("et senere fejlet forsøg kan ikke indhentes forbi reglen — senere_session går foran nåden", () => {
+    const fejlede = new Set([noegle(MAIL, SENERE, "fjorten_dage")]);
+    const { sendinger, sprunget } = planlaegKoersel({ raekker: begge, afmeldte: new Set(), sendte: new Set(), fejlede, nu: dansk("2026-10-06T12:00:00.000Z") });
+    expect(sendinger.some((s) => s.sessionTid === SENERE && s.art !== "bekraeftelse")).toBe(false);
+    expect(sprunget.senere_session).toBeGreaterThan(0);
+  });
+
+  it("samme mail i forskellige store og små bogstaver er samme person", () => {
+    const { sendinger } = koer("2026-10-06T06:05:00.000Z", [R({ email: "To@X.dk" }), R({ email: "to@x.dk", session_tid: SENERE, ewebinar_id: "r2" })]);
+    expect(sendinger.filter((s) => s.art !== "bekraeftelse").map((s) => s.sessionTid)).toEqual([SESSION]);
+  });
+
+  it("doemMail: senereSession holder påmindelser tilbage, aldrig bekræftelsen", () => {
+    const bas = { sessionTid: SENERE, email: MAIL, registreretAt: "2026-09-23T08:00:00Z", afmeldt: false, alleredeSendt: false, senereSession: true, nu: dansk("2026-10-06T06:05:00.000Z") };
+    expect(doemMail({ ...bas, art: "fjorten_dage" })).toEqual({ send: false, art: "fjorten_dage", grund: "senere_session" });
+    expect(doemMail({ ...bas, art: "bekraeftelse" }).send).toBe(true);
+    expect(doemMail({ ...bas, art: "fjorten_dage", senereSession: false }).send).toBe(true);
+  });
+});
+
+describe("INGEN BLIND GENSENDELSE: et ukendt udfald indhentes ikke (29/9)", () => {
+  const MAIL = "u@x.dk";
+
+  it("afsendelseUkendt: timeout, fejl uden status og 5xx er ukendte; tydelige afvisninger er det ikke", () => {
+    expect(afsendelseUkendt({ udfald: "timeout", status: null })).toBe(true);
+    expect(afsendelseUkendt({ udfald: "fejl", status: null })).toBe(true);
+    expect(afsendelseUkendt({ udfald: "fejl", status: 500 })).toBe(true);
+    expect(afsendelseUkendt({ udfald: "fejl", status: 503 })).toBe(true);
+    expect(afsendelseUkendt({ udfald: "fejl", status: 404 })).toBe(false);
+    expect(afsendelseUkendt({ udfald: "fejl", status: 413 })).toBe(false);
+    for (const udfald of ["loft", "noegle_afvist", "ugyldig", "ingen_noegle"]) {
+      expect(afsendelseUkendt({ udfald, status: null }), udfald).toBe(false);
+      expect(afsendelseUkendt({ udfald, status: 429 }), udfald).toBe(false);
+    }
+    // Et loft kan komme med en 5xx-kode — Mailgun sagde stop, altså afvist.
+    expect(afsendelseUkendt({ udfald: "loft", status: 503 })).toBe(false);
+  });
+
+  it("INDEN FOR NÅDEN: en timeout sendes IKKE igen ved næste kørsel (før 29/9 gjorde den)", () => {
+    const nu = dansk("2026-10-06T06:10:00.000Z"); // 10 min efter syv_dage
+    const raekker = [R({ email: MAIL, registreret_at: "2026-09-10T08:00:00Z" })];
+    const ukendte = new Set([noegle(MAIL, SESSION, "syv_dage")]);
+    const med = planlaegKoersel({ raekker, afmeldte: new Set(), sendte: new Set(), ukendte, nu });
+    expect(med.sendinger).toEqual([]);
+    expect(med.sprunget.levering_ukendt).toBe(1);
+    // Uden kendskabet ville den gå igen — det er dubletten.
+    const uden = planlaegKoersel({ raekker, afmeldte: new Set(), sendte: new Set(), nu });
+    expect(uden.sendinger.map((s) => s.art)).toEqual(["syv_dage"]);
+  });
+
+  it("EFTER NÅDEN: et ukendt indhentes ikke — en tydelig afvisning gør stadig", () => {
+    const nu = dansk("2026-09-29T12:00:00.000Z"); // fjorten_dage 4 t forsinket
+    const k = noegle(MAIL, SESSION, "fjorten_dage");
+    const raekker = [R({ email: MAIL, registreret_at: "2026-09-10T08:00:00Z" })];
+    const ukendt = planlaegKoersel({ raekker, afmeldte: new Set(), sendte: new Set(), ukendte: new Set([k]), nu });
+    expect(ukendt.sendinger).toEqual([]);
+    expect(ukendt.sprunget.levering_ukendt).toBe(1);
+    const afvist = planlaegKoersel({ raekker, afmeldte: new Set(), sendte: new Set(), fejlede: new Set([k]), nu });
+    expect(afvist.sendinger).toMatchObject([{ art: "fjorten_dage", indhentning: true }]);
+  });
+
+  it("har nøglen BÅDE et ukendt og et afvist forsøg, vinder «ukendt»", () => {
+    const k = noegle(MAIL, SESSION, "fjorten_dage");
+    const d = doemMail({ art: "fjorten_dage", sessionTid: SESSION, email: MAIL, registreretAt: null, afmeldt: false, alleredeSendt: false, fejlede: new Set([k]), ukendte: new Set([k]), nu: dansk("2026-09-29T12:00:00.000Z") });
+    expect(d).toEqual({ send: false, art: "fjorten_dage", grund: "levering_ukendt" });
+  });
+
+  it("BEKRÆFTELSEN (vurderet særskilt): heller ikke gensendt — hellere én manglende end en dublet med to invitationer", () => {
+    const k = noegle(MAIL, SESSION, "bekraeftelse");
+    const d = doemMail({ art: "bekraeftelse", sessionTid: SESSION, email: MAIL, registreretAt: "2026-09-29T08:00:00Z", afmeldt: false, alleredeSendt: false, ukendte: new Set([k]), nu: dansk("2026-09-29T08:05:00.000Z") });
+    expect(d).toEqual({ send: false, art: "bekraeftelse", grund: "levering_ukendt" });
+  });
+
+  it("et ok-forsøg går foran: allerede_sendt, ikke levering_ukendt", () => {
+    const k = noegle(MAIL, SESSION, "syv_dage");
+    const d = doemMail({ art: "syv_dage", sessionTid: SESSION, email: MAIL, registreretAt: null, afmeldt: false, alleredeSendt: true, ukendte: new Set([k]), nu: dansk("2026-10-06T06:10:00.000Z") });
+    expect(d).toEqual({ send: false, art: "syv_dage", grund: "allerede_sendt" });
+  });
+
+  it("nøglen er pr. art: et ukendt syv_dage holder ikke tre_dage tilbage", () => {
+    const d = doemMail({ art: "tre_dage", sessionTid: SESSION, email: MAIL, registreretAt: null, afmeldt: false, alleredeSendt: false, ukendte: new Set([noegle(MAIL, SESSION, "syv_dage")]), nu: dansk("2026-10-10T06:05:00.000Z") });
+    expect(d.send).toBe(true);
   });
 });

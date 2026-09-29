@@ -78,6 +78,20 @@ describe("webinarMailDom.paritet — dommene svarer ens", () => {
     }];
     const i = { raekker, afmeldte: new Set<string>(), sendte: new Set<string>(), nu: new Date("2026-10-06T06:05:00Z") };
     expect(deno.planlaegKoersel(i)).toEqual(src.planlaegKoersel(i));
+    // 29/9: to kommende sessioner på samme mail, og ukendte/fejlede forsøg.
+    const to = [...raekker, { ...raekker[0], ewebinar_id: "r2", session_tid: "2026-10-20T09:00:00.000Z" }];
+    const ukendte = new Set([deno.noegle("a@x.dk", SESSION, "syv_dage")]);
+    const fejlede = new Set([deno.noegle("a@x.dk", SESSION, "fjorten_dage")]);
+    for (const nu of ["2026-09-29T12:00:00Z", "2026-10-06T06:05:00Z", "2026-10-06T06:10:00Z", "2026-10-13T09:05:00Z", "2026-10-17T06:05:00Z"]) {
+      const j = { raekker: to, afmeldte: new Set<string>(), sendte: new Set<string>(), fejlede, ukendte, nu: new Date(nu) };
+      expect(deno.planlaegKoersel(j), nu).toEqual(src.planlaegKoersel(j));
+    }
+    for (const udfald of ["ok", "timeout", "fejl", "loft", "ugyldig", "noegle_afvist", "ingen_noegle"]) {
+      for (const status of [null, 200, 404, 429, 500, 503]) {
+        expect(deno.afsendelseUkendt({ udfald, status }), `${udfald}/${status}`).toBe(src.afsendelseUkendt({ udfald, status }));
+      }
+    }
+    for (const art of deno.ARTER) expect(deno.erPaamindelse(art), art).toBe(src.erPaamindelse(art));
     expect(deno.noegle("A@X.dk", SESSION, "dagen")).toBe(src.noegle("A@X.dk", SESSION, "dagen"));
     const k = { titel: "W", sessionTid: SESSION, joinLink: "https://j" };
     expect(deno.googleKalenderUrl(k)).toBe(src.googleKalenderUrl(k));
