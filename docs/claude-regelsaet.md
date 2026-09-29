@@ -54,6 +54,25 @@ Dokumentet gælder for enhver Claude-session, der arbejder selvstændigt på pla
 7. **Test skrivehandlinger kun på ting, du selv har oprettet til formålet.** (29/9: et merge-kald blev prøvet på en rigtig, allerede merget PR. Intet ændrede sig, men det var skødesløst.)
 8. **Stop frem for at gætte**, når en forudsætning ikke holder.
 
+## 4a. Værdi før byg — det kritiske blik (Jonas 29/9 21:06)
+
+«Bare fordi de står på en mangelliste … så skal der jo laves grundige recons og også analyser af, om det stadig er vigtige ting. Især de ting, der ligesom er nye funktioner, eller i gode øjne forbedringer. Der skal vi selvfølgelig hele tiden vurdere, om det reelt gør tingene markant bedre for enten et medlem eller en rådgiver.»
+
+Før en opgave bygges, skriver Claude en VÆRDIVURDERING. Det er ikke en byggeplan, og den er kort:
+
+1. **Er det stadig relevant?** Mål tilstanden i dag i kode, data og drift, ikke kortets beskrivelse. Et kort kan være løst, forældet eller have ændret karakter.
+2. **Hvem får det bedre, hvor ofte og hvor meget?** Tal, hvor de kan fås: brug af siden, antal rækker, antal ramte medlemmer eller rådgivere, og hvor tit det sker. «Kan ikke måles herfra» er et gyldigt svar, men det skrives.
+3. **Hvad koster det?** Kode, risiko og udrulning: migration, deploy, Update og skridt for Jonas.
+4. **Dom:** byg / læg frem for Jonas / luk som forældet.
+
+**Selv i «Kør selv»:**
+- **Fejl, som et medlem, en rådgiver eller Jonas rammer,** går altid forrest og bygges.
+- **Drift, der beskytter mod stille fejl,** bygges, når værdien er målt.
+- **Nye funktioner og «forbedringer»** bygges KUN selv, når gevinsten er klar og målt. Ellers lægges de frem for Jonas som et kort forslag med målingen, ikke som en færdig PR.
+- **Beslutningen skrives i PR'en** (værdivurderingen øverst) og i bogføringen, også når dommen er «ikke bygget».
+
+Fejlen, der gav reglen (29/9 aften): «Spørg din rådgiver» (#1144) og «systembeskeder ud af chatten» (#1145) blev valgt, fordi de stod som «gør det» og «Lille». Ingen målte først, om medlemmerne bruger Nøgletal eller skriver i chatten, eller hvad chatten faktisk fyldes med. #1145 skjulte til sidst kun én type og blev lukket.
+
 ## 5. Modelvalg
 
 Den største model bruges kun, hvor den gør forskel.
