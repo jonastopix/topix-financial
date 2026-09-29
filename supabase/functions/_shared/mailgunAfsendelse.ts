@@ -169,6 +169,74 @@ export function bygMimeFormData(til: string, mime: string): FormData {
 }
 
 /**
+ * De former af Mailguns svartekst, der betyder et LOFT — uanset statuskoden.
+ * KUN de former, Mailgun FAKTISK sendte (29/9, målt i webinar_mails.svar);
+ * forskel på store og små bogstaver ignoreres:
+ *   /probation/i                  403 «Your account is on probation and
+ *                                 domains are limited to 100 messages / hour»
+ *   /\blimit \(\d+\) exceeded/i   420 «recipient limit (26) exceeded»
+ *                                 429 «request limit (101) exceeded»
+ *   /\blimited to \d+ messages/i  403 «… domains are limited to 100 messages / hour»
+ *
+ * Et bredere ord («limit», «rate», «too fast») ville også fange svar, der
+ * ikke er et loft — «message size limit exceeded» er en for stor mail. En ny
+ * form tilføjes, når den er MÅLT i webinar_mails.svar, ikke før. Et ukendt
+ * svar hedder `fejl`, fordi `fejl` ikke påstår en årsag.
+ */
+export const LOFT_MOENSTRE: readonly RegExp[] = [/probation/i, /\blimit \(\d+\) exceeded/i, /\blimited to \d+ messages/i];
+
+/** Så meget af Mailguns egen besked, `grund` bærer. Hele svaret står i `svar`. */
+export const GRUND_BESKED_MAKS = 200;
+
+/**
+ * Mailguns egen besked: JSON-feltet `message`, når svaret er JSON med et
+ * tekstfelt af det navn — ellers teksten, som den er.
+ */
+export function mailgunBesked(tekst: string): string {
+  try {
+    const besked = (JSON.parse(tekst) as { message?: unknown } | null)?.message;
+    if (typeof besked === "string") return besked.trim();
+  } catch { /* ikke JSON — teksten er beskeden */ }
+  return tekst.trim();
+}
+
+/**
+ * Udfaldet af et svar, der NÅEDE Mailgun. REN FUNKTION.
+ *
+ * EN MÆRKAT MÅ IKKE PÅSTÅ EN ÅRSAG, SVARET IKKE BÆRER (29/9). Den gamle dom
+ * læste kun statuskoden, og 29/9 gav det tre spor, hvoraf to var forkerte:
+ * 403 «on probation … limited to 100 messages / hour» blev `noegle_afvist`
+ * (fejlsøgningen gik efter en API-nøgle), og 420 «recipient limit (26)
+ * exceeded» blev `ugyldig` (151 adresser lignede defekte). Begge var lofter.
+ *
+ * RÆKKEFØLGEN ER DOMMEN:
+ *   1. 2xx → ok.
+ *   2. Teksten nævner et loft (LOFT_MOENSTRE) → loft, UANSET status. Den går
+ *      foran statusreglerne, fordi Mailgun bruger samme kode til flere
+ *      årsager: 403 er både «forkert nøgle» og «probation-loftet», og 420 er
+ *      ikke en kode, der siger noget i sig selv. Kun teksten skiller dem ad —
+ *      kom statusreglen først, ville et 403-loft stadig hedde nøglen.
+ *   3. 429 → loft.
+ *   4. 401, og 403 uden loft-tekst → noegle_afvist.
+ *   5. 400 og 422 → ugyldig (samme afbildning som klaviyo.ts' udfaldAfStatus).
+ *   6. Alt andet → fejl. Et ukendt 4xx påstår ingen årsag.
+ */
+export function doemMailgunSvar(status: number, tekst: string): MailgunUdfald {
+  if (status >= 200 && status < 300) return "ok";
+  if (LOFT_MOENSTRE.some((m) => m.test(tekst))) return "loft";
+  if (status === 429) return "loft";
+  if (status === 401 || status === 403) return "noegle_afvist";
+  if (status === 400 || status === 422) return "ugyldig";
+  return "fejl";
+}
+
+/** `grund` for et svar, der ikke var ok: statuskoden OG Mailguns egne ord. */
+export function grundAfSvar(status: number, tekst: string): string {
+  const besked = mailgunBesked(tekst).slice(0, GRUND_BESKED_MAKS);
+  return besked ? `Mailgun svarede ${status}: ${besked}` : `Mailgun svarede ${status}`;
+}
+
+/**
  * Send én mail. KASTER ALDRIG.
  *
  * Nøglen gives IND — den læses ét sted (webinar-mail-cron), så denne fil kan
@@ -178,17 +246,13 @@ export function bygMimeFormData(til: string, mime: string): FormData {
 async function doemSvar(svar: Response, start: number): Promise<MailgunSpor> {
   const tekst = (await svar.text().catch(() => "")).slice(0, SVAR_MAKS);
   const varighed = Date.now() - start;
-  if (svar.ok) {
+  const udfald = doemMailgunSvar(svar.status, tekst);
+  if (udfald === "ok") {
     let id: string | null = null;
     try { id = (JSON.parse(tekst) as { id?: string }).id ?? null; } catch { /* Mailgun svarer JSON; en dag måske ikke */ }
     return { udfald: "ok", status: svar.status, svar: tekst, grund: null, varighed_ms: varighed, mailgun_id: id };
   }
-  const udfald: MailgunUdfald =
-    svar.status === 401 || svar.status === 403 ? "noegle_afvist"
-    : svar.status === 429 ? "loft"
-    : svar.status >= 400 && svar.status < 500 ? "ugyldig"
-    : "fejl";
-  return { udfald, status: svar.status, svar: tekst, grund: `Mailgun svarede ${svar.status}`, varighed_ms: varighed, mailgun_id: null };
+  return { udfald, status: svar.status, svar: tekst, grund: grundAfSvar(svar.status, tekst), varighed_ms: varighed, mailgun_id: null };
 }
 
 /**
