@@ -46,8 +46,10 @@ import { resolve } from "node:path";
  *  12. LOFTET FØR LØKKEN, STOP I LØKKEN (29/9, mailFejl.guard-mønstret): cronen
  *      kalder beregnKoerselsLoft FØR løkken, sender intet ved pause, forsøger
  *      højst maks, og bryder løkken (break) ved 403/420/429 — EFTER sporet er
- *      skrevet. Loftet er 90 og stop-koderne 403 · 420 · 429 i motoren. Uden
- *      det blev 211 mails forsøgt 2.125 gange på to timer, og Mailgun spærrede.
+ *      skrevet. Loftet er 1000 (Jonas 29/9, efter at Mailgun ophævede probationen;
+ *      det er hans tal, ikke en dokumenteret Mailgun-grænse) og stop-koderne
+ *      403 · 420 · 429 i motoren. Uden det blev 211 mails forsøgt 2.125 gange
+ *      på to timer, og Mailgun spærrede.
  *  13. DE FEJLEDE INDHENTES, BEKRÆFTELSER FØRST (29/9): cronen læser
  *      webinar_mails med udfald <> 'ok' med SAMME afgrænsning som de sendte
  *      (session_tid >= graense), bygger nøglerne med noegle() og giver dem til
@@ -56,7 +58,7 @@ import { resolve } from "node:path";
  *      slår nøglen op, og sorteringen sætter «straks»-arter (bekræftelsen) FØR
  *      ældste planlagte. Uden det bliver en mail, VI fejlede med, for_sent to
  *      timer efter sit tidspunkt — og en ny tilmeldts bekræftelse venter bag 211
- *      indhentede under et loft på 90 i timen.
+ *      indhentede under et loft i timen.
  *  14. ALARMEN KUN I EN RIGTIG KØRSEL (29/9, gensenderens form): efter koer
  *      kaldes skrivAlarm kun når r.sender_rigtigt OG skalAlarmere(r); i
  *      skrivAlarm slås email_send_log op på nøglen FØR sendManagedEmail, mailen
@@ -346,7 +348,7 @@ export const loftetFoerLoekken = (cron: string, loft: string): boolean => {
     loekke.slice(stop, stop + 500).includes("break;") &&
     loekke.slice(stop, stop + 500).includes("r.over_loft += sendinger.length - i - 1;") &&
     // Motoren: loftet og stop-koderne står ordret.
-    l.includes("export const MAILGUN_LOFT_PR_TIME = 90;") &&
+    l.includes("export const MAILGUN_LOFT_PR_TIME = 1000;") &&
     l.includes("export const STOP_STATUSSER: readonly number[] = [403, 420, 429];") &&
     l.includes("return { maks: Math.max(0, loft - forsoeg), pause: null };")
   );
@@ -506,7 +508,9 @@ describe("webinarMail.guard — dommene fanger fejlen på en kopi", () => {
     expect(foerSporet).not.toBe(cron);
     expect(loftetFoerLoekken(foerSporet, loft)).toBe(false);
     // Motoren med et andet loft eller andre stop-koder.
-    expect(loftetFoerLoekken(cron, loft.split("export const MAILGUN_LOFT_PR_TIME = 90;").join("export const MAILGUN_LOFT_PR_TIME = 100;"))).toBe(false);
+    for (const andet of [90, 100, 999, 1001, 10000]) {
+      expect(loftetFoerLoekken(cron, loft.split("export const MAILGUN_LOFT_PR_TIME = 1000;").join(`export const MAILGUN_LOFT_PR_TIME = ${andet};`)), String(andet)).toBe(false);
+    }
     expect(loftetFoerLoekken(cron, loft.split("[403, 420, 429]").join("[429]"))).toBe(false);
   });
 
