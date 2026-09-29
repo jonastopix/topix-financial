@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod — 29/9-2026 kl. 17:35 dansk tid (Lovable SQL editor), FØR merget af #1133 (CI på #1133 faldt i metaSend.guard dom 11, fordi denne fil stod ukørt før den kørte 20260929190000). FØR (17:34): «fire noder» = «Se  #Budget  og  #Vækstdag  og  #Hej, jeg er Mette  og» · «kun rabathenvisning» = NULL · «rabathenvisning uden titel» = NULL · «definitionen kender rabathenvisning» = false. EFTER (17:35, samme kørsel; CREATE OR REPLACE FUNCTION + COMMENT med samme krop som filen, blot uden de indre -- kommentarer): «fire noder» = «Se  #Budget  og  #Vækstdag  og  #Hej, jeg er Mette  og  #Dinero» · «kun rabathenvisning» = «#Dinero» · «rabathenvisning uden titel» = NULL · «definitionen kender rabathenvisning» = true.
 --
 -- COMMUNITY_JSON_TIL_TEKST LÆRER RABATHENVISNING AT KENDE (29/9-2026, opfølgning
 -- på «#» i chatten, trin 3). Motoren (communityDokument.ts) og chattens
@@ -23,7 +23,8 @@
 -- EFTERPRØVET 29/9 (før kl. 14:13) som RÅ SELECT via MCP mod boardroom-2-prod
 -- (tmhjionsbtgrwuzwjbgb — IKKE Lovable-prod): CTE'en med den gamle og den nye
 -- opslagsliste som VALUES, ingen CREATE/ALTER/INSERT/UPDATE/DELETE. Svarene er
--- dem, der står under FACIT nedenfor. Lovable-prod er IKKE målt.
+-- dem, der står under FACIT nedenfor. Lovable-prod er målt 29/9 kl. 17:34 (FØR) og
+-- 17:35 (EFTER) med samme forespørgsel — samme svar.
 --
 -- FØR OG EFTER — samme forespørgsel, ÉT resultatsæt (Lovables editor eksporterer
 -- kun det sidste resultatsæt):
@@ -35,12 +36,12 @@
 --   UNION ALL
 --   SELECT 'definitionen kender rabathenvisning', (pg_get_functiondef('public.community_json_til_tekst(jsonb)'::regprocedure) LIKE '%rabathenvisning%')::text;
 --
--- FACIT FØR (4 rækker):
+-- FACIT FØR (4 rækker — målt i Lovable-prod 29/9-2026 kl. 17:34):
 --   fire noder                          | Se  #Budget  og  #Vækstdag  og  #Hej, jeg er Mette  og
 --   kun rabathenvisning                 | NULL
 --   rabathenvisning uden titel          | NULL
 --   definitionen kender rabathenvisning | false
--- FACIT EFTER (4 rækker):
+-- FACIT EFTER (4 rækker — målt i Lovable-prod 29/9-2026 kl. 17:35, samme kørsel):
 --   fire noder                          | Se  #Budget  og  #Vækstdag  og  #Hej, jeg er Mette  og  #Dinero
 --   kun rabathenvisning                 | #Dinero
 --   rabathenvisning uden titel          | NULL

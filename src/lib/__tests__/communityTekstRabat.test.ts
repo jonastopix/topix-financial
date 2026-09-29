@@ -43,8 +43,11 @@ describe("migration 20260929180000 — community_json_til_tekst kender rabathenv
   const sql = laes(NY);
   const gammel = laes(GAMMEL);
 
-  it("første linje er husets IKKE KØRT-linje", () => {
-    expect(sql.split("\n")[0]).toBe("-- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).");
+  // Vendt 29/9 kl. 17:35 (Jonas, Lovable SQL editor): migrationen ER kørt i prod —
+  // hovedet bogfører FØR/EFTER, og linjen er husets KØRT-linje, ikke IKKE KØRT.
+  it("første linje er husets KØRT-linje med tidspunktet", () => {
+    expect(sql.split("\n")[0].startsWith("-- KØRT i prod — 29/9-2026 kl. 17:35 dansk tid (Lovable SQL editor)")).toBe(true);
+    expect(sql.split("\n")[0]).not.toContain("IKKE KØRT");
   });
 
   it("TS og SQL giver det samme på dokumentet med én af hver af de fire noder", () => {
