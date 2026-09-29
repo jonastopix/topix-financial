@@ -47,6 +47,8 @@ import { INGEN_ONLINE_TEKST, onlineMedlemmer, onlineOverskrift, onlineTitel, onl
 import { HentningsFejl } from "@/lib/kraevRaekker";
 import { cn } from "@/lib/utils";
 import { raadgiverHentefejlTekst } from "@/lib/raadgiverHentefejl";
+import { useMedlemsOverblik } from "@/hooks/medlemsOverblik";
+import { ManglerAtBooke } from "./ManglerAtBooke";
 
 /**
  * Rådgiverens forside på /forside — DOMMEN (docs/forsiden-design.md,
@@ -527,6 +529,11 @@ export const RaadgiverForsideView = () => {
     enabled: !!user,
     staleTime: 60_000,
   });
+  // Mangler at booke (Jonas 29/9: «Jeg skal bare vide hvor mange der
+  // mangler»; lib/medlemsOverblik.manglerAtBooke): medlemsoverblikkets egen
+  // hentning og nøgle — en fejl her lader forsiden stå. Hook i topblokken,
+  // før nogen betinget return (React #310).
+  const overblikQuery = useMedlemsOverblik(!!user);
   // Lukningen — hook i TOPBLOKKEN, før nogen betinget return (React #310).
   // Skriv, så hent igen: dommen afgør hvad der står; ingen lokal patch.
   const lukning = useMutation({
@@ -872,6 +879,11 @@ export const RaadgiverForsideView = () => {
             );
           })()
         ) : null}
+        {/* MANGLER AT BOOKE (Jonas 29/9): to linjer — Morten- og Jonas-session —
+            med navnene under. Står sidst i «I dag» som «Venter på betaling»:
+            dagens arbejde, ikke det første man skal se. Dommen er motorens
+            manglerAtBooke; blokken tæller kun (ManglerAtBooke.tsx). */}
+        <ManglerAtBooke hentning={overblikQuery} virksomhedsLink={virksomhedsLink} linkKlasse={TEKSTLINK} />
         </aside>
 
         {/* ── Venstre, række 2: Jeres liste (Jonas 8/9): UNDER DOMMEN, med

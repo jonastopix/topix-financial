@@ -95,12 +95,7 @@ describe("sorteringen — navn, sidste kontakt, sidste rapportering; tomme altid
   const ids = (s: ReturnType<typeof findSortering>) => sorterRaekker(rows, s).map((r) => r.id);
 
   it("standard er navn A–Å med dansk sortering (Ærø efter Zeta)", () => {
-    // Standard er «Overblik — trænger først» siden 29/9 (medlemsoverblikket); navn står som nr. 2.
-    expect(STANDARD_SORTERING.id).toBe("overblik");
-    expect(SORTERINGER[1].id).toBe("navn");
-    // Overblik: vægten faldende, tomme (ikke hentet) sidst, navn som sekundær nøgle.
-    const medVaegt = rows.map((r) => ({ ...r, overbliksVaegt: r.id === "c" ? 50 : r.id === "a" ? 90 : r.id === "b" ? null : 50 }));
-    expect(sorterRaekker(medVaegt, findSortering("overblik")).map((r) => r.id)).toEqual(["a", "d", "c", "b"]);
+    expect(STANDARD_SORTERING.id).toBe("navn");
     expect(ids(findSortering("navn"))).toEqual(["b", "d", "c", "a"]);
     expect(findSortering("findes-ikke")).toBe(STANDARD_SORTERING);
     expect(findSortering(null)).toBe(STANDARD_SORTERING);
@@ -131,8 +126,8 @@ describe("sorteringen — navn, sidste kontakt, sidste rapportering; tomme altid
     expect(lige.map((r) => r.id)).toEqual(["y", "x"]);
   });
 
-  it("SORTERINGER har unikke id'er og seks valg (overblik kom til 29/9)", () => {
+  it("SORTERINGER har unikke id'er og fem valg", () => {
     expect(new Set(SORTERINGER.map((s) => s.id)).size).toBe(SORTERINGER.length);
-    expect(SORTERINGER).toHaveLength(6);
+    expect(SORTERINGER).toHaveLength(5);
   });
 });

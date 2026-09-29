@@ -270,6 +270,8 @@ export const MAERKE_ORD: Readonly<Record<Maerke, string>> = {
 /** Én virksomheds overblik — det, fladen og statusmailen tegner. */
 export interface OverbliksRaekke {
   companyId: string;
+  /** companies.name — samme regel som /virksomheder (`name || ""`); tom, når kalderen ikke hentede navnet. */
+  navn: string;
   antalBrugere: number;
   medlemSiden: string | null;
   sessioner: { morten: SessionDom; jonas: SessionDom };
@@ -284,7 +286,7 @@ export interface OverbliksRaekke {
  * null, uden sentinel) er kalderens, og de skal være ens (hooks/medlemsOverblik.ts).
  */
 export interface OverbliksKilder {
-  companies: readonly { id: string; status: string | null; is_legat: boolean | null; er_kunde: boolean | null; is_demo: boolean | null; intro_session_used_at: string | null; jonas_session_used_at: string | null }[];
+  companies: readonly { id: string; name?: string | null; status: string | null; is_legat: boolean | null; er_kunde: boolean | null; is_demo: boolean | null; intro_session_used_at: string | null; jonas_session_used_at: string | null }[];
   medlemmer: readonly { company_id: string; user_id: string; created_at: string | null }[];
   /** session_bookings med amount_dkk = 0 (de inkluderede) — alle rådgivere; fordeles her. */
   bookinger: readonly (SessionRaekke & { company_id: string | null; advisor: string })[];
@@ -385,7 +387,27 @@ export function byggOverblik(k: OverbliksKilder, nu: Date): Map<string, Overblik
       nu, antalBrugere: brugere.length, medlemSiden, sessioner, aktivitet,
       harMaaltRapport: maaltByCompany.has(c.id), antalUploads: uploadsByCompany.get(c.id) ?? 0,
     });
-    ud.set(c.id, { companyId: c.id, antalBrugere: brugere.length, medlemSiden, sessioner, aktivitet, dom });
+    ud.set(c.id, { companyId: c.id, navn: c.name || "", antalBrugere: brugere.length, medlemSiden, sessioner, aktivitet, dom });
   }
   return ud;
+}
+
+// ── Mangler at booke (29/9, forsiden) ────────────────────────────────────────
+
+/**
+ * JONAS 29/9: «Jeg skal bare vide hvor mange der mangler.» Én dom pr. rådgiver:
+ *   morten mangler — sessionen er ikke_brugt, link_sendt eller aflyst.
+ *   jonas mangler  — KUN for et nyt medlem (erNytMedlem), og sessionen er
+ *                    ikke_brugt, link_sendt eller aflyst.
+ *   booket, afholdt, markeret_uden_booking og ikke_omfattet = mangler ikke.
+ * Forsidens blok tæller KUN gennem denne (værn: medlemsOverblikFlade.guard).
+ */
+export const MANGLER_STATUSSER: readonly SessionStatus[] = ["ikke_brugt", "link_sendt", "aflyst"];
+
+export function manglerAtBooke(raekke: Pick<OverbliksRaekke, "sessioner" | "medlemSiden">): { morten: boolean; jonas: boolean } {
+  const mangler = (s: SessionStatus) => MANGLER_STATUSSER.includes(s);
+  return {
+    morten: mangler(raekke.sessioner.morten.status),
+    jonas: erNytMedlem(raekke.medlemSiden) && mangler(raekke.sessioner.jonas.status),
+  };
 }
