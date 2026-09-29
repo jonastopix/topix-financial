@@ -25,6 +25,7 @@ import { bygKalenderfil, kalenderfilnavn, kanFoejeTilKalender } from "@/lib/kale
 import { HbButton, hbButtonVariants } from "../HbButton";
 import { HbVideoEmbed } from "../akademi/HbVideoEmbed";
 import { hentetilstand, sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
+import { eventLokation, eventStedDele } from "@/lib/eventLokation";
 
 /** Events-miljøet, trin 3: eventsiden (/events/:id) med tilmelding og
     deltagerliste. Ikke-fundet håndteres blødt (ElementView-mønstret:
@@ -210,7 +211,7 @@ export const EventDetailView = ({ eventId }: { eventId: string }) => {
         </h1>
         <p className="mt-3 text-sm text-hb-ink-soft">
           {dateLine} · {timeSpan}
-          {event.meet_url ? " · Online" : ""}
+          {eventStedDele(event).map((del) => ` · ${del}`).join("")}
         </p>
         {/* Værterne (PR 4b): rådgivere med portræt og navn, gæster med foto/initial og «Gæstevært». */}
         <HbVaerter className="mt-5" vaerter={vaerterForEvent(vaerterQuery.data ?? [], eventId, raadgivereQuery.data ?? INGEN_RAADGIVERE)} />
@@ -228,7 +229,7 @@ export const EventDetailView = ({ eventId }: { eventId: string }) => {
             >
               Føj til kalender
             </button>
-            {!event.meet_url && <span className="ml-2 text-xs text-hb-ink-soft">Mødelinket kommer på denne side, når det er klar.</span>}
+            {!event.meet_url && !eventLokation(event) && <span className="ml-2 text-xs text-hb-ink-soft">Mødelinket kommer på denne side, når det er klar.</span>}
           </p>
         )}
 

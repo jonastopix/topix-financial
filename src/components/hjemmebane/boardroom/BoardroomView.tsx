@@ -84,6 +84,7 @@ import {
 } from "./pushSelection";
 import { pushMedie, spotifyEmbedUrl, youtubeIdAf, youtubeNocookieEmbedUrl, youtubeThumbnailUrl } from "./pushMedie";
 import { pushOverlinje } from "./pushOverlinje";
+import { eventStedDele } from "@/lib/eventLokation";
 
 /** Dit Boardroom (/boardroom) — Hb-forsiden i VANE-ANKER-IA'en (forside
     PR 2, hb-forside-recon §C/§G): de tre lag i rækkefølgen
@@ -2582,7 +2583,7 @@ export const BoardroomView = () => {
                       <p className="mt-1 text-sm text-hb-ink-soft">
                         {[
                           event.kind === "live_sparring" ? "Live sparring" : event.kind === "workshop" ? "Workshop" : "Event",
-                          event.meet_url ? "Online" : null,
+                          ...eventStedDele(event),
                           new Date(event.starts_at).toLocaleTimeString("da-DK", { hour: "2-digit", minute: "2-digit" }),
                           eventNedtaelling(event),
                         ]
