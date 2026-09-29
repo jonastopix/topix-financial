@@ -18,7 +18,10 @@ import { resolve } from "node:path";
  *      MessageAttachments.
  *   5. OPTAGELSEN: formatet gennem vaelgOptageformat/isTypeSupported; stop ved
  *      MAKS_SEKUNDER; «Vælg fil» med accept video/* og doemFilLaengde på
- *      loadedmetadata.
+ *      loadedmetadata. INGEN AUTOMATISK START (Jonas 29/9): dialogen åbner i
+ *      «vaelg»; getUserMedia står ÉT sted, inde i startOptagelse, og effekten på
+ *      `open` kalder hverken startOptagelse eller getUserMedia — kun knapperne
+ *      «Optag video» og «Optag igen» starter kameraet.
  */
 
 const ROD = process.cwd();
@@ -105,13 +108,31 @@ export const boblenSkjulerMarkoeren = (pane: string): boolean =>
   antal(pane, /<MessageAttachments [^\n]*\/>\s*<ChatVideoBesked messageId=\{msg\.id\} contextMeta=\{msg\.context_meta\} \/>/g) === 2;
 
 // ── 5 ──────────────────────────────────────────────────────────────────────
-export const optagelsenHolderLoftet = (optager: string): boolean =>
-  optager.includes("const format = vaelgOptageformat((t) => MediaRecorder.isTypeSupported(t));") &&
+/** Effekten på `open`: fra markøren til dens afslutning (`}, [open`). */
+const openEffekten = (k: string): string => {
+  const i = k.indexOf("// Åbnes dialogen");
+  if (i === -1) return "";
+  const j = k.indexOf("}, [open", i);
+  return j === -1 ? "" : k.slice(i, j);
+};
+
+export const optagelsenHolderLoftet = (optager: string): boolean => {
+  const effekt = openEffekten(optager);
+  const start = optager.slice(optager.indexOf("const startOptagelse = useCallback("), optager.indexOf("const vaelgFil = useCallback("));
+  const kaldAfKamera = (optager.match(/\.getUserMedia\(/g) ?? []).length;
+  return optager.includes("const format = vaelgOptageformat((t) => MediaRecorder.isTypeSupported(t));") &&
   optager.includes("if (s >= MAKS_SEKUNDER) stopOptagelse();") &&
   optager.includes('accept="video/*"') &&
   optager.includes("v.onloadedmetadata = () => afslut(doemFilLaengde(v.duration), v.duration);") &&
   optager.includes('if (dom === "ok") {') &&
-  optager.includes("navigator.mediaDevices.getUserMedia({ video: { facingMode: \"user\" }, audio: true })");
+  optager.includes("navigator.mediaDevices.getUserMedia({ video: { facingMode: \"user\" }, audio: true })") &&
+  // Ingen automatisk start: dialogen åbner i «vaelg», kameraet kun fra «Optag».
+  optager.includes('const [fase, setFase] = useState<Fase>("vaelg");') &&
+  kaldAfKamera === 1 && start.includes(".getUserMedia(") &&
+  effekt !== "" && effekt.includes('setFase("vaelg");') &&
+  !effekt.includes("startOptagelse(") && !effekt.includes("getUserMedia") &&
+  /onClick=\{\(\) => void startOptagelse\(\)\}>\s*Optag video\s*</.test(optager);
+};
 
 describe("chatVideoFlade.guard — de fem domme på repoets filer", () => {
   const filer = alleSrcFiler();
@@ -124,7 +145,7 @@ describe("chatVideoFlade.guard — de fem domme på repoets filer", () => {
     expect(boblenSkjulerMarkoeren(laes(COMPANY))).toBe(true);
     expect(boblenSkjulerMarkoeren(laes(MEMBER))).toBe(true);
   });
-  it("5. optagelsen: MP4-først-valget, loftet og længdetjekket på filen", () => expect(optagelsenHolderLoftet(laes(OPTAGER))).toBe(true));
+  it("5. optagelsen: MP4-først-valget, loftet, længdetjekket — og ingen automatisk start (kun «Optag video» kalder getUserMedia)", () => expect(optagelsenHolderLoftet(laes(OPTAGER))).toBe(true));
 });
 
 describe("chatVideoFlade.guard — dommene fanger fejlen på en kopi", () => {
@@ -176,5 +197,10 @@ describe("chatVideoFlade.guard — dommene fanger fejlen på en kopi", () => {
     expect(optagelsenHolderLoftet(byt(o, "if (s >= MAKS_SEKUNDER) stopOptagelse();", ""))).toBe(false);
     expect(optagelsenHolderLoftet(byt(o, "afslut(doemFilLaengde(v.duration), v.duration)", 'afslut("ok", v.duration)'))).toBe(false);
     expect(optagelsenHolderLoftet(byt(o, 'accept="video/*"', 'accept="*"'))).toBe(false);
+    // Kaldet flyttet tilbage i effekten på open (automatisk start) fælder.
+    expect(optagelsenHolderLoftet(byt(o, '    setFase("vaelg");\n  }, [open', '    setFase("vaelg");\n    if (open) void startOptagelse();\n  }, [open'))).toBe(false);
+    // Starttilstanden tilbage på «starter», eller et ekstra getUserMedia-kald, fælder.
+    expect(optagelsenHolderLoftet(byt(o, 'useState<Fase>("vaelg")', 'useState<Fase>("starter")'))).toBe(false);
+    expect(optagelsenHolderLoftet(`${o}\nconst x = () => navigator.mediaDevices.getUserMedia({ video: true });\n`)).toBe(false);
   });
 });
