@@ -10,9 +10,13 @@ import { formatVarighed, naesteAfspilForespoergsel } from "@/lib/chatVideoFlade"
  *
  * Videoen findes KUN ved laesChatVideo(context_meta) (nøglen video.guid).
  * Afspilningen kommer fra chat-video «afspil» { messageId }: serveren læser
- * beskeden med læserens RLS, tjekker afsender og collection og signerer
- * embed-URL'en. iframe-src er ALTID svarets embedUrl — aldrig bygget her,
- * aldrig fra context_meta (låst af chatVideoFlade.guard).
+ * beskeden med læserens RLS, tjekker afsender og chat-BIBLIOTEK (eget Bunny-
+ * bibliotek, 29/9 aften) og signerer embed-URL'en. iframe-src er ALTID svarets
+ * embedUrl — aldrig bygget her, aldrig fra context_meta (låst af
+ * chatVideoFlade.guard). Iframen er Bunnys egen player — den eneste, Bunny
+ * lover Just-In-Time for (premium-encoding.md:20), så «klar» kommer nu fra
+ * play data (isPlayable) sekunder efter uploaden, ikke efter en færdig
+ * encoding.
  *
  *   behandles → rolig linje; spørg igen hvert 10. sekund i højst 10 minutter.
  *   klar      → iframen; URL'en fornys et minut før `expires`.

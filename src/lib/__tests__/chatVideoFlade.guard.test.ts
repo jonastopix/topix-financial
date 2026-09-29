@@ -10,7 +10,9 @@ import { resolve } from "node:path";
  *      når den er givet; optageren renderes kun i CompanyChatPane, gated.
  *   2. VISNINGEN: ingen dangerouslySetInnerHTML; præcis én iframe, hvis src er
  *      afspil-svarets embedUrl — aldrig en URL bygget i fladen; videoen findes
- *      kun gennem laesChatVideo.
+ *      kun gennem laesChatVideo. Fladen kender hverken bibliotek, collection
+ *      eller nogen BUNNY_*-secret (29/9 aften: eget bibliotek — alt om Bunny
+ *      bor i chat-video; iframen er Bunnys player, den eneste med JIT).
  *   3. SLETNINGEN: chat-video «slet» FØR delete; fejler den, returneres der
  *      før delete; begge paner giver context_meta med.
  *   4. BOBLEN: begge paner skjuler markøren gennem erSkjultBobletekst (ingen
@@ -85,6 +87,7 @@ export const visningenErRen = (besked: string): boolean =>
   besked.includes('supabase.functions.invoke("chat-video", {') &&
   !/mediadelivery|iframe\.src|\bsrc=\{`/.test(besked) &&
   besked.includes("const video = laesChatVideo(contextMeta);") &&
+  !/collection|BUNNY_|libraryId|video\.bunnycdn\.com/i.test(besked) &&
   foer(besked, "const afspil = useQuery({", "if (!video) return null;");
 
 // ── 3 ──────────────────────────────────────────────────────────────────────
@@ -174,6 +177,10 @@ describe("chatVideoFlade.guard — dommene fanger fejlen på en kopi", () => {
     expect(visningenErRen(byt(b, "src={svar.embedUrl}", "src={(contextMeta as any)?.video?.url}"))).toBe(false);
     expect(visningenErRen(`${b}\nconst y = <iframe src={svar.embedUrl} />;\n`)).toBe(false);
     expect(visningenErRen(byt(b, 'body: { action: "afspil", messageId },', 'body: { action: "opret", messageId },'))).toBe(false);
+    // Bunny-viden i fladen (et bibliotek, en collection, en secret eller API'et) fælder.
+    expect(visningenErRen(`${b}\nconst lib = "BUNNY_CHAT_LIBRARY_ID";\n`)).toBe(false);
+    expect(visningenErRen(`${b}\nconst c = (contextMeta as any)?.video?.collectionId;\n`)).toBe(false);
+    expect(visningenErRen(`${b}\nfetch("https://video.bunnycdn.com/library/1/videos/x");\n`)).toBe(false);
   });
 
   it("3. delete før slet, en fejl der ikke stopper, eller en pane uden context_meta fælder dom 3", () => {

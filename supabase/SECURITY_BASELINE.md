@@ -826,26 +826,44 @@ skrivende edge functions bruger `SUPABASE_SERVICE_ROLE_KEY`.
   (`BUNNY_STREAM_TOKEN_AUTH_KEY` never reaches the frontend, TTL 1h)
 - `chat-video` (29/9-2026, videosvar i chatten) — Bucket A m. `verify_jwt = true`
   (PR #267-mønstret): `authenticateUser` FØRST; ingen service-role-klient.
+  **EGET BUNNY-BIBLIOTEK (29/9 aften):** chatvideoerne ligger i biblioteket
+  «boardroom-chat» (Library ID 765771; Premium Encoding + Just-In-Time,
+  Early-Play fra, 480p/720p H.264, embed view token authentication og block
+  direct URL file access slået til) — ikke i Hjemmebanes 720547. Functionen
+  læser PRÆCIS tre egne secrets, `BUNNY_CHAT_LIBRARY_ID`, `BUNNY_CHAT_API_KEY`
+  og `BUNNY_CHAT_TOKEN_AUTH_KEY`, gennem én tabel (`SECRETS`); de delte
+  `BUNNY_STREAM_*` (bunny-content-admin, get-video-embed) bruges ALDRIG her,
+  og der er ingen fallback: mangler en, svarer alle tre handlinger 503
+  `not_configured` med `mangler: [navne]`. Collection-kravet
+  (`BUNNY_STREAM_CHAT_COLLECTION_ID`, `iChatCollection`) er væk — hele
+  biblioteket er chattens.
   Tre handlinger:
   - `opret` — advisor-gaten ORDRET som `bunny-content-admin` (`has_role` via
-    `callerClient`) FØR Bunny kaldes; Create Video med `collectionId` =
-    `BUNNY_STREAM_CHAT_COLLECTION_ID` (egen chat-collection i samme library);
-    svarer med en tidsbegrænset, video-scoped TUS-signatur (6 t) — API-nøglen
-    forlader aldrig functionen. Mangler en secret: 503 `not_configured`.
+    `callerClient`) FØR Bunny kaldes; Create Video i chat-biblioteket med
+    titlen alene; svarer med en tidsbegrænset, video-scoped TUS-signatur (6 t)
+    for chat-biblioteket — API-nøglen forlader aldrig functionen.
   - `afspil` — beskeden læses gennem `callerClient` (RLS på `messages` afgør,
     om kalderen må se den; 403 uden at skelne «nægtet»/«findes ikke»), GUID'et
     KUN af `context_meta.video.guid` (`laesChatVideo`). FØR signering:
     (a) afsenderen er rådgiver (`has_role(sender_id, 'advisor')`), (b) Bunnys
-    Get Video viser `collectionId` = chat-collectionen (`iChatCollection`,
-    fail-closed). Ellers 403 uden signatur — en akademivideos GUID i en besked
-    kan ikke omgå `get-video-embed`s published-gate og dryp. Embed-URL'en
-    signeres som `get-video-embed` (TTL 1 t) og KUN når status er «klar».
+    Get Video (mod chat-biblioteket, med chat-nøglen) viser `videoLibraryId`
+    = chat-biblioteket (`iChatBibliotek`, fail-closed på begge sider og på et
+    id, der ikke er et helt positivt tal). Ellers 403 uden signatur — en
+    akademivideos GUID i en besked kan ikke omgå `get-video-embed`s
+    published-gate og dryp. Status: Get Video (4 Finished eller en færdig
+    opløsning); er den ikke «klar», spørges Get Video play data
+    (`/videos/{guid}/play`, signeret med samme token/expires-par som
+    embeddet, TTL 60 s), og `isPlayable === true` er «klar» — Bunnys eneste
+    dokumenterede «afspillelig nu». Status 7/8 (JitSegmenting/
+    JitPlaylistsCreated) er ALDRIG «klar» i sig selv. Embed-URL'en signeres
+    som `get-video-embed` (TTL 1 t) og KUN når status er «klar».
   - `slet` — kun beskedens afsender eller en admin (`maaSlette`); samme to
     tjek som `afspil` FØR `DELETE /library/{id}/videos/{guid}`, fordi
     medlemmernes INSERT-policy på `messages` ikke begrænser `context_meta`,
     og en Bunny-sletning ikke kan fortrydes. 404 hos Bunny = allerede væk (ok).
   Dommen er ren i `_shared/chatVideo.ts` (spejl `src/lib/chatVideo.ts`,
-  paritetsprøve); kildeværn `chatVideo.guard` (fem domme med mutationsprøver).
+  paritetsprøve); kildeværn `chatVideo.guard` (seks domme med mutationsprøver;
+  dom 6 fælder, hvis `BUNNY_STREAM_*` eller en collection bruges igen).
   Status spørges hos Bunny (ingen webhook, ingen statustabel).
 - `auth-email-hook` — system webhook, signature-verified
 - `monday-webhook` — to veje (14/9-2026, `_shared/mondayVaern.ts`): med

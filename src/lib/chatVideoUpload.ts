@@ -4,8 +4,10 @@
  * Samme vej som HbBunnyPicker (Akademiet): chat-video «opret» giver en
  * video-scoped TUS-grant (API-nøglen forlader aldrig edge-functionen), og
  * browseren uploader DIREKTE til Bunnys TUS-endpoint med de samme fire
- * headere. Forskellen: «opret» lægger videoen i chat-collectionen og er
- * rådgiver-gated på serveren.
+ * headere. Forskellen: «opret» lægger videoen i chattens EGET Bunny-bibliotek
+ * («boardroom-chat», Premium Encoding + Just-In-Time — 29/9 aften; secrets
+ * BUNNY_CHAT_*) og er rådgiver-gated på serveren. libraryId i grantet ER
+ * chat-biblioteket — TUS-uploaden rammer aldrig Hjemmebanes.
  *
  * «Færdig» her = Bunny har modtaget filen (TUS onSuccess). Encodingen følger
  * efter; den spørges der om ved afspilningen (chat-video «afspil»).

@@ -1,30 +1,48 @@
 // chat-video — videosvar i chatten gennem Bunny Stream (29/9-2026).
 //
 // BESLUTTET (Jonas 29/9): kun rådgivere sender video; Bunny Stream er lageret;
-// en chatvideo ligger i en EGEN Bunny-collection; højst 3 minutter; status
-// uden webhook (der spørges hos Bunny); en slettet videobesked sletter også
-// videoen hos Bunny. Grundlag: ~/Downloads/recon-video-bunny.md.
+// højst 3 minutter; status uden webhook (der spørges hos Bunny); en slettet
+// videobesked sletter også videoen hos Bunny. Grundlag:
+// ~/Downloads/recon-video-bunny.md og ~/Downloads/recon-video-storage.md §2.
+//
+// EGET BIBLIOTEK (Jonas 29/9 aften): chatvideoerne ligger i deres EGET
+// Bunny-bibliotek «boardroom-chat» (Library ID 765771) — Premium Encoding,
+// Just-In-Time, Early-Play fra, 480p/720p H.264, embed view token
+// authentication og block direct URL file access slået til. Free Encoding i
+// Hjemmebanes delte bibliotek 720547 tog mange minutter pr. video (første
+// chatvideo uploadet 17:46, afspillelig først længe efter). Derfor tre EGNE
+// secrets, og de delte BUNNY_STREAM_* (bunny-content-admin, get-video-embed)
+// bruges IKKE her — og der falder aldrig tilbage til dem: mangler en af de
+// tre, svarer functionen 503 not_configured med navnene på dem, der mangler.
+// Collection-kravet er væk (hele biblioteket er chattens); «ligger i
+// chat-biblioteket» er iChatBibliotek (Get Videos videoLibraryId = secret'ens
+// bibliotek, fail-closed) — samme styrke som iChatCollection havde
+// (collectionId = secret), nu på bibliotek.
 //
 // Bucket A: authenticateUser FØRST, som bunny-content-admin. Ingen
 // service-role-klient — adgangen er kalderens RLS (callerClient) og has_role.
-// Dommen (status, collection, hvem må slette) er ren og bor i
+// Dommen (status, bibliotek, hvem må slette) er ren og bor i
 // _shared/chatVideo.ts (spejlet i src/lib/chatVideo.ts).
 //
 // Actions:
 //   { action: "opret", title }
 //     KUN rådgivere (gaten ordret som bunny-content-admin, FØR Bunny kaldes).
-//     Opretter videoen hos Bunny med title og collectionId =
-//     BUNNY_STREAM_CHAT_COLLECTION_ID og returnerer
+//     Opretter videoen hos Bunny i chat-biblioteket med title og returnerer
 //     { videoGuid, signature, expires, libraryId } som create-video — browseren
 //     uploader DIREKTE til Bunnys TUS-endpoint; API-nøglen forlader aldrig
-//     functionen. Mangler secret'en: 503 not_configured.
+//     functionen.
 //   { action: "afspil", messageId }
 //     Beskeden læses gennem callerClient (RLS afgør, om kalderen må se den —
 //     samme form som get-chat-attachment-url). FØR der signeres: (a) afsenderen
-//     er rådgiver, (b) Bunnys Get Video viser collectionId = chat-collectionen.
+//     er rådgiver, (b) Bunnys Get Video viser videoLibraryId = chat-biblioteket.
 //     Ellers 403 uden signatur — så en akademivideos GUID i en besked ikke kan
-//     omgå medlemskab og dryp i get-video-embed. Svar { status, embedUrl?, expires? };
-//     embedUrl kun når status er «klar», signeret som get-video-embed
+//     omgå medlemskab og dryp i get-video-embed. Status: Get Video (status 4
+//     eller en færdig opløsning) — og ved JIT Get Video play data
+//     (/videos/{guid}/play, signeret med samme token/expires-par som embeddet):
+//     isPlayable === true er Bunnys eneste dokumenterede «afspillelig nu».
+//     Status 7/8 (JitSegmenting/JitPlaylistsCreated) betyder IKKE «klar» i sig
+//     selv — dokumentationen giver dem kun et navn. Svar { status, embedUrl?,
+//     expires? }; embedUrl kun når status er «klar», signeret som get-video-embed
 //     (sha256hex(TOKEN_AUTH_KEY + guid + expires), TTL 3600).
 //   { action: "slet", messageId }
 //     Kun beskedens afsender eller en admin (maaSlette). Sletter videoen hos
@@ -33,18 +51,28 @@
 //     INSERT-policy på messages begrænser ikke context_meta, så en besked kan
 //     bære en fremmed GUID — og DELETE kan ikke fortrydes.
 //
-// Secrets (Lovable): BUNNY_STREAM_LIBRARY_ID, BUNNY_STREAM_API_KEY,
-// BUNNY_STREAM_TOKEN_AUTH_KEY (som bunny-content-admin/get-video-embed) og den
-// nye BUNNY_STREAM_CHAT_COLLECTION_ID (chat-collectionens GUID i samme library).
+// Secrets (Lovable): BUNNY_CHAT_LIBRARY_ID (Bunny → Stream → boardroom-chat →
+// API → Video Library ID), BUNNY_CHAT_API_KEY (samme side → API Key),
+// BUNNY_CHAT_TOKEN_AUTH_KEY (samme bibliotek → Security → Embed view token
+// authentication → Token Authentication Key).
 
 import { authenticateUser, corsHeaders, type AuthenticatedUser } from "../_shared/edgeFunctionAuth.ts";
-import { iChatCollection, laesChatVideo, maaSlette, videoStatus } from "../_shared/chatVideo.ts";
+import { erAfspillelig, iChatBibliotek, laesChatVideo, maaSlette, videoStatus } from "../_shared/chatVideo.ts";
 
 const BUNNY_API_BASE = "https://video.bunnycdn.com/library";
 const TUS_GRANT_TTL_SECONDS = 6 * 60 * 60;
 const EMBED_TTL_SECONDS = 3600;
+/** Play data spørges lige nu — tokenet behøver kun leve et øjeblik. */
+const PLAY_DATA_TTL_SECONDS = 60;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const LOG = "[chat-video]";
+
+/** Chattens EGNE secrets — aldrig BUNNY_STREAM_* (Hjemmebanes bibliotek). */
+const SECRETS = {
+  libraryId: "BUNNY_CHAT_LIBRARY_ID",
+  apiKey: "BUNNY_CHAT_API_KEY",
+  tokenAuthKey: "BUNNY_CHAT_TOKEN_AUTH_KEY",
+} as const;
 
 type CallerClient = AuthenticatedUser["callerClient"];
 
@@ -52,7 +80,6 @@ interface Bunny {
   libraryId: string;
   apiKey: string;
   tokenAuthKey: string;
-  chatCollectionId: string;
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -69,8 +96,22 @@ async function sha256Hex(input: string): Promise<string> {
     .join("");
 }
 
-function bunnyKonfigureret(b: Bunny): boolean {
-  return Boolean(b.libraryId && b.apiKey && b.tokenAuthKey && b.chatCollectionId);
+function laesBunny(): Bunny {
+  return {
+    libraryId: (Deno.env.get(SECRETS.libraryId) ?? "").trim(),
+    apiKey: (Deno.env.get(SECRETS.apiKey) ?? "").trim(),
+    tokenAuthKey: (Deno.env.get(SECRETS.tokenAuthKey) ?? "").trim(),
+  };
+}
+
+/** Navnene på de secrets, der mangler — tom liste = sat op. Ingen fallback til de delte. */
+function manglendeSecrets(b: Bunny): string[] {
+  return (Object.keys(SECRETS) as Array<keyof Bunny>).filter((k) => b[k] === "").map((k) => SECRETS[k]);
+}
+
+function ikkeSatOp(mangler: string[]): Response {
+  console.error(`${LOG} not_configured — mangler: ${mangler.join(", ")}`);
+  return jsonResponse({ error: "not_configured", mangler }, 503);
 }
 
 Deno.serve(async (req) => {
@@ -94,12 +135,7 @@ Deno.serve(async (req) => {
     messageId?: unknown;
   };
 
-  const bunny: Bunny = {
-    libraryId: Deno.env.get("BUNNY_STREAM_LIBRARY_ID") ?? "",
-    apiKey: Deno.env.get("BUNNY_STREAM_API_KEY") ?? "",
-    tokenAuthKey: Deno.env.get("BUNNY_STREAM_TOKEN_AUTH_KEY") ?? "",
-    chatCollectionId: (Deno.env.get("BUNNY_STREAM_CHAT_COLLECTION_ID") ?? "").trim(),
-  };
+  const bunny = laesBunny();
 
   // ── 3. Actions ──────────────────────────────────────────────────────────
   try {
@@ -124,9 +160,8 @@ async function opret(callerId: string, callerClient: CallerClient, bunny: Bunny,
     return jsonResponse({ error: "Forbidden — advisor role required" }, 403);
   }
 
-  if (!bunnyKonfigureret(bunny)) {
-    return jsonResponse({ error: "not_configured" }, 503);
-  }
+  const mangler = manglendeSecrets(bunny);
+  if (mangler.length > 0) return ikkeSatOp(mangler);
   if (typeof title !== "string" || !title.trim() || title.length > 500) {
     return jsonResponse({ error: "Invalid title" }, 400);
   }
@@ -134,7 +169,7 @@ async function opret(callerId: string, callerClient: CallerClient, bunny: Bunny,
   const createResponse = await fetch(`${BUNNY_API_BASE}/${bunny.libraryId}/videos`, {
     method: "POST",
     headers: { AccessKey: bunny.apiKey, "Content-Type": "application/json" },
-    body: JSON.stringify({ title: title.trim(), collectionId: bunny.chatCollectionId }),
+    body: JSON.stringify({ title: title.trim() }),
   });
   if (!createResponse.ok) {
     console.error(`${LOG} create video failed: ${createResponse.status}`);
@@ -192,7 +227,7 @@ type BunnyOpslag =
   | { ok: true; video: unknown }
   | { ok: false; fandtesIkke: boolean; svar: Response };
 
-/** (b) Bunnys Get Video. */
+/** (b) Bunnys Get Video — i CHAT-biblioteket, med chat-nøglen. */
 async function hentBunnyVideo(bunny: Bunny, guid: string): Promise<BunnyOpslag> {
   const infoResponse = await fetch(`${BUNNY_API_BASE}/${bunny.libraryId}/videos/${guid}`, {
     headers: { AccessKey: bunny.apiKey },
@@ -207,32 +242,65 @@ async function hentBunnyVideo(bunny: Bunny, guid: string): Promise<BunnyOpslag> 
   return { ok: true, video: await infoResponse.json() };
 }
 
+/** Embed-view-tokenet: sha256hex(TOKEN_AUTH_KEY + guid + expires) — Bunnys dokumenterede algoritme (token-authentication.md:19-23). */
+async function embedToken(bunny: Bunny, guid: string, expires: number): Promise<string> {
+  return await sha256Hex(`${bunny.tokenAuthKey}${guid}${expires}`);
+}
+
+/**
+ * Get Video play data — Bunnys «afspillelig nu» (isPlayable). Endepunktet kræver
+ * token/expires-parret, når biblioteket har token authentication (det har
+ * chat-biblioteket). Fail-soft: svarer Bunny ikke 2xx, dømmes videre på Get
+ * Video alene (null) — en ustabil play-data-læsning må aldrig give «fejlet».
+ */
+async function hentBunnyAfspilData(bunny: Bunny, guid: string): Promise<unknown> {
+  const expires = Math.floor(Date.now() / 1000) + PLAY_DATA_TTL_SECONDS;
+  const token = await embedToken(bunny, guid, expires);
+  const playResponse = await fetch(`${BUNNY_API_BASE}/${bunny.libraryId}/videos/${guid}/play?token=${token}&expires=${expires}`, {
+    headers: { AccessKey: bunny.apiKey },
+  });
+  if (!playResponse.ok) {
+    console.warn(`${LOG} get video play data failed: ${playResponse.status}`);
+    return null;
+  }
+  return await playResponse.json();
+}
+
 // ── afspil ────────────────────────────────────────────────────────────────
 async function afspil(callerClient: CallerClient, bunny: Bunny, messageId: unknown): Promise<Response> {
   const besked = await hentBeskedensVideo(callerClient, messageId);
   if (!besked.ok) return besked.svar;
-  if (!bunnyKonfigureret(bunny)) return jsonResponse({ error: "not_configured" }, 503);
+  const mangler = manglendeSecrets(bunny);
+  if (mangler.length > 0) return ikkeSatOp(mangler);
 
   // (a) FØR signering: afsenderen er rådgiver.
   if (!(await afsenderErRaadgiver(callerClient, besked.senderId))) {
     return jsonResponse({ error: "Forbidden" }, 403);
   }
-  // (b) FØR signering: videoen ligger i chat-collectionen.
+  // (b) FØR signering: videoen ligger i chat-biblioteket.
   const opslag = await hentBunnyVideo(bunny, besked.guid);
   if (!opslag.ok) return opslag.svar;
-  if (!iChatCollection(opslag.video, bunny.chatCollectionId)) {
+  if (!iChatBibliotek(opslag.video, bunny.libraryId)) {
     return jsonResponse({ error: "Forbidden" }, 403);
   }
 
-  const status = videoStatus(opslag.video);
-  if (status !== "klar") return jsonResponse({ status });
+  // Status: Get Video først; er den ikke «klar» af status/opløsninger, spørges
+  // play data (JIT gør videoen afspillelig før nogen opløsning er færdig).
+  let status = videoStatus(opslag.video);
+  let afspillelig = false;
+  if (status !== "klar") {
+    const afspilData = await hentBunnyAfspilData(bunny, besked.guid);
+    afspillelig = erAfspillelig(afspilData);
+    status = videoStatus(opslag.video, afspilData);
+  }
+  if (status !== "klar") return jsonResponse({ status, afspillelig });
   return await signerEmbed(bunny, besked.guid, status);
 }
 
 /** Signeringen — samme regnestykke som get-video-embed: sha256hex(TOKEN_AUTH_KEY + guid + expires), TTL 3600. */
 async function signerEmbed(bunny: Bunny, guid: string, status: "klar"): Promise<Response> {
   const expires = Math.floor(Date.now() / 1000) + EMBED_TTL_SECONDS;
-  const token = await sha256Hex(`${bunny.tokenAuthKey}${guid}${expires}`);
+  const token = await embedToken(bunny, guid, expires);
   const embedUrl =
     `https://iframe.mediadelivery.net/embed/${bunny.libraryId}/${guid}` +
     `?token=${token}&expires=${expires}`;
@@ -252,7 +320,8 @@ async function slet(callerId: string, callerClient: CallerClient, bunny: Bunny, 
   if (!maaSlette({ callerId, senderId: besked.senderId, erAdmin: !adminFejl && erAdmin === true })) {
     return jsonResponse({ error: "Forbidden" }, 403);
   }
-  if (!bunnyKonfigureret(bunny)) return jsonResponse({ error: "not_configured" }, 503);
+  const mangler = manglendeSecrets(bunny);
+  if (mangler.length > 0) return ikkeSatOp(mangler);
 
   // Samme to tjek som afspil, FØR en sletning, der ikke kan fortrydes.
   if (!(await afsenderErRaadgiver(callerClient, besked.senderId))) {
@@ -263,7 +332,7 @@ async function slet(callerId: string, callerClient: CallerClient, bunny: Bunny, 
     // 404: allerede væk hos Bunny — målet er nået.
     return opslag.fandtesIkke ? jsonResponse({ slettet: true, fandtes: false }) : opslag.svar;
   }
-  if (!iChatCollection(opslag.video, bunny.chatCollectionId)) {
+  if (!iChatBibliotek(opslag.video, bunny.libraryId)) {
     return jsonResponse({ error: "Forbidden" }, 403);
   }
 

@@ -137,7 +137,11 @@ project_id = "loiavmastgeieqyiwyyr"
   # beskedens RLS. verify_jwt = true (PR #267-mønstret, Jonas 29/9): gatewayen
   # afviser forfalskede signaturer før koden kører. bunny-content-admin og
   # get-video-embed står på false, fordi de er ældre end det fund — de er IKKE
-  # forbilledet her.
+  # forbilledet her. EGET BIBLIOTEK (29/9 aften): chat-video læser KUN
+  # BUNNY_CHAT_LIBRARY_ID, BUNNY_CHAT_API_KEY og BUNNY_CHAT_TOKEN_AUTH_KEY
+  # (biblioteket «boardroom-chat», 765771, Premium + JIT) — aldrig de delte
+  # BUNNY_STREAM_*, som de to andre bruger; mangler en, svarer den 503
+  # not_configured med navnene (kildeværn chatVideo.guard dom 6).
   [functions.chat-video]
     verify_jwt = true
   [functions.generate-weekly-focus]

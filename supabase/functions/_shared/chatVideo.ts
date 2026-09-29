@@ -2,10 +2,18 @@
  * chatVideo — videosvar i chatten: den rene dom (29/9-2026).
  *
  * BESLUTTET (Jonas 29/9): kun rådgivere sender video; Bunny Stream er lageret;
- * en chatvideo ligger i en EGEN Bunny-collection (secret
- * BUNNY_STREAM_CHAT_COLLECTION_ID); højst 3 minutter; status uden webhook — der
- * spørges hos Bunny (Get Video); en slettet videobesked sletter også videoen.
- * Grundlaget: ~/Downloads/recon-video-bunny.md.
+ * højst 3 minutter; status uden webhook — der spørges hos Bunny (Get Video og
+ * Get Video play data); en slettet videobesked sletter også videoen.
+ * Grundlaget: ~/Downloads/recon-video-bunny.md og recon-video-storage.md §2.
+ *
+ * EGET BIBLIOTEK (Jonas 29/9 aften): chatten har sit eget Bunny-bibliotek
+ * «boardroom-chat» (Library ID 765771; secrets BUNNY_CHAT_LIBRARY_ID,
+ * BUNNY_CHAT_API_KEY, BUNNY_CHAT_TOKEN_AUTH_KEY), Premium Encoding +
+ * Just-In-Time, Early-Play FRA, 480p/720p H.264 — fordi Free Encoding i det
+ * delte bibliotek 720547 tog mange minutter pr. video. Collection-kravet
+ * (BUNNY_STREAM_CHAT_COLLECTION_ID, iChatCollection) er væk: hele biblioteket
+ * er chattens, og «ligger i chat-biblioteket» er nu iChatBibliotek
+ * (videoLibraryId = secret'ens bibliotek, fail-closed).
  *
  * REN OG DENO-FRI, spejlet ORDRET i src/lib/chatVideo.ts (paritetsprøven
  * src/lib/__tests__/chatVideo.paritet.test.ts). Nul imports i begge. Kalderen
@@ -23,6 +31,11 @@ export type ChatVideoStatus = "behandles" | "klar" | "fejlet";
  *   <https://video.bunnycdn.com/openapi/bunnynet-video-api.public.json>
  *   0 Created · 1 Uploaded · 2 Processing · 3 Transcoding · 4 Finished ·
  *   5 Error · 6 UploadFailed · 7 JitSegmenting · 8 JitPlaylistsCreated
+ *
+ * 7 og 8 har i Bunnys dokumentation KUN et navn — ingen tekst siger, at
+ * nogen af dem betyder «afspillelig» (get-video.md:295-335, Stream API 1.6.5,
+ * hentet 29/9-2026). Derfor dømmes de ALDRIG som «klar» i sig selv; det
+ * afspillelige ved JIT læses af Get Video play data (nedenfor).
  *
  * WEBHOOKENS tal er en ANDEN nummerering (3 = Finished, 4 = Resolution
  * finished, 5 = Failed, 6–8 = PresignedUpload …):
@@ -67,38 +80,58 @@ function harOploesning(v: unknown): boolean {
 }
 
 /**
- * Status for en chatvideo ud fra Bunnys videoobjekt (Get Video):
- *   «klar»      status 4 (Finished) ELLER availableResolutions ikke tom.
- *               Bunny: «Comma-separated list of resolution labels … that have
- *               finished encoding and are available for playback» (get-video,
- *               ovenfor). Husets library har Early-Play FRA
- *               (docs/hjemmebane/c0-bunny.md §3.5), så den første færdige
- *               opløsning er det første afspilbare øjeblik — webhookens
- *               «4 - Resolution finished … The first request also signals that
- *               the video is now playable» (webhooks.md, ovenfor).
+ * Bunnys ENESTE dokumenterede «er den afspillelig nu»-signal: Get Video play
+ * data (GET /library/{id}/videos/{guid}/play, `VideoPlayDataModel`):
+ *   isPlayable — «Determines if the video is currently playable using either
+ *   playlist or original source.» (get-video-play-data.md:258-262)
+ * Kun et ordret `true` tæller; alt andet (mangler, null, "true", 1) er nej.
+ */
+export function erAfspillelig(afspilData: unknown): boolean {
+  return erObjekt(afspilData) && afspilData.isPlayable === true;
+}
+
+/**
+ * Status for en chatvideo ud fra Bunnys videoobjekt (Get Video) og — når det
+ * gives med — Get Video play data:
+ *   «klar»      status 4 (Finished), ELLER availableResolutions ikke tom, ELLER
+ *               play data siger isPlayable === true (erAfspillelig). Bunny:
+ *               availableResolutions er «Comma-separated list of resolution
+ *               labels … that have finished encoding and are available for
+ *               playback» (get-video, ovenfor). Chat-biblioteket kører
+ *               Just-In-Time (Premium Encoding, Early-Play FRA); JIT gør
+ *               videoen afspillelig «within 10–15 seconds» (premium-
+ *               encoding.md:15) FØR nogen opløsning er færdig — det er
+ *               isPlayable, der bærer det øjeblik, ikke status 7/8.
  *   «fejlet»    status 5 (Error) eller 6 (UploadFailed).
  *   «behandles» alt andet: 0–3, 7, 8, et ukendt tal eller intet svar.
- * «klar» dømmes FØRST (opgavens rækkefølge): en video med en færdig opløsning
- * kan afspilles, også hvis en senere opløsning fejlede.
+ * «klar» dømmes FØRST (opgavens rækkefølge): en video, der kan afspilles,
+ * vises, også hvis en senere opløsning fejlede.
  */
-export function videoStatus(bunnyVideo: unknown): ChatVideoStatus {
+export function videoStatus(bunnyVideo: unknown, afspilData?: unknown): ChatVideoStatus {
   const v = erObjekt(bunnyVideo) ? bunnyVideo : {};
   const status = typeof v.status === "number" ? v.status : null;
-  if (status === BUNNY_VIDEO_STATUS.FINISHED || harOploesning(v.availableResolutions)) return "klar";
+  if (status === BUNNY_VIDEO_STATUS.FINISHED || harOploesning(v.availableResolutions) || erAfspillelig(afspilData)) return "klar";
   if (status === BUNNY_VIDEO_STATUS.ERROR || status === BUNNY_VIDEO_STATUS.UPLOAD_FAILED) return "fejlet";
   return "behandles";
 }
 
 /**
- * Ligger videoen i chat-collectionen? Fail-closed: mangler den ene eller den
- * anden side, er svaret nej. Det er værnet mod, at en akademivideos GUID i en
- * besked kan omgå medlemskab og dryp (get-video-embed) — eller slettes.
+ * Ligger videoen i CHAT-biblioteket? Get Video svarer med `videoLibraryId`
+ * («The ID of the video library that the video belongs to», int64 —
+ * get-video.md:94), og det skal være PRÆCIS det bibliotek, secret'en
+ * BUNNY_CHAT_LIBRARY_ID peger på. Fail-closed: mangler den ene eller den
+ * anden side, eller er id'et ikke et helt positivt tal, er svaret nej. Det er
+ * værnet mod, at en fremmed GUID i en besked (medlemmernes INSERT-policy
+ * begrænser ikke context_meta) kan afspilles eller SLETTES gennem chatten —
+ * det, som iChatCollection (collectionId = secret) var indtil 29/9, nu på
+ * bibliotek i stedet for collection, fordi hele biblioteket er chattens.
  */
-export function iChatCollection(bunnyVideo: unknown, chatCollectionId: string | null | undefined): boolean {
-  const forventet = (chatCollectionId ?? "").trim().toLowerCase();
-  if (!forventet || !erObjekt(bunnyVideo)) return false;
-  const faktisk = typeof bunnyVideo.collectionId === "string" ? bunnyVideo.collectionId.trim().toLowerCase() : "";
-  return faktisk !== "" && faktisk === forventet;
+export function iChatBibliotek(bunnyVideo: unknown, chatLibraryId: string | number | null | undefined): boolean {
+  const forventet = typeof chatLibraryId === "number" ? chatLibraryId : Number.parseInt(String(chatLibraryId ?? "").trim(), 10);
+  if (!Number.isInteger(forventet) || forventet <= 0 || String(forventet) !== String(chatLibraryId ?? "").trim()) return false;
+  if (!erObjekt(bunnyVideo)) return false;
+  const faktisk = bunnyVideo.videoLibraryId;
+  return typeof faktisk === "number" && Number.isInteger(faktisk) && faktisk === forventet;
 }
 
 /** Må kalderen slette beskedens video? Kun afsenderen eller en admin. */

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   BUNNY_VIDEO_STATUS,
-  iChatCollection,
+  erAfspillelig,
+  iChatBibliotek,
   laesChatVideo,
   maaSlette,
   MAKS_SEKUNDER,
@@ -9,7 +10,9 @@ import {
 } from "@/lib/chatVideo";
 
 const GUID = "657bb740-a71b-4529-a012-528021c31a92";
-const CHAT = "3f1c2a4e-9b8d-4c7a-a1e2-0d9f8b7c6a51";
+/** Chat-biblioteket «boardroom-chat» (29/9) og Hjemmebanes delte bibliotek. */
+const CHAT_BIBLIOTEK = "765771";
+const DELT_BIBLIOTEK = 720547;
 
 describe("chatVideo — laesChatVideo læser KUN context_meta.video.guid", () => {
   it("et uuid under video.guid er en video — normaliseret til små bogstaver", () => {
@@ -86,25 +89,62 @@ describe("chatVideo — videoStatus ud fra VIDEOOBJEKTETS status og availableRes
   });
 });
 
-describe("chatVideo — iChatCollection er fail-closed", () => {
-  it("samme collection (uanset store bogstaver og mellemrum) er ja", () => {
-    expect(iChatCollection({ collectionId: CHAT }, CHAT)).toBe(true);
-    expect(iChatCollection({ collectionId: CHAT.toUpperCase() }, ` ${CHAT} `)).toBe(true);
+describe("chatVideo — erAfspillelig: Bunnys play data (isPlayable), kun et ordret true", () => {
+  it("isPlayable === true er ja", () => {
+    expect(erAfspillelig({ isPlayable: true })).toBe(true);
+    expect(erAfspillelig({ isPlayable: true, isPlaylistPlayable: false, preferredPlaybackSource: "Original" })).toBe(true);
   });
-
-  it("en anden collection, ingen collection eller intet svar er nej", () => {
-    expect(iChatCollection({ collectionId: "00000000-0000-4000-8000-000000000000" }, CHAT)).toBe(false);
-    expect(iChatCollection({ collectionId: "" }, CHAT)).toBe(false);
-    expect(iChatCollection({ collectionId: null }, CHAT)).toBe(false);
-    expect(iChatCollection({}, CHAT)).toBe(false);
-    expect(iChatCollection(null, CHAT)).toBe(false);
+  it("false, mangler, «true» som streng, 1, null, intet svar eller et array er nej", () => {
+    for (const d of [{ isPlayable: false }, {}, { isPlayable: "true" }, { isPlayable: 1 }, { isPlaylistPlayable: true }, null, undefined, [], "ja"]) {
+      expect(erAfspillelig(d), JSON.stringify(d)).toBe(false);
+    }
   });
+});
 
-  it("mangler chat-collectionen (secret'en), er svaret nej — også for en video uden collection", () => {
-    expect(iChatCollection({ collectionId: CHAT }, "")).toBe(false);
-    expect(iChatCollection({ collectionId: CHAT }, null)).toBe(false);
-    expect(iChatCollection({ collectionId: "" }, "")).toBe(false);
-    expect(iChatCollection({}, undefined)).toBe(false);
+describe("chatVideo — videoStatus med play data (JIT): afspillelig før nogen opløsning er færdig", () => {
+  it("status 7 (JitSegmenting) og 8 (JitPlaylistsCreated) er ALDRIG «klar» i sig selv — dokumentationen giver dem kun et navn", () => {
+    for (const status of [BUNNY_VIDEO_STATUS.JIT_SEGMENTING, BUNNY_VIDEO_STATUS.JIT_PLAYLISTS_CREATED]) {
+      expect(videoStatus({ status, availableResolutions: "" })).toBe("behandles");
+      expect(videoStatus({ status, availableResolutions: null }, null)).toBe("behandles");
+      expect(videoStatus({ status }, { isPlayable: false })).toBe("behandles");
+    }
+  });
+  it("play data isPlayable === true gør videoen «klar» — uanset status 0–3, 7, 8", () => {
+    for (const status of [0, 1, 2, 3, 7, 8, undefined]) {
+      expect(videoStatus({ status, availableResolutions: "" }, { isPlayable: true }), String(status)).toBe("klar");
+    }
+  });
+  it("«klar» dømmes før «fejlet» også gennem play data; uden play data er 5/6 stadig «fejlet»", () => {
+    expect(videoStatus({ status: 5 }, { isPlayable: true })).toBe("klar");
+    expect(videoStatus({ status: 5 }, { isPlayable: false })).toBe("fejlet");
+    expect(videoStatus({ status: 6 }, null)).toBe("fejlet");
+  });
+  it("uden play data er dommen som før: 4 eller en opløsning", () => {
+    expect(videoStatus({ status: 4 })).toBe("klar");
+    expect(videoStatus({ status: 2, availableResolutions: "480p" })).toBe("klar");
+    expect(videoStatus({ status: 2, availableResolutions: "" })).toBe("behandles");
+  });
+});
+
+describe("chatVideo — iChatBibliotek er fail-closed (videoLibraryId = chat-bibliotekets id)", () => {
+  it("samme bibliotek er ja — secret'en som streng (med mellemrum) eller tal", () => {
+    expect(iChatBibliotek({ videoLibraryId: 765771 }, CHAT_BIBLIOTEK)).toBe(true);
+    expect(iChatBibliotek({ videoLibraryId: 765771 }, ` ${CHAT_BIBLIOTEK} `)).toBe(true);
+    expect(iChatBibliotek({ videoLibraryId: 765771 }, 765771)).toBe(true);
+  });
+  it("Hjemmebanes bibliotek, intet bibliotek, et id som streng i svaret, eller intet svar er nej", () => {
+    expect(iChatBibliotek({ videoLibraryId: DELT_BIBLIOTEK }, CHAT_BIBLIOTEK)).toBe(false);
+    expect(iChatBibliotek({ videoLibraryId: "765771" }, CHAT_BIBLIOTEK)).toBe(false);
+    expect(iChatBibliotek({ videoLibraryId: null }, CHAT_BIBLIOTEK)).toBe(false);
+    expect(iChatBibliotek({ videoLibraryId: 765771.5 }, CHAT_BIBLIOTEK)).toBe(false);
+    expect(iChatBibliotek({}, CHAT_BIBLIOTEK)).toBe(false);
+    expect(iChatBibliotek(null, CHAT_BIBLIOTEK)).toBe(false);
+    expect(iChatBibliotek([], CHAT_BIBLIOTEK)).toBe(false);
+  });
+  it("mangler secret'en, eller er den ikke et helt positivt tal, er svaret nej — også for en video i biblioteket", () => {
+    for (const c of ["", null, undefined, "0", "-1", "abc", "765771x", "7657.71", 0, -765771, Number.NaN]) {
+      expect(iChatBibliotek({ videoLibraryId: 765771 }, c as never), String(c)).toBe(false);
+    }
   });
 });
 
