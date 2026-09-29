@@ -61,11 +61,13 @@
 // sendte og giver dem til planlaegKoersel som `fejlede`. Uden dem er dommen
 // ordret som før, og en fejlet mail bliver for_sent to timer efter sit tidspunkt.
 //
-// ALARMEN (29/9-2026, _shared/webinarMailAlarm.ts): 29/9 fejlede 211 mails
-// over to timer, og ingen fik besked — svaret lå i net._http_response. Nu
-// dømmer skalAlarmere EFTER kørslen, KUN når den sendte rigtigt (også prøven
-// til én adresse — med vilje: en fejlet prøvemail er en fejl): fejlede > 0,
-// ELLER Mailgun sagde stop i denne kørsel, ELLER mails venter på en pause.
+// ALARMEN (29/9-2026, _shared/webinarMailAlarm.ts; omdømt 29/9 14:04 — «jeg får
+// hele tiden disse mails»): 29/9 fejlede 211 mails over to timer, og ingen fik
+// besked. Nu dømmer doemAlarm EFTER kørslen, KUN når den sendte rigtigt (også
+// prøven til én adresse — med vilje): FEJL af andre grunde end loftet, TABT
+// (for_sent_efter_fejl) og FRIST I FARE (prognosen ventende ÷ ok pr. time) er
+// rigtige alarmer med nøgle pr. dansk time; et rent LOFT-STOP (throttlen, der
+// virker som bygget) giver højst ÉN mail pr. dansk dag med regnestykket.
 // Alarmen går i husets form (gensenderen): mail til driftModtager() gennem
 // sendManagedEmail — IKKE Mailgun; er Mailgun spærret, må alarmen ikke være
 // det — og en drift-klokke; én pr. dansk TIME (nøglen bærer dato og time, og
@@ -87,7 +89,7 @@ import { MAILGUN_DOMAENE, MAILGUN_SECRET, PAUSE_MS, sendMailgun, sendMailgunMime
 import { beregnKoerselsLoft, erStopStatus, LOFT_VINDUE_MS, type LoftRaekke, MAILGUN_LOFT_PR_TIME } from "../_shared/webinarMailLoft.ts";
 import { bygMime, hentInvitation, type InvitationUdfald } from "../_shared/mimeInvitation.ts";
 import { AFMELD_SECRET, afmeldUrl, byggAfmeldToken } from "../_shared/webinarAfmeldToken.ts";
-import { skalAlarmere, WEBINAR_ALARM_KLOKKE_TYPE, WEBINAR_ALARM_MAIL_LABEL, WEBINAR_ALARM_REFERENCE, webinarAlarmNoegle, webinarAlarmTekst } from "../_shared/webinarMailAlarm.ts";
+import { type Alarm, doemAlarm, WEBINAR_ALARM_KLOKKE_TYPE, WEBINAR_ALARM_MAIL_LABEL, WEBINAR_ALARM_REFERENCE, webinarAlarmTekst } from "../_shared/webinarMailAlarm.ts";
 import { skrivRaadgiverBesked } from "../_shared/raadgiverBesked.ts";
 import { sendManagedEmail } from "../_shared/managedEmail.ts";
 import { driftModtager } from "../_shared/driftModtager.ts";
@@ -143,6 +145,8 @@ export interface MailResultat {
   /** Loftet for denne kørsel (webinarMailLoft.ts): forsøg de sidste 60 min, maks, og en pause, hvis Mailgun har sagt stop. */
   loft: {
     forsoeg_60_min: number;
+    /** Mails med udfald ok de sidste 60 min (alle kørsler) — alarmens prognose (ventende ÷ ok pr. time). */
+    ok_60_min: number;
     maks: number;
     pause: { grund: string; til: string } | null;
     /** Statuskoden, der stoppede løkken i DENNE kørsel (403/420/429) — ellers null. */
@@ -150,6 +154,8 @@ export interface MailResultat {
   };
   /** Mails, der skulle sendes, men ikke blev forsøgt: loftet var nået, eller Mailgun sagde stop. Tages i en senere kørsel — ikke en fejl. */
   over_loft: number;
+  /** De over_loft, med art og session — alarmen regner deres frist (webinarMailAlarm.fristFor). */
+  ventende: { art: MailArt; session_tid: string }[];
   eksempler: { email: string; art: MailArt; session_tid: string; indhentning?: true; udfald?: string }[];
   fejl: string[];
   /** Alarmen (webinarMailAlarm.ts): «ingen» · «fandtes» (samme time) · «sendt» · «fejlet: …». */
@@ -187,7 +193,7 @@ const tomt = (a: { toer: boolean; laas: boolean; email: string | null; art: stri
   tilmeldinger_laest: 0, afmeldte_laest: 0, sendte_foer: 0, fejlede_foer: 0, skal_sendes: 0,
   sprunget: { afmeldt: 0, ingen_session: 0, ingen_mail: 0, for_sent: 0, endnu_ikke: 0, sessionen_begyndt: 0, allerede_sendt: 0, for_tidlig_tilmelding: 0, for_sent_efter_fejl: 0 },
   indhentet: 0, sendt: 0, fejlede: 0, udsat: 0, dublet: 0, med_invitation: 0, uden_invitation: 0,
-  loft: { forsoeg_60_min: 0, maks: MAILGUN_LOFT_PR_TIME, pause: null, stoppet_ved: null }, over_loft: 0,
+  loft: { forsoeg_60_min: 0, ok_60_min: 0, maks: MAILGUN_LOFT_PR_TIME, pause: null, stoppet_ved: null }, over_loft: 0, ventende: [],
   eksempler: [], fejl: [], alarm_mail: "ingen", alarm_klokke: "ingen",
 });
 
@@ -253,6 +259,7 @@ async function koer(a: { admin: SupabaseClient; toerKoersel: boolean; laas: bool
   const loft = beregnKoerselsLoft({ seneste: loftRaekker, loft: MAILGUN_LOFT_PR_TIME, nu: loftNu });
   r.loft = {
     forsoeg_60_min: loftRaekker.length,
+    ok_60_min: loftRaekker.filter((x) => x.udfald === "ok").length,
     maks: loft.maks,
     pause: loft.pause ? { grund: loft.pause.grund, til: loft.pause.til.toISOString() } : null,
     stoppet_ved: null,
@@ -260,6 +267,7 @@ async function koer(a: { admin: SupabaseClient; toerKoersel: boolean; laas: bool
   // Det, denne kørsel IKKE når: alt ved pause, ellers resten over maks. Tælles
   // her, så en tørkørsel viser det; den rigtige løkke tæller forfra.
   r.over_loft = loft.pause ? sendinger.length : Math.max(0, sendinger.length - loft.maks);
+  r.ventende = (loft.pause ? sendinger : sendinger.slice(loft.maks)).map((s) => ({ art: s.art, session_tid: s.sessionTid }));
   if (loft.pause) console.error(`${LOG} PAUSE: ${loft.pause.grund} — ${sendinger.length} mails venter til ${loft.pause.til.toISOString()}`);
 
   if (!senderRigtigt) return r;
@@ -279,11 +287,12 @@ async function koer(a: { admin: SupabaseClient; toerKoersel: boolean; laas: bool
   if (loft.pause) return r;
 
   r.over_loft = 0;
+  r.ventende = [];
   let forsoegt = 0;
   for (let i = 0; i < sendinger.length; i++) {
     const s = sendinger[i];
     // LOFTET FØRST: over maks forsøges intet — heller ikke ics-hentningen.
-    if (forsoegt >= loft.maks) { r.over_loft++; continue; }
+    if (forsoegt >= loft.maks) { r.over_loft++; r.ventende.push({ art: s.art, session_tid: s.sessionTid }); continue; }
     if (Date.now() - a.startMs > BUDGET_MS) { r.udsat++; continue; }
     const token = await byggAfmeldToken(afmeldSecret, s.email);
     const link = afmeldUrl(a.basis, token);
@@ -355,6 +364,7 @@ async function koer(a: { admin: SupabaseClient; toerKoersel: boolean; laas: bool
     if (erStopStatus(spor.status)) {
       r.loft.stoppet_ved = spor.status;
       r.over_loft += sendinger.length - i - 1;
+      for (const v of sendinger.slice(i + 1)) r.ventende.push({ art: v.art, session_tid: v.sessionTid });
       console.error(`${LOG} STOP: Mailgun svarede ${spor.status} — kørslen stopper; ${sendinger.length - i - 1} mails venter til efter pausen`);
       break;
     }
@@ -369,10 +379,10 @@ async function koer(a: { admin: SupabaseClient; toerKoersel: boolean; laas: bool
  * (dedup på titlen). Tiden er RIGTIG tid — body'ens `nu` flytter dommens ur,
  * ikke Mailguns. Kaster aldrig: fejl skubbes til r.fejl.
  */
-async function skrivAlarm(admin: SupabaseClient, r: MailResultat): Promise<void> {
-  const nu = new Date();
-  const noegle = webinarAlarmNoegle(nu);
-  const tekst = webinarAlarmTekst(r, nu);
+async function skrivAlarm(admin: SupabaseClient, r: MailResultat, alarm: Alarm, nu: Date): Promise<void> {
+  // Nøglen er dommens: pr. dansk DAG for et loft-stop, pr. dansk TIME for fejl/tabt/frist.
+  const noegle = alarm.noegle;
+  const tekst = webinarAlarmTekst(r, alarm, nu);
 
   // Mailen. email_send_log slås op først, så samme time aldrig giver to rækker.
   try {
@@ -398,7 +408,7 @@ async function skrivAlarm(admin: SupabaseClient, r: MailResultat): Promise<void>
         text: tekst.tekst,
         label: WEBINAR_ALARM_MAIL_LABEL,
         idempotencyKey: noegle,
-        metadata: { fejlede: r.fejlede, over_loft: r.over_loft, stoppet_ved: r.loft.stoppet_ved, nu: nu.toISOString() },
+        metadata: { art: alarm.art, fejlede: r.fejlede, over_loft: r.over_loft, stoppet_ved: r.loft.stoppet_ved, nu: nu.toISOString() },
       });
       r.alarm_mail = res.sent ? "sendt" : `fejlet: ${res.reason}`;
       if (res.sent === false) console.error(`${LOG} alarmmailen blev ikke sendt: ${res.reason}`);
@@ -468,8 +478,12 @@ Deno.serve(async (req) => {
 
   try {
     const r = await koer({ admin, toerKoersel, laas, email, art: artRaa as MailArt | null, nu, startMs, basis });
-    // ALARMEN — kun efter en RIGTIG kørsel (også prøven til én adresse, med vilje).
-    if (r.sender_rigtigt && skalAlarmere(r)) await skrivAlarm(admin, r);
+    // ALARMEN — kun efter en RIGTIG kørsel (også prøven til én adresse, med vilje),
+    // og kun når dommen (doemAlarm) siger, at et menneske skal gøre noget — eller
+    // dagens ene loft-mail. Tiden er RIGTIG tid: body'ens `nu` flytter dommens ur.
+    const alarmNu = new Date();
+    const alarm = r.sender_rigtigt ? doemAlarm(r, alarmNu) : null;
+    if (r.sender_rigtigt && alarm !== null) await skrivAlarm(admin, r, alarm, alarmNu);
     console.log(`${LOG} ${r.dry_run ? "TØRKØRSEL" : r.sender_rigtigt ? "SENDER" : "LÅST"} — skal_sendes ${r.skal_sendes} (indhentet ${r.indhentet}), sendt ${r.sendt}, fejlede ${r.fejlede}, udsat ${r.udsat}, over_loft ${r.over_loft} (maks ${r.loft.maks}${r.loft.pause ? ", PAUSE" : ""}), alarm ${r.alarm_mail}/${r.alarm_klokke}`);
     return json(r);
   } catch (err) {

@@ -1,30 +1,44 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   ALARM_FEJL_LINJER_MAKS,
+  andreFejl,
+  beregnPrognose,
+  doemAlarm,
   fordelPaaUdfald,
+  fristerIFare,
+  fristFor,
   laesFejlLinje,
-  skalAlarmere,
+  prognoseTekst,
   WEBINAR_ALARM_KLOKKE_TYPE,
   WEBINAR_ALARM_MAIL_LABEL,
   WEBINAR_ALARM_NOEGLE_PRAEFIKS,
   WEBINAR_ALARM_REFERENCE,
+  webinarAlarmDato,
   webinarAlarmDatoOgTime,
   webinarAlarmNoegle,
   webinarAlarmTekst,
+  type AlarmInput,
   type WebinarAlarmTekstInput,
 } from "../../../supabase/functions/_shared/webinarMailAlarm.ts";
 
 /**
- * Alarmen ved fejlede webinarmails (29/9-2026) — kun motoren. Hver regel i
- * webinarMailAlarm.ts' filhoved har sin prøve her.
+ * Alarmen ved fejlede webinarmails — omdømt 29/9 14:04: den må kun lyde, når et
+ * menneske skal gøre noget. Hver regel i webinarMailAlarm.ts' filhoved har sin
+ * prøve her, og kildeværnet nederst låser nøglen og alvorsordenen.
  */
 
-const NU = new Date("2026-09-29T08:09:00Z"); // 10:09 dansk (CEST)
-const ROLIG = { sender_rigtigt: true, fejlede: 0, loft: { pause: null, stoppet_ved: null }, over_loft: 0 };
-const PAUSE = { grund: "Mailgun svarede 403 kl. 2026-09-29T06:14:00.000Z — venter timen ud", til: "2026-09-29T07:14:00.000Z" };
+const NU = new Date("2026-09-29T12:09:00Z"); // 14:09 dansk (CEST)
+const SESSION = "2026-10-13T09:00:00Z"; // 13/10 kl. 11:00 dansk
+const ROLIG: AlarmInput = { sender_rigtigt: true, fejlede: 0, fejl: [], loft: { pause: null, stoppet_ved: null, ok_60_min: 26 }, over_loft: 0, sprunget: { for_sent_efter_fejl: 0 }, ventende: [] };
+const PAUSE = { grund: "Mailgun svarede 420 kl. 2026-09-29T11:47:00.000Z — venter timen ud", til: "2026-09-29T12:47:00.000Z" };
+const ventende = (n: number, art = "fjorten_dage" as const) => Array.from({ length: n }, () => ({ art, session_tid: SESSION }));
+/** Jonas' mail 29/9 14:04: 112 udsat, pausen til 14:47, 26 gik igennem. */
+const LOFT_STOP: AlarmInput = { ...ROLIG, loft: { pause: PAUSE, stoppet_ved: null, ok_60_min: 26 }, over_loft: 112, ventende: ventende(112) };
 
 describe("webinarMailAlarm — konstanterne", () => {
-  it("nøglepræfiks, label, klokketype «drift» og reference «webinar_mails»", () => {
+  it("præfiks, label, klokketype «drift» og reference «webinar_mails»", () => {
     expect(WEBINAR_ALARM_NOEGLE_PRAEFIKS).toBe("webinar-mail-alarm:");
     expect(WEBINAR_ALARM_MAIL_LABEL).toBe("webinar-mail-alarm");
     expect(WEBINAR_ALARM_KLOKKE_TYPE).toBe("drift");
@@ -33,123 +47,202 @@ describe("webinarMailAlarm — konstanterne", () => {
   });
 });
 
-describe("webinarMailAlarm — skalAlarmere", () => {
-  it("fejlede > 0 alarmerer", () => {
-    expect(skalAlarmere({ ...ROLIG, fejlede: 1 })).toBe(true);
-    expect(skalAlarmere({ ...ROLIG, fejlede: 211 })).toBe(true);
-  });
-
-  it("stoppet_ved alene alarmerer — Mailgun sagde stop i denne kørsel", () => {
-    expect(skalAlarmere({ ...ROLIG, loft: { pause: null, stoppet_ved: 403 } })).toBe(true);
-    expect(skalAlarmere({ ...ROLIG, loft: { pause: null, stoppet_ved: 429 } })).toBe(true);
-  });
-
-  it("pause + over_loft alarmerer (pausen giver fejlede = 0 — en alarm på fejlede alene havde ikke set 29/9)", () => {
-    expect(skalAlarmere({ ...ROLIG, loft: { pause: PAUSE, stoppet_ved: null }, over_loft: 211 })).toBe(true);
-  });
-
-  it("pause UDEN over_loft alarmerer ikke — ingen venter", () => {
-    expect(skalAlarmere({ ...ROLIG, loft: { pause: PAUSE, stoppet_ved: null }, over_loft: 0 })).toBe(false);
+describe("webinarMailAlarm — doemAlarm: de fire arter", () => {
+  it("tørkørsel og låst kørsel alarmerer ALDRIG — uanset tallene", () => {
+    for (const r of [{ ...LOFT_STOP }, { ...ROLIG, fejl: ["dagen: ugyldig — Mailgun svarede 400"], fejlede: 1 }, { ...ROLIG, sprunget: { for_sent_efter_fejl: 3 } }]) {
+      expect(doemAlarm({ ...r, sender_rigtigt: false }, NU)).toBeNull();
+    }
   });
 
   it("en rolig kørsel alarmerer ikke", () => {
-    expect(skalAlarmere(ROLIG)).toBe(false);
-    expect(skalAlarmere({ ...ROLIG, over_loft: 5 })).toBe(false); // over maks uden pause: tages om fem minutter
+    expect(doemAlarm(ROLIG, NU)).toBeNull();
   });
 
-  it("tørkørsel og låst kørsel alarmerer ALDRIG — uanset tallene", () => {
-    for (const r of [
-      { ...ROLIG, fejlede: 211 },
-      { ...ROLIG, loft: { pause: null, stoppet_ved: 403 } },
-      { ...ROLIG, loft: { pause: PAUSE, stoppet_ved: null }, over_loft: 211 },
-    ]) {
-      expect(skalAlarmere({ ...r, sender_rigtigt: false })).toBe(false);
-    }
+  it("LOFT-STOP uden andre fejl (pause + over_loft, stoppet_ved, eller over_loft alene) → art «loft» med nøgle pr. dansk DAG", () => {
+    const a = doemAlarm(LOFT_STOP, NU);
+    expect(a?.art).toBe("loft");
+    expect(a?.noegle).toBe("webinar-mail-alarm:loft:2026-09-29");
+    expect(doemAlarm({ ...ROLIG, loft: { pause: null, stoppet_ved: 420, ok_60_min: 26 }, over_loft: 5, ventende: ventende(5) }, NU)?.art).toBe("loft");
+    expect(doemAlarm({ ...ROLIG, over_loft: 3, ventende: ventende(3) }, NU)?.art).toBe("loft");
+    // Fejl-linjer, der KUN er loft-udfald, er stadig et loft-stop — ikke en fejl.
+    expect(doemAlarm({ ...LOFT_STOP, fejlede: 1, fejl: ["fjorten_dage: loft — Mailgun svarede 420: recipient limit (26) exceeded"] }, NU)?.art).toBe("loft");
+  });
+
+  it("loft hver time hele dagen → ÉN nøgle; ny dag → én ny", () => {
+    const noegler = new Set<string>();
+    for (let t = 8; t <= 22; t++) noegler.add(doemAlarm(LOFT_STOP, new Date(`2026-09-29T${String(t - 2).padStart(2, "0")}:09:00Z`))!.noegle);
+    expect([...noegler]).toEqual(["webinar-mail-alarm:loft:2026-09-29"]);
+    expect(doemAlarm(LOFT_STOP, new Date("2026-09-29T22:30:00Z"))!.noegle).toBe("webinar-mail-alarm:loft:2026-09-30"); // 00:30 dansk næste dag
+  });
+
+  it("FRIST I FARE: prognosen når ikke fristen → art «frist», nøgle pr. dansk DAG (én om dagen) — og dæmpes ikke af dagens loft-mail", () => {
+    // 112 venter ÷ 4 pr. time = 28 t → ca. 30/9 18:09; en «en_dag»-mail til 30/9 (frist midnat før «dagen» 30/9 = 29/9 24:00) når det ikke.
+    const r: AlarmInput = { ...LOFT_STOP, loft: { pause: PAUSE, stoppet_ved: null, ok_60_min: 4 }, ventende: [...ventende(111), { art: "en_dag", session_tid: "2026-09-30T09:00:00Z" }] };
+    const a = doemAlarm(r, NU);
+    expect(a?.art).toBe("frist");
+    expect(a?.noegle).toBe("webinar-mail-alarm:frist:2026-09-29");
+    expect(a?.iFare.length).toBe(1);
+    expect(a?.iFare[0].art).toBe("en_dag");
+    expect(a!.noegle).not.toBe(doemAlarm(LOFT_STOP, NU)!.noegle);
+  });
+
+  it("UDLØBET: for_sent_efter_fejl > 0 → art «tabt», nøgle pr. dansk DAG, også når loftet står på", () => {
+    const a = doemAlarm({ ...LOFT_STOP, sprunget: { for_sent_efter_fejl: 2 } }, NU);
+    expect(a?.art).toBe("tabt");
+    expect(a?.tabt).toBe(2);
+    expect(a?.noegle).toBe("webinar-mail-alarm:tabt:2026-09-29");
+  });
+
+  it("FEJLEDE af andre grunde end loftet → art «fejl» som før, nøgle pr. dansk time — og den vinder over tabt/frist/loft", () => {
+    const r: AlarmInput = { ...LOFT_STOP, fejlede: 3, fejl: ["dagen: noegle_afvist — Mailgun svarede 403", "en_time: ugyldig — Mailgun svarede 400", "fjorten_dage: loft — Mailgun svarede 429"], sprunget: { for_sent_efter_fejl: 1 } };
+    const a = doemAlarm(r, NU);
+    expect(a?.art).toBe("fejl");
+    expect(a?.andreFejl).toEqual(["dagen: noegle_afvist — Mailgun svarede 403", "en_time: ugyldig — Mailgun svarede 400"]);
+    expect(a?.noegle).toBe("webinar-mail-alarm:fejl:2026-09-29T14");
+    // Linjer, der ikke er mails (sporet, secret'en), er også fejl.
+    expect(doemAlarm({ ...ROLIG, fejl: ["sporet kunne ikke skrives (dagen): 23514"] }, NU)?.art).toBe("fejl");
+    expect(andreFejl(["a: loft — x", "b: timeout", "WEBINAR_AFMELD_SECRET mangler — intet sendt"])).toEqual(["b: timeout", "WEBINAR_AFMELD_SECRET mangler — intet sendt"]);
+  });
+
+  it("alvorsorden: fejl > tabt > frist > loft", () => {
+    const fare: AlarmInput = { ...LOFT_STOP, loft: { pause: PAUSE, stoppet_ved: null, ok_60_min: 1 }, ventende: [{ art: "en_dag", session_tid: "2026-09-30T09:00:00Z" }] };
+    expect(doemAlarm(fare, NU)?.art).toBe("frist");
+    expect(doemAlarm({ ...fare, sprunget: { for_sent_efter_fejl: 1 } }, NU)?.art).toBe("tabt");
+    expect(doemAlarm({ ...fare, sprunget: { for_sent_efter_fejl: 1 }, fejl: ["dagen: fejl — x"] }, NU)?.art).toBe("fejl");
   });
 });
 
-describe("webinarMailAlarm — nøglen: én pr. dansk time", () => {
-  it("bærer dansk dato og time — også over døgnskiftet og i vintertid", () => {
-    expect(webinarAlarmDatoOgTime(new Date("2026-09-29T08:09:00Z"))).toBe("2026-09-29T10"); // CEST = UTC+2
-    expect(webinarAlarmDatoOgTime(new Date("2026-09-29T22:30:00Z"))).toBe("2026-09-30T00"); // døgnskiftet
-    expect(webinarAlarmDatoOgTime(new Date("2026-09-29T21:59:59Z"))).toBe("2026-09-29T23");
-    expect(webinarAlarmDatoOgTime(new Date("2026-12-01T07:15:00Z"))).toBe("2026-12-01T08"); // CET = UTC+1
-    expect(webinarAlarmDatoOgTime(new Date("2026-12-31T23:30:00Z"))).toBe("2027-01-01T00");
-  });
-
-  it("nøglen er præfiks + dato og time; to kørsler i samme time deler nøgle, to timer gør ikke", () => {
-    expect(webinarAlarmNoegle(NU)).toBe("webinar-mail-alarm:2026-09-29T10");
-    expect(webinarAlarmNoegle(new Date("2026-09-29T08:59:59Z"))).toBe(webinarAlarmNoegle(NU));
-    expect(webinarAlarmNoegle(new Date("2026-09-29T09:00:00Z"))).not.toBe(webinarAlarmNoegle(NU));
-    expect(webinarAlarmNoegle(new Date("2026-09-29T12:09:00Z"))).toBe("webinar-mail-alarm:2026-09-29T14");
-  });
-});
-
-describe("webinarMailAlarm — fejl-linjerne", () => {
-  it("læser «art: udfald — grund», og ignorerer andre linjer", () => {
-    expect(laesFejlLinje("fjorten_dage: noegle_afvist — Mailgun svarede 403"))
-      .toEqual({ art: "fjorten_dage", udfald: "noegle_afvist", rest: "Mailgun svarede 403" });
-    expect(laesFejlLinje("en_time: timeout")).toEqual({ art: "en_time", udfald: "timeout", rest: "" });
-    expect(laesFejlLinje("sporet kunne ikke skrives (dagen): x")).toBeNull();
-    expect(laesFejlLinje("WEBINAR_AFMELD_SECRET mangler — intet sendt")).toBeNull();
-  });
-
-  it("fordeler på udfald, flest først", () => {
-    const fejl = ["a: loft", "b: noegle_afvist — x", "c: loft", "d: ugyldig", "e: loft", "andet"];
-    expect(fordelPaaUdfald(fejl)).toEqual([{ udfald: "loft", antal: 3 }, { udfald: "noegle_afvist", antal: 1 }, { udfald: "ugyldig", antal: 1 }]);
+describe("webinarMailAlarm — nøglerne i dansk tid", () => {
+  it("dato og dato+time — over døgnskiftet og i vintertid", () => {
+    expect(webinarAlarmDato(new Date("2026-09-29T22:30:00Z"))).toBe("2026-09-30");
+    expect(webinarAlarmDatoOgTime(new Date("2026-09-29T08:09:00Z"))).toBe("2026-09-29T10");
+    expect(webinarAlarmDatoOgTime(new Date("2026-12-01T07:15:00Z"))).toBe("2026-12-01T08");
+    expect(webinarAlarmNoegle("loft", NU)).toBe("webinar-mail-alarm:loft:2026-09-29");
+    // Én om dagen pr. art for loft, tabt og frist — kun fejl pr. time (noget er i stykker).
+    expect(webinarAlarmNoegle("frist", NU)).toBe("webinar-mail-alarm:frist:2026-09-29");
+    expect(webinarAlarmNoegle("tabt", NU)).toBe("webinar-mail-alarm:tabt:2026-09-29");
+    expect(webinarAlarmNoegle("tabt", new Date("2026-09-29T21:59:59Z"))).toBe(webinarAlarmNoegle("tabt", NU));
+    expect(webinarAlarmNoegle("tabt", new Date("2026-09-29T22:00:00Z"))).not.toBe(webinarAlarmNoegle("tabt", NU)); // 00:00 dansk næste dag
+    expect(webinarAlarmNoegle("fejl", NU)).toBe("webinar-mail-alarm:fejl:2026-09-29T14");
+    expect(webinarAlarmNoegle("fejl", new Date("2026-09-29T12:59:59Z"))).toBe(webinarAlarmNoegle("fejl", NU));
+    expect(webinarAlarmNoegle("fejl", new Date("2026-09-29T13:00:00Z"))).not.toBe(webinarAlarmNoegle("fejl", NU));
   });
 });
 
-describe("webinarMailAlarm — teksten", () => {
-  const fejl211 = Array.from({ length: 211 }, (_, i) => `fjorten_dage: ${i % 3 === 0 ? "loft" : "noegle_afvist"} — Mailgun svarede ${i % 3 === 0 ? 429 : 403}`);
-  const r: WebinarAlarmTekstInput = {
-    sender_rigtigt: true, fejlede: 211, sendt: 108, skal_sendes: 319, over_loft: 0,
-    loft: { pause: null, stoppet_ved: null }, fejl: fejl211,
-  };
-
-  it("titlen bærer dansk dato og time, og emnet tallet", () => {
-    const t = webinarAlarmTekst(r, NU);
-    expect(t.titel).toBe("Webinarmails: 211 webinarmails kunne ikke sendes (2026-09-29 kl. 10)");
-    expect(t.emne).toBe("211 webinarmails kunne ikke sendes — webinar-mail-cron har brug for et menneske");
-    expect(webinarAlarmTekst({ ...r, fejlede: 1, fejl: [fejl211[0]] }, NU).titel).toContain("1 webinarmail kunne");
+describe("webinarMailAlarm — fristen (dommens INDHENTNING) og prognosen", () => {
+  it("fristFor: tidssatte arter = max(planlagt + nåde, dansk midnat før næste art); dagen begrænses af starten; straks/en_time = starten", () => {
+    // fjorten_dage for 13/10 er planlagt 29/9 08:00 dansk; næste er syv_dage 6/10 08:00 → frist = midnat 6/10 dansk = 5/10 22:00Z.
+    expect(fristFor("fjorten_dage", SESSION)?.toISOString()).toBe("2026-10-05T22:00:00.000Z");
+    // dagen 13/10 07:30 dansk; næste en_time 10:00 dansk samme dag → midnat FØR den er 12/10 22:00Z (< planlagt) → planlagt + 2 t = 09:30 dansk = 07:30Z; under starten (11:00) → 07:30Z.
+    expect(fristFor("dagen", SESSION)?.toISOString()).toBe("2026-10-13T07:30:00.000Z");
+    expect(fristFor("en_time", SESSION)?.toISOString()).toBe(SESSION.replace("Z", ".000Z"));
+    expect(fristFor("bekraeftelse", SESSION)?.toISOString()).toBe(SESSION.replace("Z", ".000Z"));
+    expect(fristFor("en_dag", "ikke en tid")).toBeNull();
   });
 
-  it("afkorter til 10 fejl-linjer og nævner resten som tal — og fordelingen på udfald står i første afsnit", () => {
-    const t = webinarAlarmTekst(r, NU);
-    const fejlBlokke = t.blokke.filter((b) => b.overskrift === "fjorten_dage");
-    expect(fejlBlokke.length).toBe(ALARM_FEJL_LINJER_MAKS);
-    expect(t.blokke.length).toBe(ALARM_FEJL_LINJER_MAKS + 1);
-    expect(t.blokke[t.blokke.length - 1].tekst).toContain("og 201 linjer mere");
-    expect(t.afsnit[0]).toBe("Kørslen 2026-09-29 kl. 10 skulle sende 319 mails, sendte 108 og fejlede med 211 (140 × noegle_afvist, 71 × loft).");
-    expect(t.tekst.split("\n").filter((l) => l.startsWith("fjorten_dage:")).length).toBe(10);
-    expect(fejlBlokke[0].tekst).toContain("Mailgun svarede 429");
+  it("beregnPrognose: 112 ÷ 26 ≈ 4,3 t; 0 igennem → kan ikke regnes; 0 venter → færdig nu", () => {
+    const p = beregnPrognose(112, 26, NU);
+    expect(p.timer).toBeCloseTo(4.3077, 3);
+    expect(p.faerdig?.toISOString()).toBe(new Date(NU.getTime() + (112 / 26) * 3_600_000).toISOString());
+    expect(prognoseTekst(p, NU)).toBe("112 venter ÷ 26 pr. time ≈ 4,3 t → ca. kl. 18:27.");
+    expect(beregnPrognose(112, 0, NU)).toEqual({ ventende: 112, okPrTime: 0, timer: null, faerdig: null });
+    expect(prognoseTekst(beregnPrognose(112, 0, NU), NU)).toBe("112 venter — hvornår de er ude, kan ikke beregnes: intet gik igennem den seneste time.");
+    expect(beregnPrognose(0, 26, NU).faerdig).toBe(NU);
+    // Færdig en anden dag: datoen med.
+    expect(prognoseTekst(beregnPrognose(300, 10, NU), NU)).toBe("300 venter ÷ 10 pr. time ≈ 30,0 t → ca. 30/9 kl. 20:09.");
   });
 
-  it("nævner stoppet (statuskode), pausen (til hvornår, dansk) og over_loft", () => {
-    const t = webinarAlarmTekst({
-      ...r, fejlede: 1, fejl: [fejl211[1]], sendt: 90, over_loft: 120,
-      loft: { pause: PAUSE, stoppet_ved: 403 },
-    }, NU);
-    expect(t.afsnit.some((a) => a.includes("Mailgun sagde stop midt i kørslen (status 403)"))).toBe(true);
-    expect(t.afsnit.some((a) => a.includes("Pausen gælder til kl. 09:14"))).toBe(true);
-    expect(t.afsnit.some((a) => a === "120 mails blev ikke forsøgt (over_loft) — de tages i en senere kørsel.")).toBe(true);
-    expect(t.afsnit[t.afsnit.length - 1]).toContain("fejlede mails indhentes automatisk, indtil næste påmindelse er planlagt");
+  it("fristerIFare: kun dem med frist før færdigtiden, sorteret; uden prognose ingen (der gættes ikke)", () => {
+    const p = beregnPrognose(112, 4, NU); // 28 t → 30/9 ~18:09 dansk
+    const liste = [{ art: "fjorten_dage" as const, session_tid: SESSION }, { art: "en_dag" as const, session_tid: "2026-09-30T09:00:00Z" }, { art: "dagen" as const, session_tid: "2026-09-30T09:00:00Z" }];
+    const fare = fristerIFare(liste, p);
+    expect(fare.map((f) => f.art)).toEqual(["en_dag", "dagen"]);
+    expect(fristerIFare(liste, beregnPrognose(112, 0, NU))).toEqual([]);
   });
+});
 
-  it("en kørsel under pausen (fejlede 0, over_loft > 0) får sin egen emnelinje og titel", () => {
-    const t = webinarAlarmTekst({ ...r, fejlede: 0, fejl: [], sendt: 0, over_loft: 211, loft: { pause: PAUSE, stoppet_ved: null } }, NU);
-    expect(t.emne).toBe("Webinarmails venter: Mailgun har sagt stop — 211 udsat");
-    expect(t.titel).toBe("Webinarmails: Mailgun har sagt stop, 211 venter (2026-09-29 kl. 10)");
+describe("webinarMailAlarm — teksten pr. art", () => {
+  const bas: WebinarAlarmTekstInput = { ...LOFT_STOP, sendt: 26, skal_sendes: 138 };
+
+  it("loft: emne med forventet færdigtid, titlen bærer KUN datoen, regnestykket står i mailen, og «ikke noget at gøre»", () => {
+    const t = webinarAlarmTekst(bas, doemAlarm(bas, NU)!, NU);
+    expect(t.emne).toBe("Webinarmails: 112 venter på Mailguns loft — forventet ude ca. kl. 18:27");
+    expect(t.titel).toBe("Webinarmails: 112 venter på loftet (2026-09-29)");
+    expect(t.afsnit[0]).toBe("Kørslen 2026-09-29 kl. 14 skulle sende 138 mails, sendte 26, og 112 venter (over loftet).");
+    expect(t.afsnit[1]).toBe("Den seneste time gik 26 igennem. 112 venter ÷ 26 pr. time ≈ 4,3 t → ca. kl. 18:27. Prognosen antager samme takt som den seneste time.");
+    expect(t.afsnit[2]).toContain("Pausen gælder til kl. 14:47");
+    expect(t.afsnit[t.afsnit.length - 1]).toContain("Der er ikke noget at gøre");
     expect(t.blokke).toEqual([]);
-    expect(t.afsnit[0]).toBe("Kørslen 2026-09-29 kl. 10 skulle sende 319 mails og sendte 0.");
+    expect(t.tekst).toContain("112 venter ÷ 26 pr. time");
   });
 
-  it("andre fejl-linjer (sporet, secret) kommer med som blokke uden art", () => {
-    const t = webinarAlarmTekst({ ...r, fejlede: 1, fejl: ["dagen: fejl — Mailgun svarede 500", "sporet kunne ikke skrives (dagen): 23514"] }, NU);
-    expect(t.blokke).toEqual([
-      { overskrift: "dagen", tekst: "fejl — Mailgun svarede 5xx, eller kaldet kastede · Mailgun svarede 500" },
-      { overskrift: "fejl", tekst: "sporet kunne ikke skrives (dagen): 23514" },
-    ]);
-    expect(t.tekst).toContain("Sporet: webinar_mails");
+  it("loft med 0 igennem: ærligt «kan ikke beregnes»", () => {
+    const r = { ...bas, loft: { pause: PAUSE, stoppet_ved: null, ok_60_min: 0 } };
+    const t = webinarAlarmTekst(r, doemAlarm(r, NU)!, NU);
+    expect(t.emne).toBe("Webinarmails: 112 venter på Mailguns loft — hvornår kan ikke beregnes");
+    expect(t.afsnit[1]).toBe("Den seneste time gik 0 igennem. 112 venter — hvornår de er ude, kan ikke beregnes: intet gik igennem den seneste time. Prognosen antager samme takt som den seneste time.");
+  });
+
+  it("frist: hvor mange og den tidligste frist; titlen bærer KUN datoen (én om dagen)", () => {
+    const r: WebinarAlarmTekstInput = { ...bas, loft: { pause: PAUSE, stoppet_ved: null, ok_60_min: 4 }, ventende: [...ventende(111), { art: "en_dag", session_tid: "2026-09-30T09:00:00Z" }] };
+    const t = webinarAlarmTekst(r, doemAlarm(r, NU)!, NU);
+    expect(t.emne).toBe("Webinarmails i fare: 1 når ikke sin frist (første 30/9 kl. 00:00)");
+    expect(t.titel).toBe("Webinarmails: 1 i fare for fristen (2026-09-29)");
+    expect(t.afsnit[1]).toContain("112 venter ÷ 4 pr. time ≈ 28,0 t → ca. 30/9 kl. 18:09. 1 af de ventende har en frist FØR det — den første 30/9 kl. 00:00 (i morgen, webinar 30/9 kl. 11:00)");
+    expect(t.afsnit[2]).toBe("Fordelt: 1 × en_dag.");
+  });
+
+  it("tabt: antallet og hvad det betyder", () => {
+    const r = { ...bas, sprunget: { for_sent_efter_fejl: 2 } };
+    const t = webinarAlarmTekst(r, doemAlarm(r, NU)!, NU);
+    expect(t.emne).toBe("2 webinarmails er tabt — nåede ikke ud før næste påmindelse");
+    expect(t.titel).toBe("Webinarmails: 2 tabt (2026-09-29)");
+    expect(t.afsnit[1]).toContain("for_sent_efter_fejl");
+  });
+
+  it("fejl: som før — fordeling på udfald, højst 10 blokke, «og N linjer mere»; loft-linjer tælles ikke med", () => {
+    const fejl = [...Array.from({ length: 14 }, (_, i) => `dagen: ${i % 2 ? "ugyldig" : "noegle_afvist"} — Mailgun svarede ${i % 2 ? 400 : 403}`), "fjorten_dage: loft — Mailgun svarede 429"];
+    const r = { ...bas, fejlede: 15, fejl };
+    const t = webinarAlarmTekst(r, doemAlarm(r, NU)!, NU);
+    expect(t.emne).toBe("14 webinarmails kunne ikke sendes — webinar-mail-cron har brug for et menneske");
+    expect(t.titel).toBe("Webinarmails: 14 webinarmails kunne ikke sendes (2026-09-29 kl. 14)");
+    expect(t.afsnit[1]).toBe("14 fejl af andre grunde end loftet (7 × noegle_afvist, 7 × ugyldig) — det retter throttlen ikke.");
+    expect(t.blokke.length).toBe(ALARM_FEJL_LINJER_MAKS + 1);
+    expect(t.blokke[t.blokke.length - 1].tekst).toContain("og 4 linjer mere");
+    expect(laesFejlLinje("en_time: timeout")).toEqual({ art: "en_time", udfald: "timeout", rest: "" });
+    expect(fordelPaaUdfald(["a: loft", "b: loft", "c: fejl"])).toEqual([{ udfald: "loft", antal: 2 }, { udfald: "fejl", antal: 1 }]);
+  });
+});
+
+describe("webinarMailAlarm — kildeværn: nøglen for loft-grenen er pr. dag, og de rigtige alarmer kan ikke dæmpes", () => {
+  const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
+  const udenKommentarer = (k: string) => k.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, "")).replace(/\/\/[^\n]*/g, "");
+  const ALARM = "supabase/functions/_shared/webinarMailAlarm.ts";
+  const dommenErRigtig = (kilde: string): boolean => {
+    const k = udenKommentarer(kilde);
+    return (
+      k.includes('export const ARTER_PR_DAG: readonly AlarmArt[] = ["loft", "tabt", "frist"];') &&
+      k.includes("const hale = ARTER_PR_DAG.includes(art) ? webinarAlarmDato(nu) : webinarAlarmDatoOgTime(nu);") &&
+      k.includes("return `${WEBINAR_ALARM_NOEGLE_PRAEFIKS}${art}:${hale}`;") &&
+      /fejl\.length > 0 \? "fejl"\s*: tabt > 0 \? "tabt"\s*: iFare\.length > 0 \? "frist"\s*: loftStop \? "loft"\s*: null;/.test(k) &&
+      k.includes("if (!r.sender_rigtigt) return null;") &&
+      k.includes("return l === null || l.udfald !== LOFT_UDFALD;") &&
+      k.includes("if (okPrTime <= 0) return { ventende, okPrTime, timer: null, faerdig: null };") &&
+      k.includes("if (prognose.faerdig === null) return [];")
+    );
+  };
+  it("dommen står, som prøverne ovenfor kræver", () => expect(dommenErRigtig(laes(ALARM))).toBe(true));
+  it("VÆRNET VIRKER: loft/tabt/frist pr. time, arten uden for nøglen, loft foran de rigtige, eller en gættet prognose fælder", () => {
+    const k = laes(ALARM);
+    expect(dommenErRigtig(k.replace("const hale = ARTER_PR_DAG.includes(art) ? webinarAlarmDato(nu) : webinarAlarmDatoOgTime(nu);", "const hale = webinarAlarmDatoOgTime(nu);"))).toBe(false);
+    // tabt eller frist pr. time fælder — én om dagen pr. art er nok.
+    expect(dommenErRigtig(k.replace('["loft", "tabt", "frist"]', '["loft", "frist"]'))).toBe(false);
+    expect(dommenErRigtig(k.replace('["loft", "tabt", "frist"]', '["loft", "tabt"]'))).toBe(false);
+    expect(dommenErRigtig(k.replace("return `${WEBINAR_ALARM_NOEGLE_PRAEFIKS}${art}:${hale}`;", "return `${WEBINAR_ALARM_NOEGLE_PRAEFIKS}${hale}`;"))).toBe(false);
+    const loftFoerst = k.replace(/: loftStop \? "loft"\s*: null;/, ': null;').replace('fejl.length > 0 ? "fejl"', 'loftStop ? "loft" : fejl.length > 0 ? "fejl"');
+    expect(loftFoerst).not.toBe(k);
+    expect(dommenErRigtig(loftFoerst)).toBe(false);
+    expect(dommenErRigtig(k.replace("if (okPrTime <= 0) return { ventende, okPrTime, timer: null, faerdig: null };", "if (okPrTime <= 0) okPrTime = 1;"))).toBe(false);
+    expect(dommenErRigtig(k.replace("if (!r.sender_rigtigt) return null;", ""))).toBe(false);
   });
 });
