@@ -22,6 +22,10 @@ Dokumentet gælder for enhver Claude-session, der arbejder selvstændigt på pla
 - **Jonas** godkender listen og rækkefølgen og træffer de beslutninger, der står i §3. Han ser morgenrapporten.
 - **Vinduerne A, B og C** er afløst. Claude kører selv flere spor parallelt med underagenter.
 
+## 1a. Main er altid Update-sikker (løfte til Jonas 29/9 21:54)
+
+Jonas må klikke Update i Lovable når som helst, uden at spørge. Derfor merger Claude ALDRIG noget til main, der kræver en migration, før migrationen er kørt og målt i prod (REST 200 på nye kolonner). En PR, der venter på en migration, står åben med «merges efter kørsel» i titlen. Edge function-ændringer må merges: Update rører dem ikke, og de venter bare på deploy.
+
 ## 2. Må uden at spørge
 
 - Kode, tests og dokumentation på en egen gren, derefter PR, og merge efter grøn CI (alle kørsler på commit'en).
