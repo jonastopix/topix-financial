@@ -166,3 +166,46 @@ describe("rådgiverens menu — det I bruger øverst (Jonas 8/9)", () => {
     expect(flad(bygHbNav({ isAdvisor: false, erAbonnent: false, active: "boardroom", isPartner: true })).map((x) => x.label)).not.toContain("Økonomi");
   });
 });
+
+/* «Dit certifikat» (29/9): tiende punkt, SIDST efter «Fortæl det videre» —
+   og KUN når `certifikat` er sat (berettiget fuldt medlem). Uden det er
+   menuen ordret som ovenfor (de ni punkter i toEqual holder stadig). Tre
+   tilstande: «ny» = mærket «Ny» til siden selv, «laast» = hængelås,
+   «aaben» = punktet alene. Abonnenten og rådgiveren får det aldrig. */
+describe("«Dit certifikat» — sidst i medlemmets menu, kun når sat (29/9)", () => {
+  const medlem = (certifikat?: "ny" | "laast" | "aaben" | null, active: HbAktiv = "boardroom") => bygHbNav({ isAdvisor: false, erAbonnent: false, active, certifikat });
+  it("uden certifikat (udeladt eller null): ni punkter, intet hedder Dit certifikat", () => {
+    for (const nav of [medlem(), medlem(null)]) {
+      expect(nav).toHaveLength(9);
+      expect(nav.map((n) => n.to)).not.toContain("/certifikat");
+    }
+  });
+  it("«aaben»: tiende og sidste punkt, efter «Fortæl det videre», uden mærke og uden lås", () => {
+    const nav = medlem("aaben");
+    expect(nav).toHaveLength(10);
+    expect(flad(nav).slice(0, 9)).toEqual(flad(medlem()));
+    const sidste = nav[9];
+    expect(sidste).toEqual({ label: "Dit certifikat", to: "/certifikat", active: false });
+    expect(nav[8].label).toBe("Fortæl det videre");
+  });
+  it("«ny»: mærket «Ny» peger på siden selv; «laast»: hængelåsen — og aldrig begge", () => {
+    const ny = medlem("ny")[9];
+    expect(ny.maerke).toEqual({ tekst: "Ny", to: "/certifikat", titel: "Dit certifikat er klar til at blive hentet" });
+    expect(ny.laast).toBeUndefined();
+    const laast = medlem("laast")[9];
+    expect(laast.laast).toBe(true);
+    expect(laast.maerke).toBeUndefined();
+    expect(medlem("aaben")[9].maerke).toBeUndefined();
+  });
+  it("aktiv på /certifikat — og præcis ét punkt er aktivt", () => {
+    const nav = medlem("aaben", "certifikat");
+    const aktive = nav.flatMap((n) => [...(n.active ? [n.label] : []), ...(n.children ?? []).filter((c) => c.active).map((c) => c.label)]);
+    expect(aktive).toEqual(["Dit certifikat"]);
+  });
+  it("abonnenten og rådgiveren får det aldrig, uanset tilstand", () => {
+    for (const t of ["ny", "laast", "aaben"] as const) {
+      expect(bygHbNav({ isAdvisor: false, erAbonnent: true, active: "noegletal", certifikat: t }).map((n) => n.to)).not.toContain("/certifikat");
+      expect(bygHbNav({ isAdvisor: true, erAbonnent: false, active: "boardroom", certifikat: t }).flatMap((n) => [n.to, ...(n.children ?? []).map((c) => c.to)])).not.toContain("/certifikat");
+    }
+  });
+});
