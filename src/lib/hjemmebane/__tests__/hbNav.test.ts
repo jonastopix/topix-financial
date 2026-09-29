@@ -99,6 +99,7 @@ describe("rådgiverens menu — det I bruger øverst (Jonas 8/9)", () => {
       ["Rabataftaler", "/rabataftaler", BLOK_MEDLEMMETS_FLADER],
       ["Events", "/events", BLOK_MEDLEMMETS_FLADER],
       ["Netværket", "/medlemmer", BLOK_MEDLEMMETS_FLADER],
+      ["Dit certifikat", "/certifikat/forhaandsvisning", BLOK_MEDLEMMETS_FLADER],
       ["Platform", null, BLOK_PLATFORM],
     ]);
   });
