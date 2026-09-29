@@ -338,8 +338,8 @@ export const loftetFoerLoekken = (cron: string, loft: string): boolean => {
     f.includes('a.admin.from("webinar_mails").select("forsoegt_at, udfald, status")') &&
     // Pause = intet sendes; over maks = intet forsøges (heller ikke ics-hentningen).
     foer(f, "if (loft.pause) return r;", LOEKKE) &&
-    loekke.includes("if (forsoegt >= loft.maks) { r.over_loft++; continue; }") &&
-    foer(loekke, "if (forsoegt >= loft.maks) { r.over_loft++; continue; }", "await hentInvitation(s.kalenderLink)") &&
+    loekke.includes("if (forsoegt >= loft.maks) { r.over_loft++; r.ventende.push({ art: s.art, session_tid: s.sessionTid }); continue; }") &&
+    foer(loekke, "if (forsoegt >= loft.maks) { r.over_loft++; r.ventende.push({ art: s.art, session_tid: s.sessionTid }); continue; }", "await hentInvitation(s.kalenderLink)") &&
     // Stoppet: EFTER sporet, og blokken er kort — tælleren, én console.error og break.
     stop !== -1 &&
     foer(loekke, 'from("webinar_mails").insert(', "if (erStopStatus(spor.status)) {") &&
@@ -377,6 +377,7 @@ export const fejledeIndhentes = (cron: string, dom: string, spejl: string): bool
 };
 
 // ── 14 ─────────────────────────────────────────────────────────────────────
+/** Omdømt 29/9 14:04: alarmen kaldes kun i en rigtig kørsel, og KUN når doemAlarm siger ja; loft, tabt og frist har nøgle pr. dag, kun fejl pr. time. */
 export const alarmenKunIRigtigKoersel = (cron: string, alarm: string): boolean => {
   const f = udenKommentarer(cron), a = udenKommentarer(alarm);
   const start = f.indexOf("async function skrivAlarm("), slut = f.indexOf("Deno.serve(");
@@ -385,12 +386,13 @@ export const alarmenKunIRigtigKoersel = (cron: string, alarm: string): boolean =
   const serve = f.slice(slut);
   return (
     f.includes('from "../_shared/webinarMailAlarm.ts"') &&
-    // Kaldet: efter koer, kun i en rigtig kørsel, og kun når dommen siger ja.
-    foer(serve, "const r = await koer(", "if (r.sender_rigtigt && skalAlarmere(r)) await skrivAlarm(admin, r);") &&
+    // Kaldet: efter koer, kun i en rigtig kørsel, kun når dommen siger ja — på rigtig tid.
+    foer(serve, "const r = await koer(", "const alarmNu = new Date();") &&
+    serve.includes("const alarm = r.sender_rigtigt ? doemAlarm(r, alarmNu) : null;") &&
+    serve.includes("if (r.sender_rigtigt && alarm !== null) await skrivAlarm(admin, r, alarm, alarmNu);") &&
     (serve.match(/await skrivAlarm\(/g) ?? []).length === 1 &&
-    // Nøglen på rigtig tid, og opslaget FØR afsendelsen.
-    skriv.includes("const nu = new Date();") &&
-    skriv.includes("const noegle = webinarAlarmNoegle(nu);") &&
+    // Nøglen er DOMMENS (art i nøglen), og opslaget står FØR afsendelsen.
+    skriv.includes("const noegle = alarm.noegle;") &&
     foer(skriv, '.select("message_id").eq("message_id", noegle).limit(1);', "await sendManagedEmail({") &&
     skriv.includes('r.alarm_mail = "fandtes";') &&
     // Mailen: driftModtager, label og nøgle — aldrig Mailgun.
@@ -398,16 +400,22 @@ export const alarmenKunIRigtigKoersel = (cron: string, alarm: string): boolean =
     skriv.includes("        label: WEBINAR_ALARM_MAIL_LABEL,") &&
     skriv.includes("        idempotencyKey: noegle,") &&
     !/sendMailgun/.test(skriv) &&
-    // Klokken: typen og referencen fra motoren.
-    // Literal + satisfies: klokkeMail.guard læser ordet ordret, deno check binder det til konstanten.
-    /skrivRaadgiverBesked\(admin, \{\s*type: WEBINAR_ALARM_KLOKKE_TYPE,[\s\S]{0,300}?reference_type: "webinar_mails" satisfies typeof WEBINAR_ALARM_REFERENCE,\s*reference_id: null,/.test(skriv) &&
+    // Klokken: typen og referencen fra motoren; titlen bærer nøglens dato (loft) eller dato+time.
+    /skrivRaadgiverBesked\(admin, \{\s*type: WEBINAR_ALARM_KLOKKE_TYPE,\s*title: tekst\.titel,[\s\S]{0,300}?reference_type: "webinar_mails" satisfies typeof WEBINAR_ALARM_REFERENCE,\s*reference_id: null,/.test(skriv) &&
     // Kaster aldrig: to try/catch, og fejl til r.fejl.
     (skriv.match(/\} catch \(err\) \{/g) ?? []).length === 2 &&
     skriv.includes("r.fejl.push(`alarm_mail: ${grund}`);") &&
     skriv.includes("r.fejl.push(`alarm_klokke: ${grund}`);") &&
-    // Motoren: dommen kender de tre grene, og konstanterne står ordret.
-    a.includes("if (!r.sender_rigtigt) return false;") &&
-    a.includes("return r.loft.pause !== null && r.over_loft > 0;") &&
+    // Motoren: aldrig i tørkørsel; loft, tabt og frist er ÉN pr. dansk DAG, fejl pr. TIME; alvorsorden fejl > tabt > frist > loft.
+    a.includes("if (!r.sender_rigtigt) return null;") &&
+    a.includes('export const ARTER_PR_DAG: readonly AlarmArt[] = ["loft", "tabt", "frist"];') &&
+    a.includes("const hale = ARTER_PR_DAG.includes(art) ? webinarAlarmDato(nu) : webinarAlarmDatoOgTime(nu);") &&
+    /fejl\.length > 0 \? "fejl"\s*: tabt > 0 \? "tabt"\s*: iFare\.length > 0 \? "frist"\s*: loftStop \? "loft"\s*: null;/.test(a) &&
+    a.includes("const loftStop = r.loft.pause !== null || r.loft.stoppet_ved !== null || r.over_loft > 0;") &&
+    // Cronen giver dommen det, den behøver: ok pr. time og de ventende med art og session.
+    f.includes('ok_60_min: loftRaekker.filter((x) => x.udfald === "ok").length,') &&
+    f.includes("r.ventende = (loft.pause ? sendinger : sendinger.slice(loft.maks)).map((s) => ({ art: s.art, session_tid: s.sessionTid }));") &&
+    f.includes("for (const v of sendinger.slice(i + 1)) r.ventende.push({ art: v.art, session_tid: v.sessionTid });") &&
     a.includes('export const WEBINAR_ALARM_KLOKKE_TYPE = "drift";') &&
     a.includes('export const WEBINAR_ALARM_REFERENCE = "webinar_mails";')
   );
@@ -445,32 +453,38 @@ describe("webinarMail.guard — dommene fanger fejlen på en kopi", () => {
     expect(fejledeIndhentes(cron, dom.split("    Number(erStraks(b.art)) - Number(erStraks(a.art)) ||\n").join(""), spejl)).toBe(false);
   });
 
-  it("alarm i tørkørsel, opslag efter mailen, mail gennem Mailgun eller til rådgiveradressen, forkert reference, eller en dom uden pause-gren, fælder dom 14", () => {
+  it("alarm i tørkørsel, kald uden dommen, opslag efter mailen, Mailgun eller rådgiveradressen, en loft-nøgle pr. time, eller loft-grenen foran de rigtige, fælder dom 14", () => {
     const alarm = laes(ALARM);
     expect(alarmenKunIRigtigKoersel(cron, alarm)).toBe(true);
     // Kaldet uden sender_rigtigt-porten: en tørkørsel ville alarmere.
-    expect(alarmenKunIRigtigKoersel(cron.split("if (r.sender_rigtigt && skalAlarmere(r)) await skrivAlarm(admin, r);").join("if (skalAlarmere(r)) await skrivAlarm(admin, r);"), alarm)).toBe(false);
+    expect(alarmenKunIRigtigKoersel(cron.split("if (r.sender_rigtigt && alarm !== null) await skrivAlarm(admin, r, alarm, alarmNu);").join("if (alarm !== null) await skrivAlarm(admin, r, alarm, alarmNu);"), alarm)).toBe(false);
+    // Dommen sprunget over: alarm hver gang.
+    expect(alarmenKunIRigtigKoersel(cron.split("const alarm = r.sender_rigtigt ? doemAlarm(r, alarmNu) : null;").join("const alarm = { art: \"loft\", noegle: \"x\" } as never;"), alarm)).toBe(false);
     // Kaldet helt væk.
-    expect(alarmenKunIRigtigKoersel(cron.split("    if (r.sender_rigtigt && skalAlarmere(r)) await skrivAlarm(admin, r);\n").join(""), alarm)).toBe(false);
-    // Opslaget flyttet EFTER afsendelsen: to mails i samme time.
+    expect(alarmenKunIRigtigKoersel(cron.split("    if (r.sender_rigtigt && alarm !== null) await skrivAlarm(admin, r, alarm, alarmNu);\n").join(""), alarm)).toBe(false);
+    // Opslaget flyttet EFTER afsendelsen: to mails på samme nøgle.
     const OPSLAG = '.select("message_id").eq("message_id", noegle).limit(1);';
     const efter = cron.replace(OPSLAG, ".select(\"x\");").replace("      r.alarm_mail = res.sent ? \"sendt\" : `fejlet: ${res.reason}`;", `      await admin.from("email_send_log")${OPSLAG}\n      r.alarm_mail = res.sent ? "sendt" : \`fejlet: \${res.reason}\`;`);
     expect(efter).not.toBe(cron);
     expect(alarmenKunIRigtigKoersel(efter, alarm)).toBe(false);
+    // Nøglen regnet i cronen i stedet for dommens.
+    expect(alarmenKunIRigtigKoersel(cron.split("  const noegle = alarm.noegle;").join("  const noegle = `webinar-mail-alarm:${nu.toISOString()}`;"), alarm)).toBe(false);
     // Mailen til rådgiveradressen, eller gennem Mailgun.
     expect(alarmenKunIRigtigKoersel(cron.split("        to: driftModtager(),").join("        to: raadgiverModtager(nu),"), alarm)).toBe(false);
     expect(alarmenKunIRigtigKoersel(cron.replace("      const res = await sendManagedEmail({", "      const res = await sendMailgun(mailgunNoegle, {} as never);\n      const res2 = await sendManagedEmail({"), alarm)).toBe(false);
-    // Nøglen på body'ens nu i stedet for rigtig tid.
-    expect(alarmenKunIRigtigKoersel(cron.split("  const nu = new Date();\n  const noegle = webinarAlarmNoegle(nu);").join("  const noegle = webinarAlarmNoegle(new Date(r.nu));"), alarm)).toBe(false);
     // Klokken med en anden reference, eller en anden type.
     expect(alarmenKunIRigtigKoersel(cron.split('      reference_type: "webinar_mails" satisfies typeof WEBINAR_ALARM_REFERENCE,').join('      reference_type: "klaviyo_haendelser",'), alarm)).toBe(false);
-    expect(alarmenKunIRigtigKoersel(cron.split('      reference_type: "webinar_mails" satisfies typeof WEBINAR_ALARM_REFERENCE,').join('      reference_type: WEBINAR_ALARM_REFERENCE,'), alarm)).toBe(false);
     expect(alarmenKunIRigtigKoersel(cron.split("      type: WEBINAR_ALARM_KLOKKE_TYPE,").join('      type: "traek_fejlet",'), alarm)).toBe(false);
+    // De ventende ikke givet videre (frist-alarmen ville være blind).
+    expect(alarmenKunIRigtigKoersel(cron.split("      for (const v of sendinger.slice(i + 1)) r.ventende.push({ art: v.art, session_tid: v.sessionTid });\n").join(""), alarm)).toBe(false);
     // Fejlen ikke skubbet til r.fejl.
     expect(alarmenKunIRigtigKoersel(cron.split("    r.fejl.push(`alarm_mail: ${grund}`);\n").join(""), alarm)).toBe(false);
-    // Motoren uden pause-grenen — 29/9 efter kl. 08:24 havde ingen alarm givet.
-    expect(alarmenKunIRigtigKoersel(cron, alarm.split("return r.loft.pause !== null && r.over_loft > 0;").join("return false;"))).toBe(false);
-    expect(alarmenKunIRigtigKoersel(cron, alarm.split('export const WEBINAR_ALARM_REFERENCE = "webinar_mails";').join('export const WEBINAR_ALARM_REFERENCE = "webinar_mail";'))).toBe(false);
+    // MOTOREN: loft-, tabt- eller frist-nøglen pr. time (Jonas' «hele tiden»), eller loft-grenen foran de rigtige alarmer.
+    expect(alarmenKunIRigtigKoersel(cron, alarm.split("const hale = ARTER_PR_DAG.includes(art) ? webinarAlarmDato(nu) : webinarAlarmDatoOgTime(nu);").join("const hale = webinarAlarmDatoOgTime(nu);"))).toBe(false);
+    expect(alarmenKunIRigtigKoersel(cron, alarm.split('export const ARTER_PR_DAG: readonly AlarmArt[] = ["loft", "tabt", "frist"];').join('export const ARTER_PR_DAG: readonly AlarmArt[] = ["loft", "frist"];'))).toBe(false);
+    expect(alarmenKunIRigtigKoersel(cron, alarm.split('export const ARTER_PR_DAG: readonly AlarmArt[] = ["loft", "tabt", "frist"];').join('export const ARTER_PR_DAG: readonly AlarmArt[] = ["loft", "tabt"];'))).toBe(false);
+    expect(alarmenKunIRigtigKoersel(cron, alarm.replace(/fejl\.length > 0 \? "fejl"\s*: tabt > 0 \? "tabt"\s*: iFare\.length > 0 \? "frist"\s*: loftStop \? "loft"\s*: null;/, 'loftStop ? "loft" : fejl.length > 0 ? "fejl" : tabt > 0 ? "tabt" : iFare.length > 0 ? "frist" : null;'))).toBe(false);
+    expect(alarmenKunIRigtigKoersel(cron, alarm.split("if (!r.sender_rigtigt) return null;").join(""))).toBe(false);
   });
 
   it("loftet fjernet, break fjernet, stop før sporet, eller et andet loft i motoren, fælder dom 12", () => {
@@ -481,7 +495,7 @@ describe("webinarMail.guard — dommene fanger fejlen på en kopi", () => {
     // Pausen ignoreret.
     expect(loftetFoerLoekken(cron.split("  if (loft.pause) return r;\n").join(""), loft)).toBe(false);
     // Maks ignoreret.
-    expect(loftetFoerLoekken(cron.split("    if (forsoegt >= loft.maks) { r.over_loft++; continue; }\n").join(""), loft)).toBe(false);
+    expect(loftetFoerLoekken(cron.split("    if (forsoegt >= loft.maks) { r.over_loft++; r.ventende.push({ art: s.art, session_tid: s.sessionTid }); continue; }\n").join(""), loft)).toBe(false);
     // Break væk: løkken fortsætter mod samme mur.
     const udenBreak = cron.split("      console.error(`${LOG} STOP: Mailgun svarede ${spor.status} — kørslen stopper; ${sendinger.length - i - 1} mails venter til efter pausen`);\n      break;").join("      console.error(`${LOG} STOP: Mailgun svarede ${spor.status}`);");
     expect(udenBreak).not.toBe(cron);
