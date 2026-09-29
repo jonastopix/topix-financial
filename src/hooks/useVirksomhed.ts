@@ -248,7 +248,7 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
     supabase.from("company_members").select("user_id, role").eq("company_id", companyId),
     supabase
       .from("company_invitations")
-      .select("id, email, status, created_at, accepted_at")
+      .select("id, email, status, created_at, accepted_at, token")
       .eq("company_id", companyId)
       .order("created_at", { ascending: false }),
     supabase

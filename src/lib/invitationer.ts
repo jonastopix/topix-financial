@@ -32,6 +32,8 @@ export interface InvitationRaekke {
   status: string;
   created_at: string;
   accepted_at: string | null;
+  /** Invitationens token (uuid). Kun hentet, hvor et link skal kunne kopieres. */
+  token?: string | null;
 }
 
 export const GAMMEL_DAGE = 30;
@@ -128,4 +130,29 @@ export function normaliserEmail(email: string): string {
 
 export function erGyldigEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normaliserEmail(email));
+}
+
+/** DET ENE invitationslink (29/9, m28-invitationslink-raadgiver): kundens
+    «Kopiér invitationslink» (CompanyInvitations) og rådgiverens «Kopiér link»
+    (HbInvitationer) bygger begge linket her. Formen er den, mailen bærer
+    (send-invitation-email: /auth?mode=signup&invite=<token>). */
+export const INVITATIONSLINK_BASE = "https://app.theboardroom.dk/auth?mode=signup&invite=";
+
+export function invitationsLink(token: string): string {
+  return `${INVITATIONSLINK_BASE}${token}`;
+}
+
+/** Knappen «Kopiér link» vises KUN ved en åben (pending) invitation med token —
+    aldrig ved accepterede eller udløbne. */
+export function kanKopiereLink(inv: { status: string; token?: string | null }): boolean {
+  return inv.status === "pending" && typeof inv.token === "string" && inv.token.length > 0;
+}
+
+/** Skriver teksten til clipboard. Kaster, hvis clipboard mangler eller afviser
+    (usikker kontekst, afvist tilladelse) — kalderen viser fejlen. */
+export async function kopierTilClipboard(tekst: string): Promise<void> {
+  if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
+    throw new Error("Clipboard er ikke tilgængeligt i denne browser.");
+  }
+  await navigator.clipboard.writeText(tekst);
 }

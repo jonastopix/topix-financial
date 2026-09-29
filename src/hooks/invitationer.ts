@@ -14,6 +14,12 @@
  * nulstilles til pending), ellers indsættes den — Members' regel
  * (:900-990), uden 23505-racen (én bruger ad gangen). RLS: rådgivere har
  * SELECT/INSERT/UPDATE/DELETE på company_invitations.
+ *
+ * TOKEN (29/9, m28-invitationslink-raadgiver): hentes med, så rådgiveren kan
+ * kopiere invitationslinket ved en åben invitation. RLS-grundlaget er
+ * «Advisors can view all invitations» (20260225103844:38-40, række-SELECT,
+ * ingen kolonne-REVOKE og ingen view); rettighederne er ikke gjort bredere.
+ * Tokenet står i den samme mail, rådgiveren allerede kan udløse (Gensend).
  */
 
 import type { QueryClient } from "@tanstack/react-query";
@@ -39,7 +45,7 @@ export interface Invitationsdata {
 
 export async function hentInvitationer(): Promise<Invitationsdata> {
   const [invRes, compRes, memRes] = await Promise.all([
-    supabase.from("company_invitations").select("id, company_id, email, status, created_at, accepted_at").order("created_at", { ascending: true }).limit(2000),
+    supabase.from("company_invitations").select("id, company_id, email, status, created_at, accepted_at, token").order("created_at", { ascending: true }).limit(2000),
     supabase.from("companies").select("id, name, is_legat").order("name").limit(500),
     supabase.from("company_members").select("company_id").limit(2000),
   ]);
