@@ -13,7 +13,8 @@ import { resolve } from "node:path";
  *   3. DOMMEN ER _shared's: functionen kalder certifikatKlokkeModtagere og regner
  *      ingen egen dato eller tier (ingen laegMaanederTilDato, computeMembershipTier,
  *      Date-regning på startdatoen).
- *   4. MIGRATIONEN: første linje «-- IKKE KØRT», jobbet 'certifikat-klokke' kl.
+ *   4. MIGRATIONEN: første linje bogført «-- KØRT i prod — 29/9-2026 kl. 18:46 …»
+ *      (vendt fra «-- IKKE KØRT» 29/9, efter deploy, tørkørsel og cron), jobbet 'certifikat-klokke' kl.
  *      '15 6 * * *' gennem kald_edge med dry_run false, 60000 < 86400000, og revert.
  */
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -61,7 +62,7 @@ export const migrationenErRigtig = (sql: string): boolean => {
   // Kommentarer væk — også halekommentarer efter et argument («60000, -- timeout …»).
   const kode = sql.split("\n").filter((l) => !/^\s*--/.test(l)).map((l) => l.replace(/\s*--.*$/, "")).join("\n").replace(/\s+/g, " ");
   return (
-    sql.split("\n")[0] === "-- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik)." &&
+    sql.split("\n")[0].startsWith("-- KØRT i prod — 29/9-2026 kl. 18:46 dansk tid (Lovable SQL editor)") &&
     /cron\.schedule\( 'certifikat-klokke', '15 6 \* \* \*', \$job\$ SELECT public\.kald_edge\( 'certifikat-klokke', '\{"dry_run": false\}'::jsonb, 60000, 86400000 \); \$job\$ \);/.test(kode) &&
     sql.includes("-- Revert: SELECT cron.unschedule('certifikat-klokke');") &&
     sql.includes("06:15 UTC = 08:15 dansk sommertid") && sql.includes("07:15 dansk vintertid")
@@ -98,8 +99,10 @@ describe("certifikatKlokke.guard — dommene fælder på en kopi", () => {
     expect(dommenErShared(byt(fn, "const udvalg = certifikatKlokkeModtagere({ virksomheder, medlemmer, raadgivere, harHentet, nu });", "const udvalg = { iDag: \"\", klar: [], sprunget: {} as never, raadgivere: 0, harHentet: 0 };"))).toBe(false);
   });
 
-  it("et hoved uden IKKE KØRT, et andet tidspunkt, en timeout ≥ interval eller ingen revert fælder dom 4", () => {
-    expect(migrationenErRigtig(`-- forklaring først\n${mig}`)).toBe(false);
+  it("et hoved uden KØRT, et andet tidspunkt, en timeout ≥ interval eller ingen revert fælder dom 4", () => {
+    const [foerste, ...resten] = mig.split("\n");
+    expect(foerste.startsWith("-- KØRT i prod")).toBe(true);
+    expect(migrationenErRigtig(["-- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).", ...resten].join("\n"))).toBe(false);
     expect(migrationenErRigtig(byt(mig, "'15 6 * * *'", "'15 6 * * 1'"))).toBe(false);
     expect(migrationenErRigtig(byt(mig, "    60000,       -- timeout", "    86400000,    -- timeout"))).toBe(false);
     expect(migrationenErRigtig(byt(mig, "-- Revert: SELECT cron.unschedule('certifikat-klokke');", ""))).toBe(false);
