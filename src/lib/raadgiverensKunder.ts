@@ -18,9 +18,6 @@
  *
  * Ren funktion, samme mønster som afgoerFornyelsestilstand: ingen I/O,
  * ingen Supabase, ingen React. Samme input giver altid samme output.
-  *
- * SPEJL: supabase/functions/_shared/raadgiverensKunder.ts (paritetsprøve
- * src/lib/__tests__/medlemsOverblik.paritet.test.ts — kroppen efter filhovedet er ordret ens).
  */
 
 export function erKunde(c: { er_kunde?: boolean | null }): boolean {
