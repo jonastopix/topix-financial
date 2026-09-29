@@ -248,12 +248,12 @@ begin
 
   raise exception 'Medlemmer må ikke ændre disse felter på virksomheden: %', aendrede
     using errcode = '42501',
-          hint = 'Kolonneværnet på companies (migration 20260929210000): kun hvidlistede felter er medlemsskrivbare.';
+          hint = 'Kolonneværnet på companies (migration 20260930090000): kun hvidlistede felter er medlemsskrivbare.';
 end;
 $$;
 
 comment on function public.companies_medlem_kolonnevaern() is
-  'BEFORE UPDATE på companies: et medlem (ikke rådgiver/admin, ikke service_role) må kun ændre hvidlistede kolonner. Sikkerhedsanalysen 29/9-2026 fund 1, migration 20260929210000.';
+  'BEFORE UPDATE på companies: et medlem (ikke rådgiver/admin, ikke service_role) må kun ændre hvidlistede kolonner. Sikkerhedsanalysen 29/9-2026 fund 1, migration 20260930090000.';
 
 drop trigger if exists companies_medlem_kolonnevaern on public.companies;
 create trigger companies_medlem_kolonnevaern

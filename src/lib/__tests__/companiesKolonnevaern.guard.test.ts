@@ -3,14 +3,14 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 // Kildeværn (29/9-2026, sikkerhedsanalysen fund 1 og 7): kolonneværnet på companies
-// (migration 20260929210000) har en HVIDLISTE over de kolonner, et medlem må ændre.
+// (migration 20260930090000) har en HVIDLISTE over de kolonner, et medlem må ændre.
 // Den skal holdes i takt med src/: hver medlemssti, der skriver companies, må kun skrive
 // hvidlistede kolonner; en ny fil, der skriver companies, skal klassificeres (medlem eller
 // rådgiver), før suiten er grøn; og de beskyttede kolonner kommer aldrig på listen.
 // Selvbevis: hver dom prøves også på en vredet kilde nederst.
 
 const ROD = process.cwd();
-const MIGRATION = "supabase/migrations/20260929210000_companies_kolonnevaern.sql";
+const MIGRATION = "supabase/migrations/20260930090000_companies_kolonnevaern.sql";
 const laes = (sti: string) => readFileSync(resolve(ROD, sti), "utf8");
 const udenKommentarer = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 const udenSqlKommentarer = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/--.*$/gm, "");
