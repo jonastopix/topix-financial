@@ -149,8 +149,9 @@ export const HbMemberShell = ({
      (listen hører på forsiden). Samme array til desktop-sidebaren og
      mobil-draweren nedenfor. */
   // «Økonomi» (Ø2, 18/9) kun for partnere — useAuth's isPartner, aldrig isAdmin.
-  /* «DIT CERTIFIKAT» (29/9): punktet findes kun for berettigede fulde
-     medlemmer (companies.certificate_eligible) — useCertificate svarer null
+  /* «DIT CERTIFIKAT» (29/9): punktet findes kun for fulde medlemmer, hvis
+     virksomhed har flaget (companies.certificate_eligible — alle siden
+     20260929195000; false er et fravalg) — useCertificate svarer null
      for alle andre uden et kald, og deler cache-nøgle med siden /certifikat,
      så skallen koster ét opslag pr. session, ikke ét pr. side. Hook i
      topblokken, før enhver betinget return. */

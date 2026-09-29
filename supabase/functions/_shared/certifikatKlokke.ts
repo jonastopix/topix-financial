@@ -31,6 +31,7 @@
  * HVEM — PRÆCIS fladens regel (src/lib/certifikat/dom.ts:66-76 +
  * src/hooks/useCertificate.ts:60-63), udtrykt på virksomhedens rækker:
  *   - certificate_eligible === true           (useCertificate: `data?.certificate_eligible === true`)
+ *     — alle virksomheder siden 20260929195000 (standard true); false er et fravalg
  *   - contract_start_date er en gyldig «YYYY-MM-DD» (dom.ts:53-64: trim, tre tal,
  *     en dato, der ikke findes — fx 2026-02-31 — er ugyldig)
  *   - tier «full»: dom.ts:68 kræver membershipTier === "full", og fladens

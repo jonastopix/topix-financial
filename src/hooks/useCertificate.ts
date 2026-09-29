@@ -1,6 +1,7 @@
 /**
  * useCertificate — alt, «Dit certifikat» (29/9-2026) skal vide, i ÉT opslag pr.
- * session: startdato og flag fra companies, hentningstallet fra
+ * session: startdato og flag fra companies (flaget er et fravalg siden
+ * 20260929195000: standard true, false = ingen certifikat), hentningstallet fra
  * certificate_downloads, portrættet fra deling-portraetter (signeret URL — den
  * private bucket, «Fortæl det videre» også bruger; CORS målt 29/9: «*»), ellers
  * profiles.avatar_url. Dommen (lib/certifikat/dom.ts) regnes med `nu` = nu.

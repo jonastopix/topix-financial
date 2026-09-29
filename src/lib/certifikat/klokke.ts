@@ -6,7 +6,9 @@
  *
  * Reglerne, regnestykket for åbningsdatoen og citaterne fra fladen (dom.ts,
  * useCertificate.ts, useAuth.tsx afgoerMedlemsTier, format.ts) står i
- * Deno-filens filhoved — læs det før noget ændres her.
+ * Deno-filens filhoved — læs det før noget ændres her. Flaget
+ * certificate_eligible er et FRAVALG siden 20260929195000 (standard true, alle
+ * virksomheder har det; false = ingen certifikat og ingen klokke).
  */
 import { computeMembershipTier, type MembershipTier } from "@/lib/membershipTier";
 import { kbhDato, laegDageTilDato, laegMaanederTilDato } from "@/lib/hverdage";
