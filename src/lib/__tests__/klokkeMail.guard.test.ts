@@ -13,9 +13,9 @@ import { ALARM_TYPER, ALDRIG_TYPER, COMMUNITY_TYPER, klassificer, LEGACY_TYPER, 
  *      ALDRIG — ingen i to. Legacy-inserts (uden advisor_id) står i LEGACY og
  *      aldrig i en mail-liste. En ny type uden plads fælder dommen.
  *   2. DRIFT-MODTAGEREN ÉT STED: adressen står som streng kun i driftModtager.ts
- *      (og raadgiverModtager.ts' midlertidige omvej); gensenderen, profil-cronen og
- *      klokke-mail-cron sender deres alarm til driftModtager() og importerer ikke
- *      raadgiverModtager.
+ *      (og raadgiverModtager.ts' midlertidige omvej); gensenderen, profil-cronen,
+ *      webinar-mail-cron (29/9) og klokke-mail-cron sender deres alarm til
+ *      driftModtager() og importerer ikke raadgiverModtager.
  *   3. INGEN KAST: kørslen ligger i try/catch i Deno.serve; sendManagedEmail kaldes
  *      ét sted, await'et, inde i sendKlokkeMail's try; hvert kald af sendKlokkeMail
  *      er await'et.
@@ -59,6 +59,7 @@ const REN = "supabase/functions/_shared/klokkeMail.ts";
 const DRIFT = "supabase/functions/_shared/driftModtager.ts";
 const GENSEND = "supabase/functions/klaviyo-gensend-cron/index.ts";
 const PROFIL = "supabase/functions/klaviyo-profil-cron/index.ts";
+const WEBINAR = "supabase/functions/webinar-mail-cron/index.ts";
 const CONFIG = "supabase/config.toml";
 const MIG_KOLONNE = "supabase/migrations/20260922070000_advisor_notifications_mailet_at.sql";
 const MIG_CRON = "supabase/migrations/20260922071000_klokke_mail_cron.sql";
@@ -176,11 +177,11 @@ export const morgenenErHverdagsreglen = (ren: string): boolean => {
 };
 
 // ── 2 ──────────────────────────────────────────────────────────────────────
-export const driftModtagerenEtSted = (filer: readonly { sti: string; kilde: string }[], drift: string, gensend: string, profil: string, funktion: string): boolean => {
+export const driftModtagerenEtSted = (filer: readonly { sti: string; kilde: string }[], drift: string, gensend: string, profil: string, funktion: string, webinar: string): boolean => {
   const medAdresse = filer.filter(({ kilde }) => udenKommentarer(kilde).includes("jonas@theboardroom.dk")).map((f) => f.sti);
   const kunDeTo = medAdresse.every((s) => s.endsWith("_shared/driftModtager.ts") || s.endsWith("_shared/raadgiverModtager.ts")) && medAdresse.some((s) => s.endsWith("_shared/driftModtager.ts"));
   const d = udenKommentarer(drift);
-  const alarmer = [gensend, profil, funktion].map(udenKommentarer);
+  const alarmer = [gensend, profil, funktion, webinar].map(udenKommentarer);
   return kunDeTo &&
     d.includes('export const DRIFT_MODTAGER = "jonas@theboardroom.dk";') && d.includes("export function driftModtager(): string") &&
     alarmer.every((k) => k.includes('from "../_shared/driftModtager.ts"') && k.includes("driftModtager()") && !k.includes("raadgiverModtager") && !k.includes("jonas@theboardroom.dk"));
@@ -311,8 +312,8 @@ describe("klokkeMail.guard — rådgivernes klokker som mail", () => {
     expect(udenSqlKommentarer(laes("supabase/migrations/20260921090000_meta_annoncer_cron.sql"))).toContain("'drift'");
     expect(klassificer("drift")).toBe("alarm");
   });
-  it("2. drift-modtageren står ét sted, og de tre alarmer sender dertil", () => {
-    expect(driftModtagerenEtSted(filer, laes(DRIFT), laes(GENSEND), laes(PROFIL), funktion)).toBe(true);
+  it("2. drift-modtageren står ét sted, og de fire alarmer sender dertil", () => {
+    expect(driftModtagerenEtSted(filer, laes(DRIFT), laes(GENSEND), laes(PROFIL), funktion, laes(WEBINAR))).toBe(true);
   });
   it("3. kan ikke kaste: try/catch om kørslen; sendManagedEmail ét sted, await'et, i try", () => expect(kanIkkeKaste(funktion)).toBe(true));
   it("4. tørkørsel er standard, og intet sendes eller stemples før return", () => expect(toerkoerselErStandard(funktion)).toBe(true));
@@ -328,7 +329,7 @@ describe("klokkeMail.guard — rådgivernes klokker som mail", () => {
   it("9. den rene fil er Deno-fri og importerer kun hverdage.ts", () => expect(renFilErRen(laes(REN))).toBe(true));
   it("11. de selvmailende alarmer i koden (gensenderen, profil-cronen) står alle i SELVMAILENDE_REFERENCER — listen ét sted, ingen overflødig", () => {
     const fund = selvmailendeIKoden(filer);
-    expect(fund.map((f) => f.reference).sort()).toEqual(["ga_haendelser", "klaviyo_haendelser", "klaviyo_profil", "meta_haendelser"]);
+    expect(fund.map((f) => f.reference).sort()).toEqual(["ga_haendelser", "klaviyo_haendelser", "klaviyo_profil", "meta_haendelser", "webinar_mails"]);
     expect(selvmailendeErDaekket(filer, SELVMAILENDE_REFERENCER)).toEqual({ ok: true, mangler: [] });
     // Og reglen virker på det, listen siger: en drift-klokke med den reference er «aldrig».
     for (const r of SELVMAILENDE_REFERENCER) expect(klassificer("drift", r)).toBe("aldrig");
@@ -360,10 +361,14 @@ describe("klokkeMail.guard — dommene fanger fejlen på en kopi", () => {
     expect(legacyTyperIKoden([{ sti: "w.ts", kilde: 'await admin.from("advisor_notifications").insert({\n  type: "new_message",\n  title: t,\n});' }]).has("new_message")).toBe(true);
   });
   it("2. adressen hårdkodet i functionen, eller raadgiverModtager tilbage i en alarm, fælder dom 2", () => {
-    const d = laes(DRIFT), g = laes(GENSEND), p = laes(PROFIL);
-    expect(driftModtagerenEtSted(filer, d, g, p, funktion.replace("to: p.modtager,", 'to: "jonas@theboardroom.dk",'))).toBe(false);
-    expect(driftModtagerenEtSted(filer, d, g.replace("to: driftModtager(),", "to: raadgiverModtager(nu),"), p, funktion)).toBe(false);
-    expect(driftModtagerenEtSted([...filer, { sti: "supabase/functions/x/index.ts", kilde: 'const a = "jonas@theboardroom.dk";' }], d, g, p, funktion)).toBe(false);
+    const d = laes(DRIFT), g = laes(GENSEND), p = laes(PROFIL), w = laes(WEBINAR);
+    expect(driftModtagerenEtSted(filer, d, g, p, funktion.replace("to: p.modtager,", 'to: "jonas@theboardroom.dk",'), w)).toBe(false);
+    expect(driftModtagerenEtSted(filer, d, g.replace("to: driftModtager(),", "to: raadgiverModtager(nu),"), p, funktion, w)).toBe(false);
+    expect(driftModtagerenEtSted([...filer, { sti: "supabase/functions/x/index.ts", kilde: 'const a = "jonas@theboardroom.dk";' }], d, g, p, funktion, w)).toBe(false);
+    // Webinar-alarmen (29/9) sendt til rådgiveradressen eller gennem en anden vej.
+    const wByttet = w.replace("        to: driftModtager(),", "        to: raadgiverModtager(nu),");
+    expect(wByttet).not.toBe(w);
+    expect(driftModtagerenEtSted(filer, d, g, p, funktion, wByttet)).toBe(false);
   });
   it("3. kørslen uden try/catch, eller et sendManagedEmail nr. to, fælder dom 3", () => {
     const udenTry = funktion.replace("  try {\n    svar = await koerKlokkeMail(", "  {\n    svar = await koerKlokkeMail(");
@@ -428,6 +433,7 @@ describe("klokkeMail.guard — dommene fanger fejlen på en kopi", () => {
       "supabase/functions/ga-send-cron/index.ts: ga_haendelser",
       "supabase/functions/klaviyo-profil-cron/index.ts: klaviyo_profil",
       "supabase/functions/meta-send-cron/index.ts: meta_haendelser",
+      "supabase/functions/webinar-mail-cron/index.ts: webinar_mails",
     ]);
     expect(selvmailendeErDaekket([...filer, { sti: "supabase/functions/_shared/andet.ts", kilde: 'export const SELVMAILENDE_REFERENCER = ["x"] as const;' }], SELVMAILENDE_REFERENCER).ok).toBe(false);
   });

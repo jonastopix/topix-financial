@@ -61,6 +61,19 @@
 // sendte og giver dem til planlaegKoersel som `fejlede`. Uden dem er dommen
 // ordret som før, og en fejlet mail bliver for_sent to timer efter sit tidspunkt.
 //
+// ALARMEN (29/9-2026, _shared/webinarMailAlarm.ts): 29/9 fejlede 211 mails
+// over to timer, og ingen fik besked — svaret lå i net._http_response. Nu
+// dømmer skalAlarmere EFTER kørslen, KUN når den sendte rigtigt (også prøven
+// til én adresse — med vilje: en fejlet prøvemail er en fejl): fejlede > 0,
+// ELLER Mailgun sagde stop i denne kørsel, ELLER mails venter på en pause.
+// Alarmen går i husets form (gensenderen): mail til driftModtager() gennem
+// sendManagedEmail — IKKE Mailgun; er Mailgun spærret, må alarmen ikke være
+// det — og en drift-klokke; én pr. dansk TIME (nøglen bærer dato og time, og
+// email_send_log slås op FØR afsendelsen). Nøglen regnes på RIGTIG tid, ikke
+// på body'ens `nu`. Referencen «webinar_mails» står i klokkeMail.ts'
+// SELVMAILENDE_REFERENCER, så klokke-mail-cron ikke mailer den én gang til.
+// Kaster aldrig: fejl skubbes til r.fejl.
+//
 // BODY (STRIKS, bodyFelter.guard): dry_run · email · art · nu.
 //
 // KASTER ALDRIG mod én mail: fejler én, tælles den, og de andre sendes.
@@ -74,6 +87,11 @@ import { MAILGUN_DOMAENE, MAILGUN_SECRET, PAUSE_MS, sendMailgun, sendMailgunMime
 import { beregnKoerselsLoft, erStopStatus, LOFT_VINDUE_MS, type LoftRaekke, MAILGUN_LOFT_PR_TIME } from "../_shared/webinarMailLoft.ts";
 import { bygMime, hentInvitation, type InvitationUdfald } from "../_shared/mimeInvitation.ts";
 import { AFMELD_SECRET, afmeldUrl, byggAfmeldToken } from "../_shared/webinarAfmeldToken.ts";
+import { skalAlarmere, WEBINAR_ALARM_KLOKKE_TYPE, WEBINAR_ALARM_MAIL_LABEL, WEBINAR_ALARM_REFERENCE, webinarAlarmNoegle, webinarAlarmTekst } from "../_shared/webinarMailAlarm.ts";
+import { skrivRaadgiverBesked } from "../_shared/raadgiverBesked.ts";
+import { sendManagedEmail } from "../_shared/managedEmail.ts";
+import { driftModtager } from "../_shared/driftModtager.ts";
+import { indgangsMailHtml } from "../_shared/indgangsMail.ts";
 
 const LOG = "[webinar-mail-cron]";
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -134,6 +152,10 @@ export interface MailResultat {
   over_loft: number;
   eksempler: { email: string; art: MailArt; session_tid: string; indhentning?: true; udfald?: string }[];
   fejl: string[];
+  /** Alarmen (webinarMailAlarm.ts): «ingen» · «fandtes» (samme time) · «sendt» · «fejlet: …». */
+  alarm_mail: string;
+  /** Klokken: «ingen» · «skrevet» · «fandtes» (dedup på titlen) · «fejlet: …». */
+  alarm_klokke: string;
 }
 
 /** Hent alle rækker i sider — aldrig et tavst loft. */
@@ -166,7 +188,7 @@ const tomt = (a: { toer: boolean; laas: boolean; email: string | null; art: stri
   sprunget: { afmeldt: 0, ingen_session: 0, ingen_mail: 0, for_sent: 0, endnu_ikke: 0, sessionen_begyndt: 0, allerede_sendt: 0, for_tidlig_tilmelding: 0, for_sent_efter_fejl: 0 },
   indhentet: 0, sendt: 0, fejlede: 0, udsat: 0, dublet: 0, med_invitation: 0, uden_invitation: 0,
   loft: { forsoeg_60_min: 0, maks: MAILGUN_LOFT_PR_TIME, pause: null, stoppet_ved: null }, over_loft: 0,
-  eksempler: [], fejl: [],
+  eksempler: [], fejl: [], alarm_mail: "ingen", alarm_klokke: "ingen",
 });
 
 async function koer(a: { admin: SupabaseClient; toerKoersel: boolean; laas: boolean; email: string | null; art: MailArt | null; nu: Date; startMs: number; basis: string }): Promise<MailResultat> {
@@ -341,6 +363,79 @@ async function koer(a: { admin: SupabaseClient; toerKoersel: boolean; laas: bool
   return r;
 }
 
+/**
+ * Alarmen — gensenderens form (klaviyo-gensend-cron/index.ts skrivAlarm): én mail
+ * pr. dansk time (email_send_log slås op på nøglen FØRST) og én klokke pr. time
+ * (dedup på titlen). Tiden er RIGTIG tid — body'ens `nu` flytter dommens ur,
+ * ikke Mailguns. Kaster aldrig: fejl skubbes til r.fejl.
+ */
+async function skrivAlarm(admin: SupabaseClient, r: MailResultat): Promise<void> {
+  const nu = new Date();
+  const noegle = webinarAlarmNoegle(nu);
+  const tekst = webinarAlarmTekst(r, nu);
+
+  // Mailen. email_send_log slås op først, så samme time aldrig giver to rækker.
+  try {
+    const { data: fandtes, error: opslagFejl } = await admin.from("email_send_log")
+      .select("message_id").eq("message_id", noegle).limit(1);
+    if (opslagFejl) throw new Error(`email_send_log: ${opslagFejl.message}`);
+    if ((fandtes ?? []).length > 0) {
+      r.alarm_mail = "fandtes";
+    } else {
+      const html = indgangsMailHtml({
+        eyebrow: "Drift · Webinarmails",
+        overskrift: tekst.emne,
+        afsnit: tekst.afsnit,
+        blokke: tekst.blokke,
+        hilsen: "The Boardroom",
+      });
+      const res = await sendManagedEmail({
+        adminClient: admin,
+        // Driftsalarmen går til driftModtager — ét sted (driftModtager.ts), aldrig gennem Mailgun.
+        to: driftModtager(),
+        subject: tekst.emne,
+        html,
+        text: tekst.tekst,
+        label: WEBINAR_ALARM_MAIL_LABEL,
+        idempotencyKey: noegle,
+        metadata: { fejlede: r.fejlede, over_loft: r.over_loft, stoppet_ved: r.loft.stoppet_ved, nu: nu.toISOString() },
+      });
+      r.alarm_mail = res.sent ? "sendt" : `fejlet: ${res.reason}`;
+      if (res.sent === false) console.error(`${LOG} alarmmailen blev ikke sendt: ${res.reason}`);
+    }
+  } catch (err) {
+    const grund = err instanceof Error ? err.message : String(err);
+    r.alarm_mail = `fejlet: ${grund}`;
+    r.fejl.push(`alarm_mail: ${grund}`);
+    console.error(`${LOG} alarmmailen kastede:`, grund);
+  }
+
+  // Klokken — vagtens form; dedup på titlen (reference_id er uuid og kan ikke bære en time).
+  // Referencen står som LITERAL, fordi klokkeMail.guard læser den ordret af kaldet
+  // (selvmailendeIKoden) — og `satisfies` binder den til motorens konstant: skifter
+  // WEBINAR_ALARM_REFERENCE, fælder deno check her.
+  try {
+    const skrevet = await skrivRaadgiverBesked(admin, {
+      type: WEBINAR_ALARM_KLOKKE_TYPE,
+      title: tekst.titel,
+      body: tekst.tekst.slice(0, 2000),
+      reference_type: "webinar_mails" satisfies typeof WEBINAR_ALARM_REFERENCE,
+      reference_id: null,
+    });
+    if (skrevet.fejl.length > 0) {
+      r.alarm_klokke = `fejlet: ${skrevet.fejl.join("; ")}`;
+      r.fejl.push(`alarm_klokke: ${skrevet.fejl.join("; ")}`);
+    } else {
+      r.alarm_klokke = skrevet.skrevet > 0 ? "skrevet" : "fandtes";
+    }
+  } catch (err) {
+    const grund = err instanceof Error ? err.message : String(err);
+    r.alarm_klokke = `fejlet: ${grund}`;
+    r.fejl.push(`alarm_klokke: ${grund}`);
+    console.error(`${LOG} klokken kastede:`, grund);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   const startMs = Date.now();
@@ -373,7 +468,9 @@ Deno.serve(async (req) => {
 
   try {
     const r = await koer({ admin, toerKoersel, laas, email, art: artRaa as MailArt | null, nu, startMs, basis });
-    console.log(`${LOG} ${r.dry_run ? "TØRKØRSEL" : r.sender_rigtigt ? "SENDER" : "LÅST"} — skal_sendes ${r.skal_sendes} (indhentet ${r.indhentet}), sendt ${r.sendt}, fejlede ${r.fejlede}, udsat ${r.udsat}, over_loft ${r.over_loft} (maks ${r.loft.maks}${r.loft.pause ? ", PAUSE" : ""})`);
+    // ALARMEN — kun efter en RIGTIG kørsel (også prøven til én adresse, med vilje).
+    if (r.sender_rigtigt && skalAlarmere(r)) await skrivAlarm(admin, r);
+    console.log(`${LOG} ${r.dry_run ? "TØRKØRSEL" : r.sender_rigtigt ? "SENDER" : "LÅST"} — skal_sendes ${r.skal_sendes} (indhentet ${r.indhentet}), sendt ${r.sendt}, fejlede ${r.fejlede}, udsat ${r.udsat}, over_loft ${r.over_loft} (maks ${r.loft.maks}${r.loft.pause ? ", PAUSE" : ""}), alarm ${r.alarm_mail}/${r.alarm_klokke}`);
     return json(r);
   } catch (err) {
     const grund = err instanceof Error ? err.message : String(err);
