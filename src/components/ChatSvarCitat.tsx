@@ -1,9 +1,10 @@
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { CornerUpLeft, X } from "lucide-react";
+import { CornerUpLeft, Quote, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { citatTilstand, svarerPaaTekst, type SvarBesked } from "@/lib/chatSvar";
 import { SVAR_SLETTET_TEKST } from "@/lib/chatSvar";
+import { laesRefleksionsCitat, REFLEKSION_CONTEXT_TYPE } from "@/lib/refleksionSvar";
 
 /**
  * ChatSvarCitat — de to fælles stykker flade for «svar på en besked»
@@ -16,6 +17,10 @@ import { SVAR_SLETTET_TEKST } from "@/lib/chatSvar";
  *                      rækker = «Svar på en slettet besked».
  *   <SvarerPaaBanner>  linjen over sendefeltet: «Svarer på {navn}: {uddrag}»
  *                      med × der fortryder svaret.
+ *   <RefleksionCitat>  (29/9) citatet OVER et svar på et refleksionsfelt:
+ *                      feltet, som det stod, da rådgiveren svarede. FROSSET —
+ *                      læses KUN af beskedens context_meta.citat, aldrig ved et
+ *                      opslag i pulse_checkins (refleksionSvar.ts' beslutning 1).
  *
  * Dommen bor i lib/chatSvar.ts (citatTilstand) — denne fil vælger kun ord
  * og form. Uddraget er REN TEKST; her er INGEN dangerouslySetInnerHTML
@@ -124,3 +129,30 @@ export const SvarerPaaBanner: React.FC<SvarerPaaBannerProps> = ({ navn, uddrag, 
     </button>
   </div>
 );
+
+export interface RefleksionCitatProps {
+  contextType: string | null | undefined;
+  contextMeta: unknown;
+  isMine: boolean;
+}
+
+/**
+ * Citatet over et svar på et refleksionsfelt. Ren tekst, whitespace-pre-line
+ * (feltet kan have linjeskift); ingen dangerouslySetInnerHTML — samme regel
+ * som SvarCitat (chatSvar.guard dom 4, refleksionSvar.guard dom 2).
+ */
+export const RefleksionCitat: React.FC<RefleksionCitatProps> = ({ contextType, contextMeta, isMine }) => {
+  if (contextType !== REFLEKSION_CONTEXT_TYPE) return null;
+  const c = laesRefleksionsCitat(contextMeta);
+  if (!c) return null;
+  return (
+    <blockquote
+      className={`mb-1 flex max-w-full items-start gap-1.5 rounded-t-lg border-l-2 px-2.5 py-1.5 text-[12px] leading-snug ${
+        isMine ? "ml-auto border-hb-evergreen/50 bg-hb-sage/60 text-hb-ink" : "border-hb-line bg-hb-sage/30 text-hb-ink-soft"
+      }`}
+    >
+      <Quote className="mt-0.5 h-3 w-3 shrink-0" />
+      <span className="min-w-0 whitespace-pre-line break-words italic">{c.citat}</span>
+    </blockquote>
+  );
+};

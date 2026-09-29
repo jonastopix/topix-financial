@@ -19,12 +19,14 @@ import { computeMembershipTier } from "@/lib/membershipTier";
 import { useQuery } from "@tanstack/react-query";
 import DOMPurify from "dompurify";
 import {
-  Send, MessageCircle, CheckCheck, FileText, Target,
+  Send, MessageCircle, CheckCheck, FileText, Target, Quote,
   AlertCircle, MessageSquare, Pin, ArrowLeft,
   Building2, Loader2,
 } from "lucide-react";
 import ChatRichInput from "@/components/ChatRichInput";
 import { SvarCitat, SvarerPaaBanner } from "@/components/ChatSvarCitat";
+// Citatet over et svar på et refleksionsfelt (29/9) — egen linje: chatSvar.guard dom 3 læser linjen ovenfor ordret.
+import { RefleksionCitat } from "@/components/ChatSvarCitat";
 import { kanBesvares, svarUddrag } from "@/lib/chatSvar";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 import { format, startOfDay } from "date-fns";
@@ -781,9 +783,11 @@ const MemberChatPane = () => {
                                 }`}>
                                   {contextType === "report" && <FileText className="h-3 w-3" />}
                                   {contextType === "milestone" && <Target className="h-3 w-3" />}
+                                  {contextType === "refleksion" && <Quote className="h-3 w-3" />}
                                   Re: {String(contextMeta.title)}
                                 </div>
                               )}
+                              <RefleksionCitat contextType={contextType} contextMeta={contextMeta} isMine={isMine} />
                               <div
                                 className={`rounded-hb px-4 py-2.5 ${
                                   isMine
@@ -835,9 +839,11 @@ const MemberChatPane = () => {
                                 }`}>
                                   {contextType === "report" && <FileText className="h-3 w-3" />}
                                   {contextType === "milestone" && <Target className="h-3 w-3" />}
+                                  {contextType === "refleksion" && <Quote className="h-3 w-3" />}
                                   Re: {String(contextMeta.title)}
                                 </div>
                               )}
+                              <RefleksionCitat contextType={contextType} contextMeta={contextMeta} isMine={isMine} />
                               <div
                                 className={`rounded-hb px-4 py-2.5 ${
                                   isMine

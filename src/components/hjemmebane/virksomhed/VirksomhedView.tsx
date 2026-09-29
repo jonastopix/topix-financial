@@ -43,6 +43,8 @@ import { momErGyldig, delSerieTilTegning, basisNoegle, erEstimatNoegle, ESTIMAT_
 import { handoutConfigs, moduleOrder, type HandoutModule } from "@/lib/handoutConfig";
 import { openReportFile, isLegacyPath } from "@/lib/reportFileAccess";
 import { notifyChatMessage } from "@/lib/chatNotify";
+import { bygRefleksionsSvar, SVAR_MAKS, svaretIChattenTekst, type SvarGrund } from "@/lib/refleksionSvar";
+import type { RefleksionsNoegle } from "@/lib/hjemmebane/refleksioner";
 import { DANISH_MONTHS, formatCompact, formatDKK } from "@/lib/financialUtils";
 import { EstimatMaerke, ESTIMAT_FORKLARING } from "../EstimatMaerke";
 import { StandardmaalMaerke } from "../StandardmaalMaerke";
@@ -478,7 +480,16 @@ const Ord = ({ label, children }: { label: string; children: ReactNode }) => (
   </div>
 );
 
-const Blok2 = ({ d }: { d: VirksomhedsData }) => {
+/** Grunden, når motoren afviser et svar — rolige ord, ingen alarm. */
+const SVAR_GRUND: Record<SvarGrund, string> = {
+  tomt_svar: "Skriv et svar først.",
+  for_langt_svar: `Svaret må højst være ${SVAR_MAKS} tegn.`,
+  tomt_felt: "Feltet er tomt — der er intet at svare på.",
+  ukendt_felt: "Feltet kendes ikke.",
+  ingen_refleksion: "Refleksionen kunne ikke findes.",
+};
+
+const Blok2 = ({ d, samtaleId }: { d: VirksomhedsData; samtaleId: string | null }) => {
   /* Designets §4 blok 2: det der IKKE er udledt af tal — medlemmets egne
      ord og rådgiverens forberedelse. TONEN: det er betroet, ikke data.
      Ingen rust, ingen alarm, ingen «mangler»; er der ingen refleksion,
@@ -499,15 +510,54 @@ const Blok2 = ({ d }: { d: VirksomhedsData }) => {
   const [forberedelse, setForberedelse] = useState<string[] | null>(null);
   const [henter, setHenter] = useState(false);
   const [forberedelseFejl, setForberedelseFejl] = useState<string | null>(null);
+  /* SVAR PÅ ET FELT (Jonas 28/9, bygget 29/9 — kort m28-refleksion-svar):
+     hvert felt får en «Svar»-knap, der åbner et lille tekstfelt under
+     feltet, samme form og loft som rapportkommentaren. Beskeden bygges af
+     lib/refleksionSvar (ren): content = svaret som ren tekst, context_type
+     «refleksion», context_id = rækkens id, og et FROSSET citat af feltet i
+     context_meta — refleksionen er et øjebliksbillede, og medlemmet kan
+     overskrive rækken via /pulse?period= bagefter. Vejen er rapportkommentarens:
+     insert i messages i virksomhedens samtale + notifyChatMessage. Mail og
+     klokke er uændrede («Ny besked fra din rådgiver»). Uden samtale ingen knap. */
+  const { user } = useAuth();
+  const [svarFelt, setSvarFelt] = useState<RefleksionsNoegle | null>(null);
+  const [svarTekst, setSvarTekst] = useState("");
+  const [svarSender, setSvarSender] = useState(false);
+  const [svarFejl, setSvarFejl] = useState<string | null>(null);
+  /** Felter, der er svaret på i denne visning: created_at på beskeden. */
+  const [svaret, setSvaret] = useState<Partial<Record<RefleksionsNoegle, string>>>({});
 
   const r = d.refleksion;
   const refleksionsFelter = r
     ? [
-        { label: "Største udfordring", tekst: r.biggest_challenge },
-        { label: "Søger hjælp til", tekst: r.help_needed },
-        { label: "Hvad gik godt", tekst: r.went_well },
-      ].filter((f): f is { label: string; tekst: string } => !!f.tekst && f.tekst.trim().length > 0)
+        { noegle: "biggest_challenge" as const, label: "Største udfordring", tekst: r.biggest_challenge },
+        { noegle: "help_needed" as const, label: "Søger hjælp til", tekst: r.help_needed },
+        { noegle: "went_well" as const, label: "Hvad gik godt", tekst: r.went_well },
+      ].filter((f): f is { noegle: RefleksionsNoegle; label: string; tekst: string } => !!f.tekst && f.tekst.trim().length > 0)
     : [];
+
+  const sendSvar = async (f: { noegle: RefleksionsNoegle; tekst: string }) => {
+    if (!r || !user || !samtaleId || svarSender) return;
+    const dom = bygRefleksionsSvar({ checkin: { id: r.id, period_key: r.period_key }, felt: f.noegle, feltTekst: f.tekst, svar: svarTekst });
+    if (dom.ok === false) { setSvarFejl(SVAR_GRUND[dom.grund]); return; }
+    setSvarSender(true);
+    setSvarFejl(null);
+    const { data, error } = await supabase
+      .from("messages")
+      .insert({ conversation_id: samtaleId, sender_id: user.id, message_type: "user", ...dom.besked })
+      .select("id, created_at")
+      .single();
+    if (!error && data) {
+      setSvaret((prev) => ({ ...prev, [f.noegle]: data.created_at }));
+      setSvarFelt(null);
+      setSvarTekst("");
+      // Server-side: Slack + klokke — samme vej som rapportkommentaren.
+      notifyChatMessage(data.id);
+    } else {
+      setSvarFejl("Svaret blev ikke sendt. Prøv igen.");
+    }
+    setSvarSender(false);
+  };
   const ansoegning = laesAnsoegning(d.company.application_context);
 
   const hentForberedelse = async () => {
@@ -546,7 +596,44 @@ const Blok2 = ({ d }: { d: VirksomhedsData }) => {
           ) : (
             <div className="mt-4 space-y-4">
               {refleksionsFelter.map((f) => (
-                <Ord key={f.label} label={f.label}>{f.tekst}</Ord>
+                <div key={f.noegle}>
+                  <Ord label={f.label}>{f.tekst}</Ord>
+                  {samtaleId && (svarFelt === f.noegle ? (
+                    <div className="mt-2 flex gap-2">
+                      <textarea
+                        value={svarTekst}
+                        onChange={(e) => setSvarTekst(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void sendSvar(f); }
+                          if (e.key === "Escape") { setSvarFelt(null); setSvarTekst(""); setSvarFejl(null); }
+                        }}
+                        placeholder="Skriv dit svar — det lander i chatten med feltet som citat"
+                        maxLength={SVAR_MAKS}
+                        rows={2}
+                        autoFocus
+                        className="min-w-0 flex-1 resize-none rounded-hb border border-hb-line bg-hb-surface px-3 py-2 text-sm text-hb-ink placeholder:text-hb-ink-soft/60 focus:outline-none focus:ring-2 focus:ring-hb-evergreen/40"
+                      />
+                      <div className="flex flex-col items-end gap-1">
+                        <HbButton type="button" variant="secondary" className="h-9 px-4 text-sm" onClick={() => void sendSvar(f)} disabled={svarSender || !svarTekst.trim()}>
+                          {svarSender ? "Sender…" : "Send"}
+                        </HbButton>
+                        <button type="button" className="text-xs text-hb-ink-soft hover:underline" onClick={() => { setSvarFelt(null); setSvarTekst(""); setSvarFejl(null); }}>
+                          Fortryd
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="mt-1 text-xs font-medium text-hb-evergreen hover:underline"
+                      onClick={() => { setSvarFelt(f.noegle); setSvarTekst(""); setSvarFejl(null); }}
+                    >
+                      Svar
+                    </button>
+                  ))}
+                  {svarFejl && svarFelt === f.noegle && <p className="mt-1 text-xs text-hb-ink-soft">{svarFejl}</p>}
+                  {svaret[f.noegle] && <p className="mt-1 text-xs text-hb-ink-soft">{svaretIChattenTekst(svaret[f.noegle] as string)}</p>}
+                </div>
               ))}
               {r.milestone_progress != null && (
                 <p className="text-sm text-hb-ink-soft">Milestone-fremgang, regnet af de aktive mål, da refleksionen blev sendt: {r.milestone_progress} %</p>
@@ -2096,7 +2183,7 @@ export const VirksomhedView = ({ companyId }: { companyId: string | undefined })
       <div className="mt-10">
         <Blok1 d={data} facts={facts} derfor={derfor} />
       </div>
-      <Blok2 d={data} />
+      <Blok2 d={data} samtaleId={samtaleId} />
       {/* Designets blok 3 (emnerne) venter på klassificeringen; pladsen har Planen. */}
       <VirksomhedPlanen companyId={data.company.id} maal={data.milestones} skridt={data.skridt} samtaleId={samtaleId} onOpdateret={invalider} />
       <Blok5 d={data} facts={facts} />
