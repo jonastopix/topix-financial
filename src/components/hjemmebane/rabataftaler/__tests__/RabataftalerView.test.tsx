@@ -101,10 +101,21 @@ describe("RabataftalerView — /rabataftaler?aftaleId={id}", () => {
     expect(scroll).not.toHaveBeenCalled();
   });
 
-  it("hentningen fejlede: ingen påstand om aftalen", async () => {
+  it("hentningen fejlede: husets fejllinje, ingen påstand om aftalen, og adressen står", async () => {
     liste.fejl = true;
     vis(`/rabataftaler?aftaleId=${A}`);
-    await screen.findByText("Der er ingen aftaler at vise lige nu.");
+    await screen.findByText("Rabataftalerne kunne ikke hentes lige nu. Prøv igen om lidt.");
+    expect(screen.queryByText("Der er ingen aftaler at vise lige nu.")).toBeNull();
     expect(screen.queryByText(AFTALE_FINDES_IKKE)).toBeNull();
+    // afgoerAftaleMaal giver «intet» ved fejl: parameteren ryddes ikke, intet scroll.
+    expect(screen.getByTestId("sted").textContent).toBe(`/rabataftaler?aftaleId=${A}`);
+    expect(scroll).not.toHaveBeenCalled();
+  });
+
+  it("en tom liste: den gamle linje, ikke fejllinjen", async () => {
+    liste.raekker = [];
+    vis("/rabataftaler");
+    await screen.findByText("Der er ingen aftaler at vise lige nu.");
+    expect(screen.queryByText(/kunne ikke hentes/)).toBeNull();
   });
 });

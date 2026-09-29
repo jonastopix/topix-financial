@@ -23,6 +23,7 @@ import type { MedlemsPartner } from "@/lib/hjemmebane/akademiApi";
 import { TILLADTE_OMRAADER } from "@/lib/hjemmebane/communityDokument";
 import { isEventPast } from "@/lib/hjemmebane/eventPhase";
 import { aftalenErUdloebet } from "@/lib/hjemmebane/rabataftaleAdresse";
+import { sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
 
 /** Samme loft som Community's #-liste (CommunityComposer: `.slice(0, 8)`). */
 export const MAKS_FORSLAG = 8;
@@ -106,4 +107,24 @@ export function chatForslagsTekst(
         undertekst: forslag.aftale.discount_text ? `Rabataftale · ${forslag.aftale.discount_text}` : "Rabataftale",
       };
   }
+}
+
+/** Hvilke af chattens fire kilder, der fejlede (react-querys isError). */
+export interface ChatForslagsFejl {
+  events: boolean;
+  items: boolean;
+  samlinger: boolean;
+  aftaler: boolean;
+}
+
+/**
+ * Linjen nederst i #-listen, når en kilde fejlede — ellers null. Samme adfærd
+ * som Community's composer (CommunityComposer.tsx: `forslagFejlede` — ÉN rolig
+ * linje, når NOGEN af kilderne fejlede, også samlingerne) og samme form:
+ * husets sektionsfejlTekst + at man stadig kan skrive. Ordene er chattens:
+ * «til #» (chatten har ingen @) og «sende» (en chatbesked deles ikke).
+ */
+export function forslagsFejlTekst(fejl: ChatForslagsFejl): string | null {
+  const nogen = fejl.events || fejl.items || fejl.samlinger || fejl.aftaler;
+  return nogen ? `${sektionsfejlTekst("chat_forslag")} Du kan stadig skrive og sende.` : null;
 }

@@ -21,6 +21,7 @@ import {
 import {
   chatForslagsTekst,
   chatForslagTilNode,
+  forslagsFejlTekst,
   vaelgChatForslag,
   type ChatForslag,
   type ChatForslagsKilder,
@@ -35,7 +36,7 @@ import {
 type Ref<T> = { readonly current: T };
 
 /** Rækken: titel + undertekst, bygget med createElement + textContent (som Community's). */
-const opretChatDropdown = (samlingsTitel: Ref<Map<string, string>>) => () =>
+const opretChatDropdown = (samlingsTitel: Ref<Map<string, string>>, fejltekst: Ref<string | null>) => () =>
   opretForslagsDropdown<ChatForslag>((forslag, raekke) => {
     const samling =
       forslag.slags === "item" && forslag.item.collection_id
@@ -53,12 +54,14 @@ const opretChatDropdown = (samlingsTitel: Ref<Map<string, string>>) => () =>
     tekst.appendChild(t);
     tekst.appendChild(u);
     raekke.appendChild(tekst);
-  });
+  }, () => fejltekst.current);
 
-/** Udvidelserne: #-forslaget på HenvisningNode (som i Community) + de to andre noder som skema. */
+/** Udvidelserne: #-forslaget på HenvisningNode (som i Community) + de to andre noder som skema.
+    `fejltekst` er listens fodnote, når en kilde fejlede (forslagsFejlTekst). */
 export function chatHenvisningsUdvidelser(
   kilder: Ref<ChatForslagsKilder>,
   samlingsTitel: Ref<Map<string, string>>,
+  fejltekst: Ref<string | null>,
 ): Extensions {
   return [
     EventHenvisningNode,
@@ -73,7 +76,7 @@ export function chatHenvisningsUdvidelser(
           const node = chatForslagTilNode(props as unknown as ChatForslag);
           ed.chain().focus().insertContentAt(range, [node, { type: "text", text: " " }]).run();
         },
-        render: opretChatDropdown(samlingsTitel),
+        render: opretChatDropdown(samlingsTitel, fejltekst),
       },
     }),
   ];
@@ -82,7 +85,8 @@ export function chatHenvisningsUdvidelser(
 /**
  * Kilderne og udvidelserne til én editor. Udvidelserne bygges ÉN gang (Tiptap
  * bygger sit skema ved mount); kilderne læses gennem refs, som i Community.
- * En kilde, der fejler, tilbyder bare intet — der skrives stadig.
+ * En kilde, der fejler, giver en rolig linje nederst i listen (forslagsFejlTekst,
+ * som Community's «forslag kunne ikke hentes») — der skrives stadig.
  */
 export function useChatHenvisninger(): Extensions {
   const eventsQuery = useQuery({
@@ -107,6 +111,14 @@ export function useChatHenvisninger(): Extensions {
   const samlingsTitel = useRef<Map<string, string>>(new Map());
   samlingsTitel.current = new Map((samlingerQuery.data ?? []).map((s) => [s.id, s.title]));
 
-  const [udvidelser] = useState(() => chatHenvisningsUdvidelser(kilder, samlingsTitel));
+  const fejltekst = useRef<string | null>(null);
+  fejltekst.current = forslagsFejlTekst({
+    events: eventsQuery.isError,
+    items: itemsQuery.isError,
+    samlinger: samlingerQuery.isError,
+    aftaler: aftalerQuery.isError,
+  });
+
+  const [udvidelser] = useState(() => chatHenvisningsUdvidelser(kilder, samlingsTitel, fejltekst));
   return udvidelser;
 }

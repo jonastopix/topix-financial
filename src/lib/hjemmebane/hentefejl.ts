@@ -47,6 +47,8 @@ export const KILDE_ORD: Readonly<Record<string, string>> = {
   community_traade: "opslaget",
   community_svar: "svarene",
   community_forslag: "forslagene til @ og #",
+  // Chattens #-forslag (29/9-2026): chatten har ingen @ — kun #.
+  chat_forslag: "forslagene til #",
   akademiet: "Akademiet",
   content_item_attachments: "materialet",
   financial_reports_papirkurv: "papirkurven",
@@ -54,6 +56,8 @@ export const KILDE_ORD: Readonly<Record<string, string>> = {
   // Tjeklistens flader og skallen (16/9, «Tavse queryFn'er»).
   legat_enrollments: "dit legatforløb",
   notifications: "dine notifikationer",
+  // Rabataftalerne (29/9-2026): /rabataftaler sagde «ingen aftaler» ved en fejl.
+  partners: "rabataftalerne",
 };
 
 /** Kilden af en kastet fejl: HentningsFejl bærer `kilde`; alt andet er «ukendt». */

@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { hasRichTextContent } from "@/lib/hjemmebane/richtext";
+import { hentetilstand, sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
 import { getAssetPreviewUrl } from "@/lib/hjemmebane/adminContentApi";
 import { listMedlemsPartnere, type MedlemsPartner } from "@/lib/hjemmebane/akademiApi";
 import {
@@ -133,6 +134,9 @@ export const RabataftalerView = () => {
   // passeret dato er ikke en aftale, og en "udløbet"-markering ville
   // bare være støj i en kurateret liste.
   const aftaler = (aftalerQuery.data ?? []).filter((aftale) => !aftalenErUdloebet(aftale.valid_until));
+  // Tom og fejlet er to beskeder (hentefejl.ts): en fejlet hentning er ikke
+  // «ingen aftaler». Husets linje, som EventsView og Akademiet.
+  const tilstand = hentetilstand(aftalerQuery, aftaler.length === 0);
 
   // ── Adressen: ?aftaleId= (29/9). Hooks i topblokken, før enhver return. ──
   const location = useLocation();
@@ -190,9 +194,11 @@ export const RabataftalerView = () => {
             {AFTALE_FINDES_IKKE}
           </p>
         )}
-        {aftalerQuery.isLoading ? (
+        {tilstand === "henter" ? (
           <p className="text-sm text-hb-ink-soft">Henter rabataftaler…</p>
-        ) : aftaler.length === 0 ? (
+        ) : tilstand === "fejlet" ? (
+          <p className="text-sm text-hb-ink-soft">{sektionsfejlTekst("partners")} Prøv igen om lidt.</p>
+        ) : tilstand === "tom" ? (
           <p className="text-sm text-hb-ink-soft">Der er ingen aftaler at vise lige nu.</p>
         ) : (
           <div className="border-b border-hb-line">
