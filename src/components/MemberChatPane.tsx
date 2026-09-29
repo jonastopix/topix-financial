@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 
-import { useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -29,6 +29,8 @@ import { byggChatBesked } from "@/lib/chatDokument";
 import { ChatVideoBesked } from "@/components/ChatVideoBesked";
 import { erSkjultBobletekst } from "@/lib/chatVideoFlade";
 import { SvarCitat, SvarerPaaBanner } from "@/components/ChatSvarCitat";
+import { NoegletalChipBanner, NoegletalChipVisning } from "@/components/ChatNoegletalChip";
+import { bygBeskedMeta, laesChipFraState, type NoegletalChip } from "@/lib/noegletalChip";
 // Citatet over et svar på et refleksionsfelt (29/9) — egen linje: chatSvar.guard dom 3 læser linjen ovenfor ordret.
 import { RefleksionCitat } from "@/components/ChatSvarCitat";
 import { kanBesvares, svarUddrag } from "@/lib/chatSvar";
@@ -71,6 +73,22 @@ const MemberChatPane = () => {
   const { user, companyId, companyName } = useAuth();
   const isMobile = useIsMobile();
   const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+  // «Spørg din rådgiver» ved et nøgletal (noegletalChip.ts): tallet kommer med
+  // som router-state og bliver en CHIP over sendefeltet — ikke tekst i det.
+  // VALGT FRA «udkast i sendefeltet»: en chip i teksten kunne redigeres og
+  // afkortes af medlemmet, og content er én tekst (byggChatBesked udleder den af
+  // dokumentet); chippen skal stå urørt, som tallet stod, og bor derfor i
+  // context_meta ved siden af teksten, som svarcitatet og vedhæftningerne.
+  // Læses ÉN gang ved mount (state er frosset ved klikket), og state ryddes
+  // straks, så en genindlæsning ikke sætter chippen på igen.
+  const [noegletalChip, setNoegletalChip] = useState<NoegletalChip | null>(() => laesChipFraState(location.state));
+  useEffect(() => {
+    if (laesChipFraState(location.state)) navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+    // Kun ved mount: chippen ligger nu i state ovenfor.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [conversations, setConversations] = useState<ConversationWithProfile[]>([]);
   const [profilesMap, setProfilesMap] = useState<Map<string, { full_name: string; avatar_url: string | null }>>(new Map());
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
@@ -392,7 +410,9 @@ const MemberChatPane = () => {
       }
     }
 
-    const contextMeta = attachments.length > 0 ? { attachments } : undefined;
+    // Vedhæftninger og nøgletals-chippen side om side (bygBeskedMeta); uden nogen
+    // af dem sendes context_meta ikke, som før.
+    const contextMeta = bygBeskedMeta({ attachments, chip: noegletalChip });
 
     {
       // «#» (29/9-2026): en besked MED #-henvisning bygges af dokumentet —
@@ -419,12 +439,13 @@ const MemberChatPane = () => {
       if (!error && data) {
         setNewMessage("");
         setSvarPaa(null);
+        setNoegletalChip(null);
         notifyChatMessage((data as any).id);
       }
     }
 
     setSending(false);
-  }, [activeConvId, user, conversations, svarPaa]);
+  }, [activeConvId, user, conversations, svarPaa, noegletalChip]);
 
   const activeConv = conversations.find((c) => c.id === activeConvId);
 
@@ -811,6 +832,7 @@ const MemberChatPane = () => {
                                     {senderName}
                                   </p>
                                 )}
+                                <NoegletalChipVisning contextMeta={msg.context_meta} isMine={isMine} />
                                 {!erSkjultBobletekst(msg.content) && (
                                   <ChatBeskedTekst content={msg.content} dokument={msg.indhold_json} />
                                 )}
@@ -868,6 +890,7 @@ const MemberChatPane = () => {
                                     {senderName}
                                   </p>
                                 )}
+                                <NoegletalChipVisning contextMeta={msg.context_meta} isMine={isMine} />
                                 {!erSkjultBobletekst(msg.content) && (
                                   <ChatBeskedTekst content={msg.content} dokument={msg.indhold_json} />
                                 )}
@@ -940,6 +963,7 @@ const MemberChatPane = () => {
                 {svarPaa && (
                   <SvarerPaaBanner navn={navnFor(svarPaa.sender_id)} uddrag={svarUddrag(svarPaa.content)} onFjern={() => setSvarPaa(null)} />
                 )}
+                {noegletalChip && <NoegletalChipBanner chip={noegletalChip} onFjern={() => setNoegletalChip(null)} />}
                 <div className="flex gap-2 items-end">
                   <ChatRichInput
                     onSubmit={handleSend}

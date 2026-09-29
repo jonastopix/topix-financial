@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   Area,
@@ -51,6 +51,7 @@ import {
 import { ESTIMAT_FORKLARING, EstimatMaerke } from "../EstimatMaerke";
 import { StandardmaalMaerke } from "../StandardmaalMaerke";
 import { erStandardMaal, type ResolvedTargets } from "@/lib/kpiMaal";
+import { bygNoegletalChip, maaSpoergeRaadgiver, spoergRaadgiverRejse } from "@/lib/noegletalChip";
 
 /** Nøgletal (/noegletal → /kpis ved GO) — FULD PARITET + trend/AI
     (klik-valg A): mål-hero, trend-overblik (nyt hjem fra Reports),
@@ -148,7 +149,8 @@ const ToneDot = ({ view }: { view: KpiToneView }) => {
 
 export const NoegletalView = () => {
   useScrollToHash();
-  const { user, companyId, isAdvisor: rawAdvisor } = useAuth();
+  const { user, companyId, isAdvisor: rawAdvisor, membershipTier } = useAuth();
+  const navigate = useNavigate();
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
 
@@ -157,6 +159,11 @@ export const NoegletalView = () => {
   const { data: facts = [], isLoading: factsLoading, isError: factsFejlede, error: factsFejl } = useCompanyFacts();
   const { targets, isLoading: targetsLoading, setTargets } = useKpiTargets(companyId ?? undefined);
   const { benchmarks: benchmarksResolved, isLoading: benchmarksLoading, setBenchmarks } = useKpiBenchmarks(companyId ?? undefined);
+
+  // «Spørg din rådgiver» (noegletalChip.ts): knappen er MEDLEMMETS — rå rolle,
+  // ikke den viewMode-justerede (en rådgiver i «Se som medlem» ville ellers sende
+  // som rådgiver), og kun med adgang til chatten (abonnenter har en mur).
+  const kanSpoerge = maaSpoergeRaadgiver({ erRaadgiver: rawAdvisor, tier: membershipTier });
 
   const [selectedKPI, setSelectedKPI] = useState<string>("omsaetning");
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -903,19 +910,40 @@ export const NoegletalView = () => {
                 // sammenligning, hverken tal eller forklaring; siden siger det
                 // allerede øverst (grundlags-tælleren) og i grafen.
                 const harMoM = metric.changePct != null;
+                // Tallet, som kortet viser det (samme tekst som herunder), fryses i
+                // chippen ved klikket — chatten slår det aldrig op igen.
+                const visTal = def.unit === "%" ? `${metric.numValue.toFixed(1)} %` : metric.value;
+                const spoerg = () => {
+                  if (!latestKF) return;
+                  const dom = bygNoegletalChip({
+                    noegle: metric.key,
+                    navn: metric.label,
+                    vaerdi: visTal,
+                    periodKey: latestKF.sortKey,
+                    estimat: senesteErEstimat,
+                  });
+                  if (dom.ok === false) return;
+                  const rejse = spoergRaadgiverRejse(dom.chip);
+                  navigate(rejse.to, { state: rejse.state });
+                };
+                // Kortet er en boks med TO knapper (ikke en knap i en knap):
+                // valget af tal og «Spørg din rådgiver».
                 return (
-                  <button
+                  <div
                     key={metric.key}
-                    type="button"
-                    onClick={() => setSelectedKPI(metric.key)}
                     className={cn(
-                      "rounded-hb border bg-hb-surface p-4 text-left transition-colors",
+                      "rounded-hb border bg-hb-surface transition-colors",
                       selected ? "border-hb-evergreen" : "border-hb-line hover:bg-hb-sage/20",
                     )}
                   >
+                  <button
+                    type="button"
+                    onClick={() => setSelectedKPI(metric.key)}
+                    className="block w-full p-4 text-left"
+                  >
                     <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{metric.label}</p>
                     <p className="mt-1 font-editorial text-2xl font-medium text-hb-ink">
-                      {def.unit === "%" ? `${metric.numValue.toFixed(1)} %` : metric.value}
+                      {visTal}
                     </p>
                     {/* Mål dømmer, benchmark oplyser — benchmark farver ALDRIG
                         toner, prikker eller domme; den er stille kontekst
@@ -942,6 +970,14 @@ export const NoegletalView = () => {
                       </p>
                     )}
                   </button>
+                  {kanSpoerge && (
+                    <div className="px-4 pb-3" data-html2canvas-ignore={true}>
+                      <HbButton type="button" variant="link" className="text-xs" onClick={spoerg}>
+                        Spørg din rådgiver
+                      </HbButton>
+                    </div>
+                  )}
+                  </div>
                 );
               })}
             </div>
