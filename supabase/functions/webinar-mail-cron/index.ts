@@ -61,6 +61,19 @@
 // sendte og giver dem til planlaegKoersel som `fejlede`. Uden dem er dommen
 // ordret som før, og en fejlet mail bliver for_sent to timer efter sit tidspunkt.
 //
+// INGEN BLIND GENSENDELSE (29/9-2026, dommens afsendelseUkendt): et forsøg,
+// hvor vi IKKE ved, om Mailgun tog imod — timeout, afbrudt forbindelse, 5xx —
+// indhentes ALDRIG automatisk, heller ikke inden for nåden: Mailgun har ingen
+// idempotensnøgle, og en gentagelse kan give en dublet (22/9: en deltager klagede
+// over netop det). Cronen læser udfald og status på de fejlede rækker og deler
+// dem i `fejlede` (tydelig afvisning → indhentes som før) og `ukendte` (→
+// levering_ukendt). Beviset i svaret: `ukendte_foer` og `ukendt_ikke_indhentet`.
+//
+// KUN NÆRMESTE SESSION (29/9-2026, dommens planlaegKoersel): er samme mail
+// tilmeldt flere kommende sessioner, får kun den nærmeste påmindelserne; de senere
+// får bekræftelsen og intet andet, før den nærmeste er begyndt. Beviset i svaret:
+// `sprunget_senere_session`.
+//
 // ALARMEN (29/9-2026, _shared/webinarMailAlarm.ts; omdømt 29/9 14:04 — «jeg får
 // hele tiden disse mails»): 29/9 fejlede 211 mails over to timer, og ingen fik
 // besked. Nu dømmer doemAlarm EFTER kørslen, KUN når den sendte rigtigt (også
@@ -83,7 +96,7 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateServiceRole, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { ukendteFelter, ukendteFelterBesked } from "../_shared/kendteFelter.ts";
-import { ARTER, baererInvitation, type MailArt, noegle, planlaegKoersel, type Sending, type Springgrund, type Tilmeldt } from "../_shared/webinarMailDom.ts";
+import { afsendelseUkendt, ARTER, baererInvitation, type MailArt, noegle, planlaegKoersel, type Sending, type Springgrund, type Tilmeldt } from "../_shared/webinarMailDom.ts";
 import { AFSENDER, bygWebinarMail, SVAR_TIL } from "../_shared/webinarMailTekster.ts";
 import { MAILGUN_DOMAENE, MAILGUN_SECRET, PAUSE_MS, sendMailgun, sendMailgunMime } from "../_shared/mailgunAfsendelse.ts";
 import { beregnKoerselsLoft, erStopStatus, LOFT_VINDUE_MS, type LoftRaekke, MAILGUN_LOFT_PR_TIME } from "../_shared/webinarMailLoft.ts";
@@ -127,9 +140,15 @@ export interface MailResultat {
   sendte_foer: number;
   /** Nøgler med mindst ét fejlet forsøg (udfald <> 'ok') i vinduet — grundlaget for indhentningen. */
   fejlede_foer: number;
+  /** Nøgler med et forsøg, hvor vi IKKE ved, om Mailgun tog imod (afsendelseUkendt) — sendes aldrig igen automatisk. */
+  ukendte_foer: number;
   /** Mails, der SKAL sendes nu. */
   skal_sendes: number;
   sprunget: Record<Springgrund, number>;
+  /** = sprunget.senere_session: påmindelser holdt tilbage, fordi personen har en nærmere kommende session. */
+  sprunget_senere_session: number;
+  /** = sprunget.levering_ukendt: mails, der IKKE gensendes, fordi et tidligere forsøg har ukendt udfald. */
+  ukendt_ikke_indhentet: number;
   /** Af skal_sendes: mails, der indhentes efter et fejlet forsøg (dommens `indhentning`). */
   indhentet: number;
   sendt: number;
@@ -190,8 +209,9 @@ async function laasErAktiv(admin: SupabaseClient): Promise<boolean> {
 const tomt = (a: { toer: boolean; laas: boolean; email: string | null; art: string | null; nu: Date; senderRigtigt: boolean }): MailResultat => ({
   ok: true, dry_run: a.toer, laas_aktiv: a.laas, sender_rigtigt: a.senderRigtigt,
   nu: a.nu.toISOString(), email: a.email, art: a.art,
-  tilmeldinger_laest: 0, afmeldte_laest: 0, sendte_foer: 0, fejlede_foer: 0, skal_sendes: 0,
-  sprunget: { afmeldt: 0, ingen_session: 0, ingen_mail: 0, for_sent: 0, endnu_ikke: 0, sessionen_begyndt: 0, allerede_sendt: 0, for_tidlig_tilmelding: 0, for_sent_efter_fejl: 0 },
+  tilmeldinger_laest: 0, afmeldte_laest: 0, sendte_foer: 0, fejlede_foer: 0, ukendte_foer: 0, skal_sendes: 0,
+  sprunget: { afmeldt: 0, ingen_session: 0, ingen_mail: 0, for_sent: 0, endnu_ikke: 0, sessionen_begyndt: 0, allerede_sendt: 0, for_tidlig_tilmelding: 0, for_sent_efter_fejl: 0, senere_session: 0, levering_ukendt: 0 },
+  sprunget_senere_session: 0, ukendt_ikke_indhentet: 0,
   indhentet: 0, sendt: 0, fejlede: 0, udsat: 0, dublet: 0, med_invitation: 0, uden_invitation: 0,
   loft: { forsoeg_60_min: 0, ok_60_min: 0, maks: MAILGUN_LOFT_PR_TIME, pause: null, stoppet_ved: null }, over_loft: 0, ventende: [],
   eksempler: [], fejl: [], alarm_mail: "ingen", alarm_klokke: "ingen",
@@ -231,15 +251,22 @@ async function koer(a: { admin: SupabaseClient; toerKoersel: boolean; laas: bool
   // 3b. Det, vi har FORSØGT og fejlet med (29/9) — samme afgrænsning som de
   //     sendte. En nøgle med både et fejlet og et ok-forsøg er sendt:
   //     allerede_sendt går foran indhentningen i dommen.
-  const fejledeRaekker = await alleSider<{ email: string; session_tid: string; art: MailArt }>((fra, til) =>
-    a.admin.from("webinar_mails").select("email, session_tid, art").neq("udfald", "ok")
+  //     UDFALD OG STATUS læses med, fordi et fejlet forsøg ikke er ét: en tydelig
+  //     afvisning indhentes, et ukendt udfald (afsendelseUkendt) gensendes aldrig.
+  //     Har en nøgle begge slags, vinder «ukendt» i dommen.
+  const fejledeRaekker = await alleSider<{ email: string; session_tid: string; art: MailArt; udfald: string; status: number | null }>((fra, til) =>
+    a.admin.from("webinar_mails").select("email, session_tid, art, udfald, status").neq("udfald", "ok")
       .gte("session_tid", graense).order("id", { ascending: true }).range(fra, til));
-  const fejlede = new Set(fejledeRaekker.map((x) => noegle(x.email, x.session_tid, x.art)));
+  const fejlede = new Set(fejledeRaekker.filter((x) => !afsendelseUkendt(x)).map((x) => noegle(x.email, x.session_tid, x.art)));
+  const ukendte = new Set(fejledeRaekker.filter((x) => afsendelseUkendt(x)).map((x) => noegle(x.email, x.session_tid, x.art)));
   r.fejlede_foer = fejlede.size;
+  r.ukendte_foer = ukendte.size;
 
   // 4. Dommen.
-  const plan = planlaegKoersel({ raekker, afmeldte, sendte, fejlede, nu: a.nu });
+  const plan = planlaegKoersel({ raekker, afmeldte, sendte, fejlede, ukendte, nu: a.nu });
   r.sprunget = plan.sprunget;
+  r.sprunget_senere_session = plan.sprunget.senere_session;
+  r.ukendt_ikke_indhentet = plan.sprunget.levering_ukendt;
   const sendinger = a.art ? plan.sendinger.filter((s) => s.art === a.art) : plan.sendinger;
   r.skal_sendes = sendinger.length;
   r.indhentet = sendinger.filter((s) => s.indhentning === true).length;
@@ -484,7 +511,7 @@ Deno.serve(async (req) => {
     const alarmNu = new Date();
     const alarm = r.sender_rigtigt ? doemAlarm(r, alarmNu) : null;
     if (r.sender_rigtigt && alarm !== null) await skrivAlarm(admin, r, alarm, alarmNu);
-    console.log(`${LOG} ${r.dry_run ? "TØRKØRSEL" : r.sender_rigtigt ? "SENDER" : "LÅST"} — skal_sendes ${r.skal_sendes} (indhentet ${r.indhentet}), sendt ${r.sendt}, fejlede ${r.fejlede}, udsat ${r.udsat}, over_loft ${r.over_loft} (maks ${r.loft.maks}${r.loft.pause ? ", PAUSE" : ""}), alarm ${r.alarm_mail}/${r.alarm_klokke}`);
+    console.log(`${LOG} ${r.dry_run ? "TØRKØRSEL" : r.sender_rigtigt ? "SENDER" : "LÅST"} — skal_sendes ${r.skal_sendes} (indhentet ${r.indhentet}), senere_session ${r.sprunget_senere_session}, ukendt_ikke_indhentet ${r.ukendt_ikke_indhentet}, sendt ${r.sendt}, fejlede ${r.fejlede}, udsat ${r.udsat}, over_loft ${r.over_loft} (maks ${r.loft.maks}${r.loft.pause ? ", PAUSE" : ""}), alarm ${r.alarm_mail}/${r.alarm_klokke}`);
     return json(r);
   } catch (err) {
     const grund = err instanceof Error ? err.message : String(err);

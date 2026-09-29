@@ -216,7 +216,13 @@ export type Springgrund =
   | "for_tidlig_tilmelding"
   // En mail, VI fejlede med at sende, og som ikke nåede at blive indhentet, før
   // den næste art tog over (Jonas 29/9 — se INDHENTNING i doemMail).
-  | "for_sent_efter_fejl";
+  | "for_sent_efter_fejl"
+  // En påmindelse til en session, der IKKE er personens nærmeste kommende (29/9 —
+  // se KUN NÆRMESTE SESSION i planlaegKoersel). Skrives aldrig i sporet.
+  | "senere_session"
+  // Et tidligere forsøg, hvor vi IKKE ved, om Mailgun tog imod (29/9 — se
+  // afsendelseUkendt). Sendes aldrig igen automatisk. Skrives aldrig i sporet.
+  | "levering_ukendt";
 
 export type MailDom =
   // `indhentning: true` KUN når mailen sendes, fordi et tidligere forsøg fejlede, og
@@ -245,6 +251,18 @@ export function doemMail(i: {
    * 29/9, og en forsinket mail er for_sent.
    */
   fejlede?: ReadonlySet<string>;
+  /**
+   * Nøglerne for forsøg, hvor vi IKKE ved, om Mailgun tog imod (afsendelseUkendt).
+   * En nøgle her sendes aldrig igen automatisk — heller ikke inden for nåden.
+   * Udeladt = tom.
+   */
+  ukendte?: ReadonlySet<string>;
+  /**
+   * true, når personen (samme mail) har en KOMMENDE session, der ligger FØR denne
+   * (planlaegKoersel regner det). Så får denne session ingen påmindelser — kun
+   * bekræftelsen. Udeladt = false.
+   */
+  senereSession?: boolean;
   nu: Date;
 }): MailDom {
   const { art } = i;
@@ -256,6 +274,14 @@ export function doemMail(i: {
   const sessionMs = Date.parse(i.sessionTid);
   if (!Number.isFinite(sessionMs)) return { send: false, art, grund: "ingen_session" };
 
+  // INGEN BLIND GENSENDELSE (29/9). Et forsøg med ukendt udfald (timeout, afbrudt
+  // forbindelse, 5xx) kan være kommet frem — og Mailgun kan ikke afvise en
+  // gentagelse. Det slår alt, der ellers ville sende: nåden OG indhentningen.
+  // Regnestykket står ved afsendelseUkendt.
+  if (i.ukendte?.has(noegle(mail, i.sessionTid, art)) ?? false) {
+    return { send: false, art, grund: "levering_ukendt" };
+  }
+
   // BEKRÆFTELSEN KUN FREMAD. En tilmelding fra før overtagelsen er bekræftet
   // af et andet system — og et ulæseligt tidspunkt tæller som «før», fordi vi
   // hellere undlader en bekræftelse end sender en dublet til 216 mennesker.
@@ -264,6 +290,14 @@ export function doemMail(i: {
     if (!Number.isFinite(registreret) || registreret < BEKRAEFTELSE_FRA_MS) {
       return { send: false, art, grund: "for_tidlig_tilmelding" };
     }
+  }
+
+  // KUN NÆRMESTE SESSION FÅR PÅMINDELSER (29/9). Er personen også tilmeldt en
+  // tidligere kommende session, venter denne sessions påmindelser, til den anden
+  // er begyndt — og de, hvis tidspunkt til den tid er passeret, dømmes for_sent
+  // nedenfor som enhver sen tilmelding (der er intet fejlet forsøg at indhente).
+  if (i.senereSession === true && erPaamindelse(art)) {
+    return { send: false, art, grund: "senere_session" };
   }
 
   const plan = PLANEN.find((p) => p.art === art);
@@ -315,6 +349,61 @@ export function doemMail(i: {
     return { send: false, art, grund: "for_sent_efter_fejl" };
   }
   return { send: true, art, planlagt: tid };
+}
+
+/**
+ * ER ARTEN EN PÅMINDELSE? Alt i PLANEN, der har et tidspunkt — altså ikke
+ * «straks». Læses af PLANEN, aldrig af artens navn: bekræftelsen er et SVAR på
+ * noget, personen lige har gjort (og bærer DEN sessions invite.ics), mens
+ * påmindelserne er vores eget initiativ og derfor dem, der kan blive for mange.
+ */
+export function erPaamindelse(art: MailArt): boolean {
+  const plan = PLANEN.find((p) => p.art === art);
+  return plan !== undefined && plan.straks !== true;
+}
+
+/**
+ * VED VI, OM MAILGUN TOG IMOD? (29/9-2026 — en deltager klagede 22/9 over
+ * dubletter, og mail-worstcase §1a fandt vejen, platformen selv kunne give én.)
+ *
+ * Et forsøg, der fejlede, er ikke det samme som en mail, der ikke blev sendt:
+ *   timeout            — vi afbrød efter TIMEOUT_MS (10 s). Kroppen var sendt, og
+ *                        Mailgun kan have lagt mailen i kø uden at nå at svare.
+ *   fejl, status null  — kaldet kastede (forbindelsen afbrudt, nulstillet). Vi
+ *                        ved ikke, om det skete før eller efter, Mailgun tog imod.
+ *   fejl, status ≥ 500 — Mailgun fik HELE kaldet og svarede med en serverfejl.
+ *                        Om beskeden nåede køen først, siger svaret ikke.
+ * De tre er UKENDTE. Alt andet er en tydelig afvisning og sendte intet:
+ *   loft · noegle_afvist · ugyldig (et 4xx-svar på selve kaldet), ingen_noegle
+ *   og ugyldig uden status (vi kaldte aldrig), og fejl med et 4xx (fx 404, 413).
+ *
+ * Mailgun har INGEN idempotensnøgle på `/messages` (kun `v:`-variabler, som ikke
+ * afviser en gentagelse), så et nyt forsøg på et ukendt udfald er et gæt på, at
+ * det første ikke kom frem.
+ *
+ * REGNESTYKKET (hvorfor ALDRIG gensende et ukendt automatisk, heller ikke
+ * bekræftelsen):
+ *   Gensender vi, og Mailgun tog imod første gang: personen får den SAMME mail to
+ *   gange — 1 synlig fejl, præcis den, der blev klaget over 22/9. Et kald, der
+ *   når 10 s, har sendt hele kroppen, og Mailgun svarer normalt langt under ét
+ *   sekund, så «tog imod» er det sandsynlige udfald, ikke undtagelsen.
+ *   Gensender vi ikke, og mailen kom IKKE frem: personen mangler 1 af op til 7
+ *   mails. For en påmindelse er det 1 af 6, og hver af de andre bærer den samme
+ *   knap til join-linket og den samme kalenderrække (webinarMailTekster.ts), og
+ *   eWebinar sender selv sin 10-minutters-mail — så tabet er et gentaget budskab.
+ *   For BEKRÆFTELSEN (vurderet særskilt, fordi en manglende bekræftelse er værre):
+ *   den mister kun invite.ics-filen, ikke adgangen — «om to uger» (MED_INVITATION)
+ *   bærer den samme fil til alle, der er tilmeldt 14 dage før, og alle påmindelser
+ *   bærer join-knappen og kalenderlinkene. En dublet af bekræftelsen er derimod to
+ *   kalenderinvitationer i indbakken. Samme dom: hellere én manglende end én dublet.
+ *   Den kørsel, der fik det ukendte svar, tæller det som fejlet, og alarmen
+ *   (webinarMailAlarm.doemAlarm, «fejl») går til driftModtager samme time — et
+ *   menneske kan så slå op i Mailguns log, om mailen kom frem.
+ */
+export function afsendelseUkendt(forsoeg: { udfald: string; status: number | null }): boolean {
+  if (forsoeg.udfald === "timeout") return true;
+  if (forsoeg.udfald === "fejl" && (forsoeg.status === null || forsoeg.status >= 500)) return true;
+  return false;
 }
 
 /** Den næste art i PLANEN med et tidspunkt (ikke «straks») — eller null for den sidste. */
@@ -399,18 +488,31 @@ function bedsteRaekke(a: Tilmeldt, b: Tilmeldt): Tilmeldt {
  *
  * `fejlede` er nøglerne fra webinar_mails med udfald <> 'ok' (samme noegle()).
  * Udeladt = tom, og planen er ordret som før 29/9 — ingen indhentning.
+ *
+ * `ukendte` er de fejlede forsøg, afsendelseUkendt kalder ukendte — de sendes
+ * aldrig igen automatisk. Udeladt = tom.
+ *
+ * KUN NÆRMESTE SESSION (29/9-2026). Er samme mail tilmeldt flere KOMMENDE
+ * sessioner, får kun den nærmeste påmindelser (erPaamindelse); de senere får kun
+ * bekræftelsen. Uden det fik en person tilmeldt 13/10 og 20/10 to hele serier —
+ * «om en uge» (13/10) og «om to uger» (20/10) i samme minut 6/10 (mail-worstcase
+ * §3 scenarie C: 27 mails på 30 dage, heraf 5 fra den dobbelte serie).
+ * «Kommende» = sessionen er ikke begyndt (session_tid > nu). Når den nærmeste
+ * begynder, overtager den næste — og en art, hvis tidspunkt er passeret med mere
+ * end nåden, er for_sent og indhentes ikke.
  */
 export function planlaegKoersel(i: {
   raekker: readonly Tilmeldt[];
   afmeldte: ReadonlySet<string>;
   sendte: ReadonlySet<string>;
   fejlede?: ReadonlySet<string>;
+  ukendte?: ReadonlySet<string>;
   nu: Date;
 }): { sendinger: Sending[]; sprunget: Record<Springgrund, number> } {
   const sprunget: Record<Springgrund, number> = {
     afmeldt: 0, ingen_session: 0, ingen_mail: 0, for_sent: 0,
     endnu_ikke: 0, sessionen_begyndt: 0, allerede_sendt: 0, for_tidlig_tilmelding: 0,
-    for_sent_efter_fejl: 0,
+    for_sent_efter_fejl: 0, senere_session: 0, levering_ukendt: 0,
   };
 
   // 1. Én person pr. (mail, session).
@@ -421,6 +523,17 @@ export function planlaegKoersel(i: {
     const n = `${mail}|${new Date(r.session_tid).toISOString()}`;
     const har = personer.get(n);
     personer.set(n, har ? bedsteRaekke(har, r) : r);
+  }
+
+  // 1b. Den NÆRMESTE kommende session pr. mail (ms). En session, der er begyndt,
+  //     er ikke kommende — så overtager den næste.
+  const naermeste = new Map<string, number>();
+  for (const r of personer.values()) {
+    const mail = (r.email ?? "").trim().toLowerCase();
+    const ms = Date.parse(r.session_tid as string);
+    if (!Number.isFinite(ms) || ms <= i.nu.getTime()) continue; // uden læsbar tid: ingen «nærmeste»
+    const har = naermeste.get(mail);
+    if (har === undefined || ms < har) naermeste.set(mail, ms);
   }
 
   // 2. Afmeldingen gælder PERSONEN, ikke registreringen — og den læses på
@@ -435,6 +548,8 @@ export function planlaegKoersel(i: {
   for (const r of [...personer.values()]) {
     const mail = r.email.trim().toLowerCase();
     const afmeldt = i.afmeldte.has(mail) || afmeldtIEwebinar.has(mail);
+    const foersteKommende = naermeste.get(mail);
+    const senereSession = foersteKommende !== undefined && Date.parse(r.session_tid as string) > foersteKommende;
     for (const art of ARTER) {
       const dom = doemMail({
         art,
@@ -444,6 +559,8 @@ export function planlaegKoersel(i: {
         afmeldt,
         alleredeSendt: r.session_tid !== null && i.sendte.has(noegle(mail, r.session_tid, art)),
         fejlede: i.fejlede,
+        ukendte: i.ukendte,
+        senereSession,
         nu: i.nu,
       });
       // `=== false`, ikke `!dom.send`: repoets tsconfig har strict slået fra, og
