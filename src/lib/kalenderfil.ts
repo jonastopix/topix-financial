@@ -21,6 +21,11 @@
  * LOCATION, så aftalen altid har en vej ind. En aftale uden nogen vej ind
  * er værdiløs — en aftale med vejen til eventsiden er ikke.
  *
+ * LOKATION (29/9-2026): findes events.lokation (fysisk sted), er LOCATION netop den — så
+ * kalenderen kan slå adressen op på kortet. Meet-linket ligger da stadig i DESCRIPTION og URL, og
+ * uden Meet-link står der ikke «mødelinket kommer» (et fysisk event venter ikke på et link).
+ * Uden lokation er LOCATION som før: Meet-linket, ellers eventsiden.
+ *
  * VARIGHEDEN følger fasedommens regel (eventPhase.eventEndTime): ends_at,
  * ellers starts_at + 90 min — samme sluttid som «Deltag nu»-knappen regner
  * med. Tilbydes for kommende OG igangværende events (fase before/live),
@@ -29,6 +34,7 @@
  * Testet i __tests__/kalenderfil.test.ts.
  */
 import { eventEndTime, eventMeetPhase, type EventTimes } from "@/lib/hjemmebane/eventPhase";
+import { eventLokation } from "@/lib/eventLokation";
 
 export interface KalenderEvent extends EventTimes {
   id: string;
@@ -86,7 +92,8 @@ export function kalenderBeskrivelse(event: Pick<KalenderEvent, "id" | "descripti
   const dele: string[] = [];
   const egen = (event.description ?? "").trim();
   if (egen) dele.push(egen);
-  dele.push(event.meet_url ? `${KALENDER_MEET_LINJE}${event.meet_url}` : KALENDER_INTET_LINK_LINJE);
+  if (event.meet_url) dele.push(`${KALENDER_MEET_LINJE}${event.meet_url}`);
+  else if (!eventLokation(event)) dele.push(KALENDER_INTET_LINK_LINJE);
   dele.push(`${KALENDER_EVENTSIDE_LINJE}${eventsideUrl(basisUrl, event.id)}`);
   return dele.join("\n\n");
 }
@@ -107,8 +114,8 @@ export function bygKalenderfil(event: KalenderEvent, basisUrl: string, nu: Date 
     `DTEND:${tilIcsTid(eventEndTime(event))}`,
     `SUMMARY:${icsEscape(event.title)}`,
     `DESCRIPTION:${icsEscape(kalenderBeskrivelse(event, basisUrl))}`,
-    // Meet-linket i LOCATION når det findes — ellers eventsiden, så feltet aldrig er tomt.
-    `LOCATION:${icsEscape(event.meet_url ?? side)}`,
+    // Det fysiske sted når det findes — ellers Meet-linket — ellers eventsiden, så feltet aldrig er tomt.
+    `LOCATION:${icsEscape(eventLokation(event) ?? event.meet_url ?? side)}`,
     `URL:${event.meet_url ?? side}`,
     "END:VEVENT",
     "END:VCALENDAR",

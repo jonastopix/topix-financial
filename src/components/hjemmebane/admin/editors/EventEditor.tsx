@@ -8,6 +8,7 @@ import { listVaerterForEvents, saveVaerter } from "@/lib/hjemmebane/vaerterApi";
 import { gemEventOgVaerter } from "@/lib/hjemmebane/gemEventOgVaerter";
 import { flytSvarTekst, gemKnapTekst, planlaegGem } from "@/lib/hjemmebane/flytEvent";
 import { hentEventSvaroversigt } from "@/lib/hjemmebane/eventSvarApi";
+import { eventLokation, LOKATION_MAKS_TEGN, validerLokation } from "@/lib/eventLokation";
 import {
   type ContentItem,
   type EventRow,
@@ -119,6 +120,7 @@ export const EventEditor = forwardRef<EditorHandle, EventEditorProps>(
         (!next.title.trim() && "Titel mangler") ||
         (!next.starts_at && "Starttidspunkt mangler") ||
         (next.meet_url && !/^https:\/\/.+/.test(next.meet_url) && "Meet-linket skal være https://") ||
+        validerLokation(eventLokation(next)) ||
         (vaerterDraft && validerVaerter(vaerterDraft)) ||
         null;
       if (problem) {
@@ -156,6 +158,7 @@ export const EventEditor = forwardRef<EditorHandle, EventEditorProps>(
         (!next.title.trim() && "Titel mangler") ||
         (!next.starts_at && "Starttidspunkt mangler") ||
         (next.meet_url && !/^https:\/\/.+/.test(next.meet_url) && "Meet-linket skal være https://") ||
+        validerLokation(eventLokation(next)) ||
         (vaerterDraft && validerVaerter(vaerterDraft)) ||
         null;
       if (problem) {
@@ -327,6 +330,22 @@ export const EventEditor = forwardRef<EditorHandle, EventEditorProps>(
             onChange={(e) => onDraftChange({ meet_url: e.target.value.trim() || null })}
             placeholder="https://meet.google.com/…"
             spellCheck={false}
+          />
+        </HbField>
+
+        <HbField
+          label="Lokation (adresse)"
+          htmlFor="event-lokation"
+          help={`Valgfri — til fysiske events. Synlig for alle medlemmer og står som sted i kalenderfilen. Højst ${LOKATION_MAKS_TEGN} tegn.`}
+        >
+          <HbInput
+            id="event-lokation"
+            value={((form as any).lokation as string | null | undefined) ?? ""}
+            maxLength={LOKATION_MAKS_TEGN}
+            // as any: events.lokation er ikke i de genererede typer, før de er regenereret (husets mønster, akademiApi.getMyEventResponse).
+            // Værdien vises RÅ (ellers æder trim mellemrummet under indtastning); læsningerne trimmer (eventLokation).
+            onChange={(e) => onDraftChange({ lokation: e.target.value.trim() ? e.target.value : null } as any)}
+            placeholder="Fx Vestergade 12, 8600 Silkeborg"
           />
         </HbField>
 

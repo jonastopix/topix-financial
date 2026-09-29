@@ -6,6 +6,7 @@ import type { EventRow } from "@/lib/hjemmebane/adminContentApi";
 import { eventMeetPhase, eventNedtaelling, isEventPast } from "@/lib/hjemmebane/eventPhase";
 import { HbSection } from "../HbSection";
 import { hentetilstand, sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
+import { eventStedDele } from "@/lib/eventLokation";
 import { EventRegisterAction } from "./EventRegisterAction";
 
 /** Events-miljøet: medlemmets eventliste (/events) m. inline-tilmelding
@@ -27,7 +28,7 @@ const kindLabel = (kind: string): string =>
 const metaLine = (event: EventRow, withTime = true): string =>
   [
     kindLabel(event.kind),
-    event.meet_url ? "Online" : null,
+    ...eventStedDele(event),
     withTime
       ? new Date(event.starts_at).toLocaleTimeString("da-DK", { hour: "2-digit", minute: "2-digit" })
       : null,

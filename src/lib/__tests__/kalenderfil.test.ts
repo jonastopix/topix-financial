@@ -86,6 +86,43 @@ describe("bygKalenderfil — titel, tid, varighed og link", () => {
   });
 });
 
+describe("LOCATION med events.lokation (29/9-2026)", () => {
+  const side = "https://app.theboardroom.dk/events/3f1c2a40-0000-4000-8000-000000000001";
+  it("lokation og Meet-link: LOCATION er lokationen; Meet-linket står stadig i DESCRIPTION og URL", () => {
+    const ics = bygKalenderfil(event({ lokation: "Floor1, Vestergade 12, 8600 Silkeborg" } as Partial<KalenderEvent>), BASIS, NU);
+    expect(felt(ics, "LOCATION")).toBe("Floor1, Vestergade 12, 8600 Silkeborg");
+    expect(felt(ics, "URL")).toBe("https://meet.google.com/abc-defg-hij");
+    expect(felt(ics, "DESCRIPTION")).toContain("Google Meet: https://meet.google.com/abc-defg-hij");
+  });
+  it("kun lokation: LOCATION er lokationen, og beskrivelsen lover IKKE et mødelink, men bærer eventsiden", () => {
+    const ics = bygKalenderfil(event({ meet_url: null, lokation: "Vestergade 12, 8600 Silkeborg" } as Partial<KalenderEvent>), BASIS, NU);
+    expect(felt(ics, "LOCATION")).toBe("Vestergade 12, 8600 Silkeborg");
+    expect(felt(ics, "URL")).toBe(side);
+    const beskrivelse = felt(ics, "DESCRIPTION")!;
+    expect(beskrivelse).not.toContain(KALENDER_INTET_LINK_LINJE);
+    expect(beskrivelse).not.toContain("Google Meet:");
+    expect(beskrivelse).toContain(`Eventet på The Boardroom: ${side}`);
+  });
+  it("ESCAPING i LOCATION: komma, semikolon, backslash og linjeskift — rå felt og tilbageløst", () => {
+    const rå = "Sal A; 2. sal, Vester\\gade 12\nindgang B";
+    const ics = bygKalenderfil(event({ meet_url: null, lokation: rå } as Partial<KalenderEvent>), BASIS, NU);
+    expect(raatFelt(ics, "LOCATION")).toBe("Sal A\\; 2. sal\\, Vester\\\\gade 12\\nindgang B");
+    expect(felt(ics, "LOCATION")).toBe(rå);
+    // ingen ubeskyttet linjeskift i filen midt i feltet: hver logisk linje står på én (foldet) linje
+    expect(ics.split("\r\n").some((l) => l.startsWith("indgang"))).toBe(false);
+  });
+  it("blank eller tom lokation er ingen lokation: LOCATION falder tilbage til Meet-linket, så eventsiden", () => {
+    expect(felt(bygKalenderfil(event({ lokation: "   " } as Partial<KalenderEvent>), BASIS, NU), "LOCATION")).toBe("https://meet.google.com/abc-defg-hij");
+    expect(felt(bygKalenderfil(event({ meet_url: null, lokation: "" } as Partial<KalenderEvent>), BASIS, NU), "LOCATION")).toBe(side);
+  });
+  it("en lang lokation foldes ved 75 oktetter, og foldningen kan sættes sammen igen uden tab", () => {
+    const lang = "Kongensgade 1, " + "æ".repeat(120);
+    const ics = bygKalenderfil(event({ meet_url: null, lokation: lang } as Partial<KalenderEvent>), BASIS, NU);
+    for (const l of ics.split("\r\n")) expect(new TextEncoder().encode(l).length).toBeLessThanOrEqual(75);
+    expect(felt(ics, "LOCATION")).toBe(lang);
+  });
+});
+
 describe("kanFoejeTilKalender — kommende og igangværende ja, afholdt og aflyst nej", () => {
   it("kommende: ja", () => expect(kanFoejeTilKalender(event(), NU)).toBe(true));
   it("igangværende (live): ja", () => expect(kanFoejeTilKalender(event(), new Date("2026-09-15T08:45:00Z"))).toBe(true));
