@@ -24,6 +24,8 @@ import {
   Building2, Loader2,
 } from "lucide-react";
 import ChatRichInput from "@/components/ChatRichInput";
+import { ChatVideoBesked } from "@/components/ChatVideoBesked";
+import { erSkjultBobletekst } from "@/lib/chatVideoFlade";
 import { SvarCitat, SvarerPaaBanner } from "@/components/ChatSvarCitat";
 // Citatet over et svar på et refleksionsfelt (29/9) — egen linje: chatSvar.guard dom 3 læser linjen ovenfor ordret.
 import { RefleksionCitat } from "@/components/ChatSvarCitat";
@@ -512,7 +514,8 @@ const MemberChatPane = () => {
   };
 
   const handleDeleteMsg = async (messageId: string) => {
-    const ok = await deleteMessageAction(messageId);
+    // context_meta med: har beskeden en video, slettes den hos Bunny FØRST (useMessageActions).
+    const ok = await deleteMessageAction(messageId, messages.find(m => m.id === messageId)?.context_meta);
     if (ok) {
       setMessages(prev => prev.filter(m => m.id !== messageId));
     }
@@ -800,10 +803,11 @@ const MemberChatPane = () => {
                                     {senderName}
                                   </p>
                                 )}
-                                {msg.content !== "📎" && (
+                                {!erSkjultBobletekst(msg.content) && (
                                   <div className="text-sm leading-relaxed chat-html-content" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content, { ALLOWED_TAGS: ['b','strong','i','em','ul','ol','li','a','p','br'], ALLOWED_ATTR: ['href','target','rel'] }) }} />
                                 )}
                                 <MessageAttachments attachments={msg.context_meta?.attachments} isMine={isMine} messageId={msg.id} source="messages" variant="hb" />
+                                <ChatVideoBesked messageId={msg.id} contextMeta={msg.context_meta} />
                                 <div className={`flex items-center gap-1 mt-1 ${isMine ? "justify-end" : ""}`}>
                                   {(msg as any).edited_at && (
                                     <span className="text-[9px] italic text-hb-ink-soft/70">
@@ -856,10 +860,11 @@ const MemberChatPane = () => {
                                     {senderName}
                                   </p>
                                 )}
-                                {msg.content !== "📎" && (
+                                {!erSkjultBobletekst(msg.content) && (
                                   <div className="text-sm leading-relaxed chat-html-content" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content, { ALLOWED_TAGS: ['b','strong','i','em','ul','ol','li','a','p','br'], ALLOWED_ATTR: ['href','target','rel'] }) }} />
                                 )}
                                 <MessageAttachments attachments={msg.context_meta?.attachments} isMine={isMine} messageId={msg.id} source="messages" variant="hb" />
+                                <ChatVideoBesked messageId={msg.id} contextMeta={msg.context_meta} />
                                 <div className={`flex items-center gap-1 mt-1 ${isMine ? "justify-end" : ""}`}>
                                   {(msg as any).edited_at && (
                                     <span className="text-[9px] italic text-hb-ink-soft/70">
