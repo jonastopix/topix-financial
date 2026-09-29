@@ -71,12 +71,26 @@ export const skjultGaarTilForsiden = (side: string, app: string): boolean =>
 /** Dom 4: ingen tankestreg i fladen (kommentarer undtaget). */
 export const udenTankestreg = (k: string): boolean => !udenKommentarer(k).includes("—");
 
-/** Dom 5: punktet bygges ét sted og kun når tilstanden er sat. */
-export const punktetKunNaarSat = (k: string): boolean =>
-  k.includes("if (certifikat) punkter.push(certifikatPunkt(active, certifikat));") &&
-  k.includes('export const CERTIFIKAT_LABEL = "Dit certifikat";') &&
-  (k.match(/CERTIFIKAT_LABEL/g) ?? []).length === 2 &&
-  !/label: "Dit certifikat"/.test(k);
+/**
+ * Dom 5: medlemmets punkt bygges ét sted og kun når tilstanden er sat — og
+ * (29/9 aften, Jonas: «Jeg kan jo heller ikke finde det som rådgiver»)
+ * rådgiverens punkt står i raadgiverensNav og peger på forhåndsvisningen.
+ * PRÆCIS tre forekomster af CERTIFIKAT_LABEL: konstanten, certifikatPunkt og
+ * raadgiverensNav. Aldrig i medlemmetsNav uden for certifikatPunkt, og
+ * teksten label: "Dit certifikat" står aldrig direkte.
+ */
+export const punktetKunNaarSat = (k: string): boolean => {
+  const medlem = k.slice(k.indexOf("export function medlemmetsNav("), k.indexOf("export const CERTIFIKAT_LABEL"));
+  const punkt = k.slice(k.indexOf("function certifikatPunkt("), k.indexOf("export function raadgiverensNav("));
+  const raad = k.slice(k.indexOf("export function raadgiverensNav("), k.indexOf("export function bygHbNav("));
+  return k.includes("if (certifikat) punkter.push(certifikatPunkt(active, certifikat));") &&
+    k.includes('export const CERTIFIKAT_LABEL = "Dit certifikat";') &&
+    (k.match(/CERTIFIKAT_LABEL/g) ?? []).length === 3 &&
+    punkt.includes('const punkt: HbNavEntry = { label: CERTIFIKAT_LABEL, to: "/certifikat", active: active === "certifikat" };') &&
+    raad.includes('{ label: CERTIFIKAT_LABEL, to: "/certifikat/forhaandsvisning", active: active === "certifikat", blok: medlem },') &&
+    !medlem.includes("CERTIFIKAT_LABEL") &&
+    !/label: "Dit certifikat"/.test(k);
+};
 
 describe("certifikat.guard — dom 1: pakkens filer er låst på aftryk", () => {
   for (const [sti, forventet] of Object.entries(LAASTE_AFTRYK)) {
@@ -143,5 +157,21 @@ describe("certifikat.guard — dom 5: menupunktet bygges ét sted, kun når tils
     const k = udenKommentarer(laes(NAV));
     expect(punktetKunNaarSat(k.replace("if (certifikat) punkter.push(certifikatPunkt(active, certifikat));", "punkter.push(certifikatPunkt(active, certifikat ?? \"aaben\"));"))).toBe(false);
     expect(punktetKunNaarSat(`${k}\nconst x = { label: "Dit certifikat", to: "/certifikat" };\n`)).toBe(false);
+  });
+  it("VÆRNET VIRKER: rådgiverens punkt til /certifikat, en fjerde forekomst i medlemmetsNav, eller rådgiverens punkt fjernet, fælder", () => {
+    const k = udenKommentarer(laes(NAV));
+    const RAAD = '{ label: CERTIFIKAT_LABEL, to: "/certifikat/forhaandsvisning", active: active === "certifikat", blok: medlem },';
+    expect(k.includes(RAAD)).toBe(true);
+    // (a) rådgiverens punkt peger på /certifikat (som skjuler siden for rådgivere)
+    expect(punktetKunNaarSat(k.replace(RAAD, '{ label: CERTIFIKAT_LABEL, to: "/certifikat", active: active === "certifikat", blok: medlem },'))).toBe(false);
+    // (b) en fjerde forekomst i medlemmetsNav uden for certifikatPunkt
+    const fjerde = k.replace(
+      '{ label: "Fortæl det videre", to: "/deling", active: active === "deling" },',
+      '{ label: "Fortæl det videre", to: "/deling", active: active === "deling" },\n    { label: CERTIFIKAT_LABEL, to: "/certifikat", active: active === "certifikat" },',
+    );
+    expect(fjerde).not.toBe(k);
+    expect(punktetKunNaarSat(fjerde)).toBe(false);
+    // (c) rådgiverens punkt fjernet — to forekomster
+    expect(punktetKunNaarSat(k.replace(RAAD, ""))).toBe(false);
   });
 });

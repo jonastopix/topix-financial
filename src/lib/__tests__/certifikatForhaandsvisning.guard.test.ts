@@ -12,7 +12,9 @@ import { resolve } from "node:path";
  *   2. INTET GEMMES: siden kalder hverken skrivHentning, logHentning eller
  *      useCertificate, rører ikke supabase og giver ingen onDownloaded.
  *   3. DEN ÆGTE SIDE: CertificatePage importeres fra komponenten — ingen kopi.
- *   4. INTET MENUPUNKT: hbNav.ts nævner ikke ruten.
+ *   4. MENUPUNKTET (29/9 aften, Jonas: «Jeg kan jo heller ikke finde det som
+ *      rådgiver»): ruten står i raadgiverensNav under «Medlemmets flader» —
+ *      og ALDRIG i medlemmetsNav.
  */
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -47,13 +49,19 @@ export const denAegteSide = (side: string): boolean =>
   !/function (OpenView|LockedView)|export function CertificatePage/.test(side);
 
 // ── 4 ──────────────────────────────────────────────────────────────────────
-export const intetMenupunkt = (nav: string): boolean => !nav.includes("/certifikat/forhaandsvisning");
+export const kunIRaadgiverensMenu = (nav: string): boolean => {
+  const medlem = nav.slice(nav.indexOf("export function medlemmetsNav("), nav.indexOf("export function raadgiverensNav("));
+  const raad = nav.slice(nav.indexOf("export function raadgiverensNav("), nav.indexOf("export function bygHbNav("));
+  return raad.includes('{ label: CERTIFIKAT_LABEL, to: "/certifikat/forhaandsvisning", active: active === "certifikat", blok: medlem },') &&
+    (nav.match(/\/certifikat\/forhaandsvisning"/g) ?? []).length === 1 &&
+    !medlem.includes("/certifikat/forhaandsvisning");
+};
 
 describe("certifikatForhaandsvisning.guard — på repoets filer", () => {
   it("1. ruten er bag AdvisorRoute, og AdvisorRoute sender ikke-rådgivere til forsiden", () => expect(bagRaadgiverVagten(laes(APP))).toBe(true));
   it("2. intet gemmes: ingen skrivHentning/logHentning/useCertificate/supabase, ingen onDownloaded", () => expect(intetGemmes(laes(SIDE))).toBe(true));
   it("3. den ægte CertificatePage — ingen kopi", () => expect(denAegteSide(laes(SIDE))).toBe(true));
-  it("4. intet menupunkt", () => expect(intetMenupunkt(laes(NAV))).toBe(true));
+  it("4. ruten står i rådgiverens menu under Medlemmets flader — aldrig i medlemmets", () => expect(kunIRaadgiverensMenu(laes(NAV))).toBe(true));
 });
 
 describe("certifikatForhaandsvisning.guard — dommene fælder på en kopi", () => {
@@ -85,7 +93,14 @@ describe("certifikatForhaandsvisning.guard — dommene fælder på en kopi", () 
     expect(denAegteSide(`${side}\nfunction OpenView() { return null; }\n`)).toBe(false);
   });
 
-  it("4. et menupunkt til ruten fælder", () => {
-    expect(intetMenupunkt(`${laes(NAV)}\nconst x = { label: "Forhåndsvisning", to: "/certifikat/forhaandsvisning" };\n`)).toBe(false);
+  it("4. punktet fjernet fra rådgiverens menu, eller dukket op i medlemmets, fælder", () => {
+    const nav = laes(NAV);
+    const RAAD = '    { label: CERTIFIKAT_LABEL, to: "/certifikat/forhaandsvisning", active: active === "certifikat", blok: medlem },\n';
+    expect(kunIRaadgiverensMenu(byt(nav, RAAD, ""))).toBe(false);
+    expect(kunIRaadgiverensMenu(byt(
+      nav,
+      '    { label: "Fortæl det videre", to: "/deling", active: active === "deling" },\n',
+      '    { label: "Fortæl det videre", to: "/deling", active: active === "deling" },\n    { label: "Forhåndsvisning", to: "/certifikat/forhaandsvisning" },\n',
+    ))).toBe(false);
   });
 });

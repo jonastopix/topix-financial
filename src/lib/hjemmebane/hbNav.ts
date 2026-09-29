@@ -55,6 +55,10 @@
  *                    vejen ind i tallene med override), så de bliver.
  *     Akademiet, Rabataftaler, Events, Netværket —
  *                    medlemmets flader uden rådgiver-gren; bliver, skubbet ned.
+ *     Dit certifikat /certifikat/forhaandsvisning (Jonas 29/9: «Jeg kan jo
+ *                    heller ikke finde det som rådgiver») — SIDST i blokken.
+ *                    Forhåndsvisningen, ikke /certifikat: den skjuler siden
+ *                    for rådgivere (certifikat/dom.ts).
  *                    (Podcast & Talks stod her til 15/9.)
  *     IKKE med: «Dit Boardroom» (for rådgiveren er «/» Forside ovenfor;
  *                    medlemmets Boardroom vises kun med valgt virksomhed,
@@ -194,6 +198,8 @@ export function raadgiverensNav(active: HbAktiv, isPartner = false): HbNavEntry[
     { ...rabataftaler(active), blok: medlem },
     { label: "Events", to: "/events", active: active === "events", blok: medlem },
     { label: "Netværket", to: "/medlemmer", active: active === "medlemmer", blok: medlem },
+    // «Dit certifikat» (29/9): rådgiveren ser medlemmets side gennem forhåndsvisningen.
+    { label: CERTIFIKAT_LABEL, to: "/certifikat/forhaandsvisning", active: active === "certifikat", blok: medlem },
     {
       label: "Platform",
       blok: platform,
