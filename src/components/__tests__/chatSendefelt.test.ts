@@ -19,6 +19,7 @@ import { chatHenvisningsUdvidelser } from "@/components/chatHenvisninger";
 import { byggChatBesked, chatAfsendelse, parseChatDokument } from "@/lib/chatDokument";
 import type { ChatForslag, ChatForslagsKilder } from "@/lib/chatHenvisningsForslag";
 import type { MedlemsPartner } from "@/lib/hjemmebane/akademiApi";
+import type { CommunityTraad } from "@/lib/hjemmebane/communityApi";
 
 const AFTALE = "1b4e28ba-2fa1-41d2-883f-0016d3cca427";
 
@@ -37,7 +38,7 @@ const grund = (): Extensions => [
   Placeholder.configure({ placeholder: "Skriv en besked..." }),
 ];
 
-const kilder = { current: { events: [], items: [], aftaler: [] } as ChatForslagsKilder };
+const kilder = { current: { events: [], items: [], aftaler: [], traade: [] } as ChatForslagsKilder };
 const samlinger = { current: new Map<string, string>() };
 const editorer: Editor[] = [];
 const ny = (content: string | Record<string, unknown> = "") => {
@@ -92,7 +93,7 @@ describe("sendefeltet med en henvisning — gennem det rigtige #-forslag", () =>
   const dinero = { id: AFTALE, name: "Dinero", valid_until: null, discount_text: "20 %" } as unknown as MedlemsPartner;
 
   it("«#din» tilbyder aftalen; valget indsætter noden + et mellemrum; dokumentet følger med, og byggChatBesked giver content", () => {
-    kilder.current = { events: [], items: [], aftaler: [dinero] };
+    kilder.current = { events: [], items: [], aftaler: [dinero], traade: [] };
     const e = ny("<p>Brug </p>");
     const henvisning = e.extensionManager.extensions.find((x) => x.name === "henvisning")!;
     const forslag = henvisning.options.suggestion.items({ query: "din", editor: e }) as ChatForslag[];
@@ -111,7 +112,26 @@ describe("sendefeltet med en henvisning — gennem det rigtige #-forslag", () =>
     ]);
   });
 
-  it("redigeringen: indhold_json lagt i editoren kommer uændret ud — alle tre chat-noder kendes af skemaet", () => {
+  it("«#bud» tilbyder et Community-opslag; valget indsætter opslaghenvisningen, og dokumentet bærer traadId + titel", () => {
+    const TRAAD = "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d";
+    const traad = { id: TRAAD, titel: "Budget til næste år", forfatter_navn: "Mette", created_at: "2026-09-20T10:00:00Z" } as unknown as CommunityTraad;
+    kilder.current = { events: [], items: [], aftaler: [], traade: [traad] };
+    const e = ny("<p>Se </p>");
+    const henvisning = e.extensionManager.extensions.find((x) => x.name === "henvisning")!;
+    const forslag = henvisning.options.suggestion.items({ query: "bud", editor: e }) as ChatForslag[];
+    expect(forslag).toEqual([{ slags: "opslag", traad }]);
+
+    const slut = e.state.doc.content.size - 1;
+    henvisning.options.suggestion.command({ editor: e, range: { from: slut, to: slut }, props: forslag[0] });
+    const { dokument } = nyAfsendelse(e);
+    expect(dokument).toBeDefined();
+    expect(byggChatBesked(dokument)).toEqual({ content: "Se #Budget til næste år", indhold_json: dokument });
+    expect(parseChatDokument(dokument)).toEqual([
+      { type: "paragraph", content: [{ type: "text", text: "Se", marks: [] }, { type: "opslaghenvisning", traadId: TRAAD, titel: "Budget til næste år" }, { type: "text", text: " ", marks: [] }] },
+    ]);
+  });
+
+  it("redigeringen: indhold_json lagt i editoren kommer uændret ud — alle fire chat-noder kendes af skemaet", () => {
     const indhold = {
       type: "doc",
       content: [{
@@ -123,11 +143,13 @@ describe("sendefeltet med en henvisning — gennem det rigtige #-forslag", () =>
           { type: "eventhenvisning", attrs: { eventId: "3f2504e0-4f89-41d3-9a0c-0305e82c3301", titel: "Vækstdag" } },
           { type: "text", text: " og " },
           { type: "rabathenvisning", attrs: { aftaleId: AFTALE, titel: "Dinero" } },
+          { type: "text", text: " og " },
+          { type: "opslaghenvisning", attrs: { traadId: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d", titel: "Budgetopslag" } },
         ],
       }],
     };
     const e = ny(indhold);
     expect(parseChatDokument(e.getJSON())).toEqual(parseChatDokument(indhold));
-    expect(e.getText()).toBe("Se #Budget og #Vækstdag og #Dinero");
+    expect(e.getText()).toBe("Se #Budget og #Vækstdag og #Dinero og #Budgetopslag");
   });
 });

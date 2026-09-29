@@ -12,6 +12,7 @@
 import { useRef, useState } from "react";
 import type { Extensions } from "@tiptap/react";
 import { useQuery } from "@tanstack/react-query";
+import { hentFeed } from "@/lib/hjemmebane/communityApi";
 import {
   listAllUpcomingEvents,
   listMedlemsPartnere,
@@ -26,6 +27,7 @@ import {
   type ChatForslag,
   type ChatForslagsKilder,
 } from "@/lib/chatHenvisningsForslag";
+import { OMRAADE_LABELS, OpslagHenvisningNode } from "@/components/hjemmebane/community/CommunityComposer";
 import {
   EventHenvisningNode,
   HenvisningNode,
@@ -42,7 +44,8 @@ const opretChatDropdown = (samlingsTitel: Ref<Map<string, string>>, fejltekst: R
       forslag.slags === "item" && forslag.item.collection_id
         ? (samlingsTitel.current.get(forslag.item.collection_id) ?? null)
         : null;
-    const { titel, undertekst } = chatForslagsTekst(forslag, samling);
+    const omraade = forslag.slags === "item" ? (OMRAADE_LABELS[forslag.item.area] ?? forslag.item.area) : null;
+    const { titel, undertekst } = chatForslagsTekst(forslag, samling, omraade);
     const tekst = document.createElement("span");
     tekst.className = "min-w-0 flex-1";
     const t = document.createElement("span");
@@ -56,7 +59,7 @@ const opretChatDropdown = (samlingsTitel: Ref<Map<string, string>>, fejltekst: R
     raekke.appendChild(tekst);
   }, () => fejltekst.current);
 
-/** Udvidelserne: #-forslaget på HenvisningNode (som i Community) + de to andre noder som skema.
+/** Udvidelserne: #-forslaget på HenvisningNode (som i Community) + de tre andre noder som skema.
     `fejltekst` er listens fodnote, når en kilde fejlede (forslagsFejlTekst). */
 export function chatHenvisningsUdvidelser(
   kilder: Ref<ChatForslagsKilder>,
@@ -66,6 +69,7 @@ export function chatHenvisningsUdvidelser(
   return [
     EventHenvisningNode,
     RabatHenvisningNode,
+    OpslagHenvisningNode,
     HenvisningNode.configure({
       suggestion: {
         char: "#",
@@ -102,11 +106,19 @@ export function useChatHenvisninger(): Extensions {
     staleTime: 5 * 60_000,
   });
 
-  const kilder = useRef<ChatForslagsKilder>({ events: [], items: [], aftaler: [] });
+  // Opslag: SAMME queryKey og queryFn som Community's #-liste og CommunityViews feed.
+  const feedQuery = useQuery({
+    queryKey: ["community", "feed"],
+    queryFn: () => hentFeed(30),
+    staleTime: 60_000,
+  });
+
+  const kilder = useRef<ChatForslagsKilder>({ events: [], items: [], aftaler: [], traade: [] });
   kilder.current = {
     events: eventsQuery.data ?? [],
     items: itemsQuery.data ?? [],
     aftaler: aftalerQuery.data ?? [],
+    traade: feedQuery.data ?? [],
   };
   const samlingsTitel = useRef<Map<string, string>>(new Map());
   samlingsTitel.current = new Map((samlingerQuery.data ?? []).map((s) => [s.id, s.title]));
@@ -117,6 +129,7 @@ export function useChatHenvisninger(): Extensions {
     items: itemsQuery.isError,
     samlinger: samlingerQuery.isError,
     aftaler: aftalerQuery.isError,
+    feed: feedQuery.isError,
   });
 
   const [udvidelser] = useState(() => chatHenvisningsUdvidelser(kilder, samlingsTitel, fejltekst));

@@ -3,7 +3,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 /**
- * Kildeværn for «#» i chatten, trin 3: fladen (29/9-2026). Fire domme, hver
+ * Kildeværn for «#» i chatten, trin 3: fladen (29/9-2026). Fem domme, hver
  * bevist nedenfor på en kopi med fejlen indsat:
  *
  *   a. AFSENDELSEN GÅR GENNEM MOTOREN: sendefeltet giver dokumentet videre
@@ -21,6 +21,12 @@ import { join, resolve } from "node:path";
  *   d. AFTALENS ADRESSE FRA rabataftaleAdresse: chattens og Community's visning
  *      får aftalens href fra hjælperen, og ingen anden fil bygger
  *      «/rabataftaler?…» eller «aftaleId=» selv.
+ *   e. OPSLAG OG OMRÅDENAVNE ER COMMUNITY'S (a29-hash-huller 2 og 4): chatten
+ *      importerer opslagsnoden og OMRAADE_LABELS fra CommunityComposer (som
+ *      eksporterer dem) frem for at have egne kopier; opslagene hentes af SAMME
+ *      feed som Community's #-liste; forslaget bliver til noden med traadId +
+ *      titel; og «/community/» bygges ikke i chattens forslagsfiler — adressen
+ *      er henvisningsAdresse's alene.
  */
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -45,6 +51,9 @@ const HOOK = "src/hooks/useMessageActions.ts";
 const MOTOR = "src/lib/chatDokument.ts";
 const COMMUNITY = "src/components/hjemmebane/community/CommunityDokument.tsx";
 const HJAELPER = "src/lib/hjemmebane/rabataftaleAdresse.ts";
+const CHAT_HOOK = "src/components/chatHenvisninger.ts";
+const CHAT_FORSLAG = "src/lib/chatHenvisningsForslag.ts";
+const COMPOSER = "src/components/hjemmebane/community/CommunityComposer.tsx";
 const PANER = ["src/components/MemberChatPane.tsx", "src/components/CompanyChatPane.tsx"] as const;
 
 // ── a ──────────────────────────────────────────────────────────────────────
@@ -144,6 +153,30 @@ export const aftalensAdresseFraHjaelperen = (k: {
   return motorOk && tekstOk && communityOk && ingenEgenBygning;
 };
 
+// ── e ──────────────────────────────────────────────────────────────────────
+export const opslagOgOmraaderErCommunitys = (k: { hook: string; forslag: string; composer: string }): boolean => {
+  const hook = flad(udenKommentarer(k.hook));
+  const forslag = flad(udenKommentarer(k.forslag));
+  const composer = udenKommentarer(k.composer);
+  const composerOk =
+    composer.includes("export const OpslagHenvisningNode = Mention.extend({") &&
+    composer.includes("export const OMRAADE_LABELS: Record<string, string> = {");
+  const hookOk =
+    hook.includes('import { OMRAADE_LABELS, OpslagHenvisningNode } from "@/components/hjemmebane/community/CommunityComposer";') &&
+    hook.includes("OpslagHenvisningNode, HenvisningNode.configure(") &&
+    hook.includes('queryKey: ["community", "feed"], queryFn: () => hentFeed(30),') &&
+    hook.includes("OMRAADE_LABELS[forslag.item.area] ?? forslag.item.area") &&
+    hook.includes("traade: feedQuery.data ?? [],") &&
+    hook.includes("feed: feedQuery.isError,");
+  const forslagOk =
+    forslag.includes("attrs: { traadId: forslag.traad.id, titel: forslag.traad.titel }") &&
+    forslag.includes("...aftaler, ...opslag]");
+  const ingenKopi = [hook, forslag].every(
+    (raa) => !/Mention\.extend|OMRAADE_LABELS: Record|`\/community\//.test(raa),
+  );
+  return composerOk && hookOk && forslagOk && ingenKopi;
+};
+
 const kildefiler = (): Map<string, string> => {
   const ud = new Map<string, string>();
   const gaa = (mappe: string) => {
@@ -162,6 +195,8 @@ const kildefiler = (): Map<string, string> => {
 };
 
 describe("chatHenvisningFlade.guard", () => {
+  it("e. opslagsnoden og områdenavnene er Community's — ingen kopi, samme feed, adressen i motoren", () =>
+    expect(opslagOgOmraaderErCommunitys({ hook: laes(CHAT_HOOK), forslag: laes(CHAT_FORSLAG), composer: laes(COMPOSER) })).toBe(true));
   const paner = PANER.map(laes);
   it("a. afsendelsen går gennem byggChatBesked — og videobeskeden er urørt", () =>
     expect(afsendelsenGaarGennemMotoren({ input: laes(INPUT), paner, company: laes(PANER[1]) })).toBe(true));
@@ -226,6 +261,29 @@ describe("chatHenvisningFlade.guard — dommene fælder på en kopi", () => {
     expect(ingenInnerHtmlAfDokumentet({ ...ok, paner: [member, pane] })).toBe(false);
     const andetSted = new Map(alle).set("src/components/X.tsx", "const x = <div dangerouslySetInnerHTML={{ __html: row.indhold_json }} />;");
     expect(ingenInnerHtmlAfDokumentet({ ...ok, alle: andetSted })).toBe(false);
+  });
+
+  it("e: en egen opslagsnode eller områdeliste i chatten, en anden feed-kilde, en bygget /community/-adresse eller et fjernet opslag fælder", () => {
+    const ok = { hook: laes(CHAT_HOOK), forslag: laes(CHAT_FORSLAG), composer: laes(COMPOSER) };
+    expect(opslagOgOmraaderErCommunitys(ok)).toBe(true);
+    const eget = byt(ok.hook, 'import { OMRAADE_LABELS, OpslagHenvisningNode } from "@/components/hjemmebane/community/CommunityComposer";', 'const OpslagHenvisningNode = Mention.extend({ name: "opslaghenvisning" });');
+    expect(opslagOgOmraaderErCommunitys({ ...ok, hook: eget })).toBe(false);
+    const udenNode = byt(ok.hook, "    OpslagHenvisningNode,\n", "");
+    expect(opslagOgOmraaderErCommunitys({ ...ok, hook: udenNode })).toBe(false);
+    const andenFeed = byt(ok.hook, 'queryKey: ["community", "feed"],', 'queryKey: ["chat", "opslag"],');
+    expect(opslagOgOmraaderErCommunitys({ ...ok, hook: andenFeed })).toBe(false);
+    const udenOmraade = byt(ok.hook, "OMRAADE_LABELS[forslag.item.area] ?? forslag.item.area", "null");
+    expect(opslagOgOmraaderErCommunitys({ ...ok, hook: udenOmraade })).toBe(false);
+    const udenFejl = byt(ok.hook, "    feed: feedQuery.isError,\n", "");
+    expect(opslagOgOmraaderErCommunitys({ ...ok, hook: udenFejl })).toBe(false);
+    const egenAdresse = byt(ok.forslag, "  // Opslag sidst, som i Community", "  const href = `/community/${x}`;\n  // Opslag sidst, som i Community");
+    expect(opslagOgOmraaderErCommunitys({ ...ok, forslag: egenAdresse })).toBe(false);
+    const forkertNode = byt(ok.forslag, "attrs: { traadId: forslag.traad.id, titel: forslag.traad.titel }", "attrs: { id: forslag.traad.id, titel: forslag.traad.titel }");
+    expect(opslagOgOmraaderErCommunitys({ ...ok, forslag: forkertNode })).toBe(false);
+    const ikkeEksporteret = byt(ok.composer, "export const OpslagHenvisningNode = Mention.extend({", "const OpslagHenvisningNode = Mention.extend({");
+    expect(opslagOgOmraaderErCommunitys({ ...ok, composer: ikkeEksporteret })).toBe(false);
+    const labelsPrivate = byt(ok.composer, "export const OMRAADE_LABELS: Record", "const OMRAADE_LABELS: Record");
+    expect(opslagOgOmraaderErCommunitys({ ...ok, composer: labelsPrivate })).toBe(false);
   });
 
   it("d: en bygget aftale-adresse i motoren, i boblen, i Community eller i en ny fil, fælder", () => {

@@ -9,7 +9,8 @@
  *
  * OpslagHenvisningNode, OMRAADE_LABELS og #-opslagskommandoen bliver i
  * CommunityComposer.tsx: kildeværnet linkKort.guard (dom 6 og 7) kræver dem
- * dér, og dets prøver skal stå uændrede. Chatten tilbyder derfor ikke opslag.
+ * dér, og dets prøver skal stå uændrede. Chatten IMPORTERER node og
+ * områdenavne derfra (eksporteret 29/9) i stedet for at kopiere dem.
  *
  * Noderne her er SKEMA (parse/render i editoren). Motoren, der dømmer et gemt
  * dokument, er parseCommunityDokument; adressen bygges ved VISNING

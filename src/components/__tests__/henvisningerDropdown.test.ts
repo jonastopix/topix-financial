@@ -53,8 +53,8 @@ describe("med fodnote — chattens fejllinje", () => {
 
 describe("chattens #-udvidelse bærer fejlteksten ind i listen", () => {
   it("fejltekst-ref'en → linjen i dropdown'en; null → ingen", () => {
-    const kilder = { current: { events: [], items: [], aftaler: [] } as ChatForslagsKilder };
-    const fejltekst = { current: forslagsFejlTekst({ events: false, items: false, samlinger: false, aftaler: true }) };
+    const kilder = { current: { events: [], items: [], aftaler: [], traade: [] } as ChatForslagsKilder };
+    const fejltekst = { current: forslagsFejlTekst({ events: false, items: false, samlinger: false, aftaler: true, feed: false }) };
     const henvisning = chatHenvisningsUdvidelser(kilder, { current: new Map() }, fejltekst).find((u) => u.name === "henvisning")!;
     const vis = () => (henvisning.options.suggestion.render as () => { onStart: (p: Aabning) => void })().onStart(props([]));
     vis();
