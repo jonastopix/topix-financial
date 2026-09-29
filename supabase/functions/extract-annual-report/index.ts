@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { manglerOmsaetning, normaliserAarsrapport } from "../_shared/aarsrapportNormalisering.ts";
 import { metricsForMaaned } from "../_shared/aarsrapportRaekker.ts";
+import { doemRapportEjer, doemRapportFil, gyldigtAarstal } from "../_shared/rapportEjerskab.ts";
 
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 const DANISH_MONTHS = ["Januar","Februar","Marts","April","Maj","Juni","Juli","August","September","Oktober","November","December"];
@@ -13,9 +14,17 @@ Deno.serve(async (req) => {
   if (auth instanceof Response) return auth;
   const { callerId, callerClient } = auth;
 
-  const { report_id, file_path, year, company_id, user_id } = await req.json();
-  if (!report_id || !file_path || !year || !company_id) {
+  // file_path og user_id i body'en LÆSES IKKE (30/9-2026, sikkerhedsanalysen
+  // fund 2): filen hentes fra rapportens egen række, og committed_by er
+  // kalderen. RapporteringView sender dem stadig — de ignoreres.
+  const { report_id, year, company_id } = await req.json();
+  if (!report_id || !year || !company_id) {
     return new Response(JSON.stringify({ ok: false, error: "Missing params" }), {
+      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  if (!gyldigtAarstal(year)) {
+    return new Response(JSON.stringify({ ok: false, error: "Invalid year" }), {
       status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
@@ -40,6 +49,30 @@ Deno.serve(async (req) => {
     });
   }
 
+  // Ejertjek (30/9-2026, fund 2): rapporten slås op med KALDERENS klient (RLS),
+  // skal tilhøre company_id, og filen er rækkens file_path i virksomhedens egen
+  // mappe — aldrig body'ens. Før service role konstrueres.
+  const { data: rapport } = await callerClient
+    .from("financial_reports")
+    .select("id, company_id, file_path")
+    .eq("id", report_id)
+    .maybeSingle();
+  const ejerDom = doemRapportEjer(rapport, company_id);
+  if (!ejerDom.ok) {
+    console.warn(`[extract-annual-report] denied: caller=${callerId} report=${report_id} company=${company_id} grund=${ejerDom.grund}`);
+    return new Response(JSON.stringify({ ok: false, error: ejerDom.status === 404 ? "Report not found" : "Forbidden" }), {
+      status: ejerDom.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const filDom = doemRapportFil(rapport, company_id);
+  if (!filDom.ok) {
+    console.warn(`[extract-annual-report] denied: caller=${callerId} report=${report_id} company=${company_id} grund=${filDom.grund}`);
+    return new Response(JSON.stringify({ ok: false, error: "Forbidden" }), {
+      status: filDom.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const file_path = filDom.filSti;
+
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const adminClient = createClient(supabaseUrl, serviceKey);
@@ -59,7 +92,8 @@ Deno.serve(async (req) => {
         status: "error",
         extracted_data: { error_log } as any,
       } as any)
-      .eq("id", report_id);
+      .eq("id", report_id)
+      .eq("company_id", company_id);
   };
 
   // ── STEP 0: Auto soft-delete prior failed annual reports for same company+year ──
@@ -318,7 +352,7 @@ NETTOOMSÆTNING — VIGTIGT: Nettoomsætning kan stå under mange navne i danske
       // Balanceposter (cash, equity) kun på decemberrækken (10/9, _shared/aarsrapportRaekker):
       // en beholdning hører til 31/12, ikke til hver måned. De elleve andre er UDEN nøglen.
       metrics: metricsForMaaned(metrics, i),
-      committed_by: user_id || null,
+      committed_by: callerId,
       committed_at: new Date().toISOString(),
     });
   }
@@ -362,7 +396,8 @@ NETTOOMSÆTNING — VIGTIGT: Nettoomsætning kan stå under mange navne i danske
       normalized_data: metrics as any,
       report_period: `Årsrapport ${year}`,
     } as any)
-    .eq("id", report_id);
+    .eq("id", report_id)
+    .eq("company_id", company_id);
 
   console.log(`[extract-annual-report] Done — inserted ${inserted} facts, ${protected_count} protected for company ${company_id} year ${year}`);
 

@@ -692,6 +692,44 @@ politikker tilbage. Ingen levende flade skrev til tabellen på
 ændringstidspunktet (`docs/opgave-model-kortlaegning.md` §2), og begge
 skrivende edge functions bruger `SUPABASE_SERVICE_ROLE_KEY`.
 
+### Edge-rettelser 30/9-2026 (sikkerhedsanalysen fund 2, 4, 5, 8, 9, C7) — kun kode, ingen migration
+
+- **`extract-annual-report`** (fund 2): rapporten slås op med `callerClient`
+  og dømmes af `_shared/rapportEjerskab.ts` FØR service role —
+  `doemRapportEjer` (rækken findes for kalderen og har `company_id` = kaldets;
+  404/403) og `doemRapportFil` (filen er RÆKKENS `file_path` i
+  `<company_id>/`, uden `..`/`.`/`//`/`\`/kontroltegn). Body'ens `file_path` og
+  `user_id` læses ikke; `committed_by` = kalderen; årstallet skal være fire
+  cifre (det indsættes i `.or()`/`.like()`); hver service-role-skrivning på
+  rapporten er `.eq("id").eq("company_id")`.
+- **`update-annual-report-revenue`** (fund 5): samme `doemRapportEjer` FØR
+  service role; læsning og skrivning af rapporten bundet til `company_id`.
+- **`notify-chat-reply`** (fund 8): `has_role(advisor)` og samtale-opslaget
+  med `callerClient` FØR service role (403/404). Eneste kalder er
+  `CompanyChatPane`, kun når `isAdvisor`.
+- **`run-company-agent`** (fund 9): live-porten `_shared/agentLiveAdgang.ts`
+  (`maaKoereLive`) FØR service role. Tørkørsel: alle med adgang. Live:
+  service role og rådgivere altid; et medlem KUN `report_committed` og
+  `anomaly_detected` — de to, medlemmets egen rapport-commit starter
+  (`reportCommit.ts`, `ReportReviewDialog.tsx`, målt 30/9). Analysens «kun
+  rådgiver live» ville have brudt dem. 403 `live_kraever_raadgiver`.
+- **`stripe-webhook` / `calendly-webhook`** (C7/F1): den delte dom
+  `_shared/webhookSignatur.ts` — konstant tid (`konstantTidLighed.ts`), ALLE
+  `v1` prøves, samme hemmelighed og HMAC-form som før. Stripe: tidsvindue
+  300 s (stripe-node `DEFAULT_TOLERANCE`; Stripe signerer hver levering på
+  ny). Calendly: vinduet håndhæves IKKE endnu — Calendlys dokumentation
+  siger ikke, om gentagelser signeres på ny, og et afvist abonnement bliver
+  `disabled` efter 24 timer; alderen logges («signaturalder N s»), så det kan
+  måles, før vinduet slås til (Calendly foreslår 180 s).
+- **Frontend `/auth?returnUrl=`** (fund 4): `src/lib/sikkerReturUrl.ts`
+  (`sikkerReturSti`) i `Auth.tsx` og `App.tsx:AuthRoute` — altid en intern
+  sti; vores egen https-adresse (create-legat-enrollments
+  `returnUrl=https://app.theboardroom.dk/legat`) oversættes til stien; alt
+  andet → `/`. Ingen `window.location.href = returnUrl`.
+- Kildeværn `src/lib/__tests__/sikkerhedEdge.guard.test.ts` (seks domme med
+  mutationsprøver); rene prøver `rapportEjerskab`, `agentLiveAdgang`,
+  `webhookSignatur`, `sikkerReturUrl`.
+
 ### Service-role-only tables (no client INSERT/UPDATE/DELETE)
 - `slack_conversation_threads`
 - `slack_notification_log`

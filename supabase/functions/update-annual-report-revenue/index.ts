@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
+import { doemRapportEjer, gyldigtAarstal } from "../_shared/rapportEjerskab.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -12,6 +13,11 @@ Deno.serve(async (req) => {
 
   if (!report_id || !year || !company_id || annual_revenue == null) {
     return new Response(JSON.stringify({ ok: false, error: "Missing params" }), {
+      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  if (!gyldigtAarstal(year)) {
+    return new Response(JSON.stringify({ ok: false, error: "Invalid year" }), {
       status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
@@ -33,6 +39,22 @@ Deno.serve(async (req) => {
     console.warn(`[update-annual-report-revenue] denied: caller=${callerId} not authorized for company=${company_id}`);
     return new Response(JSON.stringify({ ok: false, error: "Forbidden" }), {
       status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  // report_id bundet til company_id (30/9-2026, sikkerhedsanalysen fund 5):
+  // rapporten slås op med KALDERENS klient (RLS) og skal tilhøre company_id —
+  // FØR service role konstrueres og før nogen fact eller rapport skrives.
+  const { data: rapport } = await callerClient
+    .from("financial_reports")
+    .select("id, company_id")
+    .eq("id", report_id)
+    .maybeSingle();
+  const ejerDom = doemRapportEjer(rapport, company_id);
+  if (!ejerDom.ok) {
+    console.warn(`[update-annual-report-revenue] denied: caller=${callerId} report=${report_id} company=${company_id} grund=${ejerDom.grund}`);
+    return new Response(JSON.stringify({ ok: false, error: ejerDom.status === 404 ? "Report not found" : "Forbidden" }), {
+      status: ejerDom.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
@@ -86,6 +108,7 @@ Deno.serve(async (req) => {
     .from("financial_reports")
     .select("extracted_data")
     .eq("id", report_id)
+    .eq("company_id", company_id)
     .maybeSingle();
 
   const updatedExtracted = {
@@ -101,7 +124,8 @@ Deno.serve(async (req) => {
   await adminClient
     .from("financial_reports")
     .update({ extracted_data: updatedExtracted } as any)
-    .eq("id", report_id);
+    .eq("id", report_id)
+    .eq("company_id", company_id);
 
   console.log(`[update-annual-report-revenue] Updated ${updated} facts for company ${company_id} year ${year} with monthly revenue ${monthlyRevenue}`);
 

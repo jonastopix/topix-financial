@@ -6,6 +6,7 @@ import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from "@ta
 import { logMutationFejl, logQueryFejl } from "@/lib/fejllogning";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
+import { sikkerReturSti } from "@/lib/sikkerReturUrl";
 import { ViewModeProvider } from "@/hooks/useViewMode";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import ScrollToTop from "@/components/ScrollToTop";
@@ -210,7 +211,9 @@ const PartnerRoute = ({ children }: { children: React.ReactNode }) => {
 const AuthRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
   const qs = new URLSearchParams(window.location.search);
-  const returnUrl = qs.get("returnUrl");
+  // Kun en intern sti (30/9-2026, fund 4) — samme dom som Auth.tsx.
+  const raaReturUrl = qs.get("returnUrl");
+  const returnUrl = raaReturUrl ? sikkerReturSti(raaReturUrl, window.location.origin) : null;
   const force = qs.get("force");
   const invite = qs.get("invite");
   // Spinneren frem for null (trin 10-12): null gav en hvid, tom skærm

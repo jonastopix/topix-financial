@@ -29,6 +29,30 @@ Deno.serve(async (req) => {
     });
   }
 
+  // Adgangstjek (30/9-2026, sikkerhedsanalysen fund 8): notifikationen hedder
+  // «Ny besked fra din rådgiver», så kun en rådgiver må udløse den — og
+  // samtalen skal findes for kalderen (RLS via callerClient). Begge FØR
+  // service role. Eneste kalder er CompanyChatPane, og kun når isAdvisor.
+  const { data: erRaadgiver } = await callerClient.rpc("has_role", { _user_id: callerId, _role: "advisor" });
+  if (erRaadgiver !== true) {
+    console.warn(`[notify-chat-reply] denied: caller=${callerId} er ikke rådgiver`);
+    return new Response(JSON.stringify({ error: "Forbidden" }), {
+      status: 403,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const { data: conv } = await callerClient
+    .from("conversations")
+    .select("id, company_id")
+    .eq("id", conversation_id)
+    .maybeSingle();
+  if (!conv) {
+    return new Response(JSON.stringify({ error: "Conversation not found" }), {
+      status: 404,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const adminClient = createClient(supabaseUrl, serviceKey);
@@ -37,13 +61,7 @@ Deno.serve(async (req) => {
   let memberIds: string[] = [];
 
   {
-    const { data: conv } = await adminClient
-      .from("conversations")
-      .select("company_id")
-      .eq("id", conversation_id)
-      .maybeSingle();
-
-    if (conv?.company_id) {
+    if (conv.company_id) {
       const { data: company } = await adminClient
         .from("companies")
         .select("name")

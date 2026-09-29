@@ -4,6 +4,7 @@ import { hentInvitee, hentMoedeLink } from "../_shared/calendlyApi.ts";
 import { hentAnsoegning, RAADGIVER_BESKED, REFERENCE_TYPE, udfoerOvergang, virksomhedsnavnAf } from "../_shared/ansoegningMotor.ts";
 import { skrivRaadgiverBesked } from "../_shared/raadgiverBesked.ts";
 import { meldSamtaleAendring } from "../_shared/samtaleBesked.ts";
+import { type TV1Dom, verificerTV1Signatur } from "../_shared/webhookSignatur.ts";
 
 // Bucket C: ekstern webhook fra Calendly. Signaturverifikation FOER parsing.
 // Modtager invitee.created / invitee.canceled, beviser beskeden aegte via HMAC-signatur,
@@ -26,26 +27,21 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, calendly-webhook-signature",
 };
 
-// SPEJLER verifyStripeSignature noejagtigt. Eneste forskel: header-navnet laeses i kaldet,
-// ikke her. Calendly bruger hex som Stripe (bekraeftet via Calendly developer community).
+// Samme «t=,v1=»-form og HMAC som Stripe (hex; bekraeftet via Calendly developer community).
 // Hvis live-signatur fejler, er hex vs base64 foerste sted at kigge.
-async function verifyCalendlySignature(payload: string, signature: string, secret: string): Promise<boolean> {
-  const parts = signature.split(",");
-  const timestamp = parts.find(p => p.startsWith("t="))?.slice(2);
-  const v1 = parts.find(p => p.startsWith("v1="))?.slice(3);
-  if (!timestamp || !v1) return false;
-
-  const signedPayload = `${timestamp}.${payload}`;
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
-  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(signedPayload));
-  const expected = Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, "0")).join("");
-  return expected === v1;
+// 30/9-2026 (sikkerhedsanalysen C7): konstant tid og alle v1 via _shared/webhookSignatur.ts.
+// TIDSVINDUET HAANDHAEVES IKKE (toleranceSek: null): Calendlys dokumentation siger ikke,
+// om en gentaget levering signeres paa ny. Goer den ikke, ville et vindue afvise hver
+// gentagelse, og abonnementet bliver `disabled` efter 24 timers fejl (kan ikke genaktiveres).
+// Alderen logges ved hver besked, saa den kan MAALES, foer vinduet slaas til.
+async function verifyCalendlySignature(payload: string, signature: string, secret: string): Promise<TV1Dom> {
+  return await verificerTV1Signatur({
+    payload,
+    header: signature,
+    secret,
+    nuSek: Math.floor(Date.now() / 1000),
+    toleranceSek: null,
+  });
 }
 
 // Lille UUID-tjek saa fremmede events (uden vores id) afvises tidligt med 200.
@@ -88,9 +84,12 @@ Deno.serve(async (req: Request) => {
   const rawBody = await req.text();
   const sig = req.headers.get("Calendly-Webhook-Signature") || "";
   let verificeretMed: string | null = null;
+  let signaturAlderSek: number | null = null;
   for (const k of signingKeys) {
-    if (await verifyCalendlySignature(rawBody, sig, k.key)) {
+    const dom = await verifyCalendlySignature(rawBody, sig, k.key);
+    if (dom.ok) {
       verificeretMed = k.spor;
+      signaturAlderSek = dom.alderSek;
       break;
     }
   }
@@ -112,7 +111,7 @@ Deno.serve(async (req: Request) => {
   //     advisor styrer sideeffekterne (dommen), indtil disse felter er set i function-logs.
   const vaert = event?.payload?.scheduled_event?.event_memberships?.[0];
   console.log(
-    `[calendly-webhook] ${event?.event ?? "?"} verificeret med '${verificeretMed}'. ` +
+    `[calendly-webhook] ${event?.event ?? "?"} verificeret med '${verificeretMed}' (signaturalder ${signaturAlderSek ?? "?"} s). ` +
     `created_by=${event?.created_by ?? "?"} vaert.user=${vaert?.user ?? "?"} vaert.user_email=${vaert?.user_email ?? "?"}`,
   );
 
