@@ -31,9 +31,11 @@ export const LOFT_PAUSE_MS = 60 * 60_000;
  *   403  «Your account is on probation and domains are limited to 100 messages / hour»
  *   420  «recipient limit (26) exceeded»
  *   429  «request limit (101) exceeded»
- * 403 er i doemSvar OGSÅ en afvist nøgle (noegle_afvist) — og en afvist nøgle
- * bliver ikke god af 190 kald mere i samme kørsel. Derfor stopper den også.
- * Dommen læser KUN statuskoden; teksten står i webinar_mails.svar.
+ * Et 403 kan OGSÅ være en afvist nøgle — og en afvist nøgle bliver ikke god af
+ * flere kald i samme kørsel. Derfor stopper den også, uanset hvad Mailgun
+ * skrev. MÆRKATEN (loft eller noegle_afvist) afgøres af svarteksten i
+ * mailgunAfsendelse.ts (doemMailgunSvar); denne dom læser KUN statuskoden.
+ * Teksten står i webinar_mails.svar.
  */
 export const STOP_STATUSSER: readonly number[] = [403, 420, 429];
 
