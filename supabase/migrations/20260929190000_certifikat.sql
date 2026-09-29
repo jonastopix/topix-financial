@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod — 29/9-2026 kl. 17:19 dansk tid (Lovable SQL editor), FØR merget af #1133. FØR (17:18): kolonne certificate_eligible 0 · tabel certificate_downloads null · rls null · policies 0 · policy-navne tom · bucket deling-portraetter «findes, public=false». EFTER (17:19, samme kørsel): kolonne 1 · tabel certificate_downloads · rls true · policies 3 · policy-navne «Medlemmet logger egen certifikat-hentning [INSERT] · Medlemmet læser egne certifikat-hentninger [SELECT] · Rådgivere læser alle certifikat-hentninger [SELECT]» · bucket «findes, public=false» · virksomheder med flaget 0. Målt udefra kl. 17:19 med anon-nøglen: GET /rest/v1/companies?select=certificate_eligible&limit=0 → HTTP 200 · GET /rest/v1/certificate_downloads?select=id&limit=0 → HTTP 200.
 --
 -- «DIT CERTIFIKAT», TRIN 1 (29/9-2026, ~/Downloads/boardroom-certifikat/HANDOFF.md §6
 -- og ~/Downloads/recon-certifikat.md): et bevis på 12 måneders medlemskab, som
@@ -48,15 +48,15 @@
 --   UNION ALL
 --   SELECT 'virksomheder med flaget', coalesce((SELECT count(*) FILTER (WHERE certificate_eligible)::text FROM public.companies), 'kolonnen mangler');
 --
--- FACIT FØR (forventet — Lovable-prod er IKKE målt fra CLI'en):
+-- FACIT FØR (målt 29/9-2026 kl. 17:18 i Lovable SQL editor):
 --   kolonne certificate_eligible | 0
 --   tabel certificate_downloads  | null
 --   rls certificate_downloads    | null
 --   policies certificate_downloads | 0
 --   policy-navne                 | (tom)
---   bucket deling-portraetter    | findes, public=false   (kørt 14/9 iflg. OVERLEVERING; filhovedet siger «SKREVET, IKKE KØRT» — mål den)
+--   bucket deling-portraetter    | findes, public=false   (målt 17:18: bucketen findes og er privat)
 --   virksomheder med flaget      | (fejler med 42703 FØR — kør derfor FØR-SELECT'en uden den sidste linje, eller læs fejlen som «kolonnen mangler»)
--- FACIT EFTER:
+-- FACIT EFTER (målt 29/9-2026 kl. 17:19, samme kørsel):
 --   kolonne certificate_eligible | 1
 --   tabel certificate_downloads  | certificate_downloads
 --   rls certificate_downloads    | true
@@ -65,10 +65,10 @@
 --   bucket deling-portraetter    | findes, public=false
 --   virksomheder med flaget      | 0   (indtil Jonas sætter flaget)
 --
--- Frontend-målingen FØR Update (CLAUDE.md «Nye migrations»): med anon-nøglen fra
--- den udrullede bundle:
---   GET /rest/v1/companies?select=certificate_eligible&limit=0            → 200 (42703 = kolonnen mangler)
---   GET /rest/v1/certificate_downloads?select=id&limit=0                  → 200 (42P01 = tabellen mangler)
+-- Frontend-målingen FØR Update (CLAUDE.md «Nye migrations»), målt 17:19 med anon-nøglen fra
+-- repoets .env (VITE_SUPABASE_PUBLISHABLE_KEY), samme offentlige nøgle som frontenden bruger:
+--   GET /rest/v1/companies?select=certificate_eligible&limit=0            → 200 (målt; 42703 ville betyde: kolonnen mangler)
+--   GET /rest/v1/certificate_downloads?select=id&limit=0                  → 200 (målt; 42P01 ville betyde: tabellen mangler)
 --
 -- ROLLBACK:
 --   drop table if exists public.certificate_downloads;
