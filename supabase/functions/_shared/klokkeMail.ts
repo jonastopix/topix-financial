@@ -108,6 +108,7 @@ export const SELVMAILENDE_REFERENCER = [
   "klaviyo_profil",     // klaviyo-profil-cron: alarmmail + drift-klokke (skrivAlarm)
   "meta_haendelser",    // meta-send-cron (#1069, i main siden 21/9 aften): alarmmail + drift-klokke
   "ga_haendelser",      // ga-send-cron (merget 21/9 aften, da848925): alarmmail + drift-klokke
+  "webinar_mails",      // webinar-mail-cron (29/9): alarmmail + drift-klokke (skrivAlarm) ved fejlede mails, stop eller pause hos Mailgun
 ] as const;
 export const SELVMAILENDE_GRUND = "mailes allerede af sin egen alarm (sendManagedEmail i samme kørsel som klokken)";
 
