@@ -75,10 +75,16 @@ Deno.serve(async (req) => {
       });
     }
 
+    // companies er et one-to-one embed; typen siger array, runtime giver objekt.
+    const firma = member?.companies as unknown as {
+      contract_end_date: string | null;
+      subscription_status: string | null;
+      subscription_current_period_end: string | null;
+    } | undefined;
     const tier = computeMembershipTier({
-      contract_end_date: member.companies?.contract_end_date ?? null,
-      subscription_status: member.companies?.subscription_status ?? null,
-      subscription_current_period_end: member.companies?.subscription_current_period_end ?? null,
+      contract_end_date: firma?.contract_end_date ?? null,
+      subscription_status: firma?.subscription_status ?? null,
+      subscription_current_period_end: firma?.subscription_current_period_end ?? null,
     });
     if (tier !== "full") {
       return new Response(JSON.stringify({ error: "Kun fulde medlemmer kan købe en session med Jonas." }), {
