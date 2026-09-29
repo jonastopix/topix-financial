@@ -1047,6 +1047,30 @@ export type Database = {
           },
         ]
       }
+      certificate_downloads: {
+        Row: {
+          created_at: string
+          design: string
+          format: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          design: string
+          format: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          design?: string
+          format?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       community_reaktioner: {
         Row: {
           bruger_id: string
@@ -1227,6 +1251,7 @@ export type Database = {
           address: string | null
           annual_revenue: number | null
           application_context: Json | null
+          certificate_eligible: boolean
           city: string | null
           contact_email: string | null
           contact_person: string | null
@@ -1274,6 +1299,7 @@ export type Database = {
           address?: string | null
           annual_revenue?: number | null
           application_context?: Json | null
+          certificate_eligible?: boolean
           city?: string | null
           contact_email?: string | null
           contact_person?: string | null
@@ -1321,6 +1347,7 @@ export type Database = {
           address?: string | null
           annual_revenue?: number | null
           application_context?: Json | null
+          certificate_eligible?: boolean
           city?: string | null
           contact_email?: string | null
           contact_person?: string | null
