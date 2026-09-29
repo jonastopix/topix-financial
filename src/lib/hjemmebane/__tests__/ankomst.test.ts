@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { erVelkomstHash, fokusCtaHref, pillenTraekkerSig, VELKOMST_HASH, VELKOMST_INDLEDNING, velkomstTekst } from "../ankomst";
+import { erVelkomstHash, fokusCtaHref, onboardingBoksMonteres, pillenTraekkerSig, VELKOMST_HASH, VELKOMST_INDLEDNING, velkomstTekst } from "../ankomst";
 
 // Ankomstens to løse ender (docs/indgangen-overhaling.md §10, 3/9):
 // hashen der lader fokuskortet åbne velkomstvideoen, og dommen der lader
@@ -81,5 +81,27 @@ describe("velkomstTekst — overlejringen påstår aldrig en placering der ikke 
       expect(t).toContain("følger med dig, indtil alt er på plads.");
     }
     expect(velkomstTekst(true)).not.toBe(velkomstTekst(false));
+  });
+});
+
+describe("onboardingBoksMonteres — ikke på chatten på mobil (den dækkede sendefeltet)", () => {
+  it("chatten + mobil → monteres ikke", () => {
+    expect(onboardingBoksMonteres("chat", true)).toBe(false);
+  });
+
+  it("chatten på desktop/tablet → monteres som før (desktop uændret)", () => {
+    expect(onboardingBoksMonteres("chat", false)).toBe(true);
+  });
+
+  it("alle andre sider → monteres, på mobil som på desktop", () => {
+    for (const side of ["boardroom", "akademiet", "rapportering", "noegletal", "budget", "handouts", "booksession", "rabataftaler", "events", "medlemmer", "community", "deling"]) {
+      expect(onboardingBoksMonteres(side, true)).toBe(true);
+      expect(onboardingBoksMonteres(side, false)).toBe(true);
+    }
+  });
+
+  it("er uafhængig af pillenTraekkerSig (forsiden trækker pillen, chatten monterer den slet ikke)", () => {
+    expect(pillenTraekkerSig("chat", { faerdig: false })).toBe(false);
+    expect(onboardingBoksMonteres("chat", true)).toBe(false);
   });
 });

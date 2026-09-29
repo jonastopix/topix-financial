@@ -8,7 +8,7 @@ import { useOnboardingTjekliste } from "@/hooks/useOnboardingTjekliste";
 import { HbOnboardingTjekliste } from "./HbOnboardingTjekliste";
 import { useTjeklisteLukket } from "@/hooks/useTjeklisteLukket";
 import { useHbDokumentGrund } from "@/hooks/useHbDokumentGrund";
-import { pillenTraekkerSig } from "@/lib/hjemmebane/ankomst";
+import { onboardingBoksMonteres, pillenTraekkerSig } from "@/lib/hjemmebane/ankomst";
 import { HbVisningSom } from "./HbVisningSom";
 import { HbFeedbackDialog } from "./HbFeedbackDialog";
 import { bygHbNav, type HbAktiv } from "@/lib/hjemmebane/hbNav";
@@ -95,7 +95,23 @@ export const HbMemberShell = ({
   // bunden; på lg står den i hjørnet (360 px bred, op til 70vh høj) — begge
   // får luft nok til at det sidste indhold kan komme fri.
   const [tjeklisteUdfoldet, setTjeklisteUdfoldet] = useState(false);
-  const tjeklisteBundluft = tjeklisteUdfoldet ? "pb-[72vh] lg:pb-[30rem]" : "";
+  /* Chatten på mobil: boksen monteres ikke (onboardingBoksMonteres i
+     ankomst.ts — den dækkede sendefeltet). Bredden læses synkront ved første
+     render (ikke useIsMobile, der er false indtil effekten har kørt): ellers
+     ville boksen mountes et øjeblik og køre sine effekter. Grænsen er md
+     (< 768), som useIsMobile. */
+  const [erMobil, setErMobil] = useState<boolean>(() => typeof window !== "undefined" && window.innerWidth < 768);
+  useEffect(() => {
+    const mql = window.matchMedia("(max-width: 767px)");
+    const paaAendring = () => setErMobil(window.innerWidth < 768);
+    mql.addEventListener("change", paaAendring);
+    paaAendring();
+    return () => mql.removeEventListener("change", paaAendring);
+  }, []);
+  const boksMonteres = onboardingBoksMonteres(active, erMobil);
+  // pb-[72vh] findes kun for den udfoldede boks' skyld; uden boks intet
+  // bund-luft (i layout="fuld" åd det beskedlisten, målt 29/9).
+  const tjeklisteBundluft = tjeklisteUdfoldet && boksMonteres ? "pb-[72vh] lg:pb-[30rem]" : "";
   const tjeklisteFornavn = profile?.full_name?.trim().split(/\s+/)[0] || null;
   // Pillen trækker sig KUN på forsiden, og KUN når fokuskortet faktisk
   // viser tjeklisten (samme dom som nextStep.ts:221). Skallen er den
@@ -105,7 +121,7 @@ export const HbMemberShell = ({
   // Menupunktet vises kun for medlemmer, og kun når listen ikke er færdig
   // ELLER medlemmet selv har lukket den (så den kan hentes frem igen).
   const komGodtIGang =
-    !isAdvisor && tjeklisteData.tjekliste && (!tjeklisteData.tjekliste.faerdig || tjeklisteLukket)
+    !isAdvisor && boksMonteres && tjeklisteData.tjekliste && (!tjeklisteData.tjekliste.faerdig || tjeklisteLukket)
       ? {
           onClick: () => {
             setTjeklisteLukket(false);
@@ -218,7 +234,7 @@ export const HbMemberShell = ({
           )}
         </div>
       </div>
-      {!isAdvisor && (
+      {!isAdvisor && boksMonteres && (
         <HbOnboardingTjekliste
           tjekliste={tjeklisteData.tjekliste}
           harVelkomstvideo={tjeklisteData.harVelkomstvideo}

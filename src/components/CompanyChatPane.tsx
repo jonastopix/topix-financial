@@ -1275,7 +1275,7 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Søg virksomhed..."
-                  className={`${hbControlClasses} rounded-full py-2 pl-9 pr-4 text-sm`}
+                  className={`${hbControlClasses} rounded-full py-2 pl-9 pr-4 text-sm max-md:text-[16px]`}
                 />
               </div>
             </div>
@@ -1472,8 +1472,28 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                           <ArrowLeft className="h-5 w-5" />
                         </button>
                       )}
-                      <ForfatterAvatar navn={activeConv?.companyName || null} avatarUrl={activeConv?.companyLogoUrl || null} className="h-8 w-8" />
-                      <div className="flex-1 min-w-0">
+                      {/* MOBIL (Jonas 29/9: «chatten er dårligt skåret»): rækken har kun
+                          plads til tilbage + avatar + navn + ⋯. Målt 29/9 ved 375 px: syv
+                          børn åd 344 px og navnet fik 31 px. «Afventer»-chippen er derfor
+                          en prik på avataren (samme rust, samme ord i aria-label/title);
+                          «Se tal» og prev/next bor i ⋯-menuen. Regnestykket for navnet:
+                          375 - (tilbage 32 - 4 (-ml-1) + avatar 32 + ⋯ 28 + 3 gaps × 12 + px-3 24)
+                          = 375 - 148 = 227 px (målt 227 i harnesset). Desktop er uændret. */}
+                      {isMobile && activeConv?.awaiting_reply_from === "advisor" ? (
+                        <span className="relative flex-shrink-0">
+                          <ForfatterAvatar navn={activeConv?.companyName || null} avatarUrl={activeConv?.companyLogoUrl || null} className="h-8 w-8" />
+                          <span
+                            role="img"
+                            aria-label="Afventer dit svar"
+                            title="Afventer dit svar"
+                            data-afventer-prik
+                            className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-hb-rust ring-2 ring-hb-paper"
+                          />
+                        </span>
+                      ) : (
+                        <ForfatterAvatar navn={activeConv?.companyName || null} avatarUrl={activeConv?.companyLogoUrl || null} className="h-8 w-8" />
+                      )}
+                      <div className="flex-1 min-w-0" data-samtale-navn>
                         <p className="text-sm font-medium text-hb-ink truncate">
                           {activeConv?.companyName || "Ukendt"}
                         </p>
@@ -1508,21 +1528,9 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                           </div>
                         )}
                       </div>
-                      {/* Se tal — mobil-rådgiver: hurtig adgang til virksomhedens nøgletal.
-                          Triggeren er Hb; skuffen den åbner er etape 2. */}
-                      {isMobile && isAdvisor && (
-                        <button
-                          type="button"
-                          onClick={() => setShowCompanyDrawer(true)}
-                          className="h-8 px-2 gap-1.5 flex-shrink-0 inline-flex items-center rounded-full text-hb-ink-soft hover:text-hb-ink hover:bg-hb-sage/30 transition-colors"
-                        >
-                          <BarChart3 className="h-4 w-4" />
-                          <span className="text-xs">Se tal</span>
-                        </button>
-                      )}
                       {/* Primary contextual action — status som HbTag; rust bærer
                           «venter på dig» (en af rusts betydninger: advarsel). */}
-                      {activeConv?.awaiting_reply_from === "advisor" && (
+                      {!isMobile && activeConv?.awaiting_reply_from === "advisor" && (
                         <span className="inline-flex items-center gap-1.5 rounded-full bg-hb-rust/10 px-2 py-0.5 text-[11px] font-medium text-hb-rust flex-shrink-0">
                           <Clock className="h-3.5 w-3.5" />
                           <span className="hidden sm:inline">Afventer dit svar</span>
@@ -1539,6 +1547,46 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                           </button>
                         )}
                       >
+                            {/* MOBIL: det, der er flyttet ud af headerrækken (se avatar-
+                                kommentaren). «Se tal» åbner skuffen som før; prev/next
+                                skifter samtale som pilene på desktop. */}
+                            {isMobile && (
+                              <>
+                                <div className="px-1 pb-1" data-mobil-handlinger>
+                                  <button
+                                    type="button"
+                                    onClick={() => { setShowCompanyDrawer(true); setAssignmentPopoverOpen(false); }}
+                                    className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-xs text-hb-ink transition-colors hover:bg-hb-sage/30"
+                                  >
+                                    <BarChart3 className="h-4 w-4 text-hb-ink-soft" />
+                                    Se tal
+                                  </button>
+                                  {advisorConvList.length > 1 && (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => { if (prevConv) { setActiveConvId(prevConv.id); setAssignmentPopoverOpen(false); } }}
+                                        disabled={!prevConv}
+                                        className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-xs text-hb-ink transition-colors hover:bg-hb-sage/30 disabled:opacity-30"
+                                      >
+                                        <ChevronLeft className="h-4 w-4 text-hb-ink-soft" />
+                                        Forrige samtale
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => { if (nextConv) { setActiveConvId(nextConv.id); setAssignmentPopoverOpen(false); } }}
+                                        disabled={!nextConv}
+                                        className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-xs text-hb-ink transition-colors hover:bg-hb-sage/30 disabled:opacity-30"
+                                      >
+                                        <ChevronRight className="h-4 w-4 text-hb-ink-soft" />
+                                        Næste samtale
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                                <div className="border-t border-hb-line my-1" />
+                              </>
+                            )}
                             {/* Assign */}
                             <div className="px-2 py-1 mb-1">
                               <p className="text-[10px] text-hb-ink-soft font-medium uppercase tracking-[0.14em] mb-1.5">Tildel rådgiver</p>
@@ -1601,7 +1649,7 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                                   value={valgtMaalId ?? "uden"}
                                   onChange={(e) => setForslagMaalValg(e.target.value)}
                                   aria-label="Målet skridtet hører til"
-                                  className={`${hbControlClasses} mb-1.5 px-2 py-1.5 text-xs`}
+                                  className={`${hbControlClasses} mb-1.5 px-2 py-1.5 text-xs max-md:text-[16px]`}
                                   data-maalvaelger
                                 >
                                   {aktiveMaal.map((m) => (
@@ -1615,14 +1663,14 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                                 onChange={(e) => setForslagTitel(e.target.value)}
                                 maxLength={200}
                                 placeholder="Hvad er skridtet?"
-                                className={`${hbControlClasses} mb-1.5 px-2 py-1.5 text-xs`}
+                                className={`${hbControlClasses} mb-1.5 px-2 py-1.5 text-xs max-md:text-[16px]`}
                               />
                               <textarea
                                 value={forslagBegrundelse}
                                 onChange={(e) => setForslagBegrundelse(e.target.value)}
                                 placeholder="Hvorfor? (valgfrit)"
                                 rows={2}
-                                className={`${hbControlClasses} mb-1.5 resize-none px-2 py-1.5 text-xs`}
+                                className={`${hbControlClasses} mb-1.5 resize-none px-2 py-1.5 text-xs max-md:text-[16px]`}
                               />
                               <HbButton
                                 type="button"
@@ -1634,8 +1682,8 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                               </HbButton>
                             </div>
                       </HbMenu>
-                      {/* Prev/next */}
-                      {advisorConvList.length > 1 && (
+                      {/* Prev/next — desktop; på mobil bor de i ⋯-menuen */}
+                      {!isMobile && advisorConvList.length > 1 && (
                         <div className="flex items-center gap-0.5 flex-shrink-0">
                           <button
                             onClick={() => prevConv && setActiveConvId(prevConv.id)}

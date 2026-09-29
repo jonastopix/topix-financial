@@ -48,7 +48,9 @@ export interface NoegletalChipBannerProps {
 export const NoegletalChipBanner: React.FC<NoegletalChipBannerProps> = ({ chip, onFjern }) => (
   <div className="mb-2 flex items-center gap-2 rounded-hb border border-hb-line bg-hb-sage/20 px-3 py-2 text-xs text-hb-ink-soft">
     <BarChart3 className="h-3.5 w-3.5 shrink-0 text-hb-evergreen" />
-    <span className="min-w-0 flex-1">
+    {/* Mobil: højst én linje (Jonas 29/9, målt 74 px ved 375 px = 2-3 linjer, som
+        tog 26 px fra beskedlisten). Ved md og op brydes teksten som før. */}
+    <span className="min-w-0 flex-1 max-md:truncate">
       <span className="font-medium text-hb-ink">{chipTekst(chip)}</span>
       <span className="mx-1">·</span>
       <span>følger med din besked. Skriv dit spørgsmål.</span>
