@@ -208,10 +208,16 @@ export type Springgrund =
   | "sessionen_begyndt"
   | "allerede_sendt"
   // Bekræftelse til en tilmelding fra FØR overtagelsen (BEKRAEFTELSE_FRA).
-  | "for_tidlig_tilmelding";
+  | "for_tidlig_tilmelding"
+  // En mail, VI fejlede med at sende, og som ikke nåede at blive indhentet, før
+  // den næste art tog over (Jonas 29/9 — se INDHENTNING i doemMail).
+  | "for_sent_efter_fejl";
 
 export type MailDom =
-  | { send: true; art: MailArt; planlagt: Date }
+  // `indhentning: true` KUN når mailen sendes, fordi et tidligere forsøg fejlede, og
+  // den er mere end nåden forsinket. Nøglen udelades ellers — en almindelig
+  // afsendelse er ordret som før.
+  | { send: true; art: MailArt; planlagt: Date; indhentning?: true }
   | { send: false; art: MailArt; grund: Springgrund };
 
 /**
@@ -228,6 +234,12 @@ export function doemMail(i: {
   registreretAt: string | null | undefined;
   afmeldt: boolean;
   alleredeSendt: boolean;
+  /**
+   * Nøglerne (noegle()) for rækker i webinar_mails med udfald <> 'ok' — mails, vi
+   * HAR forsøgt at sende og fejlede med. Udeladt = tom: så er dommen ordret som før
+   * 29/9, og en forsinket mail er for_sent.
+   */
+  fejlede?: ReadonlySet<string>;
   nu: Date;
 }): MailDom {
   const { art } = i;
@@ -266,9 +278,52 @@ export function doemMail(i: {
   if (plan.straks === true) return { send: true, art, planlagt: i.nu };
   const forsinkelse = i.nu.getTime() - tid.getTime();
   if (forsinkelse < 0) return { send: false, art, grund: "endnu_ikke" };
-  // Sen tilmelding: «om en uge ses vi» til en, der meldte sig i går, er forkert.
-  if (forsinkelse > SEN_TILMELDING_NAADE_MS) return { send: false, art, grund: "for_sent" };
+  if (forsinkelse > SEN_TILMELDING_NAADE_MS) {
+    // INDHENTNING (Jonas 29/9-2026). En mail, der er mere end nåden forsinket, kan
+    // være forsinket af to grunde, og de to er ikke det samme:
+    //   1. PERSONEN KOM FOR SENT — tilmeldte sig fire dage før, og «om en uge ses
+    //      vi» er forkert. Så sendes den aldrig: for_sent, som altid.
+    //   2. VI FEJLEDE — mailen var forfalden til tiden, men afsendelsen fik et
+    //      afslag (29/9: 211 modtagere af fjorten_dage fik Mailguns loft). Så var
+    //      personen klar, og det er vores fejl, ikke deres. Den indhentes.
+    // BEVISET for 2 er et fejlet forsøg i sporet: cronen forsøger KUN en mail,
+    // dommen har kaldt forfalden — altså fandtes personen, og tidspunktet var nået,
+    // da forsøget blev gjort. En sen tilmelding har intet fejlet forsøg.
+    // GRÆNSEN er den næste tidssatte art for samme session: når den er nået — eller
+    // når det er DENS danske kalenderdato — tager den over, og den indhentede mail
+    // ville komme samme dag som den næste («om to uger» og «om en uge» på én dag).
+    // Så udløber den med sin egen grund, så svaret viser, at det var en fejlet mail.
+    // Teksten er uændret: en indhentet fjorten_dage siger stadig «om to uger».
+    if (!(i.fejlede?.has(noegle(mail, i.sessionTid, art)) ?? false)) {
+      // Sen tilmelding: «om en uge ses vi» til en, der meldte sig i går, er forkert.
+      return { send: false, art, grund: "for_sent" };
+    }
+    const naeste = naesteTidssatteArt(art);
+    // Ingen næste art (en_time): uændret. «Om en time» mere end to timer forsinket
+    // er efter starten, og sessionen_begyndt har allerede svaret ovenfor.
+    if (naeste === null) return { send: false, art, grund: "for_sent" };
+    const naesteTid = planlagtTid(i.sessionTid, naeste);
+    if (naesteTid === null) return { send: false, art, grund: "for_sent_efter_fejl" };
+    if (i.nu.getTime() < naesteTid.getTime() && !sammeDanskeDato(i.nu, naesteTid)) {
+      return { send: true, art, planlagt: tid, indhentning: true };
+    }
+    return { send: false, art, grund: "for_sent_efter_fejl" };
+  }
   return { send: true, art, planlagt: tid };
+}
+
+/** Den næste art i PLANEN med et tidspunkt (ikke «straks») — eller null for den sidste. */
+export function naesteTidssatteArt(art: MailArt): MailArt | null {
+  const i = PLANEN.findIndex((p) => p.art === art);
+  if (i === -1) return null;
+  const naeste = PLANEN.slice(i + 1).find((p) => p.straks !== true);
+  return naeste ? naeste.art : null;
+}
+
+/** Ligger to instants på samme danske kalenderdato? */
+export function sammeDanskeDato(a: Date, b: Date): boolean {
+  const x = kbhDele(a), y = kbhDele(b);
+  return x.aar === y.aar && x.maaned === y.maaned && x.dag === y.dag;
 }
 
 // ── Fra rækker til sendinger ───────────────────────────────────────────────
@@ -301,6 +356,8 @@ export interface Sending {
   kalenderLink: string | null;
   /** Den registrering, linkene kom fra — til sporet, ikke til nøglen. */
   ewebinarId: string;
+  /** Kun sat (true), når mailen indhentes efter et fejlet forsøg (29/9). */
+  indhentning?: true;
 }
 
 /** «Har personen sagt fra i eWebinar?» — samme regel som webinarAfmelding.erAfmeldt. */
@@ -334,16 +391,21 @@ function bedsteRaekke(a: Tilmeldt, b: Tilmeldt): Tilmeldt {
  * få 384 afvisninger.
  *
  * `afmeldte` er mails fra webinar_afmeldinger (små bogstaver).
+ *
+ * `fejlede` er nøglerne fra webinar_mails med udfald <> 'ok' (samme noegle()).
+ * Udeladt = tom, og planen er ordret som før 29/9 — ingen indhentning.
  */
 export function planlaegKoersel(i: {
   raekker: readonly Tilmeldt[];
   afmeldte: ReadonlySet<string>;
   sendte: ReadonlySet<string>;
+  fejlede?: ReadonlySet<string>;
   nu: Date;
 }): { sendinger: Sending[]; sprunget: Record<Springgrund, number> } {
   const sprunget: Record<Springgrund, number> = {
     afmeldt: 0, ingen_session: 0, ingen_mail: 0, for_sent: 0,
     endnu_ikke: 0, sessionen_begyndt: 0, allerede_sendt: 0, for_tidlig_tilmelding: 0,
+    for_sent_efter_fejl: 0,
   };
 
   // 1. Én person pr. (mail, session).
@@ -376,6 +438,7 @@ export function planlaegKoersel(i: {
         registreretAt: r.registreret_at,
         afmeldt,
         alleredeSendt: r.session_tid !== null && i.sendte.has(noegle(mail, r.session_tid, art)),
+        fejlede: i.fejlede,
         nu: i.nu,
       });
       // `=== false`, ikke `!dom.send`: repoets tsconfig har strict slået fra, og
@@ -392,11 +455,23 @@ export function planlaegKoersel(i: {
         joinLink: r.join_link,
         kalenderLink: r.kalender_link,
         ewebinarId: r.ewebinar_id,
+        ...(dom.indhentning === true ? { indhentning: true as const } : {}),
       });
     }
   }
-  // Ældste planlagte først — den, der har ventet længst, går først.
-  sendinger.sort((a, b) => a.planlagt.localeCompare(b.planlagt) || a.email.localeCompare(b.email));
+  // RÆKKEFØLGEN (Jonas 29/9): BEKRÆFTELSER FØRST, derefter ældste planlagte, så
+  // mail. Under et loft (MAILGUN_LOFT_PR_TIME, 90 i timen) sendes kun de første
+  // i listen, og resten venter til næste kørsel. Før stod der kun «ældste
+  // planlagte først» — men en «straks»-mail får planlagt = nu (doemMail), altså
+  // det SENESTE tidspunkt af alle. Med 211 indhentede fjorten_dage foran sig
+  // ville en ny tilmeldts bekræftelse vente to-tre timer. En bekræftelse er svaret
+  // på noget, personen lige har gjort; en indhentet påmindelse kan vente en kørsel.
+  // «Straks» læses af PLANEN, ikke af artens navn.
+  const erStraks = (art: MailArt) => PLANEN.find((p) => p.art === art)?.straks === true;
+  sendinger.sort((a, b) =>
+    Number(erStraks(b.art)) - Number(erStraks(a.art)) ||
+    a.planlagt.localeCompare(b.planlagt) ||
+    a.email.localeCompare(b.email));
   return { sendinger, sprunget };
 }
 

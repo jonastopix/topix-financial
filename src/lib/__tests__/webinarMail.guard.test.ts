@@ -48,6 +48,15 @@ import { resolve } from "node:path";
  *      højst maks, og bryder løkken (break) ved 403/420/429 — EFTER sporet er
  *      skrevet. Loftet er 90 og stop-koderne 403 · 420 · 429 i motoren. Uden
  *      det blev 211 mails forsøgt 2.125 gange på to timer, og Mailgun spærrede.
+ *  13. DE FEJLEDE INDHENTES, BEKRÆFTELSER FØRST (29/9): cronen læser
+ *      webinar_mails med udfald <> 'ok' med SAMME afgrænsning som de sendte
+ *      (session_tid >= graense), bygger nøglerne med noegle() og giver dem til
+ *      planlaegKoersel som `fejlede`; `sprunget` kender for_sent_efter_fejl.
+ *      I begge spejle giver planlaegKoersel `fejlede` videre til doemMail, som
+ *      slår nøglen op, og sorteringen sætter «straks»-arter (bekræftelsen) FØR
+ *      ældste planlagte. Uden det bliver en mail, VI fejlede med, for_sent to
+ *      timer efter sit tidspunkt — og en ny tilmeldts bekræftelse venter bag 211
+ *      indhentede under et loft på 90 i timen.
  */
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -336,6 +345,30 @@ export const loftetFoerLoekken = (cron: string, loft: string): boolean => {
   );
 };
 
+// ── 13 ─────────────────────────────────────────────────────────────────────
+export const fejledeIndhentes = (cron: string, dom: string, spejl: string): boolean => {
+  const f = udenKommentarer(cron);
+  const iDommen = (k: string) => {
+    const d = udenKommentarer(k);
+    return (
+      d.includes("fejlede?: ReadonlySet<string>;") &&
+      d.includes("if (!(i.fejlede?.has(noegle(mail, i.sessionTid, art)) ?? false)) {") &&
+      d.includes("fejlede: i.fejlede,") &&
+      d.includes("const erStraks = (art: MailArt) => PLANEN.find((p) => p.art === art)?.straks === true;") &&
+      d.includes("Number(erStraks(b.art)) - Number(erStraks(a.art)) ||") &&
+      foer(d, "Number(erStraks(b.art)) - Number(erStraks(a.art)) ||", "a.planlagt.localeCompare(b.planlagt) ||")
+    );
+  };
+  return (
+    f.includes('a.admin.from("webinar_mails").select("email, session_tid, art").neq("udfald", "ok")\n      .gte("session_tid", graense)') &&
+    f.includes("const fejlede = new Set(fejledeRaekker.map((x) => noegle(x.email, x.session_tid, x.art)));") &&
+    f.includes("const plan = planlaegKoersel({ raekker, afmeldte, sendte, fejlede, nu: a.nu });") &&
+    foer(f, "const fejlede = new Set(", "const plan = planlaegKoersel(") &&
+    f.includes("for_sent_efter_fejl: 0") &&
+    iDommen(dom) && iDommen(spejl)
+  );
+};
+
 describe("webinarMail.guard — platformens før-webinar-mails", () => {
   it("1. Bucket B, tørkørsel som standard, og låsen fail-closed", () => expect(bucketBOgLaas(laes(CRON), laes(CONFIG))).toBe(true));
   it("2. Mailgun EU, ingen sporing, nøglen ét sted", () => expect(euOgIngenSporing(laes(SEND), laes(CRON))).toBe(true));
@@ -349,10 +382,23 @@ describe("webinarMail.guard — platformens før-webinar-mails", () => {
   it("10. ARTER og MED_INVITATION er i takt med CHECK'ene, i begge spejle", () => expect(arterITakt(laes(DOM), laes(DOM_SPEJL), laes(MIG_ARTER), laes(CRON))).toBe(true));
   it("11. teksten følger invitationen: hentet FØR byggeren, flaget krævet og brugt", () => expect(tekstenFoelgerInvitationen(laes(CRON), laes(TEKSTER))).toBe(true));
   it("12. loftet regnes før løkken, pause sender intet, og 403/420/429 bryder løkken efter sporet", () => expect(loftetFoerLoekken(laes(CRON), laes(LOFT))).toBe(true));
+  it("13. de fejlede læses med samme afgrænsning og gives til dommen, og bekræftelser sorteres først", () => expect(fejledeIndhentes(laes(CRON), laes(DOM), laes(DOM_SPEJL))).toBe(true));
 });
 
 describe("webinarMail.guard — dommene fanger fejlen på en kopi", () => {
   const cron = laes(CRON), afmeld = laes(AFMELD), send = laes(SEND), tekster = laes(TEKSTER), svar = laes(SVAR), mig = laes(MIG), config = laes(CONFIG);
+
+  it("fejlede ikke givet ind, læst som ok, uden afgrænsning, ikke slået op i dommen, eller bekræftelser ikke først, fælder dom 13", () => {
+    const dom = laes(DOM), spejl = laes(DOM_SPEJL);
+    // Selve fejlen, opgaven nævner: fejlede læses, men gives IKKE til planlaegKoersel.
+    expect(fejledeIndhentes(cron.split("planlaegKoersel({ raekker, afmeldte, sendte, fejlede, nu: a.nu })").join("planlaegKoersel({ raekker, afmeldte, sendte, nu: a.nu })"), dom, spejl)).toBe(false);
+    expect(fejledeIndhentes(cron.split('.neq("udfald", "ok")').join('.eq("udfald", "ok")'), dom, spejl)).toBe(false);
+    expect(fejledeIndhentes(cron.split('.neq("udfald", "ok")\n      .gte("session_tid", graense)').join('.neq("udfald", "ok")\n     '), dom, spejl)).toBe(false);
+    expect(fejledeIndhentes(cron.split("for_sent_efter_fejl: 0").join(""), dom, spejl)).toBe(false);
+    expect(fejledeIndhentes(cron, dom.split("        fejlede: i.fejlede,\n").join(""), spejl)).toBe(false);
+    expect(fejledeIndhentes(cron, dom, spejl.split("if (!(i.fejlede?.has(noegle(mail, i.sessionTid, art)) ?? false)) {").join("if (true) {"))).toBe(false);
+    expect(fejledeIndhentes(cron, dom.split("    Number(erStraks(b.art)) - Number(erStraks(a.art)) ||\n").join(""), spejl)).toBe(false);
+  });
 
   it("loftet fjernet, break fjernet, stop før sporet, eller et andet loft i motoren, fælder dom 12", () => {
     const loft = laes(LOFT);
