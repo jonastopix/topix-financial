@@ -43,6 +43,11 @@ import { resolve } from "node:path";
  *      KRÆVET på MailArgs (ikke `?`), og `indhold` får flaget — aldrig en
  *      konstant. Uden det siger en fail-soft-mail «vedhæftet» om en fil, der
  *      ikke er der.
+ *  12. LOFTET FØR LØKKEN, STOP I LØKKEN (29/9, mailFejl.guard-mønstret): cronen
+ *      kalder beregnKoerselsLoft FØR løkken, sender intet ved pause, forsøger
+ *      højst maks, og bryder løkken (break) ved 403/420/429 — EFTER sporet er
+ *      skrevet. Loftet er 90 og stop-koderne 403 · 420 · 429 i motoren. Uden
+ *      det blev 211 mails forsøgt 2.125 gange på to timer, og Mailgun spærrede.
  */
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -82,6 +87,7 @@ const MIG_ARTER = "supabase/migrations/20260928120000_webinar_mails_fjorten_dage
 const CONFIG = "supabase/config.toml";
 const DOM = "supabase/functions/_shared/webinarMailDom.ts";
 const DOM_SPEJL = "src/lib/webinar/mailDom.ts";
+const LOFT = "supabase/functions/_shared/webinarMailLoft.ts";
 
 // ── 1 ──────────────────────────────────────────────────────────────────────
 export const bucketBOgLaas = (cron: string, config: string): boolean => {
@@ -281,7 +287,8 @@ export const arterITakt = (dom: string, spejl: string, migration: string, cron: 
 // ── 11 ─────────────────────────────────────────────────────────────────────
 export const tekstenFoelgerInvitationen = (cron: string, tekster: string): boolean => {
   const c = udenKommentarer(cron), t = udenKommentarer(tekster);
-  const loekke = c.slice(c.indexOf("for (const s of sendinger) {"));
+  // Løkkehovedet er indekseret siden 29/9 (loftet tæller resten ved et stop).
+  const loekke = c.slice(c.indexOf("for (let i = 0; i < sendinger.length; i++) {"));
   return (
     // Hentningen FØR byggeren — ellers kan flaget ikke være sandt.
     foer(loekke, "await hentInvitation(s.kalenderLink)", "const mail = bygWebinarMail({") &&
@@ -299,6 +306,36 @@ export const tekstenFoelgerInvitationen = (cron: string, tekster: string): boole
   );
 };
 
+// ── 12 ─────────────────────────────────────────────────────────────────────
+export const loftetFoerLoekken = (cron: string, loft: string): boolean => {
+  const f = udenKommentarer(cron), l = udenKommentarer(loft);
+  const LOEKKE = "for (let i = 0; i < sendinger.length; i++) {";
+  const start = f.indexOf(LOEKKE), slut = f.indexOf("Deno.serve(");
+  if (start === -1 || slut === -1) return false;
+  const loekke = f.slice(start, slut);
+  const stop = loekke.indexOf("if (erStopStatus(spor.status)) {");
+  return (
+    f.includes('from "../_shared/webinarMailLoft.ts"') &&
+    // Loftet regnes FØR løkken — og på rigtig tid, ikke på dommens `nu`.
+    foer(f, "const loft = beregnKoerselsLoft({ seneste: loftRaekker, loft: MAILGUN_LOFT_PR_TIME, nu: loftNu });", LOEKKE) &&
+    f.includes("const loftNu = new Date();") &&
+    f.includes('a.admin.from("webinar_mails").select("forsoegt_at, udfald, status")') &&
+    // Pause = intet sendes; over maks = intet forsøges (heller ikke ics-hentningen).
+    foer(f, "if (loft.pause) return r;", LOEKKE) &&
+    loekke.includes("if (forsoegt >= loft.maks) { r.over_loft++; continue; }") &&
+    foer(loekke, "if (forsoegt >= loft.maks) { r.over_loft++; continue; }", "await hentInvitation(s.kalenderLink)") &&
+    // Stoppet: EFTER sporet, og blokken er kort — tælleren, én console.error og break.
+    stop !== -1 &&
+    foer(loekke, 'from("webinar_mails").insert(', "if (erStopStatus(spor.status)) {") &&
+    loekke.slice(stop, stop + 500).includes("break;") &&
+    loekke.slice(stop, stop + 500).includes("r.over_loft += sendinger.length - i - 1;") &&
+    // Motoren: loftet og stop-koderne står ordret.
+    l.includes("export const MAILGUN_LOFT_PR_TIME = 90;") &&
+    l.includes("export const STOP_STATUSSER: readonly number[] = [403, 420, 429];") &&
+    l.includes("return { maks: Math.max(0, loft - forsoeg), pause: null };")
+  );
+};
+
 describe("webinarMail.guard — platformens før-webinar-mails", () => {
   it("1. Bucket B, tørkørsel som standard, og låsen fail-closed", () => expect(bucketBOgLaas(laes(CRON), laes(CONFIG))).toBe(true));
   it("2. Mailgun EU, ingen sporing, nøglen ét sted", () => expect(euOgIngenSporing(laes(SEND), laes(CRON))).toBe(true));
@@ -311,10 +348,34 @@ describe("webinarMail.guard — platformens før-webinar-mails", () => {
   it("9. bekræftelsen sendes aldrig bagud, og tidspunktet når dommen", () => expect(bekraeftelsenKunFremad(laes(DOM), laes(DOM_SPEJL), laes(CRON))).toBe(true));
   it("10. ARTER og MED_INVITATION er i takt med CHECK'ene, i begge spejle", () => expect(arterITakt(laes(DOM), laes(DOM_SPEJL), laes(MIG_ARTER), laes(CRON))).toBe(true));
   it("11. teksten følger invitationen: hentet FØR byggeren, flaget krævet og brugt", () => expect(tekstenFoelgerInvitationen(laes(CRON), laes(TEKSTER))).toBe(true));
+  it("12. loftet regnes før løkken, pause sender intet, og 403/420/429 bryder løkken efter sporet", () => expect(loftetFoerLoekken(laes(CRON), laes(LOFT))).toBe(true));
 });
 
 describe("webinarMail.guard — dommene fanger fejlen på en kopi", () => {
   const cron = laes(CRON), afmeld = laes(AFMELD), send = laes(SEND), tekster = laes(TEKSTER), svar = laes(SVAR), mig = laes(MIG), config = laes(CONFIG);
+
+  it("loftet fjernet, break fjernet, stop før sporet, eller et andet loft i motoren, fælder dom 12", () => {
+    const loft = laes(LOFT);
+    expect(loftetFoerLoekken(cron, loft)).toBe(true);
+    // Løkken uden loft: kaldet væk.
+    expect(loftetFoerLoekken(cron.split("const loft = beregnKoerselsLoft({ seneste: loftRaekker, loft: MAILGUN_LOFT_PR_TIME, nu: loftNu });").join("const loft = { maks: 999, pause: null };"), loft)).toBe(false);
+    // Pausen ignoreret.
+    expect(loftetFoerLoekken(cron.split("  if (loft.pause) return r;\n").join(""), loft)).toBe(false);
+    // Maks ignoreret.
+    expect(loftetFoerLoekken(cron.split("    if (forsoegt >= loft.maks) { r.over_loft++; continue; }\n").join(""), loft)).toBe(false);
+    // Break væk: løkken fortsætter mod samme mur.
+    const udenBreak = cron.split("      console.error(`${LOG} STOP: Mailgun svarede ${spor.status} — kørslen stopper; ${sendinger.length - i - 1} mails venter til efter pausen`);\n      break;").join("      console.error(`${LOG} STOP: Mailgun svarede ${spor.status}`);");
+    expect(udenBreak).not.toBe(cron);
+    expect(loftetFoerLoekken(udenBreak, loft)).toBe(false);
+    // Stoppet flyttet FØR sporet: rækken, næste kørsel skal regne pausen af, findes ikke.
+    const stopBlok = cron.slice(cron.indexOf("    if (erStopStatus(spor.status)) {"), cron.indexOf("      break;\n    }\n") + "      break;\n    }\n".length);
+    const foerSporet = cron.split(stopBlok).join("").replace('    const { error } = await a.admin.from("webinar_mails").insert({', `${stopBlok}    const { error } = await a.admin.from("webinar_mails").insert({`);
+    expect(foerSporet).not.toBe(cron);
+    expect(loftetFoerLoekken(foerSporet, loft)).toBe(false);
+    // Motoren med et andet loft eller andre stop-koder.
+    expect(loftetFoerLoekken(cron, loft.split("export const MAILGUN_LOFT_PR_TIME = 90;").join("export const MAILGUN_LOFT_PR_TIME = 100;"))).toBe(false);
+    expect(loftetFoerLoekken(cron, loft.split("[403, 420, 429]").join("[429]"))).toBe(false);
+  });
 
   it("en tørkørsel, der sender, eller en lås der springes over, fælder dom 1", () => {
     expect(bucketBOgLaas(cron.split("const toerKoersel = raaBody.dry_run !== false;").join("const toerKoersel = raaBody.dry_run === true;"), config)).toBe(false);
