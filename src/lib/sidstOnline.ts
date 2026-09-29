@@ -32,6 +32,9 @@
  * måske noget, så rust fra 90 dage (samme tre måneder som isFiguresFresh
  * regner friskhed i). «Aldrig» får ingen farve: en virksomhed inviteret i
  * går har også «aldrig», og det kræver intet.
+  *
+ * SPEJL: supabase/functions/_shared/sidstOnline.ts (paritetsprøve
+ * src/lib/__tests__/medlemsOverblik.paritet.test.ts — kroppen efter filhovedet er ordret ens).
  */
 
 const MS_PER_DOEGN = 86_400_000;
