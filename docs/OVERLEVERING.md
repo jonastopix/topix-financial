@@ -10859,7 +10859,7 @@ Chatten (Claude) skrev 28/9, at Klaviyo-mailens «4.375 kr. om måneden» var fo
 
 ---
 
-### 29. september — 14-dagsmailen ramte Mailguns probation (134 af 319 ude kl. 10:45; resten indhentes i hold af 26 i timen); loft, indhentning, Mailgun-dom og alarm (#1112–#1115, alarmen bevist i drift 11:09); vedhæftningens sti (#1116); rådgiverens svar på refleksioner i drift (#1117); «#» i chatten (#1118, #1120, #1125 — migrationen kørt 13:58 FØR merget); chat-video (#1119, #1121); medlemsoverblikket og dets nulpunkt (#1122); påstanden om et åbent upload-hul trukket tilbage (#1123); statusmail trin 1 (#1124). Update i Lovable ikke bekræftet.
+### 29. september — 14-dagsmailen ramte Mailguns probation (134 af 319 ude kl. 10:45; resten indhentes i hold af 26 i timen); loft, indhentning, Mailgun-dom og alarm (#1112–#1115, alarmen bevist i drift 11:09); vedhæftningens sti (#1116); rådgiverens svar på refleksioner i drift (#1117); «#» i chatten (#1118, #1120, #1125 — migrationen kørt 13:58 FØR merget); chat-video (#1119, #1121); medlemsoverblikket og dets nulpunkt (#1122); påstanden om et åbent upload-hul trukket tilbage (#1123); statusmail trin 1 (#1124). Update i Lovable ikke bekræftet. EFTERMIDDAG: fejllinjer + community-teksten kender rabathenvisning (#1126, migration IKKE KØRT); overblikket gjort enkelt — «Mangler at booke» på forsiden, /virksomheder som før (#1129, Jonas 14:19); statusmailen på pause (draft #1127); Mailgun kun ved business verification; webinaralarmen for larmende; lærestreger (j)–(m).
 
 #### 0. Opstarten — `docs/opstart-29-09.md`
 
@@ -10885,6 +10885,11 @@ Tiderne er commit-tiden på main (dansk). Titlerne er ordret fra `git log --onel
 | #1123 | 13:47 | docs(sikkerhed): mappetjekket fandtes allerede i prod — ret påstanden om et åbent hul | kun tekst |
 | #1125 | 13:59 | feat(chat): #-henvisninger i chatten — events, lektioner og rabataftaler (trin 3, fladen) | migrationen kørt 13:58 FØR merget (§2); `src/` — Update |
 | #1124 | 14:00 | feat(statusmail): én sammenkobling (byggOverblik), Deno-spejle og mailens tekst — trin 1 | trin 2 (edge function + cron, mandag 07:00 dansk tid) er under bygning |
+| #1126 | 14:25 | fix(chat, rabataftaler): fejllinjer ved hentefejl + community-teksten kender rabathenvisning | fejllinjer på /rabataftaler og i chattens #-forslag; migrationen `20260929180000_community_tekst_rabathenvisning.sql` er **IKKE KØRT** og skal køres i SQL editor (§5) |
+| #1128 | 15:13 | docs: bogføring 29/9 — OVERLEVERING, mangelliste, opstart; tre migrationer bogført KØRT med værn vendt | formiddagens bogføring |
+| #1129 | 15:14 | feat(forside): «Mangler at booke» — /virksomheder tilbage som før #1122 | /virksomheder genskabt byte-ens fra før #1122; `src/` — Update (§5) |
+
+**#1127 er en DRAFT-PR på pause** (statusmailens edge function + cron, titel «PAUSE — statusmail trin 2 (skal forenkles før merge)»). **Den må ikke merges** (§5).
 
 Ud over PR'erne står to commits fra `gpt-engineer-app[bot]` på main kl. 11:20 og 11:21 («Changes» `657fe4ed`, «Udrullede get-chat-attachment-url» `246b0fad`), begge med 2 linjer i `supabase/functions/run-company-agent/index.ts`. Se lærestreg (b) i §6.
 
@@ -10918,6 +10923,21 @@ Migrationens filhoved er vendt fra «IKKE KØRT» til husets KØRT-form med dato
   - alarmen (#1115, bevist i drift 11:09)
 - Kort: [`a22-webinarmail-foerste-hold`](mangelliste.html#a22-webinarmail-foerste-hold).
 
+**Eftermiddag:**
+- **Probationen ophæves KUN ved Mailguns business verification.** Kilden er help.mailgun.com «Why does my account have an hourly sending limitation?»: et rødt banner i Control Panel → formular → ticket.
+- **Jonas svarede i ticketen 29/9 ~14:12.** Han bad om at få den behandlet som verificering og spurgte om vinduet for 420 «recipient limit (26)».
+- **Åbent:** tjek, om banneret står. Så formularen igen, i et privat vindue.
+- **Kodens loft `MAILGUN_LOFT_PR_TIME = 90` ændres FØRST, når Mailgun skriftligt har oplyst den nye grænse.** Kort: [`a29-mailgun-verificering`](mangelliste.html#a29-mailgun-verificering).
+- **Status:** kl. 14:00 manglede **112 af 319**. Det går ~26 pr. time, og forventet færdig er ca. kl. 18:30.
+
+**Webinaralarmen (#1115):**
+- **Det, der skete:** nøglen pr. dansk TIME gav én mail i timen hele dagen under probationen. Throttlen virkede som bygget, så der var intet at gøre.
+- **Rettelsen, under bygning i vindue A:**
+  - loft, tabt og frist: én mail pr. dansk DAG
+  - ægte fejl: pr. time
+  - loft-mailen bærer regnestykket
+- Den kræver en **eksplicit deploy af `webinar-mail-cron`**. Lærestreg (k).
+
 #### 4. Medlemsoverblikket — nulpunktet målt i prod 29/9
 
 **Nævnerne:** 28 kunder, 27 medlemmer, 3 kunder uden bruger.
@@ -10945,6 +10965,8 @@ Migrationens filhoved er vendt fra «IKKE KØRT» til husets KØRT-form med dato
 **Demo-virksomheden** blev set af admin/service role. Den er nu filtreret fra (`is_demo`) i `byggOverblik`.
 
 **Beviset efter Update:** «Ingen bruger» = 3, Morten «Markeret (ingen booking)» ≈ 12, Jonas «Ikke omfattet» ≈ 23. Kort: [`a29-overblik-bevis`](mangelliste.html#a29-overblik-bevis).
+
+**AFLØST 29/9 eftermiddag:** Jonas bad kl. 14:19 om noget enklere. /virksomheder er tilbage som før #1122, og forsiden har blokken «Mangler at booke» (#1129). Beviset ovenfor gælder ikke længere; det nye står i §5. Nulpunktets tal står som målt.
 
 #### 5. Åbne punkter 29/9
 
@@ -10979,6 +11001,27 @@ Hvert punkt har et kort. Mangellistens ændringslog «RØRT 29/9» har tallene.
 - **Statusmail:** trin 2 (edge function + cron, mandag 07:00 dansk tid) er under bygning. v2 skal sammenligne med sidste uge, hvilket kræver et ugentligt øjebliksbillede, og `MAERKE_PARAM` står to steder. Kort: [`a29-statusmail-v2`](mangelliste.html#a29-statusmail-v2).
 - **Mortens 12 retter uden booking-række:** årsag ikke målt (§4).
 - ~~`metaSend.guard` dom 11 er rød, indtil det er målt, om `20260928170000_ansoegning_visninger.sql` er kørt~~ — **LØST 29/9 14:26:** målt kørt, hovedet vendt, dom 11 grøn (§2).
+
+**Eftermiddag — overblikket gøres enkelt (Jonas 14:19, ordret):**
+
+> «Det her overblik er virkelig blevet noget rod. Vores forside er jo det sted vi bruger til dem der skal have hjælp/trænger. Jeg vil gerne have et simpelt overblik over hvem og hvor mange der mangler at booke. Der behøver ikke stå ikke omfattet osv. Jeg skal bare vide hvor mange der mangler. Vi skal ikke komplicere unødigt.»
+
+**BESLUTNING:**
+- /virksomheder er tilbage som før #1122.
+- Forsiden har ÉN blok, «Mangler at booke», med «Morten-session: N» og «Jonas-session: M» og navnene som links. 0 → «Alle har booket.».
+- **Mangler** betyder: ikke booket, kun link sendt, eller aflyst.
+- Jonas-sessionen tæller kun for nye medlemmer (fra 14/9).
+- En ret, der er markeret i hånden, tæller som booket.
+- Statusmailen sættes på pause og laves om til at sige det samme som blokken.
+
+Bygget i #1129. **Update og drift-bevis står åbent.** Kort: [`a29-overblik-bevis`](mangelliste.html#a29-overblik-bevis).
+
+**Åbne punkter fra eftermiddagen:**
+- **Drift-beviset for «Mangler at booke» efter Update:** tallene N og M ses i drift. Kort [`a29-overblik-bevis`](mangelliste.html#a29-overblik-bevis).
+- **Migrationen `20260929180000_community_tekst_rabathenvisning.sql` (#1126) skal køres** i SQL editor. Den er IKKE KØRT. Kort [`a29-migration-community-rabathenvisning`](mangelliste.html#a29-migration-community-rabathenvisning).
+- **Statusmailen:** draft #1127 er på pause og må ikke merges. Den laves om til at sige det samme som «Mangler at booke». Kort [`a29-statusmail-v2`](mangelliste.html#a29-statusmail-v2).
+- **Mailgun business verification:** tjek banneret og send formularen igen (privat vindue). Loftet i koden ændres først ved skriftlig grænse (§3). Kort [`a29-mailgun-verificering`](mangelliste.html#a29-mailgun-verificering).
+- **Webinaralarmen:** rettelsen er under bygning (vindue A), og `webinar-mail-cron` skal deployes eksplicit (§3).
 
 #### 6. Lærestreger 29/9
 
@@ -11019,6 +11062,26 @@ Huset har intet eget lærestreg-dokument. Fælderne står i DEL 4. Dagens læres
 
 **(i) Mailgun-formularen startede forfra.** Løst med en support-ticket (§3).
 
+**(j) Claude overbyggede overblikket (#1122 → #1129).**
+- *Troet:* spørgsmålet «hvem har booket, hvem har ikke» skulle besvares med et fuldt overblik.
+- *Viste sig:* der kom fire kolonner, ni aktivitetsprikker, seks mærker og ord som «ikke omfattet». Og «trænger» fandtes allerede på forsiden. Jonas 14:19: «Vi skal ikke komplicere unødigt.»
+- *Ændrer:* **byg det mindste, der besvarer spørgsmålet.** Spørg, hvilken beslutning fladen skal bære, før der tilføjes signaler.
+
+**(k) En alarm med nøgle pr. time på en forventet, selvhelende tilstand er støj.**
+- *Troet:* én alarm pr. dansk time var den rigtige grænse (#1115).
+- *Viste sig:* under probationen gav den én mail i timen hele dagen, selvom throttlen virkede som bygget.
+- *Ændrer:* **alarmen lyder kun, når et menneske skal gøre noget.** Forventede tilstande højst én gang om dagen (§3).
+
+**(l) Merge-kommandoen med tomt SHA.**
+- *Troet:* kommandoen ventede på den rigtige PR's kørsler.
+- *Viste sig:* en PR, der ikke fandtes, gav tomt SHA, og `gh run list --commit ''` listede de seneste 20 kørsler på tværs af grene. Den sagde «vent», men kunne i princippet have merget.
+- *Ændrer:* **stop, når SHA er tomt.**
+
+**(m) Et parallelt vindue handlede på forældet tilstand.**
+- *Troet (vindue C, 13:59):* #1124 var åben, og migrationen var ukørt.
+- *Viste sig:* tilstanden var forældet. Vinduet STOPPEDE korrekt.
+- *Ændrer:* **git pull og mål igen, før et vindue handler på «merget/kørt».**
+
 ---
 
 ## DEL 3 · Det der venter
@@ -11029,10 +11092,13 @@ Huset har intet eget lærestreg-dokument. Fælderne står i DEL 4. Dagens læres
 
 | hvornår | hvad | hvor det står |
 |---|---|---|
-| **29/9 ~18–19 — 14-dagsmailen indhentet** | 134 af 319 ude kl. 10:45; hold af 26 i timen; frist 5/10 23:59; ticket-nummer indsættes af Jonas | DEL 2 «29. september» §3; kort `a22-webinarmail-foerste-hold` |
-| **efter Update — drift-beviset** | #-henvisninger i chatten, rabataftalens adresse, videoknappen «ikke sat op endnu», overblikkets tal (3 · ≈12 · ≈23) | DEL 2 «29. september» §5; kort `m28-hash-i-chatten`, `a29-overblik-bevis` |
+| **29/9 ~18:30 — 14-dagsmailen indhentet** | 134 af 319 ude kl. 10:45; 112 manglede kl. 14:00; ~26 i timen; frist 5/10 23:59; ticket-nummer indsættes af Jonas | DEL 2 «29. september» §3; kort `a22-webinarmail-foerste-hold` |
+| **efter Update — drift-beviset** | #-henvisninger i chatten, rabataftalens adresse, videoknappen «ikke sat op endnu», forsidens «Mangler at booke» (N og M i drift; /virksomheder som før #1122) | DEL 2 «29. september» §5; kort `m28-hash-i-chatten`, `a29-overblik-bevis` |
+| **migrationen `20260929180000` (#1126)** | IKKE KØRT — køres i SQL editor | kort `a29-migration-community-rabathenvisning` |
+| **Mailgun business verification** | tjek banneret, send formularen igen (privat vindue); loftet 90 i koden ændres først ved skriftlig grænse | DEL 2 «29. september» §3; kort `a29-mailgun-verificering` |
+| **webinaralarmen** | rettelsen under bygning (vindue A); eksplicit deploy af `webinar-mail-cron` | DEL 2 «29. september» §3 |
 | **chat-video i drift** | collection «chat» + secret + eksplicit deploy; bevis i browseren | kort `a29-chat-video-i-drift` |
-| **statusmail trin 2** | edge function + cron, mandag 07:00 dansk tid — under bygning | DEL 2 «29. september» §1; kort `a29-statusmail-v2` |
+| **statusmail — PAUSE** | draft #1127 må ikke merges; laves om til at sige det samme som «Mangler at booke» | DEL 2 «29. september» §5; kort `a29-statusmail-v2` |
 | **Mortens 12 retter uden booking** | årsagen ikke målt | kort `a29-morten-retter-uden-booking` |
 | **✅ `ansoegning_visninger` målt kørt 29/9 14:26** | hovedet vendt til KØRT; `metaSend.guard` dom 11 grøn | DEL 2 «29. september» §2 |
 

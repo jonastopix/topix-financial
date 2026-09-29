@@ -1634,6 +1634,23 @@
     ebitda_margin_pct-noten. Talt med grep på div-taggene: før 186 (inkl.
     skabelonen i kommentaren) og 56 lukkede; efter 198 og 57 lukkede.
     Lukket: 1 (bliver stående). Omskrevet: 2. Tilføjet: 12.
+  RØRT 29/9 SEN EFTERMIDDAG — OVERBLIKKET GJORT ENKELT, MAILGUN, STATUSMAILEN PÅ
+  PAUSE (OVERLEVERING DEL 2 «29. september» §1, §3–§6; #1126, #1128, #1129;
+  draft #1127)
+    OMSKREVET (2): a29-overblik-bevis — nu beviset for forsidens «Mangler at
+    booke» efter Update (N og M i drift); Jonas 14:19 ordret og beslutningen.
+    a29-statusmail-v2 — statusmailen laves om til at sige det samme som
+    «Mangler at booke» (draft #1127 på pause, må ikke merges).
+    AJOUR (4): a29-hash-huller — (1) og (3) bygget i #1126, (1) venter på
+    migrationen; a29-morten-retter-uden-booking — håndmarkeret ret tæller som
+    booket i blokken; tavse queryFn'er — rabataftalernes fejllinje bygget
+    (#1126); a22-webinarmail-foerste-hold — 112 manglede kl. 14:00, ~18:30.
+    TILFØJET (2, Ny 29/9): a29-migration-community-rabathenvisning (Chat og
+    rådgiverforløbet), a29-mailgun-verificering (Indgangen).
+    Lærestreger (j)–(m) i OVERLEVERING §6.
+    Talt med grep på kortenes div-tag (class card) og på lukket-status:
+    før 271 og 98 lukkede; efter 273 og 98 lukkede.
+    Lukket: 0. Omskrevet: 2. Ajour: 4. Tilføjet: 2.
   RØRT 29/9 EFTERMIDDAG — BOGFØRINGEN AF TIRSDAGEN (OVERLEVERING DEL 2
   «29. september» §0–§6 og DEL 3 «30/9 og frem»; opstarten i
   docs/opstart-29-09.md)
@@ -2439,10 +2456,15 @@
     </div>
     <div class="card new" id="a22-webinarmail-foerste-hold" data-status="mangler" data-spor="1" data-rammer="medlem">
       <h3>Platformens webinarmails er i drift — det første HELE hold, 14-dagsmailen 29/9, ramte Mailguns probation: 134 af 319 ude kl. 10:45, resten indhentes (frist 5/10 23:59)</h3>
-      <p><strong>29/9:</strong> Mailgun-kontoen (EU) er i probation — 100/time, dertil 420 «recipient limit (26) exceeded» med ukendt vindue og 429 «request limit (101)». Support-ticket oprettet 29/9 (nummer: indsættes af Jonas). Kl. 10:45 var 134 af 319 ude; resten indhentes i hold af 26 i timen, forventet færdig ca. kl. 18–19; frist 5/10 23:59. Jonas: «ingen panik … men det må ikke ske igen» — derfor loftet (#1112), indhentningen (#1113), Mailgun-dommen (#1114) og alarmen (#1115, bevist i drift 11:09). <strong>Kortet lukkes, når alle 319 er ude.</strong> OVERLEVERING DEL 2 «29. september» §3.</p>
+      <p><strong>29/9:</strong> Mailgun-kontoen (EU) er i probation — 100/time, dertil 420 «recipient limit (26) exceeded» med ukendt vindue og 429 «request limit (101)». Support-ticket oprettet 29/9 (nummer: indsættes af Jonas). Kl. 10:45 var 134 af 319 ude; kl. 14:00 manglede 112; resten indhentes med ~26 i timen, forventet færdig ca. kl. 18:30; frist 5/10 23:59. Probationen ophæves kun ved business verification (<a href="#a29-mailgun-verificering">a29-mailgun-verificering</a>). Jonas: «ingen panik … men det må ikke ske igen» — derfor loftet (#1112), indhentningen (#1113), Mailgun-dommen (#1114) og alarmen (#1115, bevist i drift 11:09). <strong>Kortet lukkes, når alle 319 er ude.</strong> OVERLEVERING DEL 2 «29. september» §3.</p>
       <p><strong>RETTET 28/9 — #1102 + migration <code>20260928120000</code> kørt 10:00: arten <code>fjorten_dage</code> er i drift.</strong> 14 dage før kl. 08:00, MED invitationen, uden <code>BEKRAEFTELSE_FRA</code>-port — den lukker hullet for de ~217, der tilmeldte sig 13/10 før 22/9 19:03 og aldrig fik en invitation. Prøve til jonas@topix.dk 10:05 ok/200/hentet, prøverækken slettet 10:06. Samtidig lukket: teksten sagde «vedhæftet» i en mail uden invitationen — teksten følger nu, om filen kom med (gælder også bekræftelsen). <strong>Første hele hold er derfor 29/9 08:09–09:59 til 317; aflæses 29/9 ~10:05</strong> — START HER 29/9 punkt 1. Det, der skulle ses på inden (knappen pr. mail, ingen løfter uden dækning), gælder stadig. OVERLEVERING DEL 2 «28. september» §4.</p>
       <p><strong>I DRIFT 22/9 kl. 19:29</strong> (#1094, #1095, #1097; cron.job 573, elleve gange i timen). Første rigtige kørsel: <code>sendt 1 · med_invitation 1 · fejlede 0</code> — én bekræftelse til én ny tilmeldt. <strong>Det er ikke en prøve af mængden.</strong> Den første før-mail til et helt hold er <strong>syv_dage-mailen 6/10 kl. 08:00 til ~217 personer</strong>, og den kan ikke prøves af igen: er noget galt i teksten, knappen eller kalenderfilen, rammer det alle på én gang. <strong>Det, der skal ses på inden:</strong> at hver mail bærer sin egen knap (bagud-fyldningen 18:48 gav 216 af 216 et <code>join_link</code> og <code>kalender_link</code>, 0 uden), og at teksterne efter #1097 ikke lover noget, de ikke leverer. Historik: OVERLEVERING DEL 2 «22. september (dagen)» §8–§11; <code>docs/webinaret-og-annoncerne.md</code> §7e.</p>
       <div class="meta"><span class="tag rust">FØRSTE HOLD 29/9 08:00 — 317 på én gang, aflæses ~10:05</span><span class="tag gold">fjorten_dage i drift 28/9 10:00 (#1102)</span><span class="tag gold">I drift 22/9 19:29</span><span class="tag ny">Ny 22/9</span></div>
+    </div>
+    <div class="card new" id="a29-mailgun-verificering" data-status="mangler" data-spor="1" data-rammer="ingen">
+      <h3>Mailgun: probationen ophæves KUN ved business verification — og loftet i koden (MAILGUN_LOFT_PR_TIME = 90) ændres først, når Mailgun skriftligt har oplyst den nye grænse</h3>
+      <p>Kilde: help.mailgun.com «Why does my account have an hourly sending limitation?» — rødt banner i Control Panel → formular → ticket. <strong>Jonas svarede i ticketen 29/9 ~14:12</strong> og bad om at få den behandlet som verificering, og spurgte om vinduet for 420 «recipient limit (26)». <strong>Åbent:</strong> tjek om banneret står (så formularen igen, privat vindue). Ticket-nummer: indsættes af Jonas. Status 29/9: kl. 14:00 manglede 112 af 319 af 14-dagsmailen; ~26 pr. time; forventet færdig ca. 18:30 (<a href="#a22-webinarmail-foerste-hold">a22-webinarmail-foerste-hold</a>). OVERLEVERING DEL 2 «29. september» §3.</p>
+      <div class="meta"><span class="tag rust">Probation — 100/time</span><span class="tag gold">Loftet ændres først ved skriftlig grænse</span><span class="tag ny">Ny 29/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" id="a22-spf-topix" data-status="mangler" data-spor="senere" data-rammer="ingen">
       <h3><code>topix.dk</code>s SPF nævner ikke Google, og DMARC står <code>p=quarantine</code> med streng justering — et fund, ikke en rettelse</h3>
@@ -3238,8 +3260,14 @@
     </div>
     <div class="card new" id="a29-hash-huller" data-status="mangler" data-spor="6" data-rammer="alle">
       <h3>#-henvisningerne: community_json_til_tekst kender ikke rabathenvisningen; chatten tilbyder ikke opslag; ingen «forslag kunne ikke hentes»-linje; lektioner uden områdenavne</h3>
+      <p><strong>29/9 14:25 (#1126, «fejllinjer ved hentefejl + community-teksten kender rabathenvisning»):</strong> (1) og (3) er bygget — (1) virker først, når <a href="#a29-migration-community-rabathenvisning">migrationen 20260929180000</a> er kørt; (3) er <code>src/</code> og venter på Update. (2) og (4) står.</p>
       <p>Tilbage efter <a href="#m28-hash-i-chatten">#-henvisningerne i chatten</a> (#1118, #1120, #1125): (1) SQL-funktionen <code>community_json_til_tekst</code> kender ikke rabathenvisningen; (2) chatten tilbyder ikke Community-opslag som henvisning; (3) chatten mangler en linje, når forslagene ikke kan hentes; (4) lektioner vises uden områdenavne. OVERLEVERING DEL 2 «29. september» §5.</p>
       <div class="meta"><span class="tag">Fire huller</span><span class="tag ny">Ny 29/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="a29-migration-community-rabathenvisning" data-status="mangler" data-spor="6" data-rammer="alle">
+      <h3>Migrationen 20260929180000_community_tekst_rabathenvisning.sql (#1126) er IKKE KØRT — skal køres i Lovables SQL editor</h3>
+      <p>Merget med #1126 (29/9 14:25, «community-teksten kender rabathenvisning»). Filhovedet: «-- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).» Indtil den er kørt, kender SQL-teksten stadig ikke rabathenvisningen (<a href="#a29-hash-huller">a29-hash-huller</a> punkt 1). Efter kørslen: vend hovedet til KØRT med FØR/EFTER, og vend et værn med, hvis det kræver IKKE KØRT. OVERLEVERING DEL 2 «29. september» §5.</p>
+      <div class="meta"><span class="tag rust">IKKE KØRT</span><span class="tag ny">Ny 29/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="ide" data-spor="senere" data-rammer="medlem">
       <h3>«Spørg din rådgiver om det her» som knap på hvert nøgletal — beskeden bærer tallet som en frosset chip</h3>
@@ -3479,19 +3507,19 @@
   <p class="lede">Forsiden, virksomhedslisten, virksomhedssiden, chatten, Milestones og alle otte admin-sider er Hjemmebane. Resterne herunder er målt sent 4/9 (OVERLEVERING DEL 3) — og tre ting er set på mobil. Ét kort fra 6/9 sen aften: sorteringen på <code>/virksomheder</code> (puklen der tabte virksomheden er løst, #672).</p>
   <div class="grid">
     <div class="card new" id="a29-overblik-bevis" data-status="mangler" data-spor="6" data-rammer="raadgiver">
-      <h3>Medlemsoverblikket på /virksomheder (#1122) — beviset efter Update: «Ingen bruger» = 3, Morten «Markeret (ingen booking)» ≈ 12, Jonas «Ikke omfattet» ≈ 23</h3>
-      <p>Merget 29/9 12:44 (#1122). Nulpunkt målt i prod 29/9: 28 kunder, 27 medlemmer, 3 uden bruger; 30 dage: login 24/27, godkendt rapport 15/28, uploadet 11/28, events 14/27, chat 13/27, refleksion 7/28, akademi 5/27, community 4/27, mål 2/28, handouts 0/27. Demo-virksomheden er filtreret (<code>is_demo</code>) i <code>byggOverblik</code>. <strong>Update ikke bekræftet 29/9</strong> — beviset er de tre tal på skærm. Se også <a href="#a29-morten-retter-uden-booking">Mortens 12 retter</a>. OVERLEVERING DEL 2 «29. september» §4.</p>
-      <div class="meta"><span class="tag gold">MERGET — BEVIS UDESTÅR efter Update</span><span class="tag ny">Ny 29/9</span><span class="tag size">Lille</span></div>
+      <h3>«Mangler at booke» på forsiden (#1129) — beviset efter Update: tallene N (Morten-session) og M (Jonas-session) ses i drift. Var: medlemsoverblikket på /virksomheder (#1122)</h3>
+      <p><strong>Jonas 14:19:</strong> «Det her overblik er virkelig blevet noget rod. Vores forside er jo det sted vi bruger til dem der skal have hjælp/trænger. Jeg vil gerne have et simpelt overblik over hvem og hvor mange der mangler at booke. Der behøver ikke stå ikke omfattet osv. Jeg skal bare vide hvor mange der mangler. Vi skal ikke komplicere unødigt.» <strong>Beslutning:</strong> /virksomheder tilbage som før #1122 (genskabt byte-ens, #1129); forsiden får ÉN blok «Mangler at booke» — «Morten-session: N» og «Jonas-session: M» med navnene som links; 0 → «Alle har booket.». Mangler = ikke booket, kun link sendt, eller aflyst. Jonas-sessionen tæller kun for nye medlemmer (fra 14/9). En ret markeret i hånden tæller som booket. <strong>Merget 29/9 15:14 (#1129); Update ikke bekræftet</strong> — beviset er N og M på forsiden i drift. Lærestreg (j). OVERLEVERING DEL 2 «29. september» §4–§6.</p>
+      <div class="meta"><span class="tag gold">MERGET — BEVIS UDESTÅR efter Update</span><span class="tag gold">Jonas 14:19: enkelt</span><span class="tag ny">Ny 29/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" id="a29-morten-retter-uden-booking" data-status="mangler" data-spor="6" data-rammer="raadgiver">
       <h3>Mortens ret står som brugt hos 12 virksomheder uden en session_bookings-række — årsagen er ikke målt</h3>
-      <p>Målt 29/9 (medlemsoverblikkets nulpunkt): <code>companies.intro_session_used_at</code> er sat hos 12 uden en række i <code>session_bookings</code>; kun 11 rækker nogensinde. Årsagen er IKKE målt: håndafkrydsning, et fejlet rollback eller en slettet række. Til sammenligning: Jonas-retten blev sat i hånden for 23 virksomheder 13/9 20:50–20:54 UTC (Jonas: «det var mig»); Jonas-sessionen er kun en del af medlemskabet for NYE medlemmer → «ikke omfattet». Medlemmer booker gennem platformen (Calendly). OVERLEVERING DEL 2 «29. september» §4.</p>
+      <p>Målt 29/9 (medlemsoverblikkets nulpunkt): <code>companies.intro_session_used_at</code> er sat hos 12 uden en række i <code>session_bookings</code>; kun 11 rækker nogensinde. Årsagen er IKKE målt: håndafkrydsning, et fejlet rollback eller en slettet række. Til sammenligning: Jonas-retten blev sat i hånden for 23 virksomheder 13/9 20:50–20:54 UTC (Jonas: «det var mig»); Jonas-sessionen er kun en del af medlemskabet for NYE medlemmer → «ikke omfattet». Medlemmer booker gennem platformen (Calendly). <strong>29/9 eftermiddag:</strong> i forsidens <a href="#a29-overblik-bevis">«Mangler at booke»</a> tæller en ret markeret i hånden som booket — kortet her handler kun om, hvorfor rækkerne mangler. OVERLEVERING DEL 2 «29. september» §4.</p>
       <div class="meta"><span class="tag">Årsag ikke målt</span><span class="tag ny">Ny 29/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" id="a29-statusmail-v2" data-status="mangler" data-spor="senere" data-rammer="raadgiver">
-      <h3>Statusmail v2: sammenligning med sidste uge (kræver et ugentligt øjebliksbillede); MAERKE_PARAM står to steder</h3>
-      <p>Trin 1 er merget 29/9 14:00 (#1124: én sammenkobling <code>byggOverblik</code>, Deno-spejle, mailens tekst). Trin 2 — edge function + cron, mandag 07:00 dansk tid — er under bygning 29/9. v2: en sammenligning med sidste uge kræver et ugentligt øjebliksbillede, som ikke findes; <code>MAERKE_PARAM</code> står to steder. OVERLEVERING DEL 2 «29. september» §1 og §5.</p>
-      <div class="meta"><span class="tag">Trin 2 under bygning 29/9</span><span class="tag ny">Ny 29/9</span><span class="tag size">Mellem</span></div>
+      <h3>Statusmailen laves om til at sige det samme som «Mangler at booke» (draft #1127, på pause — må ikke merges)</h3>
+      <p>Trin 1 er merget 29/9 14:00 (#1124: <code>byggOverblik</code>, Deno-spejle, mailens tekst). Trin 2 — edge function + cron, mandag 07:00 dansk tid — ligger som <strong>DRAFT #1127 «PAUSE — statusmail trin 2 (skal forenkles før merge)»</strong>. <strong>Beslutning 29/9 eftermiddag:</strong> statusmailen sættes på pause og laves om til at sige det samme som forsidens blok <a href="#a29-overblik-bevis">«Mangler at booke»</a>. (Fra formiddagen, stadig sandt: <code>MAERKE_PARAM</code> står to steder; en sammenligning med sidste uge kræver et ugentligt øjebliksbillede.) OVERLEVERING DEL 2 «29. september» §5.</p>
+      <div class="meta"><span class="tag rust">PAUSE — #1127 må ikke merges</span><span class="tag ny">Ny 29/9</span><span class="tag size">Mellem</span></div>
     </div>
     <div class="card new" id="m16e-online-realtime" data-status="mangler" data-spor="6" data-rammer="raadgiver">
       <h3>«Online nu» på rådgiverens forside (Realtime Presence, privat kanal) — i drift #931, migrationen bevist 18:42; et kundemedlem skal dukke op før antagelse (a) er sand</h3>
@@ -3795,7 +3823,7 @@
     <div class="card new" data-status="fejl" data-spor="7" data-rammer="ingen">
       <h3>Tavse queryFn'er: handouts og klokken kaster nu (#928, ubevist) — tilbage er RabataftalerView og admin-views (EventsView, ContentView, HbMaterials); resten dør med konvergensen</h3>
       <p>Mønstret er <code>hentefejl.ts</code>/<code>raadgiverHentefejl.ts</code>: tom og fejlet er to beskeder. Velkomsten og skallen kastede allerede (analysens grep var fil-lokal). Kildeværn <code>tavseFlader.guard.test.ts</code> (14). Historik: OVERLEVERING DEL 2 «De tavse fejl»; «16. september (eftermiddag og aften)» §26.</p>
-      <p><strong>29/9 — stadig åbent for rabataftalerne:</strong> en fejlet hentning viser samme tekst som en tom liste. Siden fik én aftales adresse samme dag (#1120, <code>?aftaleId=</code>); fejlteksten er uændret. OVERLEVERING DEL 2 «29. september» §5.</p>
+      <p><strong>29/9 — rabataftalerne:</strong> en fejlet hentning viste samme tekst som en tom liste. <strong>Fejllinjen er bygget 29/9 14:25 (#1126)</strong> — <code>src/</code>, venter på Update. Siden fik én aftales adresse samme dag (#1120, <code>?aftaleId=</code>). OVERLEVERING DEL 2 «29. september» §1.</p>
       <div class="meta"><span class="tag gold">I DRIFT — BEVIS UDESTÅR (#928)</span><span class="tag">Resten: fire flader</span><span class="tag size">Mellem</span></div>
     </div>
     <div class="card decision new" data-status="beslutning" data-spor="senere" data-rammer="ingen">
