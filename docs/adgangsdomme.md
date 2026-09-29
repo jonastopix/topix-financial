@@ -90,6 +90,16 @@ betyder. Ingen af de to har en test der binder dem til de tre andre.
 
 ---
 
+**Tilføjet 29/9-2026 (sikkerhedsanalysen fund 1):** alle fem domme læser felter på
+`companies` (`contract_end_date`, `is_legat`, `subscription_status`,
+`subscription_current_period_end`), og indtil migration `20260929210000` kunne et medlem
+skrive dem selv på sin egen række («Members can update own company» uden
+kolonnebegrænsning). Kolonneværnet (`companies_medlem_kolonnevaern`, BEFORE UPDATE) afviser
+nu ethvert medlemsskrevet felt uden for en hvidliste — ingen af dommenes felter er på den.
+Dommene selv er urørte. Se `supabase/SECURITY_BASELINE.md` §3.
+
+---
+
 ## 2. Den eneste dom på feltet
 
 Hele repoet sammenligner `companies.subscription_status` med præcis
