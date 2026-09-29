@@ -20,12 +20,21 @@
 // private — this function works against the still-public bucket today
 // (returns a signed URL pointing at a still-publicly-readable object) and
 // will continue to work unchanged once the bucket flips.
+//
+// STIEN SKAL TILHØRE AFSENDEREN (29/9-2026, ~/Downloads/recon-video-i-chatten.md §2).
+// RLS på messages afgør kun, om kalderen må SE beskeden — ikke om stien i
+// context_meta er afsenderens. context_meta har ingen begrænsning i databasen,
+// så et medlem kunne skrive en anden brugers sti ind i sin egen besked og få
+// en signeret URL til den brugers fil. Derfor læses sender_id i SAMME
+// callerClient-opslag, og stiTilhoererAfsender (_shared/chatVedhaeftningSti.ts)
+// skal sige ja, FØR adminClient konstrueres og FØR createSignedUrl. uploadChat-
+// Attachments lægger altid filen under {senderId}/ — en ægte vedhæftning består.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
+import { stiTilhoererAfsender, vedhaeftningsSti } from "../_shared/chatVedhaeftningSti.ts";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const PUBLIC_URL_MARKER = "/storage/v1/object/public/chat-attachments/";
 const SIGNED_URL_TTL_SEC = 600;
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -73,7 +82,7 @@ Deno.serve(async (req) => {
   // whitelisted to the two literal table names above.
   const { data: row, error: rowErr } = await callerClient
     .from(source as "messages")
-    .select("id, context_meta")
+    .select("id, sender_id, context_meta")
     .eq("id", messageId)
     .maybeSingle();
 
@@ -103,18 +112,21 @@ Deno.serve(async (req) => {
   };
 
   // ── 6. Parse storage path — handles legacy public-URL form and
-  //       future path-only form. Both shapes verified safe by recon. ──
-  let path: string | null = null;
-  if (typeof att?.url === "string" && att.url.startsWith("http") && att.url.includes(PUBLIC_URL_MARKER)) {
-    const candidate = att.url.split(PUBLIC_URL_MARKER)[1];
-    if (!candidate || candidate.includes("?") || candidate.startsWith("/")) {
-      return jsonResponse({ error: "Malformed attachment URL" }, 400);
-    }
-    path = candidate;
-  } else if (typeof att?.path === "string" && !att.path.startsWith("http")) {
-    path = att.path;
-  } else {
-    return jsonResponse({ error: "Unknown attachment reference format" }, 400);
+  //       path-only form. Same logic and same 400 texts as before 29/9, now
+  //       in _shared/chatVedhaeftningSti.ts (pure, mirrored, tested). ──
+  const stiDom = vedhaeftningsSti(att);
+  if (stiDom.ok === false) {
+    return jsonResponse({ error: stiDom.fejl }, 400);
+  }
+  const path = stiDom.sti;
+
+  // ── 6b. The path must belong to the message's sender (29/9) — BEFORE any
+  //        service-role construction. Same 403 as «RLS denied»: the caller
+  //        learns nothing about whose file the path points at. ──
+  const senderId = (row as { sender_id?: unknown }).sender_id;
+  if (!stiTilhoererAfsender(path, senderId)) {
+    console.error(`[get-chat-attachment-url] stien tilhører ikke afsenderen — besked ${messageId}, vedhæftning ${attachmentIndex}; intet signeret`);
+    return jsonResponse({ error: "Forbidden" }, 403);
   }
 
   // ── 7. Service-role action — sign the URL. adminClient is a SEPARATE
