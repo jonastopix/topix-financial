@@ -97,7 +97,7 @@ export function tomBrancheTekst(branche: string, opts: { iUdsnit: boolean; soegn
 
 // ── Sorteringen ───────────────────────────────────────────────────────────
 
-export type SortNoegle = "navn" | "sidste_kontakt" | "sidste_rapportering";
+export type SortNoegle = "navn" | "sidste_kontakt" | "sidste_rapportering" | "overblik";
 export type SortRetning = "asc" | "desc";
 
 export interface Sortering {
@@ -107,8 +107,11 @@ export interface Sortering {
   retning: SortRetning;
 }
 
-/** Valgene i rækkefølge; den første er standard (som listen altid har været). */
+/** Valgene i rækkefølge; den første er standard. «Overblik» (29/9, medlemsoverblikket):
+    dem der trænger først (lib/medlemsOverblik: sammenlignOverblik — vægten, så navn);
+    før 29/9 var navn standard. */
 export const SORTERINGER: readonly Sortering[] = [
+  { id: "overblik", label: "Overblik — trænger først", noegle: "overblik", retning: "desc" },
   { id: "navn", label: "Navn (A–Å)", noegle: "navn", retning: "asc" },
   { id: "kontakt_nyeste", label: "Sidste kontakt — nyeste først", noegle: "sidste_kontakt", retning: "asc" },
   { id: "kontakt_aeldste", label: "Sidste kontakt — længst siden først", noegle: "sidste_kontakt", retning: "desc" },
@@ -128,6 +131,8 @@ export interface SorterbarRaekke {
   sidsteKontaktDage: number | null;
   /** Seneste committede period_key ("YYYY-MM", sorterer leksikalt); null = ingen. */
   sidsteRapporteringKey: string | null;
+  /** Medlemsoverblikkets vægt (overbliksDom.vaegt); null = overblikket er ikke hentet — sidst. */
+  overbliksVaegt?: number | null;
 }
 
 /** Stabil sortering; tomme værdier altid sidst, og navn som sekundær nøgle. */
@@ -144,6 +149,7 @@ export function sorterRaekker<T extends SorterbarRaekke>(raekker: readonly T[], 
     let cmp = 0;
     if (sortering.noegle === "navn") cmp = sortering.retning === "asc" ? navn(a, b) : -navn(a, b);
     else if (sortering.noegle === "sidste_kontakt") cmp = tal(a.sidsteKontaktDage, b.sidsteKontaktDage, sortering.retning);
+    else if (sortering.noegle === "overblik") cmp = tal(a.overbliksVaegt ?? null, b.overbliksVaegt ?? null, sortering.retning);
     else cmp = tal(a.sidsteRapporteringKey, b.sidsteRapporteringKey, sortering.retning);
     return cmp !== 0 ? cmp : navn(a, b);
   });
