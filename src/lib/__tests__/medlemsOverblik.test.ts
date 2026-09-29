@@ -8,6 +8,8 @@ import {
   harMaerke,
   IKKE_OMFATTET_FRA,
   MAERKE_VAEGT,
+  MANGLER_STATUSSER,
+  manglerAtBooke,
   overbliksDom,
   sammenlignOverblik,
   sessionStatus,
@@ -189,7 +191,8 @@ import { byggOverblik, iUniverset, type OverbliksKilder, type OverbliksRaekke } 
  * rækkerne. Kopien kender ikke is_demo (det er den ene tilsigtede forskel —
  * prøvet for sig).
  */
-function gammelJoin(k: OverbliksKilder, loginByUser: Map<string, string>, nu: Date): Map<string, OverbliksRaekke> {
+// navn (29/9, forsidens «Mangler at booke») fandtes ikke i den gamle join — den sammenlignes uden (se prøven nedenfor).
+function gammelJoin(k: OverbliksKilder, loginByUser: Map<string, string>, nu: Date): Map<string, Omit<OverbliksRaekke, "navn">> {
   const brugereByCompany = new Map<string, string[]>();
   const companyByUser = new Map<string, string[]>();
   const medlemSidenByCompany = new Map<string, string>();
@@ -222,7 +225,7 @@ function gammelJoin(k: OverbliksKilder, loginByUser: Map<string, string>, nu: Da
   for (const m of k.maal) { laeg(maalRoert, m.company_id, m.created_at); laeg(maalRoert, m.company_id, m.progress_updated_at); laeg(maalRoert, m.company_id, m.completed_at); }
   const bookingerByCompany = new Map<string, OverbliksKilder["bookinger"][number][]>();
   for (const b of k.bookinger) if (b.company_id) bookingerByCompany.set(b.company_id, [...(bookingerByCompany.get(b.company_id) ?? []), b]);
-  const ud = new Map<string, OverbliksRaekke>();
+  const ud = new Map<string, Omit<OverbliksRaekke, "navn">>();
   for (const c of k.companies) {
     if (c.is_legat || !(c.status === "active" || !c.status) || c.er_kunde === false) continue;
     const brugere = brugereByCompany.get(c.id) ?? [];
@@ -280,7 +283,10 @@ describe("byggOverblik — samme svar som hookens gamle join, på et fast datas�
     const loginByUser = new Map(KILDER.logins.map((l) => [l.user_id, l.logged_in_at]));
     const nyt = byggOverblik(KILDER, NU), gammelt = gammelJoin(KILDER, loginByUser, NU);
     expect([...nyt.keys()]).toEqual(["aktiv", "tom_status", "ny"]);
-    expect([...nyt.entries()]).toEqual([...gammelt.entries()]);
+    // navn er den ene tilsigtede forskel (29/9): uden den er de to ordret ens.
+    const udenNavn = (m: Map<string, OverbliksRaekke>) => [...m.entries()].map(([k, { navn: _navn, ...resten }]) => [k, resten]);
+    expect(udenNavn(nyt)).toEqual([...gammelt.entries()]);
+    expect([...nyt.values()].map((r) => r.navn)).toEqual(["", "", ""]); // KILDER henter ikke navnet
     // Og tallene er, som datasættet siger.
     const a = nyt.get("aktiv")!;
     expect(a.antalBrugere).toBe(2);
@@ -318,5 +324,68 @@ describe("byggOverblik — universet, og demo-virksomheden (29/9)", () => {
     expect(byggOverblik(k, NU).has(demo.id)).toBe(false);
     // Uden is_demo-filtret (den gamle join) ville den være med — det er den ene tilsigtede forskel.
     expect(gammelJoin(k, new Map(), NU).has(demo.id)).toBe(true);
+  });
+});
+
+describe("manglerAtBooke — hvem mangler at booke (Jonas 29/9)", () => {
+  const ALLE: SessionDom["status"][] = ["ikke_brugt", "link_sendt", "booket", "afholdt", "aflyst", "markeret_uden_booking", "ikke_omfattet"];
+  const dom = (raadgiver: "morten" | "jonas", status: SessionDom["status"]): SessionDom => ({ raadgiver, status, tid: null, retAt: null });
+  const raekke = (m: SessionDom["status"], j: SessionDom["status"], medlemSiden: string | null) =>
+    ({ sessioner: { morten: dom("morten", m), jonas: dom("jonas", j) }, medlemSiden });
+  const NY = "2026-09-20T10:00:00Z";      // medlem fra efter IKKE_OMFATTET_FRA
+  const GAMMEL = "2026-06-01T10:00:00Z";  // medlem fra før
+
+  it("de tre mangler-statusser er ikke_brugt, link_sendt og aflyst — intet andet", () => {
+    expect([...MANGLER_STATUSSER]).toEqual(["ikke_brugt", "link_sendt", "aflyst"]);
+  });
+
+  it("MORTEN: mangler ved ikke_brugt, link_sendt og aflyst — for nye OG gamle medlemmer", () => {
+    for (const status of ALLE) {
+      const forventet = status === "ikke_brugt" || status === "link_sendt" || status === "aflyst";
+      expect(manglerAtBooke(raekke(status, "booket", GAMMEL)).morten, `${status} (gammel)`).toBe(forventet);
+      expect(manglerAtBooke(raekke(status, "booket", NY)).morten, `${status} (ny)`).toBe(forventet);
+      expect(manglerAtBooke(raekke(status, "booket", null)).morten, `${status} (uden startdato)`).toBe(forventet);
+    }
+  });
+
+  it("MORTEN: booket, afholdt, markeret_uden_booking og ikke_omfattet mangler ikke", () => {
+    for (const status of ["booket", "afholdt", "markeret_uden_booking", "ikke_omfattet"] as const) {
+      expect(manglerAtBooke(raekke(status, "ikke_brugt", NY)).morten, status).toBe(false);
+    }
+  });
+
+  it("JONAS, nyt medlem: mangler ved ikke_brugt, link_sendt og aflyst; ikke ved de fire andre", () => {
+    for (const status of ALLE) {
+      const forventet = status === "ikke_brugt" || status === "link_sendt" || status === "aflyst";
+      expect(manglerAtBooke(raekke("booket", status, NY)).jonas, status).toBe(forventet);
+    }
+  });
+
+  it("JONAS, gammelt medlem eller ukendt startdato: mangler ALDRIG (erNytMedlem er fail-closed)", () => {
+    for (const status of ALLE) {
+      expect(manglerAtBooke(raekke("booket", status, GAMMEL)).jonas, `${status} (gammel)`).toBe(false);
+      expect(manglerAtBooke(raekke("booket", status, null)).jonas, `${status} (uden startdato)`).toBe(false);
+    }
+  });
+
+  it("grænsen er IKKE_OMFATTET_FRA: præcis dér er man ny, et sekund før er man det ikke", () => {
+    expect(manglerAtBooke(raekke("booket", "ikke_brugt", IKKE_OMFATTET_FRA)).jonas).toBe(true);
+    expect(manglerAtBooke(raekke("booket", "ikke_brugt", "2026-09-13T23:59:59Z")).jonas).toBe(false);
+  });
+
+  it("de to domme er uafhængige", () => {
+    expect(manglerAtBooke(raekke("ikke_brugt", "ikke_brugt", NY))).toEqual({ morten: true, jonas: true });
+    expect(manglerAtBooke(raekke("afholdt", "ikke_brugt", NY))).toEqual({ morten: false, jonas: true });
+    expect(manglerAtBooke(raekke("ikke_brugt", "afholdt", NY))).toEqual({ morten: true, jonas: false });
+    expect(manglerAtBooke(raekke("afholdt", "afholdt", NY))).toEqual({ morten: false, jonas: false });
+  });
+});
+
+describe("byggOverblik — navnet, samme regel som /virksomheder (name || \"\")", () => {
+  it("companies.name står på rækken; null eller udeladt → tom streng", () => {
+    const tom = { medlemmer: [], bookinger: [], logins: [], facts: [], uploads: [], refleksioner: [], samtaler: [], events: [], progress: [], traade: [], svar: [], reaktioner: [], maal: [] };
+    const c = (id: string, name?: string | null) => ({ id, ...(name !== undefined ? { name } : {}), status: "active", is_legat: false, er_kunde: true, is_demo: false, intro_session_used_at: null, jonas_session_used_at: null });
+    const ud = byggOverblik({ ...tom, companies: [c("a", "Aarhus Is ApS"), c("b", null), c("c")] }, new Date("2026-09-29T10:00:00Z"));
+    expect([...ud.values()].map((r) => r.navn)).toEqual(["Aarhus Is ApS", "", ""]);
   });
 });

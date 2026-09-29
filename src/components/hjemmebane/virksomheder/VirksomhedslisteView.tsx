@@ -18,9 +18,6 @@ import {
   BRANCHE_PARAM, brancheOverskrift, brancherAf, filtrerPaaBranche, findSortering, laesBrancheParam, listeSti, SORTERINGER, sorterRaekker, STANDARD_SORTERING, tomBrancheTekst,
 } from "@/lib/hjemmebane/branchefilter";
 import { CVR_MANGEL_MAERKE, cvrOpslagMangler } from "@/lib/cvrBerigelse";
-import { useMedlemsOverblik, type OverbliksRaekke } from "@/hooks/medlemsOverblik";
-import { AKTIVITETS_FELTER, harMaerke } from "@/lib/medlemsOverblik";
-import { FILTER_MAERKER, laesMaerkeParam, MAERKE_ORD, MAERKE_PARAM, maerkeOverskrift, prikTitle, sessionOrd, sidstTekst, tomMaerkeTekst } from "@/lib/hjemmebane/overblikOrd";
 import { HbTag } from "../HbTag";
 import { HbInvitationer } from "./HbInvitationer";
 import { hbControlClasses } from "../admin/HbField";
@@ -74,17 +71,6 @@ import { cn } from "@/lib/utils";
  * detailhandel» er ?grund=tavshed&branche=Detailhandel. Værdierne er de
  * brancher der faktisk står på listen (lib/hjemmebane/branchefilter.ts).
  * Sortering på navn, sidste kontakt og sidste rapportering er lokal state.
- *
- * MEDLEMSOVERBLIKKET (Jonas 29/9: «et samlet overblik, så vi ikke skal
- * tjekke på hver enkelt kunde»): fire kolonner mere — Morten, Jonas
- * (sessionsstatus i klare ord), sidst logget ind / sidst godkendt rapport,
- * og en prikrække for de ni aktiviteter de sidste 30 dage — plus mærkerne
- * som rolige chips. Reglerne bor i lib/medlemsOverblik.ts; hentningen i
- * hooks/medlemsOverblik.ts (egen nøgle — en fejl dér lader listen stå og
- * siger det i en linje, kolonnerne tomme). ?maerke=<mærke> er listens
- * fjerde filter (husets ?grund=-mønster), læst gennem harMaerke — fladen
- * regner ingen egen regel. Standardsorteringen er «Overblik — trænger
- * først» (lib/medlemsOverblik.sammenlignOverblik: vægt, så navn).
  */
 
 type Raekke = {
@@ -116,10 +102,6 @@ type Raekke = {
       tomme (14/9, lib/cvrBerigelse.ts). Mærket på rækken, så de ramte kan
       findes uden SQL; forsvinder når felterne fyldes (berigelsen). */
   cvrOpslagMangler: boolean;
-  /** Medlemsoverblikket (hooks/medlemsOverblik) — null, når det ikke er hentet (egen nøgle). */
-  overblik: OverbliksRaekke | null;
-  /** overblik.dom.vaegt til sorteringen «Overblik»; null = ikke hentet. */
-  overbliksVaegt: number | null;
 };
 
 const MS_PER_DOEGN = 86_400_000;
@@ -281,9 +263,6 @@ async function hentVirksomhedsliste(): Promise<Raekke[]> {
           address: c.address,
           industry_code: c.industry_code,
         }).mangler,
-        // Overblikket lægges på i fladen (egen hentning, egen nøgle).
-        overblik: null,
-        overbliksVaegt: null,
       };
     })
     .sort((a, b) => a.navn.localeCompare(b.navn, "da"));
@@ -331,47 +310,10 @@ const TierBadge = ({ tier, kontraktSlut }: { tier: MembershipTier; kontraktSlut:
   return null;
 };
 
-/** Gitteret — header og rækker deler det. De fire overbliks-kolonner kommer til fra lg. */
-const GITTER = "sm:grid-cols-[2fr_1.2fr_1fr_1fr_1fr] lg:grid-cols-[1.7fr_1fr_1fr_1fr_1fr_0.8fr_0.8fr_1fr_1.5fr]";
-
-/** Sessionen i klare ord — rolig tekst, ingen rust; «Afholdt» bærer sin udledning som title. */
-const SessionCelle = ({ raadgiver, r }: { raadgiver: "morten" | "jonas"; r: Raekke }) => {
-  if (!r.overblik) return <p className="text-sm text-hb-ink-soft">—</p>;
-  const ord = sessionOrd(r.overblik.sessioner[raadgiver]);
-  return (
-    <p className="truncate text-sm text-hb-ink-soft" title={ord.title ?? undefined}>
-      <span className="lg:hidden">{raadgiver === "morten" ? "Morten" : "Jonas"}: </span>
-      {ord.tekst}
-    </p>
-  );
-};
-
-/** Prikrækken: ni felter, en prik når der er aktivitet de sidste 30 dage — title «<felt>: <dato>». */
-const Aktivitetsprikker = ({ r }: { r: Raekke }) => {
-  if (!r.overblik) return <p className="text-sm text-hb-ink-soft">—</p>;
-  const o = r.overblik;
-  return (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-      <span className="flex items-center gap-1" aria-label="Aktivitet de sidste 30 dage">
-        {AKTIVITETS_FELTER.map((felt) => (
-          <span
-            key={felt}
-            title={prikTitle(felt, o.aktivitet[felt])}
-            className={cn("inline-block h-2 w-2 rounded-full", o.aktivitet[felt].iVinduet ? "bg-hb-evergreen" : "border border-hb-line bg-transparent")}
-          />
-        ))}
-      </span>
-      {FILTER_MAERKER.filter((m) => harMaerke(o.dom, m)).map((m) => (
-        <HbTag key={m} className="border border-hb-line bg-hb-paper px-2 py-0.5 text-[11px] text-hb-ink-soft">{MAERKE_ORD[m]}</HbTag>
-      ))}
-    </div>
-  );
-};
-
 const RaekkeIndhold = ({ r }: { r: Raekke }) => {
   const traekTekst = traekBadgeTekst(r.fejledeTraek);
   return (
-    <div className={cn("grid grid-cols-1 gap-x-4 gap-y-1 px-4 py-3 sm:items-center", GITTER)}>
+    <div className="grid grid-cols-1 gap-x-4 gap-y-1 px-4 py-3 sm:grid-cols-[2fr_1.2fr_1fr_1fr_1fr] sm:items-center">
       <div className="min-w-0">
         <p className="truncate text-[15px] font-medium leading-snug text-hb-ink">{r.navn}</p>
         <p className="truncate text-xs text-hb-ink-soft">{r.branche || "—"}</p>
@@ -410,22 +352,6 @@ const RaekkeIndhold = ({ r }: { r: Raekke }) => {
         <span className="sm:hidden">Sidste rapportering: </span>
         {r.sidsteRapportering ?? "Ingen rapportering"}
       </p>
-      {/* Medlemsoverblikket (29/9): sessionerne, sidst logget ind / sidst
-          godkendt rapport (samme to-linje-form som kontakt-kolonnen), og
-          prikrækken med mærkerne. Ord fra lib/hjemmebane/overblikOrd. */}
-      <SessionCelle raadgiver="morten" r={r} />
-      <SessionCelle raadgiver="jonas" r={r} />
-      <div className="min-w-0">
-        <p className="truncate text-sm text-hb-ink-soft" title="Sidst logget ind (user_login_log)">
-          <span className="lg:hidden">Sidst logget ind: </span>
-          {r.overblik ? sidstTekst("logget ind", r.overblik.aktivitet.login) : "—"}
-        </p>
-        <p className="truncate text-xs text-hb-ink-soft" title="Sidst godkendt rapport">
-          <span className="lg:hidden">Sidst godkendt: </span>
-          {r.overblik ? sidstTekst("godkendt rapport", r.overblik.aktivitet.godkendt_rapport) : "—"}
-        </p>
-      </div>
-      <Aktivitetsprikker r={r} />
     </div>
   );
 };
@@ -453,14 +379,6 @@ export const VirksomhedslisteView = () => {
   // klik i filtret ikke bliver en historik-post; «Fjern branche» beholder
   // grund/puls (listeSti), «Vis alle» rydder alt.
   const branche = laesBrancheParam(searchParams.get(BRANCHE_PARAM));
-  // Mærket (?maerke=, 29/9) — medlemsoverblikkets filter, ved siden af de
-  // andre; læses gennem harMaerke, aldrig en egen regel her.
-  const maerke = laesMaerkeParam(searchParams.get(MAERKE_PARAM));
-  const saetMaerke = (nyt: string | null) => {
-    const next = new URLSearchParams(searchParams);
-    if (nyt) next.set(MAERKE_PARAM, nyt); else next.delete(MAERKE_PARAM);
-    setSearchParams(next, { replace: true });
-  };
   const saetBranche = (ny: string | null) => {
     const next = new URLSearchParams(searchParams);
     if (ny) next.set(BRANCHE_PARAM, ny); else next.delete(BRANCHE_PARAM);
@@ -498,18 +416,7 @@ export const VirksomhedslisteView = () => {
     return null;
   }, [domQuery.data, grund, puls]);
 
-  // Overblikket: egen hentning, egen nøgle — lægges på rækkerne her, så en
-  // fejl i overblikket ikke vælter listen (kolonnerne står tomme, linjen siger det).
-  const overblikQuery = useMedlemsOverblik(!!user && !!isAdvisor);
-  const alle = useMemo(() => {
-    const raekker = listeQuery.data ?? [];
-    const o = overblikQuery.data;
-    if (!o) return raekker;
-    return raekker.map((r) => {
-      const ob = o.get(r.id) ?? null;
-      return { ...r, overblik: ob, overbliksVaegt: ob ? ob.dom.vaegt : null };
-    });
-  }, [listeQuery.data, overblikQuery.data]);
+  const alle = useMemo(() => listeQuery.data ?? [], [listeQuery.data]);
   const soeger = query.trim().length > 0;
   const filtreret = useMemo(() => {
     let resultat = alle;
@@ -524,10 +431,8 @@ export const VirksomhedslisteView = () => {
       // søgning afslører dem (Members.tsx:1002-1005, spejlet).
       resultat = resultat.filter((r) => r.tier !== "expired");
     }
-    // Mærket filtrerer det, udsnittet og søgningen gav — gennem dommen (harMaerke).
-    if (maerke) resultat = resultat.filter((r) => !!r.overblik && harMaerke(r.overblik.dom, maerke));
     return resultat.filter((r) => matcher(r, query));
-  }, [alle, query, soeger, harUdsnit, udsnit, maerke]);
+  }, [alle, query, soeger, harUdsnit, udsnit]);
   // Brancherne tælles på det der er synligt FØR branchefiltret (udsnit +
   // søgning), så «Detailhandel (4)» er de fire man får ved at vælge den.
   // Den valgte branche står med, også når den giver nul — ellers kan
@@ -577,19 +482,6 @@ export const VirksomhedslisteView = () => {
             </Link>
           </p>
         )}
-        {/* Overblikket kunne ikke hentes (29/9): listen står, kolonnerne er tomme — og det siges. */}
-        {overblikQuery.isError && (
-          <p className="mt-4 text-sm text-hb-rust">{raadgiverHentefejlTekst(overblikQuery.error, "listen")} Kolonnerne Morten, Jonas, logget ind og aktivitet står tomme.</p>
-        )}
-        {/* Mærket (29/9): listen SIGER hvad den viser, som med branchen. */}
-        {maerke && (
-          <p className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[15px] text-hb-ink">
-            <span className="font-medium">{maerkeOverskrift(maerke, viste.length)}</span>
-            <button type="button" onClick={() => saetMaerke(null)} className="text-sm text-hb-evergreen underline-offset-4 hover:underline">
-              Fjern mærke
-            </button>
-          </p>
-        )}
         {/* Branchen (10/9): listen SIGER hvad den viser, som med forsidens
             udsnit. «Fjern branche» beholder grund/puls; «Vis alle» rydder alt. */}
         {branche && (
@@ -630,20 +522,6 @@ export const VirksomhedslisteView = () => {
             </option>
           ))}
         </select>
-        {/* Medlemsoverblikkets filter (29/9): de fire mærker, som en select som branchen. */}
-        <select
-          aria-label="Mærke"
-          value={maerke ?? ""}
-          onChange={(e) => saetMaerke(e.target.value || null)}
-          className={cn(hbControlClasses, "w-auto rounded-full px-4")}
-        >
-          <option value="">Alle</option>
-          {FILTER_MAERKER.map((m) => (
-            <option key={m} value={m}>
-              {MAERKE_ORD[m]}
-            </option>
-          ))}
-        </select>
         <select
           aria-label="Sortering"
           value={sortering.id}
@@ -665,16 +543,12 @@ export const VirksomhedslisteView = () => {
       {!harUdsnit && <HbInvitationer />}
 
       <div className="mt-8 overflow-hidden rounded-hb border border-hb-line bg-hb-surface">
-        <div className={cn("hidden border-b border-hb-line px-4 py-2 text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft sm:grid sm:gap-x-4", GITTER)}>
+        <div className="hidden border-b border-hb-line px-4 py-2 text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft sm:grid sm:grid-cols-[2fr_1.2fr_1fr_1fr_1fr] sm:gap-x-4">
           <span>Virksomhed</span>
           <span>Kontaktperson</span>
           <span>Medlemsstatus</span>
           <span>Sidste kontakt</span>
           <span>Sidste rapportering</span>
-          <span className="hidden lg:inline">Morten</span>
-          <span className="hidden lg:inline">Jonas</span>
-          <span className="hidden lg:inline">Logget ind · godkendt</span>
-          <span className="hidden lg:inline">Aktivitet 30 dage</span>
         </div>
         {listeQuery.isLoading || venterPaaDom ? (
           <ul className="divide-y divide-hb-line">
@@ -704,9 +578,6 @@ export const VirksomhedslisteView = () => {
               </>
             ) : soeger ? (
               `Ingen virksomheder matcher "${query.trim()}"`
-            ) : maerke ? (
-              // Et filter uden træffere er en rolig linje, ingen fejl (29/9).
-              tomMaerkeTekst(maerke)
             ) : harUdsnit && udsnit ? (
               "Ingen af forsidens virksomheder er på listen"
             ) : (

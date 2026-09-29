@@ -1,6 +1,8 @@
 /**
- * src/hooks/medlemsOverblik.ts — datalaget til medlemsoverblikket på
- * /virksomheder (29/9-2026). Én hentning for ALLE aktive virksomheder, ikke
+ * src/hooks/medlemsOverblik.ts — datalaget til medlemsoverblikket (29/9-2026).
+ * BRUGER siden forenklingen 29/9: KUN rådgiverens forside («Mangler at booke»,
+ * RaadgiverForsideView → ManglerAtBooke); /virksomheder er tilbage som før
+ * #1122 og henter ikke overblikket. Én hentning for ALLE aktive virksomheder, ikke
  * én pr. række; reglerne bor i lib/medlemsOverblik.ts (sessionStatus,
  * aktiviteterAf, overbliksDom) — her hentes og joines der kun.
  *
@@ -89,8 +91,9 @@ export async function hentMedlemsOverblik(): Promise<Map<string, OverbliksRaekke
   type Booking = OverbliksKilder["bookinger"][number] & { amount_dkk: number };
   const [companies, medlemmer, bookinger, facts, uploads, refleksioner, samtaler, events, progress, traade, svar, reaktioner, maal] = await Promise.all([
     // is_demo med (29/9): universfiltret i byggOverblik udelukker demo-virksomheden — ens for hook og function.
+    // name med (29/9, forsidens «Mangler at booke»): navnet fra samme kolonne som /virksomheder.
     hentAlleSider<OverbliksKilder["companies"][number]>((fra, til) =>
-      supabase.from("companies").select("id, status, is_legat, er_kunde, is_demo, intro_session_used_at, jonas_session_used_at").order("id").range(fra, til).then(side("companies"))),
+      supabase.from("companies").select("id, name, status, is_legat, er_kunde, is_demo, intro_session_used_at, jonas_session_used_at").order("id").range(fra, til).then(side("companies"))),
     hentAlleSider<Medlem>((fra, til) =>
       supabase.from("company_members").select("company_id, user_id, created_at").order("created_at", { ascending: true }).order("id").range(fra, til).then(side("company_members"))),
     hentAlleSider<Booking>((fra, til) =>
