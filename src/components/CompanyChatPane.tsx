@@ -11,6 +11,7 @@ import { notifyChatMessage } from "@/lib/chatNotify";
 import { uploadChatAttachments } from "@/lib/chatAttachments";
 import { MessageAttachments, type ChatAttachment } from "@/components/ChatAttachments";
 import { SvarCitat, SvarerPaaBanner } from "@/components/ChatSvarCitat";
+import { NoegletalChipVisning } from "@/components/ChatNoegletalChip";
 // Citatet over et svar på et refleksionsfelt (29/9) — egen linje: chatSvar.guard dom 3 læser linjen ovenfor ordret.
 import { RefleksionCitat } from "@/components/ChatSvarCitat";
 import { kanBesvares, svarUddrag } from "@/lib/chatSvar";
@@ -1952,6 +1953,7 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                                       {senderName}
                                     </p>
                                   )}
+                                  <NoegletalChipVisning contextMeta={msg.context_meta} isMine={isMine} />
                                   {!erSkjultBobletekst(msg.content) && (
                                     <ChatBeskedTekst content={msg.content} dokument={msg.indhold_json} />
                                   )}
@@ -2003,6 +2005,7 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                                       {senderName}
                                     </p>
                                   )}
+                                  <NoegletalChipVisning contextMeta={msg.context_meta} isMine={isMine} />
                                   {!erSkjultBobletekst(msg.content) && (
                                     <ChatBeskedTekst content={msg.content} dokument={msg.indhold_json} />
                                   )}
