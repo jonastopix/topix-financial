@@ -531,7 +531,7 @@ export function planlaegKoersel(i: {
   for (const r of personer.values()) {
     const mail = (r.email ?? "").trim().toLowerCase();
     const ms = Date.parse(r.session_tid as string);
-    if (ms <= i.nu.getTime()) continue;
+    if (!Number.isFinite(ms) || ms <= i.nu.getTime()) continue; // uden læsbar tid: ingen «nærmeste»
     const har = naermeste.get(mail);
     if (har === undefined || ms < har) naermeste.set(mail, ms);
   }

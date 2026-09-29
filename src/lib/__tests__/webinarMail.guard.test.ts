@@ -436,7 +436,7 @@ export const kunNaermesteSession = (cron: string, dom: string, spejl: string): b
     return (
       d.includes("return plan !== undefined && plan.straks !== true;") &&
       d.includes("if (i.senereSession === true && erPaamindelse(art)) {") &&
-      d.includes("if (ms <= i.nu.getTime()) continue;") &&
+      d.includes("if (!Number.isFinite(ms) || ms <= i.nu.getTime()) continue;") &&
       d.includes("if (har === undefined || ms < har) naermeste.set(mail, ms);") &&
       d.includes("const senereSession = foersteKommende !== undefined && Date.parse(r.session_tid as string) > foersteKommende;") &&
       /ukendte: i\.ukendte,\n\s*senereSession,\n/.test(d) &&
@@ -553,7 +553,7 @@ describe("webinarMail.guard — dommene fanger fejlen på en kopi", () => {
     expect(kunNaermesteSession(cron, dom, spejl)).toBe(true);
     // Selve fejlen: planlaegKoersel regner den nærmeste, men giver den IKKE til doemMail.
     expect(kunNaermesteSession(cron, dom.split("        senereSession,\n").join(""), spejl)).toBe(false);
-    expect(kunNaermesteSession(cron, dom, spejl.split("if (ms <= i.nu.getTime()) continue;").join(""))).toBe(false);
+    expect(kunNaermesteSession(cron, dom, spejl.split("if (!Number.isFinite(ms) || ms <= i.nu.getTime()) continue;").join(""))).toBe(false);
     expect(kunNaermesteSession(cron, dom.split("ms < har) naermeste").join("ms > har) naermeste"), spejl)).toBe(false);
     expect(kunNaermesteSession(cron, dom, spejl.split("if (i.senereSession === true && erPaamindelse(art)) {").join("if (i.senereSession === true) {"))).toBe(false);
     expect(kunNaermesteSession(cron, dom.split("return plan !== undefined && plan.straks !== true;").join("return true;"), spejl)).toBe(false);
