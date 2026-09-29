@@ -42,6 +42,17 @@
 // samme. Skrivningen sker DERFOR EFTER afsendelsen, og et 23505 dér er ikke
 // en fejl: det betyder, at en anden kørsel nåede det først.
 //
+// LOFTET (29/9-2026, _shared/webinarMailLoft.ts): 29/9 kl. 08:09 gik
+// «fjorten_dage» til 319, Mailgun-kontoen er på probation med 100 mails i
+// timen, og de 211, der ikke kom igennem, blev forsøgt igen ved HVER kørsel —
+// 2.125 forsøg — fordi løkken hverken havde en grænse eller et stop. Nu regner
+// beregnKoerselsLoft FØR løkken, hvor mange kald kørslen må gøre (loft − alle
+// forsøg de sidste 60 min), og er der et 403/420/429 i vinduet, sendes INTET
+// før timen er gået (pause). I løkken stopper et 403/420/429 kørslen med det
+// samme — EFTER sporet er skrevet. Det, der ikke nås, hedder «over_loft» i
+// svaret og er ikke en fejl: det tages i en senere kørsel, så længe dommens
+// nåde holder. Rækkefølgen i sendinger er urørt (ældste planlagte først).
+//
 // BODY (STRIKS, bodyFelter.guard): dry_run · email · art · nu.
 //
 // KASTER ALDRIG mod én mail: fejler én, tælles den, og de andre sendes.
@@ -52,6 +63,7 @@ import { ukendteFelter, ukendteFelterBesked } from "../_shared/kendteFelter.ts";
 import { ARTER, baererInvitation, type MailArt, noegle, planlaegKoersel, type Sending, type Springgrund, type Tilmeldt } from "../_shared/webinarMailDom.ts";
 import { AFSENDER, bygWebinarMail, SVAR_TIL } from "../_shared/webinarMailTekster.ts";
 import { MAILGUN_DOMAENE, MAILGUN_SECRET, PAUSE_MS, sendMailgun, sendMailgunMime } from "../_shared/mailgunAfsendelse.ts";
+import { beregnKoerselsLoft, erStopStatus, LOFT_VINDUE_MS, type LoftRaekke, MAILGUN_LOFT_PR_TIME } from "../_shared/webinarMailLoft.ts";
 import { bygMime, hentInvitation, type InvitationUdfald } from "../_shared/mimeInvitation.ts";
 import { AFMELD_SECRET, afmeldUrl, byggAfmeldToken } from "../_shared/webinarAfmeldToken.ts";
 
@@ -98,6 +110,16 @@ export interface MailResultat {
   med_invitation: number;
   /** Samme arter sendt UDEN — hentningen fejlede (fail-soft), grunden står i sporet. */
   uden_invitation: number;
+  /** Loftet for denne kørsel (webinarMailLoft.ts): forsøg de sidste 60 min, maks, og en pause, hvis Mailgun har sagt stop. */
+  loft: {
+    forsoeg_60_min: number;
+    maks: number;
+    pause: { grund: string; til: string } | null;
+    /** Statuskoden, der stoppede løkken i DENNE kørsel (403/420/429) — ellers null. */
+    stoppet_ved: number | null;
+  };
+  /** Mails, der skulle sendes, men ikke blev forsøgt: loftet var nået, eller Mailgun sagde stop. Tages i en senere kørsel — ikke en fejl. */
+  over_loft: number;
   eksempler: { email: string; art: MailArt; session_tid: string; udfald?: string }[];
   fejl: string[];
 }
@@ -130,7 +152,9 @@ const tomt = (a: { toer: boolean; laas: boolean; email: string | null; art: stri
   nu: a.nu.toISOString(), email: a.email, art: a.art,
   tilmeldinger_laest: 0, afmeldte_laest: 0, sendte_foer: 0, skal_sendes: 0,
   sprunget: { afmeldt: 0, ingen_session: 0, ingen_mail: 0, for_sent: 0, endnu_ikke: 0, sessionen_begyndt: 0, allerede_sendt: 0, for_tidlig_tilmelding: 0 },
-  sendt: 0, fejlede: 0, udsat: 0, dublet: 0, med_invitation: 0, uden_invitation: 0, eksempler: [], fejl: [],
+  sendt: 0, fejlede: 0, udsat: 0, dublet: 0, med_invitation: 0, uden_invitation: 0,
+  loft: { forsoeg_60_min: 0, maks: MAILGUN_LOFT_PR_TIME, pause: null, stoppet_ved: null }, over_loft: 0,
+  eksempler: [], fejl: [],
 });
 
 async function koer(a: { admin: SupabaseClient; toerKoersel: boolean; laas: boolean; email: string | null; art: MailArt | null; nu: Date; startMs: number; basis: string }): Promise<MailResultat> {
@@ -171,6 +195,27 @@ async function koer(a: { admin: SupabaseClient; toerKoersel: boolean; laas: bool
   r.skal_sendes = sendinger.length;
   for (const s of sendinger.slice(0, EKSEMPLER_MAKS)) r.eksempler.push({ email: s.email, art: s.art, session_tid: s.sessionTid });
 
+  // 4b. LOFTET (29/9): hvor mange kald må denne kørsel gøre hos Mailgun? Alle
+  //     forsøg de sidste 60 min tælles — også de afviste. Regnes på RIGTIG tid,
+  //     ikke på `nu`: `nu` flytter uret for dommen (prøven), men Mailguns time
+  //     går i virkeligheden. Én forespørgsel, tre felter.
+  const loftNu = new Date();
+  const loftRaekker = await alleSider<LoftRaekke>((fra, til) =>
+    a.admin.from("webinar_mails").select("forsoegt_at, udfald, status")
+      .gte("forsoegt_at", new Date(loftNu.getTime() - LOFT_VINDUE_MS).toISOString())
+      .order("forsoegt_at", { ascending: true }).range(fra, til));
+  const loft = beregnKoerselsLoft({ seneste: loftRaekker, loft: MAILGUN_LOFT_PR_TIME, nu: loftNu });
+  r.loft = {
+    forsoeg_60_min: loftRaekker.length,
+    maks: loft.maks,
+    pause: loft.pause ? { grund: loft.pause.grund, til: loft.pause.til.toISOString() } : null,
+    stoppet_ved: null,
+  };
+  // Det, denne kørsel IKKE når: alt ved pause, ellers resten over maks. Tælles
+  // her, så en tørkørsel viser det; den rigtige løkke tæller forfra.
+  r.over_loft = loft.pause ? sendinger.length : Math.max(0, sendinger.length - loft.maks);
+  if (loft.pause) console.error(`${LOG} PAUSE: ${loft.pause.grund} — ${sendinger.length} mails venter til ${loft.pause.til.toISOString()}`);
+
   if (!senderRigtigt) return r;
 
   // 5. Afsendelsen — én ad gangen, inden for budgettet.
@@ -184,7 +229,15 @@ async function koer(a: { admin: SupabaseClient; toerKoersel: boolean; laas: bool
     return r;
   }
 
-  for (const s of sendinger) {
+  // Mailgun har sagt stop inden for den sidste time: intet sendes, alt står som over_loft.
+  if (loft.pause) return r;
+
+  r.over_loft = 0;
+  let forsoegt = 0;
+  for (let i = 0; i < sendinger.length; i++) {
+    const s = sendinger[i];
+    // LOFTET FØRST: over maks forsøges intet — heller ikke ics-hentningen.
+    if (forsoegt >= loft.maks) { r.over_loft++; continue; }
     if (Date.now() - a.startMs > BUDGET_MS) { r.udsat++; continue; }
     const token = await byggAfmeldToken(afmeldSecret, s.email);
     const link = afmeldUrl(a.basis, token);
@@ -216,6 +269,7 @@ async function koer(a: { admin: SupabaseClient; toerKoersel: boolean; laas: bool
     // `/messages.mime`. De fem andre påmindelser har ingen vedhæftning og
     // bliver på den almindelige vej.
     let spor;
+    forsoegt++;
     if (baererInvitation(s.art)) {
       const mime = bygMime({
         til: s.email, fra: AFSENDER, emne: mail.subject, html: mail.html, tekst: mail.text,
@@ -248,6 +302,15 @@ async function koer(a: { admin: SupabaseClient; toerKoersel: boolean; laas: bool
         r.fejl.push(`sporet kunne ikke skrives (${s.art}): ${error.message}`);
         console.error(`${LOG} sporet kunne IKKE skrives:`, error.message);
       }
+    }
+    // MAILGUN SAGDE STOP (29/9): 403 · 420 · 429 — resten af kørslen venter.
+    // Sporet er skrevet ovenfor, så rækken med svaret findes, når næste kørsel
+    // regner sin pause. De næste ville få nøjagtig samme svar.
+    if (erStopStatus(spor.status)) {
+      r.loft.stoppet_ved = spor.status;
+      r.over_loft += sendinger.length - i - 1;
+      console.error(`${LOG} STOP: Mailgun svarede ${spor.status} — kørslen stopper; ${sendinger.length - i - 1} mails venter til efter pausen`);
+      break;
     }
     if (PAUSE_MS > 0) await new Promise((klar) => setTimeout(klar, PAUSE_MS));
   }
@@ -286,7 +349,7 @@ Deno.serve(async (req) => {
 
   try {
     const r = await koer({ admin, toerKoersel, laas, email, art: artRaa as MailArt | null, nu, startMs, basis });
-    console.log(`${LOG} ${r.dry_run ? "TØRKØRSEL" : r.sender_rigtigt ? "SENDER" : "LÅST"} — skal_sendes ${r.skal_sendes}, sendt ${r.sendt}, fejlede ${r.fejlede}, udsat ${r.udsat}`);
+    console.log(`${LOG} ${r.dry_run ? "TØRKØRSEL" : r.sender_rigtigt ? "SENDER" : "LÅST"} — skal_sendes ${r.skal_sendes}, sendt ${r.sendt}, fejlede ${r.fejlede}, udsat ${r.udsat}, over_loft ${r.over_loft} (maks ${r.loft.maks}${r.loft.pause ? ", PAUSE" : ""})`);
     return json(r);
   } catch (err) {
     const grund = err instanceof Error ? err.message : String(err);
