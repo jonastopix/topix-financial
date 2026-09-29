@@ -259,7 +259,12 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
     editorProps: {
       attributes: {
         class: cn(
-          "px-3 text-sm focus:outline-none overflow-y-auto",
+          // MOBIL (Jonas 29/9): iOS Safari zoomer ind ved fokus på felter under
+          // 16 px (målt computed 14 px her). 16 px + linjehøjde 20 px (leading-5)
+          // holder de tre linjers højde (3 × 20 + 20 = 80) uændret — Jonas'
+          // beslutning 10/9 om min-h røres ikke. Breakpointet er md, samme som
+          // useIsMobile (768); desktop er uændret.
+          "px-3 text-sm max-md:text-[16px] max-md:leading-5 focus:outline-none overflow-y-auto",
           hb ? "text-hb-ink" : "text-foreground",
           // Størrelsen (Jonas 10/9): tre linjer at starte på — text-sm har
           // linjehøjde 20 px, så 3 × 20 + lodret padding (16/20) = 76/80 px —

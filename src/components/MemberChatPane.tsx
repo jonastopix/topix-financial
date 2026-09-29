@@ -20,7 +20,7 @@ import { useQuery } from "@tanstack/react-query";
 import DOMPurify from "dompurify";
 import {
   Send, MessageCircle, CheckCheck, FileText, Target, Quote,
-  AlertCircle, MessageSquare, Pin, ArrowLeft,
+  AlertCircle, MessageSquare, Pin,
   Building2, Loader2,
 } from "lucide-react";
 import ChatRichInput from "@/components/ChatRichInput";
@@ -101,7 +101,6 @@ const MemberChatPane = () => {
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const chatSubmitRef = useRef<() => void>(() => {});
-  const [showMessages, setShowMessages] = useState(false);
   const [participants, setParticipants] = useState<{ user_id: string; full_name: string; avatar_url: string | null; isAdvisor: boolean }[]>([]);
 
   // Fetch all advisors for member header (independent of conversation participation)
@@ -131,7 +130,6 @@ const MemberChatPane = () => {
       const conv = conversations.find(c => c.id === convParam);
       if (conv && activeConvId !== convParam) {
         setActiveConvId(convParam);
-        if (isMobile) setShowMessages(true);
         // Clear URL param immediately after applying — prevents re-locking
         setSearchParams({}, { replace: true });
       }
@@ -148,7 +146,6 @@ const MemberChatPane = () => {
   useEffect(() => {
     setActiveConvId(null);
     setMessages([]);
-    setShowMessages(false);
   }, [companyId]);
 
   // Fetch participants for active conversation via security-definer RPC
@@ -277,8 +274,6 @@ const MemberChatPane = () => {
       // Auto-select for members
       if (enriched.length > 0 && !activeConvId) {
         setActiveConvId(enriched[0].id);
-        if (enriched.length <= 1) setShowMessages(true);
-        else if (isMobile) setShowMessages(true);
       }
     };
 
@@ -477,10 +472,6 @@ const MemberChatPane = () => {
   const navnFor = (senderId: string): string | null =>
     participants.find(p => p.user_id === senderId)?.full_name ?? profilesMap.get(senderId)?.full_name ?? null;
 
-  const handleBackToList = () => {
-    setShowMessages(false);
-  };
-
   // Compute latestReadOwnMsgId for member read receipt
   const latestReadOwnMsgId = useMemo(() => {
     if (!user) return null;
@@ -561,14 +552,10 @@ const MemberChatPane = () => {
               {/* Header — medlemmets rådgiver-avatarer (Community-formen) */}
               {(allAdvisors && allAdvisors.length > 0) ? (
                 <div className={`${isMobile ? "px-3 py-2.5" : "px-4 md:px-6 py-3"} border-b border-hb-line flex items-center gap-3`}>
-                  {isMobile && (
-                    <button
-                      onClick={handleBackToList}
-                      className="p-1.5 -ml-1 rounded-full text-hb-ink-soft hover:text-hb-ink hover:bg-hb-sage/30 transition-colors"
-                    >
-                      <ArrowLeft className="h-5 w-5" />
-                    </button>
-                  )}
+                  {/* Ingen tilbage-pil på mobil (29/9): medlemmets pane har ingen
+                      samtaleliste — den vælger første samtale og viser kun den, ved én
+                      som ved flere (målt i MemberChatPaneMobil.test.tsx). Pilen kaldte
+                      setShowMessages(false), som ingen læste: et dødt tryk. */}
                   <div className="flex items-center gap-2.5 min-w-0">
                     <div className="flex -space-x-2">
                       {allAdvisors.slice(0, 3).map((p) => (

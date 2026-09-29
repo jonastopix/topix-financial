@@ -60,6 +60,25 @@ export function pillenTraekkerSig(
 }
 
 /**
+ * Skal onboarding-boksen MONTERES overhovedet? Nej, når man står i chatten
+ * på mobil. Sammenfoldet er boksen en fixed bjælke i bunden (`fixed inset-x-0
+ * bottom-0 z-40`, ca. 46 px) og lå oven på de nederste 46 af sendefeltets 99 px
+ * — send-knappen ligger 30-66 px fra bunden, så ca. 16 px af den var dækket
+ * (målt 29/9 ved 375 × 812). Udfoldet fik `main` `pb-[72vh]` (HbMemberShell),
+ * og i layout="fuld" blev der 812 - 65 - 585 = 162 px tilbage til faner + header
+ * + sendefelt (36 + 57 + 99 = 192): beskedlisten forsvandt.
+ *
+ * Værdien i HbMemberShell er `active === "chat"` (ChatShell.tsx:45/103/117
+ * giver `active="chat"`); `erMobil` er skallens dom om bredden under md
+ * (< 768, som useIsMobile). På desktop og tablet er boksen uændret. Boksen
+ * ejer også velkomstoverlejringen og «Kom godt i gang»-menupunktets
+ * udfoldning, så skallen skjuler punktet, når boksen ikke er monteret.
+ */
+export function onboardingBoksMonteres(active: string, erMobil: boolean): boolean {
+  return !(active === "chat" && erMobil);
+}
+
+/**
  * 3. VELKOMSTOVERLEJRINGENS TEKST FØLGER TILSTANDEN — set på skærm 14/9 kl.
  *    13:01 (første menneske, GUID sat samme dag): teksten sagde «Tjeklisten
  *    nederst på siden følger med dig», men på forsiden — netop dér hvor
