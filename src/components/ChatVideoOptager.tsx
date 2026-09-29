@@ -9,11 +9,15 @@ import { doemFilLaengde, formatVarighed, vaelgOptageformat } from "@/lib/chatVid
  * Optag eller vælg en video til chatten (29/9-2026) — KUN rådgiverens pane
  * åbner den (CompanyChatPane via ChatRichInputs videoKnap).
  *
- * ÉT TRYK (Jonas 29/9): kameraknappen åbner dialogen, og optagelsen starter,
- * så snart browseren har givet kamera og mikrofon — getUserMedia → MediaRecorder,
- * direkte i browseren, ingen tredjepart. Formatet vælges af vaelgOptageformat
- * (MP4 før WebM — begrundelsen står i chatVideoFlade.ts). Tælleren stopper
- * optagelsen af sig selv ved MAKS_SEKUNDER.
+ * INGEN AUTOMATISK START (Jonas 29/9: «Den starter automatisk når man klikker
+ * på kameraet. Jeg vil gerne man lige selv skal trykke optag eller vælg fil.»):
+ * kameraknappen åbner dialogen i starttilstanden «vaelg» — to knapper, «Optag
+ * video» og «Vælg fil», og «Annullér». Intet live-billede, og getUserMedia kaldes
+ * KUN fra «Optag»-handlingen (startOptagelse), aldrig fra en effekt på `open`
+ * — så browseren først spørger om kamera og mikrofon, når man har valgt det.
+ * Derefter getUserMedia → MediaRecorder, direkte i browseren, ingen tredjepart.
+ * Formatet vælges af vaelgOptageformat (MP4 før WebM — begrundelsen står i
+ * chatVideoFlade.ts). Tælleren stopper optagelsen af sig selv ved MAKS_SEKUNDER.
  *
  * «Vælg fil» (accept video/*) er den anden vej — fra telefonens rulle. Længden
  * tjekkes på loadedmetadata; over MAKS_SEKUNDER, eller en længde ingen kan
@@ -26,7 +30,8 @@ import { doemFilLaengde, formatVarighed, vaelgOptageformat } from "@/lib/chatVid
  * kalderen, som uploader (chatVideoUpload) og indsætter beskeden.
  */
 
-type Fase = "starter" | "optager" | "forhaandsvis" | "afvist";
+/** vaelg = starttilstanden: intet kamera endnu, kun «Optag video» og «Vælg fil». */
+type Fase = "vaelg" | "starter" | "optager" | "forhaandsvis" | "afvist";
 
 interface Props {
   open: boolean;
@@ -35,7 +40,7 @@ interface Props {
 }
 
 export default function ChatVideoOptager({ open, onOpenChange, onSend }: Props) {
-  const [fase, setFase] = useState<Fase>("starter");
+  const [fase, setFase] = useState<Fase>("vaelg");
   const [sekunder, setSekunder] = useState(0);
   const [linje, setLinje] = useState<string | null>(null);
   const [forhaandsvisning, setForhaandsvisning] = useState<{ url: string; fil: Blob; varighed: number } | null>(null);
@@ -150,7 +155,7 @@ export default function ChatVideoOptager({ open, onOpenChange, onSend }: Props) 
         visForhaandsvisning(fil, varighed);
         return;
       }
-      setFase((f) => (f === "forhaandsvis" ? f : "afvist"));
+      setFase((f) => (f === "forhaandsvis" || f === "vaelg" ? f : "afvist"));
       setLinje(
         dom === "for_lang"
           ? `Videoen er længere end ${formatVarighed(MAKS_SEKUNDER)} minutter. Vælg en kortere.`
@@ -162,20 +167,15 @@ export default function ChatVideoOptager({ open, onOpenChange, onSend }: Props) 
     v.src = url;
   }, [stopStream, visForhaandsvisning]);
 
-  // Åbnes dialogen, starter optagelsen (ét tryk). Lukkes den, ryddes alt.
+  // Åbnes dialogen, står den i «vaelg» — kameraet startes IKKE her (Jonas 29/9),
+  // kun af «Optag video». Lukkes den, ryddes alt.
   useEffect(() => {
-    if (open) {
-      void startOptagelse();
-    } else {
-      stopStream();
-      rydForhaandsvisning();
-      setLinje(null);
-      setSekunder(0);
-      setFase("starter");
-    }
-    // startOptagelse er stabil nok — kun open styrer.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+    stopStream();
+    rydForhaandsvisning();
+    setLinje(null);
+    setSekunder(0);
+    setFase("vaelg");
+  }, [open, stopStream, rydForhaandsvisning]);
 
   // Dialogen er en portal og kan mounte EFTER getUserMedia svarer — kobl
   // strømmen på live-billedet, hver gang fasen skifter.
@@ -206,6 +206,16 @@ export default function ChatVideoOptager({ open, onOpenChange, onSend }: Props) 
           </DialogDescription>
         </DialogHeader>
 
+        {fase === "vaelg" ? (
+          <div className="flex aspect-video flex-col items-center justify-center gap-3 rounded-hb border border-hb-line bg-hb-sage/20 p-6">
+            <HbButton type="button" onClick={() => void startOptagelse()}>
+              Optag video
+            </HbButton>
+            <HbButton type="button" variant="secondary" onClick={() => filInputRef.current?.click()}>
+              Vælg fil
+            </HbButton>
+          </div>
+        ) : (
         <div className="relative overflow-hidden rounded-hb border border-hb-line bg-black aspect-video">
           {fase === "forhaandsvis" && forhaandsvisning ? (
             <video
@@ -228,6 +238,7 @@ export default function ChatVideoOptager({ open, onOpenChange, onSend }: Props) 
             <div className="absolute inset-0 flex items-center justify-center text-sm text-white/80">Starter kameraet …</div>
           )}
         </div>
+        )}
 
         {linje && <p className="text-sm text-hb-ink-soft">{linje}</p>}
 
@@ -235,9 +246,11 @@ export default function ChatVideoOptager({ open, onOpenChange, onSend }: Props) 
           <HbButton type="button" variant="link" className="mr-auto" onClick={() => onOpenChange(false)}>
             Annullér
           </HbButton>
-          <HbButton type="button" variant="secondary" onClick={() => filInputRef.current?.click()}>
-            Vælg fil
-          </HbButton>
+          {fase !== "vaelg" && (
+            <HbButton type="button" variant="secondary" onClick={() => filInputRef.current?.click()}>
+              Vælg fil
+            </HbButton>
+          )}
           {fase === "optager" && (
             <HbButton type="button" onClick={stopOptagelse}>
               Stop
