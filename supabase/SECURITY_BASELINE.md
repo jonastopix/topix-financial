@@ -824,6 +824,29 @@ skrivende edge functions bruger `SUPABASE_SERVICE_ROLE_KEY`.
   callerClient + a server-side drip check (C1 decision D5, advisors bypass,
   fail-closed without a membership anchor); signs Bunny embed URLs server-side
   (`BUNNY_STREAM_TOKEN_AUTH_KEY` never reaches the frontend, TTL 1h)
+- `chat-video` (29/9-2026, videosvar i chatten) — Bucket A m. `verify_jwt = true`
+  (PR #267-mønstret): `authenticateUser` FØRST; ingen service-role-klient.
+  Tre handlinger:
+  - `opret` — advisor-gaten ORDRET som `bunny-content-admin` (`has_role` via
+    `callerClient`) FØR Bunny kaldes; Create Video med `collectionId` =
+    `BUNNY_STREAM_CHAT_COLLECTION_ID` (egen chat-collection i samme library);
+    svarer med en tidsbegrænset, video-scoped TUS-signatur (6 t) — API-nøglen
+    forlader aldrig functionen. Mangler en secret: 503 `not_configured`.
+  - `afspil` — beskeden læses gennem `callerClient` (RLS på `messages` afgør,
+    om kalderen må se den; 403 uden at skelne «nægtet»/«findes ikke»), GUID'et
+    KUN af `context_meta.video.guid` (`laesChatVideo`). FØR signering:
+    (a) afsenderen er rådgiver (`has_role(sender_id, 'advisor')`), (b) Bunnys
+    Get Video viser `collectionId` = chat-collectionen (`iChatCollection`,
+    fail-closed). Ellers 403 uden signatur — en akademivideos GUID i en besked
+    kan ikke omgå `get-video-embed`s published-gate og dryp. Embed-URL'en
+    signeres som `get-video-embed` (TTL 1 t) og KUN når status er «klar».
+  - `slet` — kun beskedens afsender eller en admin (`maaSlette`); samme to
+    tjek som `afspil` FØR `DELETE /library/{id}/videos/{guid}`, fordi
+    medlemmernes INSERT-policy på `messages` ikke begrænser `context_meta`,
+    og en Bunny-sletning ikke kan fortrydes. 404 hos Bunny = allerede væk (ok).
+  Dommen er ren i `_shared/chatVideo.ts` (spejl `src/lib/chatVideo.ts`,
+  paritetsprøve); kildeværn `chatVideo.guard` (fem domme med mutationsprøver).
+  Status spørges hos Bunny (ingen webhook, ingen statustabel).
 - `auth-email-hook` — system webhook, signature-verified
 - `monday-webhook` — to veje (14/9-2026, `_shared/mondayVaern.ts`): med
   Authorization-header HMAC-SHA256-JWT mod `MONDAY_SIGNING_SECRET` (uændret);

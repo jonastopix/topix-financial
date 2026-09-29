@@ -132,6 +132,14 @@ project_id = "loiavmastgeieqyiwyyr"
     verify_jwt = false
   [functions.get-video-embed]
     verify_jwt = false
+  # Videosvar i chatten (29/9-2026): Bucket A — authenticateUser FØRST, opret
+  # rådgiver-gated via has_role gennem callerClient, afspil/slet gennem
+  # beskedens RLS. verify_jwt = true (PR #267-mønstret, Jonas 29/9): gatewayen
+  # afviser forfalskede signaturer før koden kører. bunny-content-admin og
+  # get-video-embed står på false, fordi de er ældre end det fund — de er IKKE
+  # forbilledet her.
+  [functions.chat-video]
+    verify_jwt = true
   [functions.generate-weekly-focus]
     verify_jwt = true
   [functions.event-reminders]
