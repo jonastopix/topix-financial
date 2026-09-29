@@ -110,6 +110,13 @@ const STRIKS: readonly string[] = [
   // Klokken «Dit certifikat er klar» (certifikat trin 2, 29/9): dry_run og nu,
   // alt andet afvises.
   "certifikat-klokke",
+
+  // Webinarmotoren (skive 1, 30/9): striks fra første linje. webinar-tilmeld
+  // (TILMELD_KENDTE_FELTER), webinar-rum (t, handling) og webinar-puls (t, puls,
+  // handlinger — også de indlejrede objekter afviser ukendte nøgler i laesPulsKrop).
+  "webinar-tilmeld",
+  "webinar-rum",
+  "webinar-puls",
 ];
 
 /**

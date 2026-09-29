@@ -172,6 +172,15 @@ const AUTH_PREDICATES: Predicate[] = [
   // Afmeldingslinket i før-webinar-mailene (22/9-2026): HMAC over mailen,
   // sammenlignet i konstant tid FØR service role — _shared/webinarAfmeldToken.ts.
   { name: "laesAfmeldToken()",            pattern: /\blaesAfmeldToken\s*\(/ },
+  // Webinarmotoren (skive 1, 30/9-2026). Seerens functions (webinar-rum,
+  // webinar-puls): deltagertokenet — HMAC-SHA256 over tilmeldingens id og
+  // token_version, regnet igen og sammenlignet i konstant tid FØR opslaget,
+  // derefter token_version mod rækken. Se _shared/webinarDeltagerAuth.ts.
+  { name: "verifyDeltagertoken()",        pattern: /\bverifyDeltagertoken\s*\(/ },
+  // Den offentlige tilmelding (webinar-tilmeld): intet token findes endnu —
+  // værnet er origin-listen, honningfeltet og IP-dagshash-loftet (fail-closed),
+  // samme klasse som ansoegning-gem's «opret». Se _shared/webinarTilmeldVaern.ts.
+  { name: "verifyOffentligTilmelding()",  pattern: /\bverifyOffentligTilmelding\s*\(/ },
 
   // Shape-based: `Bearer ${...}` template compared against a request
   // header (=== or !==). Excludes outbound fetch-header assignments

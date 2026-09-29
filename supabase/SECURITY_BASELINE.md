@@ -804,6 +804,15 @@ skrivende edge functions bruger `SUPABASE_SERVICE_ROLE_KEY`.
 - **Opbevaring 12 måneder (Jonas 21/9):** cron-jobbet `webinar-delinger-opbevaring` (`52 4 * * *`, migration `20260922021000`, ren SQL) sletter delinger 12 måneder efter det tidligste passerede af `lukket_at`/`udloeber_at`; sporet følger med cascaden. Antallet står i `cron.job_run_details.return_message` («DELETE n»).
 - **Sporet er append-only:** INSERT/SELECT for service_role, SELECT for rådgivere, ingen UPDATE/DELETE-politik, og `protect_webinar_deling_spor` (§3) nægter UPDATE altid og DELETE direkte (cascaden fra `webinar_delinger` slipper igennem). Hver visning og afvisning PÅ EN KENDT DELING logges med IP/user-agent (`deling_id NOT NULL`); et ukendt token skrives aldrig i sporet (det kan ikke slettes, og der er ingen rate-limit) — kun i functionens log, uden tokenet.
 
+### Webinarmotoren (`webinarer`, `webinar_sessioner`, `webinar_gentagelser`, `webinar_interaktioner`, `webinar_deltagelser`, `webinar_pulser`, `webinar_motor_log`, `webinar_svar`, `webinar_reaktioner`, `webinar_spoergsmaal`) — skive 1, 30/9-2026, migration `20260930100000`
+
+- **Seeren har INGEN konto og INGEN politik; ingen anon-politik på nogen webinartabel.** Alt offentligt går gennem tre edge functions (`verify_jwt = false`, bevidst): `webinar-tilmeld` (værnet `verifyOffentligTilmelding`, `_shared/webinarTilmeldVaern.ts`: origin-liste, honningfelt, IP-dagshash-loft, fail-closed — samme klasse som `ansoegning-gem` «opret») og `webinar-rum`/`webinar-puls` (`verifyDeltagertoken`, `_shared/webinarDeltagerAuth.ts`). Begge prædikater er registreret i `scripts/check-edge-function-auth.ts`.
+- **Deltagertokenet er en HMAC, intet gemmes** (en bevidst afvigelse fra delingstokenets SHA-256-aftryk: `webinar-mail-cron` skal kunne bygge linket igen i op til syv mails). `HMAC-SHA256(WEBINAR_JOIN_SECRET, "<tilmelding_id>:<token_version>")`, regnet igen og sammenlignet i konstant tid FØR databaseopslaget; derefter skal `token_version` passe (`+= 1` tilbagekalder). Secret'en læses kun i `webinarDeltagerAuth.ts` (rotation: `WEBINAR_JOIN_SECRET_FORRIGE`).
+- **Rå data er service-role-only:** `webinar_pulser` og `webinar_motor_log` har kun service_role-politikken. Rådgivere har SELECT på de otte andre; ingen rådgiver-skrivning endnu (kommer med `webinar-admin`, skive 6).
+- **To nye SQL-funktioner, begge SECURITY INVOKER** (ikke definer), EXECUTE kun til `service_role` (revoke fra public/anon/authenticated): `webinar_puls_skriv` (dedup + OR af bits + pulsrækker + tilmeldingens `set_procent`, én transaktion) og `webinar_reaktion_tael`. Én BEFORE UPDATE-trigger på den NYE tabel `webinar_interaktioner` (`webinar_interaktion_uforanderlig`): en udgivet tidslinje-version ændres aldrig.
+- **Svarene bærer ingen persondata:** hvert JSON-svar går gennem `findMotorForbudte` (`_shared/webinarMotor/svar.ts`) — 500 `svar_afvist` frem for et læk. IP gemmes aldrig rå (kun `ip_dagshash`).
+- Kildeværn: `src/lib/__tests__/webinarMotor.guard.test.ts` (seks domme med mutationer). Dokument: `docs/webinarmotor.md`.
+
 ## 6. Security Outcomes from Hardening Patches 5–10
 
 ### Messages ownership mutation rules (Patch 5)
