@@ -182,7 +182,17 @@ export const ingenTomVideoHosBunny = (upload: string): boolean => {
     antal(fn, "await supabase.functions.invoke(") === 1;
 };
 
-describe("chatVideo.guard — de syv domme på repoets filer", () => {
+// ── 8 ──────────────────────────────────────────────────────────────────────
+/** Ingen autostart og ingen forhåndshentning (Jonas 29/9 19:42): embed-URL'en bærer autoplay=false og preload=false. */
+export const ingenAutostart = (funktion: string): boolean => {
+  const f = udenKommentarer(funktion);
+  const signer = mellem(f, "async function signerEmbed(", "async function slet(");
+  return f.includes('export const EMBED_VALG = "&autoplay=false&preload=false";') &&
+    signer.includes("`?token=${token}&expires=${expires}` + EMBED_VALG;") &&
+    !/autoplay=true|preload=true/.test(f);
+};
+
+describe("chatVideo.guard — de otte domme på repoets filer", () => {
   const funktion = laes(FUNKTION);
   it("1. Bucket A: authenticateUser først, ingen service role, kun to imports", () => expect(bucketA(funktion)).toBe(true));
   it("2. opret er rådgiver-gated FØR Bunny — gaten ordret som bunny-content-admin; ingen collection", () =>
@@ -193,6 +203,7 @@ describe("chatVideo.guard — de syv domme på repoets filer", () => {
   it("6. egne secrets: præcis de tre BUNNY_CHAT_*, aldrig BUNNY_STREAM_*, ingen collection, 503 med navnene", () =>
     expect(egneSecrets(funktion, laes(DOM_DENO), laes(DOM_SRC))).toBe(true));
   it("7. uploadChatVideo afviser 0 bytes FØR opret og FØR TUS", () => expect(ingenTomVideoHosBunny(laes(UPLOAD))).toBe(true));
+  it("8. ingen autostart: embed-URL'en bærer autoplay=false og preload=false", () => expect(ingenAutostart(funktion)).toBe(true));
 });
 
 describe("chatVideo.guard — dommene fanger fejlen på en kopi", () => {
@@ -311,5 +322,12 @@ describe("chatVideo.guard — dommene fanger fejlen på en kopi", () => {
     expect(efterOpret).not.toBe(u);
     expect(ingenTomVideoHosBunny(efterOpret)).toBe(false);
     expect(ingenTomVideoHosBunny(u.replace("if (erTomFil(fil))", "if (fil.size < 0)"))).toBe(false);
+  });
+
+  it("8. valget fjernet, autoplay=true, eller valget ikke sat på URL'en fælder dom 8", () => {
+    const f = laes(FUNKTION);
+    expect(ingenAutostart(f.replace(' + EMBED_VALG;', ';'))).toBe(false);
+    expect(ingenAutostart(f.replace('"&autoplay=false&preload=false"', '"&autoplay=true&preload=false"'))).toBe(false);
+    expect(ingenAutostart(f.replace('"&autoplay=false&preload=false"', '"&preload=false"'))).toBe(false);
   });
 });

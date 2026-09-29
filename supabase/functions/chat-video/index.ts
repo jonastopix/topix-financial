@@ -297,13 +297,26 @@ async function afspil(callerClient: CallerClient, bunny: Bunny, messageId: unkno
   return await signerEmbed(bunny, besked.guid, status);
 }
 
-/** Signeringen — samme regnestykke som get-video-embed: sha256hex(TOKEN_AUTH_KEY + guid + expires), TTL 3600. */
+/**
+ * Signeringen — samme regnestykke som get-video-embed: sha256hex(TOKEN_AUTH_KEY + guid + expires), TTL 3600.
+ *
+ * INGEN AUTOSTART (Jonas 29/9 19:42: «de videoer … starter samtidig, når et
+ * medlem åbner chatten»). Bunnys embed har `autoplay` og `preload` som standard
+ * sand (bunny.net/docs/stream/embedding: autoplay «Starts playback
+ * automatically», preload «Starts downloading the video before playback is
+ * requested»). En chat med flere videoer startede dem alle og hentede dem alle.
+ * Derfor sættes begge eksplicit til false: videoen starter først ved tryk, og
+ * intet hentes før. Ekstra parametre ved siden af token/expires er husets
+ * form (get-video-embed sender `&t=`).
+ */
+export const EMBED_VALG = "&autoplay=false&preload=false";
+
 async function signerEmbed(bunny: Bunny, guid: string, status: "klar"): Promise<Response> {
   const expires = Math.floor(Date.now() / 1000) + EMBED_TTL_SECONDS;
   const token = await embedToken(bunny, guid, expires);
   const embedUrl =
     `https://iframe.mediadelivery.net/embed/${bunny.libraryId}/${guid}` +
-    `?token=${token}&expires=${expires}`;
+    `?token=${token}&expires=${expires}` + EMBED_VALG;
   return jsonResponse({ status, embedUrl, expires });
 }
 
