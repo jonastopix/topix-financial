@@ -26,7 +26,7 @@ describe("webinarMailLoft.paritet — kildeteksten", () => {
   });
 
   it("VÆRNET VIRKER: en ændring i kun det ene spejl fanges", () => {
-    const a = krop(laes(SRC)).replace("export const MAILGUN_LOFT_PR_TIME = 90;", "export const MAILGUN_LOFT_PR_TIME = 900;");
+    const a = krop(laes(SRC)).replace("export const MAILGUN_LOFT_PR_TIME = 1000;", "export const MAILGUN_LOFT_PR_TIME = 9000;");
     expect(a).not.toBe(krop(laes(SRC)));
     expect(krop(laes(DENO))).not.toBe(a);
   });
@@ -51,7 +51,7 @@ describe("webinarMailLoft.paritet — dommen svarer ens", () => {
       [{ forsoegt_at: "ikke en tid", udfald: "ok", status: 200 }],
     ];
     for (const seneste of sæt) {
-      for (const loft of [90, 0, Number.NaN]) {
+      for (const loft of [1000, 90, 0, Number.NaN]) {
         expect(deno.beregnKoerselsLoft({ seneste, loft, nu: NU })).toEqual(src.beregnKoerselsLoft({ seneste, loft, nu: NU }));
       }
     }

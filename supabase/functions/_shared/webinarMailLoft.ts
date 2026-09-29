@@ -22,12 +22,30 @@
 // ── Konstanterne ─────────────────────────────────────────────────────────────
 
 /**
- * Mailguns probation-loft er 100/time (Mailgun 29/9: "Your account is on
- * probation and domains are limited to 100 messages / hour"). 100 − 10 = 90:
- * margen, fordi Mailguns time ikke nødvendigvis falder sammen med vores
- * 60-minutters vindue. Rettes, når Mailgun oplyser loftet efter godkendelsen.
+ * Probationen er ophævet (Mailgun, Nick Schafer, til Jonas 29/9-2026 kl. 22:26):
+ * "After reviewing the account in detail, we have removed the sending
+ * limitation, and now the account is fully enabled. This means that your
+ * emails will no longer be restricted to 100 per hour; other associated
+ * restrictions have been removed as well." Før det: "Your account is on
+ * probation and domains are limited to 100 messages / hour" (29/9), og loftet
+ * var 100 − 10 = 90.
+ *
+ * 1000 er JONAS' tal (29/9: den skal kunne sende 1000 ad gangen), IKKE en
+ * grænse Mailgun har skrevet. Mailguns dokumentation (målt 29/9-2026) angiver
+ * INGEN timegrænse for en fuldt aktiveret konto: help.mailgun.com «Why does my
+ * account have an hourly sending limitation?» nævner kun 100/time som eksempel
+ * på en midlertidig grænse, og documentation.mailgun.com siger blot "Mailgun
+ * does have rate limits in place to protect our system" (send-http) og API'et
+ * "500 requests every 10 seconds" (rate-limits-and-quotas). Derfor er 1000 et
+ * eget sikkerhedsloft, ikke Mailguns.
+ *
+ * Regnestykket: den første hele hold-mail, «syv_dage» 6/10 kl. 08:00, går til
+ * ca. 217. 217 ≤ 1000, så loftet bremser den ikke; hvor mange EN kørsel når,
+ * afgør tidsbudgettet (BUDGET_MS i webinar-mail-cron), ikke dette tal. Loftet
+ * er stadig en bremse, hvis Mailgun alligevel siger stop: et 403/420/429 i
+ * vinduet giver PAUSEN og bruddet i løkken, uændret.
  */
-export const MAILGUN_LOFT_PR_TIME = 90;
+export const MAILGUN_LOFT_PR_TIME = 1000;
 
 /** Vinduet, forsøgene tælles i: de sidste 60 minutter. Grænsen er eksklusiv — præcis 60 min er ude. */
 export const LOFT_VINDUE_MS = 60 * 60_000;

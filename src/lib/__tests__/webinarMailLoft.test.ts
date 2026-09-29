@@ -23,8 +23,8 @@ const raekke = (minutter: number, udfald = "ok", status: number | null = 200): L
 const ok = (n: number, fra = 1) => Array.from({ length: n }, (_, i) => raekke(fra + (i % 50)));
 
 describe("webinarMailLoft — konstanterne", () => {
-  it("loftet er 90 (100 − 10), vinduet og pausen er 60 minutter, og stop-koderne er 403 · 420 · 429", () => {
-    expect(MAILGUN_LOFT_PR_TIME).toBe(90);
+  it("loftet er 1000 (Jonas 29/9, probationen ophævet — IKKE en Mailgun-grænse), vinduet og pausen er 60 minutter, og stop-koderne er 403 · 420 · 429", () => {
+    expect(MAILGUN_LOFT_PR_TIME).toBe(1000);
     expect(LOFT_VINDUE_MS).toBe(60 * MIN);
     expect(LOFT_PAUSE_MS).toBe(60 * MIN);
     expect([...STOP_STATUSSER]).toEqual([403, 420, 429]);
@@ -34,8 +34,22 @@ describe("webinarMailLoft — konstanterne", () => {
 });
 
 describe("webinarMailLoft — maks = loft − forsøg de sidste 60 min", () => {
-  it("tomt spor → maks 90, ingen pause", () => {
-    expect(beregnKoerselsLoft({ seneste: [], loft: MAILGUN_LOFT_PR_TIME, nu: NU })).toEqual({ maks: 90, pause: null });
+  it("tomt spor → maks 1000, ingen pause", () => {
+    expect(beregnKoerselsLoft({ seneste: [], loft: MAILGUN_LOFT_PR_TIME, nu: NU })).toEqual({ maks: 1000, pause: null });
+  });
+
+  it("med det RIGTIGE loft: 217 forsøg (7-dagsholdet 6/10) → 783; 1000 → 0; 1200 → 0 (aldrig negativt)", () => {
+    expect(beregnKoerselsLoft({ seneste: ok(217), loft: MAILGUN_LOFT_PR_TIME, nu: NU })).toEqual({ maks: 783, pause: null });
+    expect(beregnKoerselsLoft({ seneste: ok(1000), loft: MAILGUN_LOFT_PR_TIME, nu: NU })).toEqual({ maks: 0, pause: null });
+    expect(beregnKoerselsLoft({ seneste: ok(1200), loft: MAILGUN_LOFT_PR_TIME, nu: NU })).toEqual({ maks: 0, pause: null });
+  });
+
+  it("det højere loft afskaffer IKKE bremsen: et 403/420/429 giver stadig pausen med det rigtige loft", () => {
+    for (const status of [403, 420, 429]) {
+      const dom = beregnKoerselsLoft({ seneste: [...ok(20), raekke(10, "loft", status)], loft: MAILGUN_LOFT_PR_TIME, nu: NU });
+      expect(dom.maks, String(status)).toBe(0);
+      expect(dom.pause?.til.toISOString(), String(status)).toBe(new Date(NU.getTime() + 50 * MIN).toISOString());
+    }
   });
 
   it("85 forsøg → 5", () => {
