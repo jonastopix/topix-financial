@@ -11,6 +11,8 @@ import { notifyChatMessage } from "@/lib/chatNotify";
 import { uploadChatAttachments } from "@/lib/chatAttachments";
 import { MessageAttachments, type ChatAttachment } from "@/components/ChatAttachments";
 import { SvarCitat, SvarerPaaBanner } from "@/components/ChatSvarCitat";
+// Citatet over et svar på et refleksionsfelt (29/9) — egen linje: chatSvar.guard dom 3 læser linjen ovenfor ordret.
+import { RefleksionCitat } from "@/components/ChatSvarCitat";
 import { kanBesvares, svarUddrag } from "@/lib/chatSvar";
 import { useMessageReactions } from "@/hooks/useMessageReactions";
 import { ReactionBar, ReactionPicker } from "@/components/MessageReactions";
@@ -23,7 +25,7 @@ import { computeMembershipTier, type MembershipTier } from "@/lib/membershipTier
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import DOMPurify from "dompurify";
 import {
-  Send, MessageCircle, CheckCheck, FileText, Sparkles, Target,
+  Send, MessageCircle, CheckCheck, FileText, Sparkles, Target, Quote,
   Search, Inbox, Clock, AlertCircle, Filter, Calculator, BookOpen, MessageSquare,
   BarChart3, Pin, Maximize2, Minimize2, ArrowLeft, ExternalLink, Eye,
   UserCheck, Users as UsersIcon, ChevronDown, ChevronLeft, ChevronRight, Check, ArrowRightLeft,
@@ -1818,9 +1820,11 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                                   }`}>
                                     {contextType === "report" && <FileText className="h-3 w-3" />}
                                     {contextType === "milestone" && <Target className="h-3 w-3" />}
+                                    {contextType === "refleksion" && <Quote className="h-3 w-3" />}
                                     Re: {String(contextMeta.title)}
                                   </div>
                                 )}
+                                <RefleksionCitat contextType={contextType} contextMeta={contextMeta} isMine={isMine} />
                                 <div
                                   className={`rounded-hb px-4 py-2.5 ${
                                     isMine
@@ -1868,9 +1872,11 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                                   }`}>
                                     {contextType === "report" && <FileText className="h-3 w-3" />}
                                     {contextType === "milestone" && <Target className="h-3 w-3" />}
+                                    {contextType === "refleksion" && <Quote className="h-3 w-3" />}
                                     Re: {String(contextMeta.title)}
                                   </div>
                                 )}
+                                <RefleksionCitat contextType={contextType} contextMeta={contextMeta} isMine={isMine} />
                                 <div
                                   className={`rounded-hb px-4 py-2.5 ${
                                     isMine

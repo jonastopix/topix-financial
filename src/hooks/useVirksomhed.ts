@@ -137,6 +137,8 @@ export interface VirksomhedsData {
   /** Seneste refleksion (pulse_checkins) — medlemmets egne ord, samme
       kolonner som MemberDetail.tsx:238-244. null når der ingen er. */
   refleksion: {
+    /** pulse_checkins.id — context_id på et svar på et felt (refleksionSvar.ts, 29/9). */
+    id: string;
     went_well: string | null;
     biggest_challenge: string | null;
     help_needed: string | null;
@@ -350,7 +352,7 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
     // MemberDetail.tsx:238-244; company-nøglet, én række.
     supabase
       .from("pulse_checkins")
-      .select("went_well, biggest_challenge, help_needed, milestone_progress, created_at, period_key")
+      .select("id, went_well, biggest_challenge, help_needed, milestone_progress, created_at, period_key")
       .eq("company_id", companyId)
       .order("created_at", { ascending: false })
       .limit(1)

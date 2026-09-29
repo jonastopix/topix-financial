@@ -1,6 +1,6 @@
 import { format, startOfDay } from "date-fns";
 import { da } from "date-fns/locale";
-import { Calculator, BookOpen, FileText, MessageSquare, Target } from "lucide-react";
+import { Calculator, BookOpen, FileText, MessageSquare, Quote, Target } from "lucide-react";
 import type { MembershipTier } from "@/lib/membershipTier";
 
 /** Delt mellem CompanyChatPane (rådgiverens indbakke) og MemberChatPane
@@ -68,6 +68,8 @@ export const TOPIC_COLORS: Record<string, { bg: string; text: string; label: str
   handout: { bg: "bg-emerald-500/10", text: "text-emerald-600 dark:text-emerald-400", label: "Handout", icon: BookOpen },
   milestone: { bg: "bg-purple-500/10", text: "text-purple-600 dark:text-purple-400", label: "Milestone", icon: Target },
   budget: { bg: "bg-orange-500/10", text: "text-orange-600 dark:text-orange-400", label: "Budget", icon: Calculator },
+  // Svar på et refleksionsfelt (29/9, refleksionSvar.ts) — kun som chip; ikke i MESSAGE_TOPICS (vælges ikke i sendefeltet).
+  refleksion: { bg: "bg-slate-500/10", text: "text-slate-600 dark:text-slate-400", label: "Refleksion", icon: Quote },
 };
 
 export const MESSAGE_TOPICS: { key: MessageTopic; label: string }[] = [
