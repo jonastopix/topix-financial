@@ -4,6 +4,18 @@ Godkendt af Jonas 29/9-2026 kl. 19:25: «Ja til begge! Og efterhånden som du f�
 
 Dokumentet gælder for enhver Claude-session, der arbejder selvstændigt på platformen. Det gælder også en session, der er vækket om natten uden hukommelse af dagen. Læs det sammen med `CLAUDE.md` og `docs/OVERLEVERING.md` FØR første handling.
 
+## 0. De tre kommandoer (Jonas 29/9 19:39: «Vi skal have en kommando for hvornår du skal gøre noget selv, altså starte, og hvornår du bare bygger med mig.»)
+
+| Jonas skriver | Tilstand | Hvad Claude gør |
+|---|---|---|
+| **«Kør selv»** (evt. med en opgave eller en ramme, fx «Kør selv: punkt 4 i opstarten» eller «Kør selv til i morgen kl. 07») | SELVSTÆNDIG | Vælger fra den godkendte liste, eller tager den nævnte opgave, og arbejder efter §2–§8 uden at spørge om hvert skridt. Stopper kun ved §3. Melder kort ved hver merget PR og samler resten i morgenrapporten. |
+| **«Byg med mig»** | SAMMEN | Ét skridt ad gangen efter projektets arbejdsgang: Claude foreslår, Jonas godkender og ser resultatet. Ingen merge og ingen skrivning i prod uden hans ja i samtalen. |
+| **«Stop»** | STOP | Afslutter det igangværende skridt sikkert (ingen halve merges, ingen halve migrationer), starter intet nyt og rapporterer, hvor tingene står. |
+
+- **Standard er «Byg med mig».** En ny samtale eller en vækket session uden en af de tre kommandoer arbejder SAMMEN.
+- Tilstanden gælder, til en anden kommando kommer. Claude skriver tilstanden i første linje, når den skifter.
+- **§3 gælder i begge tilstande.** «Kør selv» giver aldrig lov til det, der står dér.
+
 ## 1. Rollerne
 
 - **Claude** vælger opgaver fra en godkendt liste og bygger, tester, merger, udruller og beviser i drift. Claude bogfører også og rapporterer.
