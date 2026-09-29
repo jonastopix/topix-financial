@@ -9,13 +9,19 @@ import {
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { AttachmentPreviewStrip } from "@/components/ChatAttachments";
+import { useChatHenvisninger } from "@/components/chatHenvisninger";
+import { chatAfsendelse } from "@/lib/chatDokument";
 
 const ACCEPTED_TYPES = "image/jpeg,image/png,image/webp,image/gif,.pdf,.xlsx,.xls,.csv,.doc,.docx";
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 const MAX_FILES = 5;
 
 interface ChatRichInputProps {
-  onSubmit: (html: string, files?: File[]) => void;
+  /** `dokument` (29/9-2026, «#» i chatten) er editorens JSON — KUN når
+      beskeden bærer en #-henvisning; ellers undefined, og `html` er
+      tegn for tegn det samme som før (chatAfsendelse). Panerne bygger
+      content + indhold_json af dokumentet gennem byggChatBesked. */
+  onSubmit: (html: string, files?: File[], dokument?: Record<string, unknown>) => void;
   disabled?: boolean;
   placeholder?: string;
   maxLength?: number;
@@ -231,6 +237,9 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
   // Flag to prevent double-add from Tiptap handleDrop + wrapper onDrop
   const dropHandledRef = useRef(false);
 
+  // «#» (29/9-2026): events, lektioner og rabataftaler — chatHenvisninger.ts.
+  const henvisninger = useChatHenvisninger();
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -245,6 +254,7 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
         HTMLAttributes: { rel: "noopener noreferrer", target: "_blank" },
       }),
       Placeholder.configure({ placeholder }),
+      ...henvisninger,
     ],
     editorProps: {
       attributes: {
@@ -336,9 +346,11 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
     const text = editor.getText().trim();
     const hasFiles = pendingFiles.length > 0;
     if (!text && !hasFiles) return;
-    const html = editor.getHTML();
-    const isPlain = html === `<p>${text}</p>`;
-    onSubmit(isPlain ? text : html, hasFiles ? pendingFiles : undefined);
+    // isPlain-reglen bor nu i chatAfsendelse (uændret: ren tekst, når HTML'en
+    // kun er ét afsnit af samme tekst, ellers HTML) — og dokumentet følger
+    // KUN med, når der er en #-henvisning i det.
+    const { content, dokument } = chatAfsendelse(text, editor.getHTML(), editor.getJSON());
+    onSubmit(content, hasFiles ? pendingFiles : undefined, dokument);
     editor.commands.clearContent(true);
     setPendingFiles([]);
   }, [editor, onSubmit, pendingFiles]);

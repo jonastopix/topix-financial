@@ -53,6 +53,14 @@ export function laesRabataftaleId(search: string | null | undefined): string | n
   return UUID.test(rent) ? rent : null;
 }
 
+/** Udløbet aftale = valid_until er passeret. Aftalen gælder TIL OG MED
+    dagen (kolonnen er DATE), så grænsen lægges ved døgnets udgang —
+    udløbne aftaler vises slet ikke. Flyttet hertil fra RabataftalerView
+    (29/9-2026, trin 3), så /rabataftaler og chattens #-forslag dømmer med
+    SAMME sætning: en aftale, listen ikke viser, må chatten ikke tilbyde. */
+export const aftalenErUdloebet = (validUntil: string | null, nu: Date = new Date()): boolean =>
+  !!validUntil && new Date(`${validUntil}T23:59:59`) < nu;
+
 /** DOM-id'et på aftalens <article> — samme form som FeedbackView's `feedback-{id}`. */
 export function rabataftaleElementId(id: string): string {
   return `aftale-${id}`;

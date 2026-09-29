@@ -15,10 +15,11 @@ const udenKommentarer = (k: string) =>
 
 const PANER = ["src/components/CompanyChatPane.tsx", "src/components/MemberChatPane.tsx"] as const;
 
-/** 1. Begge paner læser kolonnen: select-listen for beskederne bærer svar_paa_id. */
+/** 1. Begge paner læser kolonnen: select-listen for beskederne bærer svar_paa_id.
+    (29/9-2026: listen slutter nu med indhold_json — «#» i chatten, trin 3.) */
 export function panenLaeserKolonnen(kilde: string): boolean {
   const k = udenKommentarer(kilde);
-  return /\.select\("id, conversation_id, sender_id, content, read_at, created_at, message_type, context_type, context_id, context_meta, pinned_at, svar_paa_id"\)/.test(k);
+  return /\.select\("id, conversation_id, sender_id, content, read_at, created_at, message_type, context_type, context_id, context_meta, pinned_at, svar_paa_id, indhold_json"\)/.test(k);
 }
 
 /** 2. Begge paner sender svar_paa_id i insert — fra svarPaa-tilstanden, kun når den er sat. */
@@ -88,7 +89,7 @@ describe("chatSvar.guard — svar på en besked i begge paner", () => {
   it("VÆRNET VIRKER: kopier uden hver af de fem ting fejler (filerne er ikke rørt)", () => {
     const [, company] = paner[0];
     // 1. kolonnen ude af select-listen
-    const udenKolonne = company.replace(", pinned_at, svar_paa_id\"", ", pinned_at\"");
+    const udenKolonne = company.replace(", pinned_at, svar_paa_id, indhold_json\"", ", pinned_at, indhold_json\"");
     expect(udenKolonne).not.toBe(company);
     expect(panenLaeserKolonnen(udenKolonne)).toBe(false);
     // 2. insert uden svar_paa_id

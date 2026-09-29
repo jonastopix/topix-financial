@@ -35,6 +35,11 @@ export interface Message {
       samtale, eller null. Citatet følger originalen — lib/chatSvar.ts.
       Hentes af begge paner (select-listen) og bæres af realtime-payloaden. */
   svar_paa_id?: string | null;
+  /** Chatbeskedens dokument (29/9-2026, «#» i chatten; migration
+      20260929160000): Tiptap-JSON ved siden af content, eller null. Hentes af
+      begge paner (select-listen) og bæres af realtime-payloaden (hele rækken).
+      Visningen dømmer det med parseChatDokument (ChatBeskedTekst). */
+  indhold_json?: unknown;
 }
 
 export interface ConversationWithProfile {

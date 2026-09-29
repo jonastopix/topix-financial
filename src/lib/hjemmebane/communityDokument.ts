@@ -31,7 +31,8 @@ export type CommunityNode =
   | { type: "naevnelse"; userId: string; navn: string }
   | { type: "henvisning"; area: string; slug: string; titel: string }
   | { type: "eventhenvisning"; eventId: string; titel: string }
-  | { type: "opslaghenvisning"; traadId: string; titel: string };
+  | { type: "opslaghenvisning"; traadId: string; titel: string }
+  | { type: "rabathenvisning"; aftaleId: string; titel: string };
 
 /** Dybdegrænsen. try/catch fanger et stack overflow, men et dokument skal
     afvises på en KENDT grænse frem for at afhænge af, hvornår kaldestakken
@@ -51,8 +52,9 @@ export const MAKS_DYBDE = 20;
                                              orderedList, blockquote, image, fil
       liste  (bulletList, orderedList)     → KUN listItem
       inline (paragraph, heading)          → text, hardBreak, naevnelse,
-                                             henvisning, eventhenvisning og
-                                             opslaghenvisning
+                                             henvisning, eventhenvisning,
+                                             opslaghenvisning og
+                                             rabathenvisning
 
     Konsekvensen: et blockquote må indeholde blokke og dermed nestes, en
     liste kan kun indeholde listItem, og et listItem kan indeholde både
@@ -72,14 +74,18 @@ const TILLADT: Record<Kontekst, ReadonlySet<string>> = {
     "fil",
   ]),
   liste: new Set(["listItem"]),
-  // "naevnelse", "henvisning", "eventhenvisning" og "opslaghenvisning" er
-  // INLINE — de står midt i en sætning, ikke som blokke.
+  // "naevnelse", "henvisning", "eventhenvisning", "opslaghenvisning" og
+  // "rabathenvisning" er INLINE — de står midt i en sætning, ikke som blokke.
   inline: new Set([
     "text",
     "hardBreak",
     "naevnelse",
     "henvisning",
     "eventhenvisning",
+    // rabathenvisning FØR opslaghenvisning: rækkefølgen er ligegyldig for
+    // sættet, men linkKort.guards mutation (dom 7) fjerner «"opslaghenvisning",»
+    // som sættets sidste linje — og det værn står uændret.
+    "rabathenvisning",
     "opslaghenvisning",
   ]),
 };
@@ -404,6 +410,22 @@ function oversaetNode(raw: unknown, kontekst: Kontekst, dybde: number): Communit
       const titel = sikkertVisningsNavn(attrs.titel);
       if (traadId === null || titel === null) return null;
       return { type: "opslaghenvisning", traadId, titel };
+    }
+
+    case "rabathenvisning": {
+      /* Fjerde smalle #-node (29/9-2026, trin 3 af «#» i chatten): en
+         rabataftale, navigeret på /rabataftaler?aftaleId={id} — adressen
+         bygges KUN af rabataftaleAdresse (hjemmebane/rabataftaleAdresse.ts),
+         aldrig af en streng her eller i en renderer. Samme snit som
+         opslaghenvisning — ét uuid, én titel, begge skal være gyldige.
+         Chatten tilbyder den; Community's composer gør ikke (endnu), og
+         community_json_til_tekst (SQL) kender den ikke. */
+      const attrs = erObjekt(raw.attrs) ? raw.attrs : {};
+      // Både aftaleId og aftale_id accepteres — samme mønster som de andre.
+      const aftaleId = sikkertUuid(attrs.aftaleId ?? attrs.aftale_id);
+      const titel = sikkertVisningsNavn(attrs.titel);
+      if (aftaleId === null || titel === null) return null;
+      return { type: "rabathenvisning", aftaleId, titel };
     }
 
     // Uden for hvidlisten (eller nested "doc") → stille væk, resten består.

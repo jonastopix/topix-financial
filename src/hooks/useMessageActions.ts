@@ -1,8 +1,10 @@
 import { useCallback, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesUpdate } from "@/integrations/supabase/types";
 import { toast } from "sonner";
 
 import { indenForVinduet, kanRedigereBesked, kanSletteBesked } from "@/lib/beskedRegler";
+import { byggChatBesked } from "@/lib/chatDokument";
 import { laesChatVideo } from "@/lib/chatVideo";
 import { sletGennemfoert } from "@/lib/chatVideoFlade";
 
@@ -18,18 +20,23 @@ export function useMessageActions(
 ) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
+  // Beskedens indhold_json (29/9-2026, «#» i chatten) — redigeringsdialogen
+  // åbner dokumentet, når der er et (MessageEditDialog.initialDokument).
+  const [editDokument, setEditDokument] = useState<unknown>(null);
 
-  const startEdit = useCallback((messageId: string, content: string) => {
+  const startEdit = useCallback((messageId: string, content: string, dokument?: unknown) => {
     setEditingId(messageId);
     setEditContent(content);
+    setEditDokument(dokument ?? null);
   }, []);
 
   const cancelEdit = useCallback(() => {
     setEditingId(null);
     setEditContent("");
+    setEditDokument(null);
   }, []);
 
-  const saveEdit = useCallback(async (messageId: string, contentOverride?: string) => {
+  const saveEdit = useCallback(async (messageId: string, contentOverride?: string, dokument?: Record<string, unknown>) => {
     // contentOverride lader en rig edit-dialog gemme editorens HTML direkte uden
     // at gaa gennem editContent-state (loeser state-timing). Kaldere uden 2. arg
     // opfoerer sig praecis som foer og bruger editContent.
@@ -39,10 +46,24 @@ export function useMessageActions(
       return false;
     }
 
-    const { error } = await supabase
-      .from(messageTable as any)
-      .update({ content: trimmed, edited_at: new Date().toISOString() } as any)
-      .eq("id", messageId);
+    // Et dokument (beskeden havde ét, eller har nu en #-henvisning): content og
+    // indhold_json opdateres SAMMEN, bygget af byggChatBesked — content er den
+    // udledte tekst, aldrig skrevet ved siden af. Uden dokument: som før.
+    const besked = dokument !== undefined ? byggChatBesked(dokument) : null;
+    if (dokument !== undefined && besked === null) {
+      cancelEdit();
+      return false;
+    }
+
+    const { error } = besked
+      ? await supabase
+        .from(messageTable)
+        .update({ ...besked, edited_at: new Date().toISOString() } as TablesUpdate<"messages">)
+        .eq("id", messageId)
+      : await supabase
+        .from(messageTable as any)
+        .update({ content: trimmed, edited_at: new Date().toISOString() } as any)
+        .eq("id", messageId);
 
     if (error) {
       console.error("Failed to edit message:", error);
@@ -98,6 +119,7 @@ export function useMessageActions(
   return {
     editingId,
     editContent,
+    editDokument,
     setEditContent,
     startEdit,
     cancelEdit,

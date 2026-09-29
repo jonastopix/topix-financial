@@ -24,6 +24,8 @@ import {
   Building2, Loader2,
 } from "lucide-react";
 import ChatRichInput from "@/components/ChatRichInput";
+import { ChatBeskedTekst } from "@/components/ChatBeskedTekst";
+import { byggChatBesked } from "@/lib/chatDokument";
 import { ChatVideoBesked } from "@/components/ChatVideoBesked";
 import { erSkjultBobletekst } from "@/lib/chatVideoFlade";
 import { SvarCitat, SvarerPaaBanner } from "@/components/ChatSvarCitat";
@@ -278,7 +280,7 @@ const MemberChatPane = () => {
       // 500 — ikke de ældste (perf/chatpane-nyttelast).
       const { data } = await supabase
         .from("messages")
-        .select("id, conversation_id, sender_id, content, read_at, created_at, message_type, context_type, context_id, context_meta, pinned_at, svar_paa_id")
+        .select("id, conversation_id, sender_id, content, read_at, created_at, message_type, context_type, context_id, context_meta, pinned_at, svar_paa_id, indhold_json")
         .eq("conversation_id", activeConvId)
         .order("created_at", { ascending: false })
         .limit(500);
@@ -357,7 +359,7 @@ const MemberChatPane = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSend = useCallback(async (content: string, files?: File[]) => {
+  const handleSend = useCallback(async (content: string, files?: File[], dokument?: Record<string, unknown>) => {
     const trimmed = content.trim();
     const hasFiles = files && files.length > 0;
     if ((!trimmed && !hasFiles) || !activeConvId || !user) return;
@@ -393,10 +395,14 @@ const MemberChatPane = () => {
     const contextMeta = attachments.length > 0 ? { attachments } : undefined;
 
     {
+      // «#» (29/9-2026): en besked MED #-henvisning bygges af dokumentet —
+      // content (den udledte tekst) og indhold_json sammen, af byggChatBesked.
+      // Uden henvisning er der intet dokument, og content er som før.
+      const henvist = dokument ? byggChatBesked(dokument) : null;
       const insertData: any = {
         conversation_id: activeConvId,
         sender_id: user.id,
-        content: trimmed || "📎",
+        ...(henvist ?? { content: trimmed || "📎" }),
       };
 
       if (contextMeta) {
@@ -472,7 +478,7 @@ const MemberChatPane = () => {
 
   // Edit/delete hook (isAdvisor = false: medlemmet har 15-min-vinduet)
   const {
-    editingId, editContent, setEditContent,
+    editingId, editContent, editDokument, setEditContent,
     startEdit, cancelEdit, saveEdit: saveEditAction,
     deleteMessage: deleteMessageAction, canEdit: canEditCheck, canDelete: canDeleteCheck,
   } = useMessageActions(reactionMessageTable, user?.id, false);
@@ -502,13 +508,15 @@ const MemberChatPane = () => {
     latestMsgId
   );
 
-  const handleEditSave = async (html: string) => {
+  const handleEditSave = async (html: string, dokument?: Record<string, unknown>) => {
     // editingId kan nulstilles af saveEdit ved success, saa fang id'et foer await.
     const id = editingId;
     if (!id) return false;
-    const ok = await saveEditAction(id, html);
+    const ok = await saveEditAction(id, html, dokument);
     if (ok) {
-      setMessages(prev => prev.map(m => m.id === id ? { ...m, content: html, edited_at: new Date().toISOString() } as any : m));
+      // Med dokument: de samme to felter, saveEdit skrev (byggChatBesked er ren).
+      const felter = (dokument ? byggChatBesked(dokument) : null) ?? { content: html };
+      setMessages(prev => prev.map(m => m.id === id ? { ...m, ...felter, edited_at: new Date().toISOString() } as any : m));
     }
     return ok;
   };
@@ -753,7 +761,7 @@ const MemberChatPane = () => {
                               <MessageActionMenu
                                 canEdit={canEditCheck(msg.sender_id, msg.created_at)}
                                 canDelete={canDeleteCheck(msg.sender_id, msg.created_at)}
-                                onEdit={() => startEdit(msg.id, msg.content)}
+                                onEdit={() => startEdit(msg.id, msg.content, msg.indhold_json)}
                                 onDelete={() => handleDeleteMsg(msg.id)}
                                 onReply={kanBesvares(msg) ? () => startSvar(msg) : undefined}
                                 isMine={isMine}
@@ -765,7 +773,7 @@ const MemberChatPane = () => {
                             <MobileMessageActionDrawer
                               canEdit={canEditCheck(msg.sender_id, msg.created_at)}
                               canDelete={canDeleteCheck(msg.sender_id, msg.created_at)}
-                              onEdit={() => startEdit(msg.id, msg.content)}
+                              onEdit={() => startEdit(msg.id, msg.content, msg.indhold_json)}
                               onDelete={() => handleDeleteMsg(msg.id)}
                               onReaction={(emoji) => toggleReaction(msg.id, emoji)}
                               onReply={kanBesvares(msg) ? () => startSvar(msg) : undefined}
@@ -804,7 +812,7 @@ const MemberChatPane = () => {
                                   </p>
                                 )}
                                 {!erSkjultBobletekst(msg.content) && (
-                                  <div className="text-sm leading-relaxed chat-html-content" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content, { ALLOWED_TAGS: ['b','strong','i','em','ul','ol','li','a','p','br'], ALLOWED_ATTR: ['href','target','rel'] }) }} />
+                                  <ChatBeskedTekst content={msg.content} dokument={msg.indhold_json} />
                                 )}
                                 <MessageAttachments attachments={msg.context_meta?.attachments} isMine={isMine} messageId={msg.id} source="messages" variant="hb" />
                                 <ChatVideoBesked messageId={msg.id} contextMeta={msg.context_meta} />
@@ -861,7 +869,7 @@ const MemberChatPane = () => {
                                   </p>
                                 )}
                                 {!erSkjultBobletekst(msg.content) && (
-                                  <div className="text-sm leading-relaxed chat-html-content" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content, { ALLOWED_TAGS: ['b','strong','i','em','ul','ol','li','a','p','br'], ALLOWED_ATTR: ['href','target','rel'] }) }} />
+                                  <ChatBeskedTekst content={msg.content} dokument={msg.indhold_json} />
                                 )}
                                 <MessageAttachments attachments={msg.context_meta?.attachments} isMine={isMine} messageId={msg.id} source="messages" variant="hb" />
                                 <ChatVideoBesked messageId={msg.id} contextMeta={msg.context_meta} />
@@ -989,6 +997,7 @@ const MemberChatPane = () => {
         open={editingId !== null}
         onOpenChange={(o) => { if (!o) cancelEdit(); }}
         initialHTML={editContent}
+        initialDokument={editDokument}
         onSave={handleEditSave}
         variant="hb"
       />
