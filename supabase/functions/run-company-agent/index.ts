@@ -724,7 +724,7 @@ async function executeTool(name: string, args: any, adminClient: any, trigger: s
         .order("created_at", { ascending: false })
         .limit(limit);
       if (error) throw new Error(error.message);
-      return (data ?? []).map(m => ({
+      return (data ?? []).map((m: { content: string; created_at: string }) => ({
         content: m.content.slice(0, 300),
         date: new Date(m.created_at).toLocaleDateString("da-DK", { month: "long", year: "numeric" }),
       }));
@@ -749,7 +749,7 @@ async function executeTool(name: string, args: any, adminClient: any, trigger: s
       if (!peers || peers.length < 3) {
         return { available: false, reason: "too_few_peers", count: peers?.length ?? 0 };
       }
-      const peerIds = peers.map(p => p.id);
+      const peerIds = peers.map((p: { id: string }) => p.id);
 
       // Get latest facts for peers
       const { data: peerFacts } = await adminClient
