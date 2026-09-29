@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { HbButton } from "@/components/hjemmebane/HbButton";
 import { cn } from "@/lib/utils";
 import { MAKS_SEKUNDER } from "@/lib/chatVideo";
-import { doemFilLaengde, formatVarighed, vaelgOptageformat } from "@/lib/chatVideoFlade";
+import { doemFilLaengde, erTomFil, formatVarighed, TOM_TEKST, vaelgOptageformat } from "@/lib/chatVideoFlade";
 
 /**
  * Optag eller vælg en video til chatten (29/9-2026) — KUN rådgiverens pane
@@ -145,6 +145,12 @@ export default function ChatVideoOptager({ open, onOpenChange, onSend }: Props) 
     if (!fil) return;
     stopStream();
     setLinje(null);
+    // INGEN TOM VIDEO (29/9): en tom fil afvises FØR længden læses.
+    if (erTomFil(fil)) {
+      setFase((f) => (f === "forhaandsvis" || f === "vaelg" ? f : "afvist"));
+      setLinje(TOM_TEKST.fil);
+      return;
+    }
     const url = URL.createObjectURL(fil);
     const v = document.createElement("video");
     v.preload = "metadata";
@@ -192,6 +198,12 @@ export default function ChatVideoOptager({ open, onOpenChange, onSend }: Props) 
 
   const send = () => {
     if (!forhaandsvisning) return;
+    // INGEN TOM VIDEO (29/9): en optagelse på 0 bytes sendes aldrig — en rolig
+    // linje, og «Optag igen» står allerede der (fasen er forhaandsvis).
+    if (erTomFil(forhaandsvisning.fil)) {
+      setLinje(TOM_TEKST.optagelse);
+      return;
+    }
     onSend({ fil: forhaandsvisning.fil, varighed: forhaandsvisning.varighed });
     onOpenChange(false);
   };

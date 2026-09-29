@@ -14,6 +14,7 @@
  */
 import * as tus from "tus-js-client";
 import { supabase } from "@/integrations/supabase/client";
+import { erTomFil, TOM_TEKST } from "@/lib/chatVideoFlade";
 
 const TUS_ENDPOINT = "https://video.bunnycdn.com/tusupload";
 
@@ -26,7 +27,7 @@ interface Grant {
 
 export type UploadUdfald =
   | { ok: true; guid: string }
-  | { ok: false; grund: "ikke_sat_op" | "afvist" | "fejl"; besked: string };
+  | { ok: false; grund: "tom" | "ikke_sat_op" | "afvist" | "fejl"; besked: string };
 
 /** Fejlens statuskode og body fra en FunctionsHttpError (husets mønster: error.context). */
 async function fejlSvar(error: unknown): Promise<{ status: number | null; body: { error?: string } | null }> {
@@ -45,6 +46,9 @@ export async function uploadChatVideo(
   fil: Blob,
   valg: { titel: string; onFremdrift: (procent: number) => void },
 ): Promise<UploadUdfald> {
+  // INGEN TOM VIDEO: tjekket FØR «opret», så der aldrig står et tomt objekt hos
+  // Bunny (fladen har allerede afvist den — dette er bæltet under selerne).
+  if (erTomFil(fil)) return { ok: false, grund: "tom", besked: TOM_TEKST.optagelse };
   const { data, error } = await supabase.functions.invoke("chat-video", {
     body: { action: "opret", title: valg.titel },
   });
