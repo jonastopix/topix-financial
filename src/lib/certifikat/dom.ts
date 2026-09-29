@@ -5,7 +5,10 @@
  * HVEM: kun FULDE medlemmer. Rådgivere, abonnenter, legat og udløbne ser hverken
  * menupunkt eller side (HANDOFF §3 «Hvem ser området»). Flaget
  * companies.certificate_eligible (migration 20260929190000) gælder VIRKSOMHEDEN;
- * to brugere i samme virksomhed får hver sit certifikat.
+ * to brugere i samme virksomhed får hver sit certifikat. Siden 29/9 kl. 18:31
+ * (20260929195000, Jonas: «alle virksomheder skal have certifikatet») har ALLE
+ * virksomheder flaget, og standarden er true — flaget er et FRAVALG: false for
+ * en virksomhed, der ikke skal have certifikatet.
  *
  * STARTDATOEN er companies.contract_start_date — en DATE («2025-10-22»), som
  * læses som DANSK kalenderdato: de tre tal splittes og gives til
