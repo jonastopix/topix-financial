@@ -106,6 +106,9 @@ const STRIKS: readonly string[] = [
   // afvises. (webinar-afmeld står IKKE her: den læser ét felt ud af URL'en
   // eller en form-post — ikke en JSON-body med nøgler, man kan misforstå.)
   "webinar-mail-cron",
+
+  // Den ugentlige statusmail (trin 2, 29/9): dry_run og nu. Alt andet afvises.
+  "statusmail-cron",
 ];
 
 /**

@@ -142,3 +142,45 @@ describe("statusMail — kildeværn: ordene fra én kilde", () => {
     expect(ordeneFraEnKilde(laes(MAIL), laes(ORD).replace("export { FILTER_MAERKER, MAERKE_ORD };", 'export const MAERKE_ORD2 = { traenger: "Trænger" };'), laes(MOTOR))).toBe(false);
   });
 });
+
+// ── TRIN 2 (29/9): vinduet, og linjeskiftene i mailens blokke ───────────────
+import { erStatusmailVindue, STATUSMAIL_TIME, STATUSMAIL_UGEDAG } from "../../../supabase/functions/_shared/statusMail.ts";
+import { indgangsMailHtml } from "../../../supabase/functions/_shared/indgangsMail.ts";
+
+describe("statusMail — vinduet: mandag kl. 7 dansk, sommer og vinter", () => {
+  it("konstanterne: mandag (1) og time 7", () => {
+    expect(STATUSMAIL_UGEDAG).toBe(1);
+    expect(STATUSMAIL_TIME).toBe(7);
+  });
+  it("SOMMER (CEST): mandag 5/10-2026 05:33Z = 07:33 dansk → inde; 04:33Z = 06:33 → ude; 06:33Z = 08:33 → inde (nøglen stopper den)", () => {
+    expect(erStatusmailVindue(new Date("2026-10-05T05:33:00Z"))).toBe(true);
+    expect(erStatusmailVindue(new Date("2026-10-05T04:33:00Z"))).toBe(false);
+    expect(erStatusmailVindue(new Date("2026-10-05T06:33:00Z"))).toBe(true);
+  });
+  it("VINTER (CET): mandag 7/12-2026 05:33Z = 06:33 dansk → ude; 06:33Z = 07:33 → inde", () => {
+    expect(erStatusmailVindue(new Date("2026-12-07T05:33:00Z"))).toBe(false);
+    expect(erStatusmailVindue(new Date("2026-12-07T06:33:00Z"))).toBe(true);
+  });
+  it("ikke mandag → ude, også kl. 7: søndag, tirsdag — og «mandag 00:30 dansk» (søndag 22:30Z) er time 0", () => {
+    expect(erStatusmailVindue(new Date("2026-10-04T05:33:00Z"))).toBe(false); // søndag
+    expect(erStatusmailVindue(new Date("2026-10-06T05:33:00Z"))).toBe(false); // tirsdag
+    expect(erStatusmailVindue(new Date("2026-10-04T22:30:00Z"))).toBe(false); // mandag 00:30 dansk
+    expect(erStatusmailVindue(new Date("2026-09-29T06:00:00Z"))).toBe(false); // i dag, tirsdag
+  });
+});
+
+describe("statusMail — MÅLT: blokkenes linjeskift bliver til <br> i indgangsMailHtml (ingen ændring nødvendig)", () => {
+  it("esc() oversætter \\n til <br>, så navnene i en blok står på hver sin linje; overskrift og link står med", () => {
+    const html = indgangsMailHtml({
+      eyebrow: "Medlemsoverblik",
+      overskrift: "Medlemsoverblik uge 40: 2 trænger",
+      afsnit: ["Ugens overblik."],
+      blokke: [{ overskrift: "Trænger (2)", tekst: "Uden Bruger ApS\nAarhus Både\nhttps://app.theboardroom.dk/virksomheder?maerke=traenger" }],
+      hilsen: "The Boardroom",
+    });
+    expect(html).toContain("Uden Bruger ApS<br>Aarhus Både<br>https://app.theboardroom.dk/virksomheder?maerke=traenger");
+    expect(html).toContain(">Trænger (2)</p>");
+    expect(html).toContain(">Medlemsoverblik</p>");
+    expect(html).not.toContain("Uden Bruger ApS\nAarhus");
+  });
+});

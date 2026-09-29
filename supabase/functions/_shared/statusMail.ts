@@ -133,3 +133,28 @@ export function statusMailTekst(overblik: ReadonlyMap<string, OverbliksRaekke> |
   ].join("\n").trimEnd();
   return { emne, titel, afsnit, blokke, tekst };
 }
+
+// ── Vinduet: mandag kl. 7 dansk tid (TRIN 2, 29/9) ───────────────────────────
+
+/** Ugedagen for mailen — mandag (kbhDele.ugedag: 0 = søndag, 1 = mandag). */
+export const STATUSMAIL_UGEDAG = 1;
+/** Den danske time, mailen tidligst går. */
+export const STATUSMAIL_TIME = 7;
+
+/**
+ * Er kørslen inde i vinduet? SAMME mekanisme som klokke-mail-cronens morgenmail
+ * (klokkeMail.ts erMorgenkoersel: dansk ugedag og dansk time fra kbhDele — pg_cron
+ * kører i UTC og kan ikke udtrykke «kl. 7 dansk» året rundt).
+ *
+ * REGNESTYKKET: cron-jobbet kører mandag kl. 05:33 OG 06:33 UTC.
+ *   SOMMER (CEST, UTC+2): 05:33 UTC = 07:33 dansk → inde; 06:33 UTC = 08:33 → inde,
+ *     men ugenøglen står i email_send_log fra den første kørsel → «fandtes».
+ *   VINTER (CET, UTC+1): 05:33 UTC = 06:33 dansk → time 6 < 7 → uden_for_vindue
+ *     (intet hentes); 06:33 UTC = 07:33 dansk → inde → sendes.
+ * Mailen går derfor kl. 07:33 dansk sommer som vinter. Nøglen (én pr. ISO-uge)
+ * er dørstopperen, ikke vinduet — en håndkørsel senere samme mandag sender ikke igen.
+ */
+export function erStatusmailVindue(nu: Date): boolean {
+  const p = kbhDele(nu);
+  return p.ugedag === STATUSMAIL_UGEDAG && p.time >= STATUSMAIL_TIME;
+}

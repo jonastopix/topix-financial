@@ -872,6 +872,23 @@ skrivende edge functions bruger `SUPABASE_SERVICE_ROLE_KEY`.
   veje kan ikke skabe dubletter, og importen kan aldrig sænke en kendt
   procent. `EWEBINAR_API_KEY` er team-scoped («equivalent to a user login»)
   og må kun stå i Lovable-secrets. Kildeværn `ewebinarImport.guard`.
+- `statusmail-cron` (trin 2, 29/9-2026) — Bucket B m. `verify_jwt = true`:
+  `authenticateServiceRole(req)` FØR service-role-klienten; kaldt af cron
+  `statusmail` (`'33 5,6 * * 1'`, migration `20260929170000_statusmail_cron.sql`,
+  IKKE KØRT) gennem `kald_edge`. **Tørkørsel som standard** — kun
+  `{"dry_run": false}` sender; body STRIKS (`dry_run`, `nu`). Vinduet «mandag kl. 7
+  dansk» dømmes i functionen (`_shared/statusMail.ts` `erStatusmailVindue`, samme
+  mekanisme som klokke-mail-cronens morgenmail); uden for vinduet hentes intet.
+  Læser de 13 kilder + `user_login_log` med service role — PRÆCIS hookens filtre
+  (`amount_dkk 0`, `deleted_at null`, uden sentinel, `is_demo` i select; kildeværn
+  `statusmailCron.guard` sammenligner hook og function) — og regner gennem
+  `_shared/medlemsOverblik.ts` (`byggOverblik`, `iUniverset` afviser `is_demo`, som
+  RLS skjuler for rådgiveren men ikke for service role). Modtagere: `user_roles`
+  advisor/admin → `auth.admin.getUserById`. Én mail pr. rådgiver pr. dansk ISO-uge:
+  opslag i `email_send_log` på `statusmail:<id>:<år>-W<uge>` FØR afsendelsen,
+  `sendManagedEmail` med samme `idempotencyKey`. Ved fejl én drift-klokke
+  (`reference_type = 'statusmail'`) — IKKE på `SELVMAILENDE_REFERENCER`, fordi
+  functionen ikke mailer driftmodtageren selv; klokke-mail-cron mailer klokken.
 - `send-report-reminder` — service-role-only gate
 - `manage-advisor` — admin role gate + service-role operations
 - `process-pending-invitation` — self-only guard + server-verified email

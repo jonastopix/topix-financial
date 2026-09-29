@@ -140,12 +140,15 @@ export function typerneErDaekket(
 }
 
 // ── 11 ─────────────────────────────────────────────────────────────────────
-/** Selvmailende alarmer i koden: sendManagedEmail( OG et skrivRaadgiverBesked(-kald med type «drift» i samme fil → reference_type. */
+/** Selvmailende alarmer i koden: sendManagedEmail( TIL driftModtager() OG et skrivRaadgiverBesked(-kald med type «drift» i samme fil → reference_type.
+    PRÆCISERET 29/9 (statusmail-cron): en function, der mailer RÅDGIVERNE (ikke driftmodtageren) og skriver en
+    drift-klokke ved fejl, er IKKE selvmailende — klokke-mail-cron skal netop maile den klokke. Derfor kræves
+    driftModtager() i filen. Alle fem på listen har det. */
 export function selvmailendeIKoden(filer: readonly { sti: string; kilde: string }[]): { sti: string; reference: string }[] {
   const ud: { sti: string; reference: string }[] = [];
   for (const { sti, kilde } of filer) {
     const k = udenKommentarer(kilde);
-    if (!k.includes("sendManagedEmail(") || !k.includes("skrivRaadgiverBesked(")) continue;
+    if (!k.includes("sendManagedEmail(") || !k.includes("skrivRaadgiverBesked(") || !k.includes("driftModtager()")) continue;
     if (k.includes("export async function skrivRaadgiverBesked(")) continue;
     for (const m of k.matchAll(/skrivRaadgiverBesked\(/g)) {
       const arg = k.slice(m.index!, m.index! + 500);
@@ -424,6 +427,10 @@ describe("klokkeMail.guard — dommene fanger fejlen på en kopi", () => {
     // Fund nr. 3 kom af sig selv, da #1069 landede i main — værnet fandt meta-send-cron uden at nogen fortalte det.
     expect(selvmailendeIKoden(filer).some((f) => f.sti.endsWith("meta-send-cron/index.ts"))).toBe(true);
     expect(selvmailendeIKoden(filer).some((f) => f.sti.endsWith("ga-send-cron/index.ts"))).toBe(true);
+    // En function, der mailer rådgiverne (ikke driftModtager) og skriver en drift-klokke ved fejl, er IKKE selvmailende (statusmail-cron, 29/9).
+    const raadgiverMail = { ...ny, kilde: ny.kilde.replace("to: driftModtager()", "to: rg.email") };
+    expect(selvmailendeIKoden([raadgiverMail])).toEqual([]);
+    expect(selvmailendeIKoden(filer).some((f) => f.sti.endsWith("statusmail-cron/index.ts"))).toBe(false);
     const viaKonstant = { ...ny, kilde: ny.kilde.replace('type: "drift"', "type: NY_ALARM_KLOKKE_TYPE") };
     expect(selvmailendeIKoden([viaKonstant])).toEqual([{ sti: ny.sti, reference: "ny_vagt" }]);
     // En function, der mailer men skriver en IKKE-drift-klokke (ansoegningMotor: ansoegning_ny), tæller ikke.
