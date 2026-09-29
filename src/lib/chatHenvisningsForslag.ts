@@ -11,15 +11,18 @@
  *                værnet lig med — linkKort.guard dom 6)
  *   rabataftaler listMedlemsPartnere (published) minus de udløbne —
  *                aftalenErUdloebet, SAMME sætning som /rabataftaler
- *   opslag       IKKE i chatten: #-opslagsnoden bliver i CommunityComposer
- *                (linkKort.guard dom 7 kræver den dér).
+ *   opslag       Community-feedet (hentFeed(30), SAMME kilde som Community's #-liste;
+ *                RPC'en giver kun tråde, den der skriver må se). Noden er den
+ *                samme «opslaghenvisning» (traadId + titel), og adressen er
+ *                chatDokument.henvisningsAdresse's — som Community's.
  * RLS afgør, hvad hver ser: listerne hentes som den, der skriver.
  *
- * Rækkefølgen er Community's: events øverst, så lektioner, så aftaler — højst
- * otte i alt. Ingen React, ingen Supabase, ingen DOM.
+ * Rækkefølgen er Community's: events øverst, så lektioner, så aftaler, og opslag
+ * SIDST (det sjældnere at henvise til) — højst otte i alt. Ingen React, ingen Supabase, ingen DOM.
  */
 import type { ContentItem, EventRow } from "@/lib/hjemmebane/adminContentApi";
 import type { MedlemsPartner } from "@/lib/hjemmebane/akademiApi";
+import type { CommunityTraad } from "@/lib/hjemmebane/communityApi";
 import { TILLADTE_OMRAADER } from "@/lib/hjemmebane/communityDokument";
 import { isEventPast } from "@/lib/hjemmebane/eventPhase";
 import { aftalenErUdloebet } from "@/lib/hjemmebane/rabataftaleAdresse";
@@ -31,12 +34,14 @@ export const MAKS_FORSLAG = 8;
 export type ChatForslag =
   | { slags: "event"; event: EventRow }
   | { slags: "item"; item: ContentItem }
-  | { slags: "rabat"; aftale: MedlemsPartner };
+  | { slags: "rabat"; aftale: MedlemsPartner }
+  | { slags: "opslag"; traad: CommunityTraad };
 
 export interface ChatForslagsKilder {
   events: readonly EventRow[];
   items: readonly ContentItem[];
   aftaler: readonly MedlemsPartner[];
+  traade: readonly CommunityTraad[];
 }
 
 /** Forslagene til søgningen efter «#». Titlen matches uden hensyn til store/små bogstaver. */
@@ -54,13 +59,18 @@ export function vaelgChatForslag(kilder: ChatForslagsKilder, soegning: string, n
     .filter((aftale) => !aftalenErUdloebet(aftale.valid_until, nu))
     .filter((aftale) => aftale.name.toLowerCase().includes(q))
     .map((aftale) => ({ slags: "rabat" as const, aftale }));
-  return [...events, ...items, ...aftaler].slice(0, MAKS_FORSLAG);
+  // Opslag sidst, som i Community: feedet er allerede kun aktive tråde, nyeste aktivitet først.
+  const opslag: ChatForslag[] = kilder.traade
+    .filter((traad) => traad.titel.toLowerCase().includes(q))
+    .map((traad) => ({ slags: "opslag" as const, traad }));
+  return [...events, ...items, ...aftaler, ...opslag].slice(0, MAKS_FORSLAG);
 }
 
 export type ChatHenvisningsNode =
   | { type: "eventhenvisning"; attrs: { eventId: string; titel: string } }
   | { type: "henvisning"; attrs: { area: string; slug: string; titel: string } }
-  | { type: "rabathenvisning"; attrs: { aftaleId: string; titel: string } };
+  | { type: "rabathenvisning"; attrs: { aftaleId: string; titel: string } }
+  | { type: "opslaghenvisning"; attrs: { traadId: string; titel: string } };
 
 /** Forslaget → noden, editoren indsætter (motorens nodetyper og attributter). */
 export function chatForslagTilNode(forslag: ChatForslag): ChatHenvisningsNode {
@@ -74,6 +84,8 @@ export function chatForslagTilNode(forslag: ChatForslag): ChatHenvisningsNode {
       };
     case "rabat":
       return { type: "rabathenvisning", attrs: { aftaleId: forslag.aftale.id, titel: forslag.aftale.name } };
+    case "opslag":
+      return { type: "opslaghenvisning", attrs: { traadId: forslag.traad.id, titel: forslag.traad.titel } };
   }
 }
 
@@ -81,14 +93,17 @@ const kortDato = (iso: string) => new Date(iso).toLocaleDateString("da-DK", { da
 
 /**
  * Rækkens to linjer. Event: «Event · {dato}» (Community's). Lektion: «Lektion ·
- * {samling} · {N min}» — Community's områdenavne (OMRAADE_LABELS) er modul-
- * private i composeren og låst dér af linkKort.guard, så chatten skriver
- * «Lektion» frem for at lave et fjerde spejl af listen. Aftale: «Rabataftale ·
- * {rabatteksten}».
+ * {samling} · {område} · {N min}» — samling, område og varighed i Community's
+ * rækkefølge (CommunityComposer: samling, OMRAADE_LABELS[area], varighed).
+ * Områdenavnet får funktionen udefra (komponenten slår det op i Community's
+ * eksporterede OMRAADE_LABELS), så denne fil forbliver ren. Aftale:
+ * «Rabataftale · {rabatteksten}». Opslag: «Opslag · {forfatter} · {dato}»
+ * (Community's).
  */
 export function chatForslagsTekst(
   forslag: ChatForslag,
   samlingsTitel: string | null,
+  omraadeNavn: string | null = null,
 ): { titel: string; undertekst: string } {
   switch (forslag.slags) {
     case "event":
@@ -96,6 +111,7 @@ export function chatForslagsTekst(
     case "item": {
       const dele = ["Lektion"];
       if (samlingsTitel) dele.push(samlingsTitel);
+      if (omraadeNavn) dele.push(omraadeNavn);
       if (forslag.item.duration_seconds) {
         dele.push(`${Math.max(1, Math.round(forslag.item.duration_seconds / 60))} min`);
       }
@@ -106,15 +122,21 @@ export function chatForslagsTekst(
         titel: forslag.aftale.name,
         undertekst: forslag.aftale.discount_text ? `Rabataftale · ${forslag.aftale.discount_text}` : "Rabataftale",
       };
+    case "opslag":
+      return {
+        titel: forslag.traad.titel,
+        undertekst: `Opslag · ${forslag.traad.forfatter_navn ?? "Medlem"} · ${kortDato(forslag.traad.created_at)}`,
+      };
   }
 }
 
-/** Hvilke af chattens fire kilder, der fejlede (react-querys isError). */
+/** Hvilke af chattens fem kilder, der fejlede (react-querys isError). */
 export interface ChatForslagsFejl {
   events: boolean;
   items: boolean;
   samlinger: boolean;
   aftaler: boolean;
+  feed: boolean;
 }
 
 /**
@@ -125,6 +147,6 @@ export interface ChatForslagsFejl {
  * «til #» (chatten har ingen @) og «sende» (en chatbesked deles ikke).
  */
 export function forslagsFejlTekst(fejl: ChatForslagsFejl): string | null {
-  const nogen = fejl.events || fejl.items || fejl.samlinger || fejl.aftaler;
+  const nogen = fejl.events || fejl.items || fejl.samlinger || fejl.aftaler || fejl.feed;
   return nogen ? `${sektionsfejlTekst("chat_forslag")} Du kan stadig skrive og sende.` : null;
 }

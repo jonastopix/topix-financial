@@ -9,6 +9,7 @@ import {
 } from "@/lib/chatHenvisningsForslag";
 import type { ContentItem, EventRow } from "@/lib/hjemmebane/adminContentApi";
 import type { MedlemsPartner } from "@/lib/hjemmebane/akademiApi";
+import type { CommunityTraad } from "@/lib/hjemmebane/communityApi";
 
 /** «#» i chatten, trin 3 — de rene dele af fladen (29/9-2026). */
 const AFTALE = "1b4e28ba-2fa1-41d2-883f-0016d3cca427";
@@ -109,7 +110,11 @@ describe("chattens #-forslag — vaelgChatForslag", () => {
   const af = (id: string, name: string, valid_until: string | null = null) =>
     ({ id, name, valid_until, discount_text: "20 %" }) as unknown as MedlemsPartner;
 
+  const tr = (id: string, titel: string, forfatter: string | null = "Mette") =>
+    ({ id, titel, forfatter_navn: forfatter, created_at: "2026-09-20T10:00:00Z" }) as unknown as CommunityTraad;
+
   const kilder: ChatForslagsKilder = {
+    traade: [tr(TRAAD, "Budget til næste år")],
     events: [
       ev("e1", "Vækstdag", "2026-10-02T10:00:00Z"),
       ev("e2", "Afholdt", "2026-09-28T10:00:00Z"),
@@ -131,12 +136,19 @@ describe("chattens #-forslag — vaelgChatForslag", () => {
 
   it("events published og ikke passeret; lektioner published i de tilladte områder; aftaler minus de udløbne — i den rækkefølge", () => {
     expect(vaelgChatForslag(kilder, "", NU).map((f) =>
-      f.slags === "event" ? f.event.id : f.slags === "item" ? f.item.id : f.aftale.id,
-    )).toEqual(["e1", "i1", "i4", "a1", "a3"]);
+      f.slags === "event" ? f.event.id : f.slags === "item" ? f.item.id : f.slags === "rabat" ? f.aftale.id : f.traad.id,
+    )).toEqual(["e1", "i1", "i4", "a1", "a3", TRAAD]);
   });
   it("søgningen matcher titlen uden hensyn til store/små bogstaver", () => {
     expect(vaelgChatForslag(kilder, "DIN", NU).map((f) => f.slags)).toEqual(["rabat"]);
-    expect(vaelgChatForslag(kilder, "bud", NU).map((f) => f.slags)).toEqual(["item"]);
+    expect(vaelgChatForslag(kilder, "bud", NU).map((f) => f.slags)).toEqual(["item", "opslag"]);
+    expect(vaelgChatForslag(kilder, "NÆSTE ÅR", NU).map((f) => f.slags)).toEqual(["opslag"]);
+  });
+  it("opslag kommer SIDST, og loftet på otte gælder også dem (som i Community)", () => {
+    const mange = { ...kilder, aftaler: Array.from({ length: 20 }, (_, i) => af(`x${i}`, `Aftale ${i}`)) };
+    expect(vaelgChatForslag(mange, "", NU).some((f) => f.slags === "opslag")).toBe(false);
+    const faa = { ...kilder, aftaler: [] };
+    expect(vaelgChatForslag(faa, "", NU).map((f) => f.slags)).toEqual(["event", "item", "item", "opslag"]);
   });
   it(`højst ${MAKS_FORSLAG}`, () => {
     const mange = { ...kilder, aftaler: Array.from({ length: 20 }, (_, i) => af(`x${i}`, `Aftale ${i}`)) };
@@ -158,19 +170,37 @@ describe("chattens #-forslag — vaelgChatForslag", () => {
     expect(chatForslagTilNode({ slags: "item", item: it_("i1", "Budget", "academy") }))
       .toEqual({ type: "henvisning", attrs: { area: "academy", slug: "budget", titel: "Budget" } });
   });
+  it("opslaget → samme node som Community's (traadId + titel), og adressen er henvisningsAdresse's /community/{id}", () => {
+    const node = chatForslagTilNode({ slags: "opslag", traad: tr(TRAAD, "Budget til næste år") });
+    expect(node).toEqual({ type: "opslaghenvisning", attrs: { traadId: TRAAD, titel: "Budget til næste år" } });
+    // Motoren i Community og motoren i chatten dømmer noden ens.
+    const d = doc(p(node));
+    expect(parseChatDokument(d)).toEqual(parseCommunityDokument(d));
+    const [afsnit] = parseChatDokument(d);
+    expect(afsnit.type === "paragraph" && henvisningsAdresse(afsnit.content[0] as never)).toBe(`/community/${TRAAD}`);
+    expect(byggChatBesked(d)).toEqual({ content: "#Budget til næste år", indhold_json: d });
+  });
   it("rækkens tekst", () => {
-    expect(chatForslagsTekst({ slags: "item", item: it_("i1", "Budget", "academy") }, "Økonomi")).toEqual({ titel: "Budget", undertekst: "Lektion · Økonomi · 10 min" });
+    expect(chatForslagsTekst({ slags: "item", item: it_("i1", "Budget", "academy") }, "Økonomi", "Kursus")).toEqual({ titel: "Budget", undertekst: "Lektion · Økonomi · Kursus · 10 min" });
+    // Uden samling: område står stadig ved lektionen. Uden områdenavn: som før.
+    expect(chatForslagsTekst({ slags: "item", item: it_("i1", "Budget", "classroom") }, null, "Fundamentet").undertekst).toBe("Lektion · Fundamentet · 10 min");
+    expect(chatForslagsTekst({ slags: "item", item: it_("i1", "Budget", "academy") }, "Økonomi").undertekst).toBe("Lektion · Økonomi · 10 min");
+    expect(chatForslagsTekst({ slags: "opslag", traad: tr(TRAAD, "Budget til næste år") }, null)).toEqual({
+      titel: "Budget til næste år",
+      undertekst: expect.stringMatching(/^Opslag · Mette · /),
+    });
+    expect(chatForslagsTekst({ slags: "opslag", traad: tr(TRAAD, "x", null) }, null).undertekst).toMatch(/^Opslag · Medlem · /);
     expect(chatForslagsTekst({ slags: "rabat", aftale: af("a1", "Dinero") }, null)).toEqual({ titel: "Dinero", undertekst: "Rabataftale · 20 %" });
     expect(chatForslagsTekst({ slags: "event", event: ev("e1", "Vækstdag", "2026-10-02T10:00:00Z") }, null).undertekst).toMatch(/^Event · /);
   });
 });
 
 describe("forslagsFejlTekst — chattens linje, når en kilde fejlede", () => {
-  const ingen = { events: false, items: false, samlinger: false, aftaler: false };
+  const ingen = { events: false, items: false, samlinger: false, aftaler: false, feed: false };
   it("ingen fejl → ingen linje", () => {
     expect(forslagsFejlTekst(ingen)).toBeNull();
   });
-  it("hver af de fire kilder alene giver linjen — også samlingerne, som i Community", () => {
+  it("hver af de fem kilder alene giver linjen — også samlingerne, som i Community", () => {
     for (const k of Object.keys(ingen) as (keyof typeof ingen)[]) {
       expect(forslagsFejlTekst({ ...ingen, [k]: true })).toBe("Forslagene til # kunne ikke hentes lige nu. Du kan stadig skrive og sende.");
     }

@@ -286,8 +286,12 @@ const opretNaevnelsesDropdown = () =>
     AREAS-strukturen. Listen kan ikke afledes af AREAS: den skal spejle
     motorens TILLADTE_OMRAADER (som rummer 'rabataftaler' — et område
     AREAS slet ikke kender). Ændres en label i AREAS, skal den ændres
-    her i samme PR. */
-const OMRAADE_LABELS: Record<string, string> = {
+    her i samme PR.
+
+    EKSPORTERET (29/9-2026) så chattens #-liste bruger SAMME områdenavne og
+    samme node — ingen fjerde kopi; linkKort.guard dom 6 og 7 læser stadig
+    denne fil. */
+export const OMRAADE_LABELS: Record<string, string> = {
   classroom: "Fundamentet",
   academy: "Kursus",
   rabataftaler: "Rabataftale",
@@ -361,7 +365,7 @@ const opretHenvisningsDropdown =
     data-titel; parseren matcher span[data-traad-id][data-titel] — ingen
     overlap med de tre andre (hver kræver mindst én attribut, de andre
     aldrig skriver: data-user-id, data-area+data-slug, data-event-id). */
-const OpslagHenvisningNode = Mention.extend({
+export const OpslagHenvisningNode = Mention.extend({
   name: "opslaghenvisning",
   addAttributes() {
     return {
