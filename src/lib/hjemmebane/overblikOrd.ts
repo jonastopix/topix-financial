@@ -11,21 +11,14 @@
  * URL-parameter, som listen læser stille — ukendt værdi = intet filter.
  * Prøvet i __tests__/overblikOrd.test.ts.
  */
-import type { Aktivitet, AktivitetsFelt, Maerke, SessionDom } from "@/lib/medlemsOverblik";
+import { FILTER_MAERKER, MAERKE_ORD, type Aktivitet, type AktivitetsFelt, type Maerke, type SessionDom } from "@/lib/medlemsOverblik";
+
+// Mærkernes ord og de fire filtre bor i MOTOREN (29/9, statusmailen læser dem
+// gennem Deno-spejlet) — her kun re-eksporteret, så fladen kan blive ved med
+// at importere dem herfra. Ingen tredje kopi.
+export { FILTER_MAERKER, MAERKE_ORD };
 
 export const MAERKE_PARAM = "maerke";
-
-/** De fire filtre, i rækkefølge — Jonas' fire. */
-export const FILTER_MAERKER: readonly Maerke[] = ["traenger", "ingen_session_endnu", "ikke_i_gang", "ingen_bruger"];
-
-export const MAERKE_ORD: Readonly<Record<Maerke, string>> = {
-  traenger: "Trænger",
-  ingen_session_endnu: "Ingen session endnu",
-  ikke_i_gang: "Ikke i gang",
-  ingen_bruger: "Ingen bruger",
-  ingen_login: "Ingen login i 30 dage",
-  ingen_godkendt_rapport: "Ingen godkendt rapport i 60 dage",
-};
 
 /** Mærket i URL'en; kun de fire filtre, alt andet → null (som laesGrundParam). */
 export function laesMaerkeParam(vaerdi: string | null | undefined): Maerke | null {

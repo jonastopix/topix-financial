@@ -1,32 +1,11 @@
 /**
- * src/lib/introSession.ts
+ * supabase/functions/_shared/introSession.ts
  *
- * Dommen over den gratis intro-session med Morten — ren og testet
- * (src/lib/__tests__/introSession.test.ts). Læser session_bookings-rækken
- * (advisor = 'morten'), som calendly-webhook skriver.
- *
- * BAGGRUND (recon-introsessionen.md, 8/9): huset havde ingen tilstand for
- * «afholdt». intro_session_used_at er «retten er brugt» (sat ved KLIK på
- * book — før link, før tid, før møde; også i hånden af admin; nulstilles
- * ved host-aflysning) og RØRES IKKE her. booked er «tid er valgt».
- * Fra 8/9 gemmer webhooken start_tid/slut_tid (migration 20260908190000).
- *
- * REGLEN: AFHOLDT = status 'booked' OG slut_tid er passeret. Uden slut_tid
- * (rækker fra før 8/9, eller en payload uden scheduled_event): ukendt,
- * IKKE afholdt. Et møde der slutter om fem minutter er ikke afholdt; et
- * der sluttede i går er. Grænsen er sluttidspunktet selv: er nu >= slut,
- * er det afholdt.
- *
- * «UDEBLEV» KAN IKKE VIDES: det kræver invitee_no_show.created/deleted i
- * Calendly-abonnementet, behandling i webhooken, og at Morten markerer det
- * i Calendly. Intet af det er på plads. «Afholdt» betyder derfor «mødet er
- * passeret uden aflysning» — afholdt, medmindre nogen udeblev.
- *
- * De betalte 1:1-sessioner (advisor 'jonas') er et andet spor med sin egen
- * dom (lib/betaltSession); denne dom kaldes kun med Morten-rækken.
-  *
- * SPEJL: supabase/functions/_shared/introSession.ts (paritetsprøve
- * src/lib/__tests__/medlemsOverblik.paritet.test.ts — kroppen efter filhovedet er ordret ens).
+ * SPEJL af src/lib/introSession.ts (introSession — dommen over den inkluderede session (afholdt = booked + slut_tid passeret)).
+ * Kroppen efter dette filhoved er ORDRET den samme som i src-udgaven (filen har ingen imports);
+ * paritetsprøven src/lib/__tests__/medlemsOverblik.paritet.test.ts sammenligner tegn for tegn
+ * og fælder, når kun det ene spejl ændres. Begrundelserne står i src-udgavens filhoved.
+ * Lavet 29/9-2026 til statusmailen (Bucket B), som ikke kan nå src/lib.
  */
 
 export interface IntroBooking {

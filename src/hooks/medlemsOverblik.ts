@@ -42,29 +42,14 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { kraevRaekker } from "@/lib/kraevRaekker";
 import { hentAlleSider } from "@/lib/budgetEngine";
-import { erKunde } from "@/lib/raadgiverensKunder";
-import {
-  aktiviteterAf,
-  overbliksDom,
-  sessionStatus,
-  type Aktivitet,
-  type AktivitetsFelt,
-  type AktivitetsInput,
-  type OverbliksDom,
-  type SessionDom,
-  type SessionRaekke,
-} from "@/lib/medlemsOverblik";
+import { byggOverblik, type OverbliksKilder, type OverbliksRaekke } from "@/lib/medlemsOverblik";
+
+// ÉN SAMMENKOBLING (29/9): joinen bor i lib/medlemsOverblik.byggOverblik — den
+// deles med statusmailens function (Deno-spejlet). Hooken HENTER kun. Typen
+// re-eksporteres, så fladen kan blive ved med at importere den herfra.
+export type { OverbliksRaekke };
 
 export const MEDLEMS_OVERBLIK_QUERY_KEY = ["medlems-overblik"] as const;
-
-export interface OverbliksRaekke {
-  companyId: string;
-  antalBrugere: number;
-  medlemSiden: string | null;
-  sessioner: { morten: SessionDom; jonas: SessionDom };
-  aktivitet: Record<AktivitetsFelt, Aktivitet>;
-  dom: OverbliksDom;
-}
 
 type Svar<T> = { data: T[] | null; error: { message: string } | null };
 /** Hver side gennem kraevRaekker: fejlen bærer kildens navn. */
@@ -100,11 +85,12 @@ async function nyesteLoginPrBruger(brugerIds: readonly string[]): Promise<Map<st
 
 export async function hentMedlemsOverblik(): Promise<Map<string, OverbliksRaekke>> {
   const nu = new Date();
-  type Medlem = { company_id: string; user_id: string; created_at: string | null };
-  type Booking = SessionRaekke & { company_id: string | null; advisor: string; amount_dkk: number };
+  type Medlem = OverbliksKilder["medlemmer"][number];
+  type Booking = OverbliksKilder["bookinger"][number] & { amount_dkk: number };
   const [companies, medlemmer, bookinger, facts, uploads, refleksioner, samtaler, events, progress, traade, svar, reaktioner, maal] = await Promise.all([
-    hentAlleSider<{ id: string; status: string | null; is_legat: boolean | null; er_kunde: boolean | null; intro_session_used_at: string | null; jonas_session_used_at: string | null }>((fra, til) =>
-      supabase.from("companies").select("id, status, is_legat, er_kunde, intro_session_used_at, jonas_session_used_at").order("id").range(fra, til).then(side("companies"))),
+    // is_demo med (29/9): universfiltret i byggOverblik udelukker demo-virksomheden — ens for hook og function.
+    hentAlleSider<OverbliksKilder["companies"][number]>((fra, til) =>
+      supabase.from("companies").select("id, status, is_legat, er_kunde, is_demo, intro_session_used_at, jonas_session_used_at").order("id").range(fra, til).then(side("companies"))),
     hentAlleSider<Medlem>((fra, til) =>
       supabase.from("company_members").select("company_id, user_id, created_at").order("created_at", { ascending: true }).order("id").range(fra, til).then(side("company_members"))),
     hentAlleSider<Booking>((fra, til) =>
@@ -131,72 +117,13 @@ export async function hentMedlemsOverblik(): Promise<Map<string, OverbliksRaekke
       supabase.from("milestones").select("company_id, created_at, progress_updated_at, completed_at").order("created_at").order("id").range(fra, til).then(side("milestones"))),
   ]);
 
-  // Bruger → virksomhed (akademi, events, community, logins har intet company_id).
-  const brugereByCompany = new Map<string, string[]>();
-  const companyByUser = new Map<string, string[]>();
-  const medlemSidenByCompany = new Map<string, string>();
-  for (const m of medlemmer) {
-    if (!m.company_id || !m.user_id) continue;
-    brugereByCompany.set(m.company_id, [...(brugereByCompany.get(m.company_id) ?? []), m.user_id]);
-    companyByUser.set(m.user_id, [...(companyByUser.get(m.user_id) ?? []), m.company_id]);
-    if (m.created_at && (!medlemSidenByCompany.has(m.company_id) || m.created_at < (medlemSidenByCompany.get(m.company_id) as string))) medlemSidenByCompany.set(m.company_id, m.created_at);
-  }
-  const loginByUser = await nyesteLoginPrBruger([...companyByUser.keys()]);
+  // Logins: brugerne kendes først, når medlemmerne er hentet — én bid pr. 200.
+  const brugerIds = [...new Set(medlemmer.map((m) => m.user_id).filter((x): x is string => !!x))];
+  const loginByUser = await nyesteLoginPrBruger(brugerIds);
+  const logins = [...loginByUser].map(([user_id, logged_in_at]) => ({ user_id, logged_in_at }));
 
-  const laeg = (kort: Map<string, string[]>, id: string | null | undefined, stempel: string | null | undefined) => {
-    if (!id || !stempel) return;
-    kort.set(id, [...(kort.get(id) ?? []), stempel]);
-  };
-  const prBruger = (kort: Map<string, string[]>, userId: string | null | undefined, stempel: string | null | undefined) => {
-    for (const cid of companyByUser.get(userId ?? "") ?? []) laeg(kort, cid, stempel);
-  };
-  const godkendt = new Map<string, string[]>(), uploadet = new Map<string, string[]>(), refl = new Map<string, string[]>(), besked = new Map<string, string[]>(),
-    eventer = new Map<string, string[]>(), akademi = new Map<string, string[]>(), community = new Map<string, string[]>(), maalRoert = new Map<string, string[]>();
-  const maaltByCompany = new Set<string>();
-  const uploadsByCompany = new Map<string, number>();
-  for (const f of facts) { laeg(godkendt, f.company_id, f.committed_at); if (f.data_basis === "measured") maaltByCompany.add(f.company_id); }
-  for (const u of uploads) { laeg(uploadet, u.company_id, u.uploaded_at); if (u.company_id) uploadsByCompany.set(u.company_id, (uploadsByCompany.get(u.company_id) ?? 0) + 1); }
-  for (const r of refleksioner) laeg(refl, r.company_id, r.created_at);
-  for (const s of samtaler) laeg(besked, s.company_id, s.last_member_message_at);
-  for (const e of events) if (e.response === "attending" && !e.cancelled_at) prBruger(eventer, e.user_id, e.registered_at);
-  for (const p of progress) prBruger(akademi, p.user_id, p.updated_at);
-  for (const t of traade) prBruger(community, t.forfatter_id, t.created_at);
-  for (const s of svar) prBruger(community, s.forfatter_id, s.created_at);
-  for (const r of reaktioner) prBruger(community, r.bruger_id, r.created_at);
-  for (const m of maal) { laeg(maalRoert, m.company_id, m.created_at); laeg(maalRoert, m.company_id, m.progress_updated_at); laeg(maalRoert, m.company_id, m.completed_at); }
-  const bookingerByCompany = new Map<string, Booking[]>();
-  for (const b of bookinger) if (b.company_id) bookingerByCompany.set(b.company_id, [...(bookingerByCompany.get(b.company_id) ?? []), b]);
-
-  const ud = new Map<string, OverbliksRaekke>();
-  for (const c of companies) {
-    // Samme univers som listen: aktive/status-løse kunder, ikke legat.
-    if (c.is_legat || !(c.status === "active" || !c.status) || !erKunde(c)) continue;
-    const brugere = brugereByCompany.get(c.id) ?? [];
-    const rk = bookingerByCompany.get(c.id) ?? [];
-    const input: AktivitetsInput = {
-      login: brugere.map((u) => loginByUser.get(u)).filter((x): x is string => !!x),
-      godkendt_rapport: godkendt.get(c.id) ?? [],
-      uploadet_rapport: uploadet.get(c.id) ?? [],
-      refleksion: refl.get(c.id) ?? [],
-      medlemsbesked: besked.get(c.id) ?? [],
-      event_tilmelding: eventer.get(c.id) ?? [],
-      akademi: akademi.get(c.id) ?? [],
-      community: community.get(c.id) ?? [],
-      maal: maalRoert.get(c.id) ?? [],
-    };
-    const aktivitet = aktiviteterAf(input, nu);
-    const sessioner = {
-      morten: sessionStatus({ raadgiver: "morten", retAt: c.intro_session_used_at, raekker: rk.filter((b) => b.advisor === "morten"), nu }),
-      jonas: sessionStatus({ raadgiver: "jonas", retAt: c.jonas_session_used_at, raekker: rk.filter((b) => b.advisor === "jonas"), nu }),
-    };
-    const medlemSiden = medlemSidenByCompany.get(c.id) ?? null;
-    const dom = overbliksDom({
-      nu, antalBrugere: brugere.length, medlemSiden, sessioner, aktivitet,
-      harMaaltRapport: maaltByCompany.has(c.id), antalUploads: uploadsByCompany.get(c.id) ?? 0,
-    });
-    ud.set(c.id, { companyId: c.id, antalBrugere: brugere.length, medlemSiden, sessioner, aktivitet, dom });
-  }
-  return ud;
+  // Sammenkoblingen er motorens (byggOverblik) — ingen join her.
+  return byggOverblik({ companies, medlemmer, bookinger, logins, facts, uploads, refleksioner, samtaler, events, progress, traade, svar, reaktioner, maal }, nu);
 }
 
 export function useMedlemsOverblik(enabled: boolean) {

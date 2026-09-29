@@ -177,3 +177,146 @@ describe("overbliksDom — mærkerne og tærsklerne", () => {
     expect(liste.map((x) => x.navn)).toEqual(["Aarhus", "Bogense", "Ceres", "Aabenraa"]);
   });
 });
+
+// ── byggOverblik — sammenkoblingen (29/9, statusmailen) ─────────────────────
+import { byggOverblik, iUniverset, type OverbliksKilder, type OverbliksRaekke } from "@/lib/medlemsOverblik";
+
+/**
+ * DEN GAMLE JOIN, ordret som den stod i hooks/medlemsOverblik.ts (#1122,
+ * :134-199) — flyttet ind i motoren som byggOverblik. Beviset for «samme svar
+ * før og efter» er, at denne kopi og byggOverblik giver samme rækker på et fast
+ * datasæt. Kopien tager loginByUser som Map (hookens form); byggOverblik tager
+ * rækkerne. Kopien kender ikke is_demo (det er den ene tilsigtede forskel —
+ * prøvet for sig).
+ */
+function gammelJoin(k: OverbliksKilder, loginByUser: Map<string, string>, nu: Date): Map<string, OverbliksRaekke> {
+  const brugereByCompany = new Map<string, string[]>();
+  const companyByUser = new Map<string, string[]>();
+  const medlemSidenByCompany = new Map<string, string>();
+  for (const m of k.medlemmer) {
+    if (!m.company_id || !m.user_id) continue;
+    brugereByCompany.set(m.company_id, [...(brugereByCompany.get(m.company_id) ?? []), m.user_id]);
+    companyByUser.set(m.user_id, [...(companyByUser.get(m.user_id) ?? []), m.company_id]);
+    if (m.created_at && (!medlemSidenByCompany.has(m.company_id) || m.created_at < (medlemSidenByCompany.get(m.company_id) as string))) medlemSidenByCompany.set(m.company_id, m.created_at);
+  }
+  const laeg = (kort: Map<string, string[]>, id: string | null | undefined, stempel: string | null | undefined) => {
+    if (!id || !stempel) return;
+    kort.set(id, [...(kort.get(id) ?? []), stempel]);
+  };
+  const prBruger = (kort: Map<string, string[]>, userId: string | null | undefined, stempel: string | null | undefined) => {
+    for (const cid of companyByUser.get(userId ?? "") ?? []) laeg(kort, cid, stempel);
+  };
+  const godkendt = new Map<string, string[]>(), uploadet = new Map<string, string[]>(), refl = new Map<string, string[]>(), besked = new Map<string, string[]>(),
+    eventer = new Map<string, string[]>(), akademi = new Map<string, string[]>(), community = new Map<string, string[]>(), maalRoert = new Map<string, string[]>();
+  const maaltByCompany = new Set<string>();
+  const uploadsByCompany = new Map<string, number>();
+  for (const f of k.facts) { laeg(godkendt, f.company_id, f.committed_at); if (f.data_basis === "measured") maaltByCompany.add(f.company_id); }
+  for (const u of k.uploads) { laeg(uploadet, u.company_id, u.uploaded_at); if (u.company_id) uploadsByCompany.set(u.company_id, (uploadsByCompany.get(u.company_id) ?? 0) + 1); }
+  for (const r of k.refleksioner) laeg(refl, r.company_id, r.created_at);
+  for (const s of k.samtaler) laeg(besked, s.company_id, s.last_member_message_at);
+  for (const e of k.events) if (e.response === "attending" && !e.cancelled_at) prBruger(eventer, e.user_id, e.registered_at);
+  for (const p of k.progress) prBruger(akademi, p.user_id, p.updated_at);
+  for (const t of k.traade) prBruger(community, t.forfatter_id, t.created_at);
+  for (const s of k.svar) prBruger(community, s.forfatter_id, s.created_at);
+  for (const r of k.reaktioner) prBruger(community, r.bruger_id, r.created_at);
+  for (const m of k.maal) { laeg(maalRoert, m.company_id, m.created_at); laeg(maalRoert, m.company_id, m.progress_updated_at); laeg(maalRoert, m.company_id, m.completed_at); }
+  const bookingerByCompany = new Map<string, OverbliksKilder["bookinger"][number][]>();
+  for (const b of k.bookinger) if (b.company_id) bookingerByCompany.set(b.company_id, [...(bookingerByCompany.get(b.company_id) ?? []), b]);
+  const ud = new Map<string, OverbliksRaekke>();
+  for (const c of k.companies) {
+    if (c.is_legat || !(c.status === "active" || !c.status) || c.er_kunde === false) continue;
+    const brugere = brugereByCompany.get(c.id) ?? [];
+    const rk = bookingerByCompany.get(c.id) ?? [];
+    const input = {
+      login: brugere.map((u) => loginByUser.get(u)).filter((x): x is string => !!x),
+      godkendt_rapport: godkendt.get(c.id) ?? [], uploadet_rapport: uploadet.get(c.id) ?? [], refleksion: refl.get(c.id) ?? [],
+      medlemsbesked: besked.get(c.id) ?? [], event_tilmelding: eventer.get(c.id) ?? [], akademi: akademi.get(c.id) ?? [],
+      community: community.get(c.id) ?? [], maal: maalRoert.get(c.id) ?? [],
+    };
+    const aktivitet = aktiviteterAf(input, nu);
+    const sessioner = {
+      morten: sessionStatus({ raadgiver: "morten", retAt: c.intro_session_used_at, raekker: rk.filter((b) => b.advisor === "morten"), nu }),
+      jonas: sessionStatus({ raadgiver: "jonas", retAt: c.jonas_session_used_at, raekker: rk.filter((b) => b.advisor === "jonas"), nu }),
+    };
+    const medlemSiden = medlemSidenByCompany.get(c.id) ?? null;
+    const dom = overbliksDom({ nu, antalBrugere: brugere.length, medlemSiden, sessioner, aktivitet, harMaaltRapport: maaltByCompany.has(c.id), antalUploads: uploadsByCompany.get(c.id) ?? 0 });
+    ud.set(c.id, { companyId: c.id, antalBrugere: brugere.length, medlemSiden, sessioner, aktivitet, dom });
+  }
+  return ud;
+}
+
+const KILDER: OverbliksKilder = {
+  companies: [
+    { id: "aktiv", status: "active", is_legat: false, er_kunde: true, is_demo: false, intro_session_used_at: dageFoer(20), jonas_session_used_at: "2026-09-13T20:52:00Z" },
+    { id: "tom_status", status: null, is_legat: null, er_kunde: null, is_demo: null, intro_session_used_at: null, jonas_session_used_at: null },
+    { id: "legat", status: "active", is_legat: true, er_kunde: true, is_demo: false, intro_session_used_at: null, jonas_session_used_at: null },
+    { id: "udloebet", status: "expired", is_legat: false, er_kunde: true, is_demo: false, intro_session_used_at: null, jonas_session_used_at: null },
+    { id: "os_selv", status: "active", is_legat: false, er_kunde: false, is_demo: false, intro_session_used_at: null, jonas_session_used_at: null },
+    { id: "ny", status: "active", is_legat: false, er_kunde: true, is_demo: false, intro_session_used_at: null, jonas_session_used_at: null },
+  ],
+  medlemmer: [
+    { company_id: "aktiv", user_id: "u1", created_at: dageFoer(200) }, { company_id: "aktiv", user_id: "u2", created_at: dageFoer(100) },
+    { company_id: "ny", user_id: "u3", created_at: dageFoer(10) }, { company_id: "legat", user_id: "u4", created_at: dageFoer(50) },
+    { company_id: "", user_id: "u5", created_at: dageFoer(1) },
+  ],
+  bookinger: [
+    { company_id: "aktiv", advisor: "morten", status: "booked", start_tid: dageFoer(5), slut_tid: dageFoer(5), created_at: dageFoer(20) },
+    { company_id: "aktiv", advisor: "jonas", status: "booking_sent", start_tid: null, slut_tid: null, created_at: dageFoer(2) },
+    { company_id: null, advisor: "morten", status: "booked", start_tid: null, slut_tid: null, created_at: dageFoer(2) },
+  ],
+  logins: [{ user_id: "u1", logged_in_at: dageFoer(2) }, { user_id: "u2", logged_in_at: dageFoer(40) }, { user_id: "u3", logged_in_at: dageFoer(1) }],
+  facts: [{ company_id: "aktiv", committed_at: dageFoer(10), data_basis: "measured" }, { company_id: "aktiv", committed_at: dageFoer(70), data_basis: "estimated" }],
+  uploads: [{ company_id: "aktiv", uploaded_at: dageFoer(12) }, { company_id: "ny", uploaded_at: dageFoer(3) }, { company_id: null, uploaded_at: dageFoer(1) }],
+  refleksioner: [{ company_id: "aktiv", created_at: dageFoer(15) }],
+  samtaler: [{ company_id: "aktiv", last_member_message_at: dageFoer(3) }, { company_id: "ny", last_member_message_at: null }],
+  events: [{ user_id: "u2", registered_at: dageFoer(1), response: "attending", cancelled_at: null }, { user_id: "u1", registered_at: dageFoer(1), response: "declined", cancelled_at: null }, { user_id: "u1", registered_at: dageFoer(2), response: "attending", cancelled_at: dageFoer(1) }],
+  progress: [{ user_id: "u3", updated_at: dageFoer(4) }],
+  traade: [{ forfatter_id: "u1", created_at: dageFoer(60) }], svar: [{ forfatter_id: "u2", created_at: dageFoer(8) }], reaktioner: [{ bruger_id: "u3", created_at: dageFoer(9) }],
+  maal: [{ company_id: "aktiv", created_at: dageFoer(90), progress_updated_at: dageFoer(20), completed_at: null }],
+};
+
+describe("byggOverblik — samme svar som hookens gamle join, på et fast datasæt", () => {
+  it("giver ordret de samme rækker som den gamle join (uden demo-rækker er de to ens)", () => {
+    const loginByUser = new Map(KILDER.logins.map((l) => [l.user_id, l.logged_in_at]));
+    const nyt = byggOverblik(KILDER, NU), gammelt = gammelJoin(KILDER, loginByUser, NU);
+    expect([...nyt.keys()]).toEqual(["aktiv", "tom_status", "ny"]);
+    expect([...nyt.entries()]).toEqual([...gammelt.entries()]);
+    // Og tallene er, som datasættet siger.
+    const a = nyt.get("aktiv")!;
+    expect(a.antalBrugere).toBe(2);
+    expect(a.medlemSiden).toBe(dageFoer(200));
+    expect(a.sessioner.morten.status).toBe("afholdt");
+    expect(a.sessioner.jonas.status).toBe("link_sendt");
+    expect(a.aktivitet.login.dage).toBe(2);
+    expect(a.aktivitet.event_tilmelding.dage).toBe(1); // kun u2's attending uden afbud
+    expect(a.aktivitet.community.dage).toBe(8);
+    expect(a.aktivitet.maal.dage).toBe(20);
+    expect(a.dom.maerker).toEqual([]);
+    const ny = nyt.get("ny")!;
+    expect(ny.dom.maerker).toEqual(["ingen_godkendt_rapport", "traenger", "ingen_session_endnu", "ikke_i_gang"]);
+  });
+
+  it("flere login-rækker pr. bruger: det nyeste vinder, uanset rækkefølge", () => {
+    const k = { ...KILDER, logins: [{ user_id: "u1", logged_in_at: dageFoer(9) }, { user_id: "u1", logged_in_at: dageFoer(2) }, { user_id: "u1", logged_in_at: dageFoer(5) }] };
+    expect(byggOverblik(k, NU).get("aktiv")!.aktivitet.login.dage).toBe(2);
+  });
+});
+
+describe("byggOverblik — universet, og demo-virksomheden (29/9)", () => {
+  it("iUniverset: aktiv/status-løs kunde, ikke legat, ikke demo", () => {
+    expect(iUniverset({ status: "active", is_legat: false, er_kunde: true, is_demo: false })).toBe(true);
+    expect(iUniverset({ status: null, is_legat: null, er_kunde: null, is_demo: null })).toBe(true);
+    expect(iUniverset({ status: "expired", is_legat: false, er_kunde: true, is_demo: false })).toBe(false);
+    expect(iUniverset({ status: "active", is_legat: true, er_kunde: true, is_demo: false })).toBe(false);
+    expect(iUniverset({ status: "active", is_legat: false, er_kunde: false, is_demo: false })).toBe(false);
+    expect(iUniverset({ status: "active", is_legat: false, er_kunde: true, is_demo: true })).toBe(false);
+  });
+
+  it("demo-virksomheden (is_demo) er ude — service role ser den, rådgiverens RLS ikke; filtret er kodens, ens for hook og function", () => {
+    const demo = { id: "a0de0000-0000-4000-8000-000000000001", status: "active", is_legat: false, er_kunde: true, is_demo: true, intro_session_used_at: null, jonas_session_used_at: null };
+    const k = { ...KILDER, companies: [...KILDER.companies, demo] };
+    expect(byggOverblik(k, NU).has(demo.id)).toBe(false);
+    // Uden is_demo-filtret (den gamle join) ville den være med — det er den ene tilsigtede forskel.
+    expect(gammelJoin(k, new Map(), NU).has(demo.id)).toBe(true);
+  });
+});

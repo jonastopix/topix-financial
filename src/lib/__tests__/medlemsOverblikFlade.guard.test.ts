@@ -30,21 +30,27 @@ const HOOK = "src/hooks/medlemsOverblik.ts";
 const VIEW = "src/components/hjemmebane/virksomheder/VirksomhedslisteView.tsx";
 const ORD = "src/lib/hjemmebane/overblikOrd.ts";
 const SORT = "src/lib/hjemmebane/branchefilter.ts";
+const MOTOR = "src/lib/medlemsOverblik.ts";
 
 // ── 1 ──────────────────────────────────────────────────────────────────────
-export const hookenBrugerMotoren = (hook: string): boolean => {
-  const h = udenKommentarer(hook);
-  const importerer = /import \{[^}]*\baktiviteterAf\b[^}]*\} from "@\/lib\/medlemsOverblik";/.test(h)
-    && /import \{[^}]*\boverbliksDom\b[^}]*\} from "@\/lib\/medlemsOverblik";/.test(h)
-    && /import \{[^}]*\bsessionStatus\b[^}]*\} from "@\/lib\/medlemsOverblik";/.test(h);
+/** Siden 29/9 (statusmailen): hooken HENTER kun og kalder byggOverblik — joinen og dommene bor i motoren. */
+export const hookenBrugerMotoren = (hook: string, motor: string): boolean => {
+  const h = udenKommentarer(hook), m = udenKommentarer(motor);
   return (
-    importerer &&
-    (h.match(/sessionStatus\(\{ raadgiver: "(morten|jonas)"/g) ?? []).length === 2 &&
-    h.includes("const aktivitet = aktiviteterAf(input, nu);") &&
-    h.includes("const dom = overbliksDom({") &&
+    /import \{[^}]*\bbyggOverblik\b[^}]*\} from "@\/lib\/medlemsOverblik";/.test(h) &&
+    h.includes("return byggOverblik({ companies, medlemmer, bookinger, logins, facts, uploads, refleksioner, samtaler, events, progress, traade, svar, reaktioner, maal }, nu);") &&
+    // Ingen join og ingen dom i hooken: hverken motorens tre kald, kort pr. virksomhed eller et univers-filter.
+    !/aktiviteterAf\(|sessionStatus\(|overbliksDom\(|new Map<string, string\[\]>|is_legat \|\||erKunde\(/.test(h) &&
     // Ingen egen sessionsregel og ingen egen dagsgrænse i hooken.
-    // (companies.status === "active" er listens univers, ikke en sessionsregel — derfor kun sessionens ord.)
-    !/=== "(booked|booking_sent|cancelled|pending)"|"booked"|"booking_sent"|"cancelled"|slut_tid <|slut_tid >|\* 86_?400_?000|30 \* /.test(h)
+    !/=== "(booked|booking_sent|cancelled|pending)"|"booked"|"booking_sent"|"cancelled"|slut_tid <|slut_tid >|\* 86_?400_?000|30 \* /.test(h) &&
+    // Motoren gør det: de tre kald i byggOverblik, og universet (inkl. is_demo) ét sted.
+    (m.match(/sessionStatus\(\{ raadgiver: "(morten|jonas)"/g) ?? []).length === 2 &&
+    m.includes("const aktivitet = aktiviteterAf(input, nu);") &&
+    m.includes("const dom = overbliksDom({") &&
+    m.includes("if (c.is_demo === true) return false;") &&
+    m.includes("if (!iUniverset(c)) continue;") &&
+    // is_demo hentes — ellers er filtret tomt for hooken.
+    h.includes('select("id, status, is_legat, er_kunde, is_demo, intro_session_used_at, jonas_session_used_at")')
   );
 };
 
@@ -90,7 +96,7 @@ export const standardErOverblik = (sort: string, sorteringer: readonly { id: str
 };
 
 describe("medlemsOverblikFlade.guard — overblikket på /virksomheder", () => {
-  it("1. hooken bruger motoren og har ingen egen sessionsregel", () => expect(hookenBrugerMotoren(laes(HOOK))).toBe(true));
+  it("1. hooken henter kun og kalder byggOverblik — joinen, dommene og universet (inkl. is_demo) bor i motoren", () => expect(hookenBrugerMotoren(laes(HOOK), laes(MOTOR))).toBe(true));
   it("2. aldrig et tavst loft: alle kilder side for side, logins til alle brugere er set", () => expect(aldrigEtTavstLoft(laes(HOOK))).toBe(true));
   it("3. fladen læser mærkerne gennem harMaerke og ordene gennem sessionOrd; «Afholdt» bærer sin title", () => expect(fladenLaeserDommen(laes(VIEW), laes(ORD))).toBe(true));
   it("4. standardsorteringen er «Overblik»", () => expect(standardErOverblik(laes(SORT), SORTERINGER, STANDARD_SORTERING)).toBe(true));
@@ -99,11 +105,14 @@ describe("medlemsOverblikFlade.guard — overblikket på /virksomheder", () => {
 describe("medlemsOverblikFlade.guard — dommene fanger fejlen på en kopi", () => {
   const hook = laes(HOOK), view = laes(VIEW), ord = laes(ORD), sort = laes(SORT);
 
-  it("en egen sessionsregel i hooken, eller motoren sprunget over, fælder dom 1", () => {
-    expect(hookenBrugerMotoren(`${hook}\nconst x = rk[0]?.status === "booked" ? "afholdt" : "booket";\n`)).toBe(false);
-    expect(hookenBrugerMotoren(hook.replace("const aktivitet = aktiviteterAf(input, nu);", "const aktivitet = {} as never;"))).toBe(false);
-    expect(hookenBrugerMotoren(hook.replace('sessionStatus({ raadgiver: "jonas"', 'ownStatus({ raadgiver: "jonas"'))).toBe(false);
-    expect(hookenBrugerMotoren(`${hook}\nconst iVinduet = (d: number) => d < 30 * 86_400_000;\n`)).toBe(false);
+  it("en join tilbage i hooken, byggOverblik sprunget over, is_demo glemt, eller en egen sessionsregel, fælder dom 1", () => {
+    const motor = laes(MOTOR);
+    expect(hookenBrugerMotoren(`${hook}\nconst x = rk[0]?.status === "booked" ? "afholdt" : "booket";\n`, motor)).toBe(false);
+    expect(hookenBrugerMotoren(hook.replace("return byggOverblik({ companies, medlemmer, bookinger, logins, facts, uploads, refleksioner, samtaler, events, progress, traade, svar, reaktioner, maal }, nu);", "return new Map();"), motor)).toBe(false);
+    expect(hookenBrugerMotoren(`${hook}\nconst brugereByCompany = new Map<string, string[]>();\n`, motor)).toBe(false);
+    expect(hookenBrugerMotoren(hook.replace('select("id, status, is_legat, er_kunde, is_demo, intro_session_used_at, jonas_session_used_at")', 'select("id, status, is_legat, er_kunde, intro_session_used_at, jonas_session_used_at")'), motor)).toBe(false);
+    expect(hookenBrugerMotoren(hook, motor.replace("if (c.is_demo === true) return false;", ""))).toBe(false);
+    expect(hookenBrugerMotoren(hook, motor.replace("const aktivitet = aktiviteterAf(input, nu);", "const aktivitet = {} as never;"))).toBe(false);
   });
 
   it("et .limit(, en kilde uden sider, eller en login-løkke der stopper på et tal, fælder dom 2", () => {

@@ -1,63 +1,16 @@
 /**
- * src/lib/medlemsOverblik.ts — rådgiverens samlede overblik over medlemmerne,
- * KUN motoren (29/9-2026). Fladerne (kolonner og filtre på /virksomheder, en
- * ugentlig statusmail) bygges bagefter på denne motor.
+ * supabase/functions/_shared/medlemsOverblik.ts
  *
- * JONAS 29/9: «Vi har brug for et samlet overblik, så vi ikke skal tjekke på
- * hver enkelt kunde» — og en ugentlig mail med status på det hele. Grundlaget
- * er ~/Downloads/recon-raadgiver-overblik.md.
- *
- * MÅLT I PROD 29/9-2026 (Jonas' tal — nulpunktet, motoren skal kunne vise):
- *   - 28 aktive kunder, 27 medlemmer, 3 kunder uden bruger.
- *   - Sessioner: Jonas-retten er sat i hånden for 23 virksomheder 13/9 kl.
- *     20:50–20:54 UTC (Jonas: «det var mig»). Jonas-sessionen er kun en del af
- *     medlemskabet for NYE medlemmer; de 23 er «ikke omfattet», ikke «har haft
- *     session». Morten-retten står som brugt hos 12 uden en eneste
- *     session_bookings-række (21/6–13/8) — årsagen er IKKE målt. Kun 11 rækker
- *     nogensinde. Medlemmerne booker gennem platformen (Jonas).
- *   - 30 dage: login 24/27, godkendt rapport 15/28, uploadet 11/28, events
- *     14/27, chat 13/27, refleksion 7/28, akademi 5/27, community 4/27, mål
- *     2/28, handouts 0/27.
- *
- * GIT-MÅLING 29/9 (git log -p på create-free-intro-booking og calendly-webhook,
- * 15/6 → 20/8): fra første commit (db5e55b9, 21/6) tog functionen retten
- * ATOMISK FØRST (`update({ intro_session_used_at: ts }).is(…, null)`), lavede
- * Calendly-linket, og indsatte DEREFTER rækken (`status: "booking_sent"`) —
- * og rullede retten tilbage (`update({ intro_session_used_at: null })`), hvis
- * link eller insert fejlede. Koden skrev altså en række, når retten blev taget.
- * Retten kunne OGSÅ sættes i hånden fra samme dag (EditCompanyDialog, 0b2759aa
- * 21/6). «Ret brugt uden række» kan derfor ikke komme af den normale vej;
- * hvad det er (hånden, en fejlet rollback, en slettet række), bærer rækken
- * ikke — og motoren påstår det ikke.
- *
- * HUSETS DOMME GENBRUGES, IKKE GENTAGES (målt):
- *   - erAfholdt (lib/introSession)         «afholdt» = booked OG slut_tid passeret
- *   - dageSiden, senesteAf (lib/sidstOnline) hele døgn siden; det seneste stempel
- *   - afgoerIkkeIGang (lib/ikkeIGang)       «ny og ikke kommet i gang» (rapportering)
- *   - STILSTAND_LAENGE_DAGE (forsidensDom) = 60 — samme tal som TRAENGER_GODKENDT_DAGE
- *     (prøven låser ligheden; ikke importeret, forsidensDom er fladens fil)
- *   IKKE genbrugt: doemStille (lib/stilleDom) dømmer KONTRAKTER for klokkerne
- *   (90/120/150 dage) — et andet spørgsmål end «hvem trænger til et blik nu».
- *
- * REN: ingen React, ingen Supabase. Tiden gives ind som `nu`. Prøvet i
- * __tests__/medlemsOverblik.test.ts.
- *
- * SPEJLET i supabase/functions/_shared/medlemsOverblik.ts (29/9, statusmailen):
- * kroppen efter dette filhoved er ordret ens på nær import-linjerne
- * (`@/lib/x` her, `./x.ts` dér — edge functions kan ikke importere fra src,
- * og der er intet import map). Paritetsprøven __tests__/medlemsOverblik.paritet
- * normaliserer KUN import-linjerne og sammenligner resten tegn for tegn.
- * De tre importerede domme er spejlet på samme måde (introSession, sidstOnline,
- * raadgiverensKunder — uden imports; ikkeIGang havde sit spejl i forvejen).
- *
- * ÉN SAMMENKOBLING (29/9): byggOverblik nederst er DEN join, hooken og
- * statusmailens function deler — fra rå rækker til én OverbliksRaekke pr.
- * virksomhed. Hooken henter kun; functionen henter kun; begge kalder den.
+ * SPEJL af src/lib/medlemsOverblik.ts (medlemsOverblik — rådgiverens samlede overblik: sessioner, aktivitet, dom og sammenkoblingen).
+ * Kroppen efter dette filhoved er ORDRET den samme som i src-udgaven — på nær import-linjerne (`@/lib/x` dér, `./x.ts` her; edge functions kan ikke importere fra src, og der er intet import map);
+ * paritetsprøven src/lib/__tests__/medlemsOverblik.paritet.test.ts sammenligner tegn for tegn
+ * og fælder, når kun det ene spejl ændres. Begrundelserne står i src-udgavens filhoved.
+ * Lavet 29/9-2026 til statusmailen (Bucket B), som ikke kan nå src/lib.
  */
-import { erAfholdt } from "@/lib/introSession";
-import { dageSiden, senesteAf } from "@/lib/sidstOnline";
-import { afgoerIkkeIGang, type IkkeIGangInput } from "@/lib/ikkeIGang";
-import { erKunde } from "@/lib/raadgiverensKunder";
+import { erAfholdt } from "./introSession.ts";
+import { dageSiden, senesteAf } from "./sidstOnline.ts";
+import { afgoerIkkeIGang, type IkkeIGangInput } from "./ikkeIGang.ts";
+import { erKunde } from "./raadgiverensKunder.ts";
 
 // ── Sessioner ────────────────────────────────────────────────────────────────
 
