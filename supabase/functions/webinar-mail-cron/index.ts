@@ -51,7 +51,15 @@
 // før timen er gået (pause). I løkken stopper et 403/420/429 kørslen med det
 // samme — EFTER sporet er skrevet. Det, der ikke nås, hedder «over_loft» i
 // svaret og er ikke en fejl: det tages i en senere kørsel, så længe dommens
-// nåde holder. Rækkefølgen i sendinger er urørt (ældste planlagte først).
+// nåde holder. Rækkefølgen i sendinger er dommens: bekræftelser først, derefter
+// ældste planlagte (webinarMailDom.planlaegKoersel).
+//
+// INDHENTNINGEN (Jonas 29/9-2026): en mail, vi HAR forsøgt og fejlede med, er
+// bevis for, at personen var klar til tiden — den droppes ikke efter nåden, men
+// indhentes til den næste arts dato (dommens INDHENTNING i doemMail). Cronen
+// læser derfor de fejlede nøgler (udfald <> 'ok') med SAMME afgrænsning som de
+// sendte og giver dem til planlaegKoersel som `fejlede`. Uden dem er dommen
+// ordret som før, og en fejlet mail bliver for_sent to timer efter sit tidspunkt.
 //
 // BODY (STRIKS, bodyFelter.guard): dry_run · email · art · nu.
 //
@@ -97,9 +105,13 @@ export interface MailResultat {
   tilmeldinger_laest: number;
   afmeldte_laest: number;
   sendte_foer: number;
+  /** Nøgler med mindst ét fejlet forsøg (udfald <> 'ok') i vinduet — grundlaget for indhentningen. */
+  fejlede_foer: number;
   /** Mails, der SKAL sendes nu. */
   skal_sendes: number;
   sprunget: Record<Springgrund, number>;
+  /** Af skal_sendes: mails, der indhentes efter et fejlet forsøg (dommens `indhentning`). */
+  indhentet: number;
   sendt: number;
   fejlede: number;
   /** Ikke nået inden for budgettet — tages om fem minutter. */
@@ -120,7 +132,7 @@ export interface MailResultat {
   };
   /** Mails, der skulle sendes, men ikke blev forsøgt: loftet var nået, eller Mailgun sagde stop. Tages i en senere kørsel — ikke en fejl. */
   over_loft: number;
-  eksempler: { email: string; art: MailArt; session_tid: string; udfald?: string }[];
+  eksempler: { email: string; art: MailArt; session_tid: string; indhentning?: true; udfald?: string }[];
   fejl: string[];
 }
 
@@ -150,9 +162,9 @@ async function laasErAktiv(admin: SupabaseClient): Promise<boolean> {
 const tomt = (a: { toer: boolean; laas: boolean; email: string | null; art: string | null; nu: Date; senderRigtigt: boolean }): MailResultat => ({
   ok: true, dry_run: a.toer, laas_aktiv: a.laas, sender_rigtigt: a.senderRigtigt,
   nu: a.nu.toISOString(), email: a.email, art: a.art,
-  tilmeldinger_laest: 0, afmeldte_laest: 0, sendte_foer: 0, skal_sendes: 0,
-  sprunget: { afmeldt: 0, ingen_session: 0, ingen_mail: 0, for_sent: 0, endnu_ikke: 0, sessionen_begyndt: 0, allerede_sendt: 0, for_tidlig_tilmelding: 0 },
-  sendt: 0, fejlede: 0, udsat: 0, dublet: 0, med_invitation: 0, uden_invitation: 0,
+  tilmeldinger_laest: 0, afmeldte_laest: 0, sendte_foer: 0, fejlede_foer: 0, skal_sendes: 0,
+  sprunget: { afmeldt: 0, ingen_session: 0, ingen_mail: 0, for_sent: 0, endnu_ikke: 0, sessionen_begyndt: 0, allerede_sendt: 0, for_tidlig_tilmelding: 0, for_sent_efter_fejl: 0 },
+  indhentet: 0, sendt: 0, fejlede: 0, udsat: 0, dublet: 0, med_invitation: 0, uden_invitation: 0,
   loft: { forsoeg_60_min: 0, maks: MAILGUN_LOFT_PR_TIME, pause: null, stoppet_ved: null }, over_loft: 0,
   eksempler: [], fejl: [],
 });
@@ -188,12 +200,24 @@ async function koer(a: { admin: SupabaseClient; toerKoersel: boolean; laas: bool
   const sendte = new Set(sendteRaekker.map((x) => noegle(x.email, x.session_tid, x.art)));
   r.sendte_foer = sendte.size;
 
+  // 3b. Det, vi har FORSØGT og fejlet med (29/9) — samme afgrænsning som de
+  //     sendte. En nøgle med både et fejlet og et ok-forsøg er sendt:
+  //     allerede_sendt går foran indhentningen i dommen.
+  const fejledeRaekker = await alleSider<{ email: string; session_tid: string; art: MailArt }>((fra, til) =>
+    a.admin.from("webinar_mails").select("email, session_tid, art").neq("udfald", "ok")
+      .gte("session_tid", graense).order("id", { ascending: true }).range(fra, til));
+  const fejlede = new Set(fejledeRaekker.map((x) => noegle(x.email, x.session_tid, x.art)));
+  r.fejlede_foer = fejlede.size;
+
   // 4. Dommen.
-  const plan = planlaegKoersel({ raekker, afmeldte, sendte, nu: a.nu });
+  const plan = planlaegKoersel({ raekker, afmeldte, sendte, fejlede, nu: a.nu });
   r.sprunget = plan.sprunget;
   const sendinger = a.art ? plan.sendinger.filter((s) => s.art === a.art) : plan.sendinger;
   r.skal_sendes = sendinger.length;
-  for (const s of sendinger.slice(0, EKSEMPLER_MAKS)) r.eksempler.push({ email: s.email, art: s.art, session_tid: s.sessionTid });
+  r.indhentet = sendinger.filter((s) => s.indhentning === true).length;
+  for (const s of sendinger.slice(0, EKSEMPLER_MAKS)) {
+    r.eksempler.push({ email: s.email, art: s.art, session_tid: s.sessionTid, ...(s.indhentning === true ? { indhentning: true as const } : {}) });
+  }
 
   // 4b. LOFTET (29/9): hvor mange kald må denne kørsel gøre hos Mailgun? Alle
   //     forsøg de sidste 60 min tælles — også de afviste. Regnes på RIGTIG tid,
@@ -349,7 +373,7 @@ Deno.serve(async (req) => {
 
   try {
     const r = await koer({ admin, toerKoersel, laas, email, art: artRaa as MailArt | null, nu, startMs, basis });
-    console.log(`${LOG} ${r.dry_run ? "TØRKØRSEL" : r.sender_rigtigt ? "SENDER" : "LÅST"} — skal_sendes ${r.skal_sendes}, sendt ${r.sendt}, fejlede ${r.fejlede}, udsat ${r.udsat}, over_loft ${r.over_loft} (maks ${r.loft.maks}${r.loft.pause ? ", PAUSE" : ""})`);
+    console.log(`${LOG} ${r.dry_run ? "TØRKØRSEL" : r.sender_rigtigt ? "SENDER" : "LÅST"} — skal_sendes ${r.skal_sendes} (indhentet ${r.indhentet}), sendt ${r.sendt}, fejlede ${r.fejlede}, udsat ${r.udsat}, over_loft ${r.over_loft} (maks ${r.loft.maks}${r.loft.pause ? ", PAUSE" : ""})`);
     return json(r);
   } catch (err) {
     const grund = err instanceof Error ? err.message : String(err);
