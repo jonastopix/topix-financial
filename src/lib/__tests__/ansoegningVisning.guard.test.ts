@@ -22,8 +22,9 @@ import { VISNINGS_TRIN as KLIENT_TRIN } from "@/lib/ansoegning/visning";
  *      og hverken visning.ts eller sporets linjer i Ansoeg.tsx rører localStorage,
  *      sessionStorage eller document.cookie.
  *   6. TRINENE ER ÉN LISTE: klientens, serverens og migrationens CHECK er ens.
- *   7. SPORET RØRER ALDRIG ANSOEGNINGER, og migrationen starter med
- *      «-- IKKE KØRT. DEPLOY:» (CLAUDE.md, 19/9-lærdommen).
+ *   7. SPORET RØRER ALDRIG ANSOEGNINGER, og migrationen er bogført
+ *      «-- KØRT i prod — …målt kørt 29/9-2026 kl. 14:26» (vendt 29/9; var
+ *      «-- IKKE KØRT. DEPLOY:», CLAUDE.md 19/9-lærdommen, indtil kørslen var målt).
  */
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -125,7 +126,8 @@ export const trinEns = (klient: readonly string[], server: readonly string[], sq
 export const roererIkkeAnsoegninger = (gem: string, sql: string): boolean =>
   !sporGren(udenKommentarer(gem)).includes('.from("ansoegninger")') &&
   sporGren(udenKommentarer(gem)).includes('.from("ansoegning_visninger")') &&
-  sql.split("\n")[0].startsWith("-- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).");
+  sql.split("\n")[0].startsWith("-- KØRT i prod — kørselstidspunkt ikke bogført; målt kørt 29/9-2026 kl. 14:26") &&
+  sql.split("\n")[0].includes("kolonner 17 · rls_slaaet_til true · policies 0");
 
 describe("sporet før ansøgningen — kildeværn", () => {
   const api = laes(API), side = laes(SIDE), klient = laes(KLIENT), gem = laes(GEM), sql = laes(MIGRATION);
@@ -135,7 +137,7 @@ describe("sporet før ansøgningen — kildeværn", () => {
   it("4. rate-grænsen dømmes før skrivningen, og tællingen er fail-closed", () => expect(loftFoerSkrivning(gem)).toBe(true));
   it("5. visnings-id'et lever kun i sidens hukommelse", () => expect(idKunIHukommelsen(klient, side)).toBe(true));
   it("6. trinene er én liste — klient, server og CHECK", () => expect(trinEns(KLIENT_TRIN, SERVER_TRIN, sql)).toBe(true));
-  it("7. sporet rører aldrig ansoegninger, og migrationen er mærket IKKE KØRT", () => expect(roererIkkeAnsoegninger(gem, sql)).toBe(true));
+  it("7. sporet rører aldrig ansoegninger, og migrationen er bogført KØRT (målt 29/9 14:26)", () => expect(roererIkkeAnsoegninger(gem, sql)).toBe(true));
 });
 
 describe("sporet før ansøgningen — værnet fælder (selvbevis på kopier)", () => {
@@ -180,8 +182,10 @@ describe("sporet før ansøgningen — værnet fælder (selvbevis på kopier)", 
     expect(trinEns(KLIENT_TRIN, SERVER_TRIN, sql.split("'vist', 'start', 'tastet'").join("'vist', 'start'"))).toBe(false);
   });
 
-  it("en spor-gren, der skriver i ansoegninger, eller en migration uden IKKE KØRT, fælder dom 7", () => {
+  it("en spor-gren, der skriver i ansoegninger, en migration uden KØRT-linjen eller tilbage på IKKE KØRT, fælder dom 7", () => {
     expect(roererIkkeAnsoegninger(gem.split('.from("ansoegning_visninger")\n        .upsert(').join('.from("ansoegninger")\n        .upsert('), sql)).toBe(false);
     expect(roererIkkeAnsoegninger(gem, sql.split("\n").slice(1).join("\n"))).toBe(false);
+    const tilbage = ["-- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).", ...sql.split("\n").slice(1)].join("\n");
+    expect(roererIkkeAnsoegninger(gem, tilbage)).toBe(false);
   });
 });
