@@ -106,6 +106,10 @@ const STRIKS: readonly string[] = [
   // afvises. (webinar-afmeld står IKKE her: den læser ét felt ud af URL'en
   // eller en form-post — ikke en JSON-body med nøgler, man kan misforstå.)
   "webinar-mail-cron",
+
+  // Klokken «Dit certifikat er klar» (certifikat trin 2, 29/9): dry_run og nu,
+  // alt andet afvises.
+  "certifikat-klokke",
 ];
 
 /**
