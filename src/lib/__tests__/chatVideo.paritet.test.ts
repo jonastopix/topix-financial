@@ -33,25 +33,27 @@ describe("chatVideo.paritet — kildeteksten", () => {
 
 describe("chatVideo.paritet — dommen svarer ens", () => {
   const GUID = "657bb740-a71b-4529-a012-528021c31a92";
-  const CHAT = "3f1c2a4e-9b8d-4c7a-a1e2-0d9f8b7c6a51";
 
   it("konstanterne", () => {
     expect(deno.MAKS_SEKUNDER).toBe(src.MAKS_SEKUNDER);
     expect(deno.BUNNY_VIDEO_STATUS).toEqual(src.BUNNY_VIDEO_STATUS);
   });
 
-  it("laesChatVideo, videoStatus, iChatCollection og maaSlette på samme input", () => {
+  it("laesChatVideo, videoStatus, erAfspillelig, iChatBibliotek og maaSlette på samme input", () => {
     for (const meta of [null, {}, { video: { guid: GUID } }, { video: { guid: "x" } }, { video: { guid: GUID.toUpperCase() } }]) {
       expect(deno.laesChatVideo(meta)).toEqual(src.laesChatVideo(meta));
     }
     for (const status of [0, 1, 2, 3, 4, 5, 6, 7, 8, 99, undefined]) {
       for (const availableResolutions of ["", "360p", " , ", null]) {
-        const v = { status, availableResolutions };
-        expect(deno.videoStatus(v)).toBe(src.videoStatus(v));
+        for (const afspilData of [undefined, null, {}, { isPlayable: true }, { isPlayable: false }, { isPlayable: "true" }]) {
+          const v = { status, availableResolutions };
+          expect(deno.videoStatus(v, afspilData)).toBe(src.videoStatus(v, afspilData));
+          expect(deno.erAfspillelig(afspilData)).toBe(src.erAfspillelig(afspilData));
+        }
       }
     }
-    for (const [v, c] of [[{ collectionId: CHAT }, CHAT], [{ collectionId: CHAT }, ""], [{}, CHAT], [null, CHAT]] as const) {
-      expect(deno.iChatCollection(v, c)).toBe(src.iChatCollection(v, c));
+    for (const [v, c] of [[{ videoLibraryId: 765771 }, "765771"], [{ videoLibraryId: 765771 }, 765771], [{ videoLibraryId: 720547 }, "765771"], [{ videoLibraryId: "765771" }, "765771"], [{}, "765771"], [null, "765771"], [{ videoLibraryId: 765771 }, ""], [{ videoLibraryId: 765771 }, null]] as const) {
+      expect(deno.iChatBibliotek(v, c)).toBe(src.iChatBibliotek(v, c));
     }
     for (const i of [
       { callerId: "a", senderId: "a", erAdmin: false },
