@@ -17,6 +17,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useOnlineTracking } from "@/hooks/onlineTracking";
 import { listAllUpcomingEvents } from "@/lib/hjemmebane/akademiApi";
 import { LIVE_MAERKE, liveEvent, liveEventSti, liveEventTitel } from "@/lib/hjemmebane/liveEvent";
+import { useCertificate } from "@/hooks/useCertificate";
 
 /** Fælles Hb-medlemsskal for forsiden ("/") og de øvrige medlemsflader
     (generalisering af den tidligere HbAkademiShell): V0-layoutmodellen
@@ -148,7 +149,13 @@ export const HbMemberShell = ({
      (listen hører på forsiden). Samme array til desktop-sidebaren og
      mobil-draweren nedenfor. */
   // «Økonomi» (Ø2, 18/9) kun for partnere — useAuth's isPartner, aldrig isAdmin.
-  const navUdenMaerke: HbNavEntry[] = bygHbNav({ isAdvisor, erAbonnent, active, isPartner });
+  /* «DIT CERTIFIKAT» (29/9): punktet findes kun for berettigede fulde
+     medlemmer (companies.certificate_eligible) — useCertificate svarer null
+     for alle andre uden et kald, og deler cache-nøgle med siden /certifikat,
+     så skallen koster ét opslag pr. session, ikke ét pr. side. Hook i
+     topblokken, før enhver betinget return. */
+  const certifikat = useCertificate();
+  const navUdenMaerke: HbNavEntry[] = bygHbNav({ isAdvisor, erAbonnent, active, isPartner, certifikat: certifikat.menu });
 
   /* «LIVE NU» VED EVENTS (Jonas 10/9). Hentningen deler cache-nøgle med
      /events og Community-composeren (["events", "upcoming-all"]), så

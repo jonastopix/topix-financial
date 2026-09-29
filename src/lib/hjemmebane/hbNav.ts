@@ -73,6 +73,7 @@
  */
 
 import type { HbNavEntry } from "@/components/hjemmebane/HbSidebar";
+import type { CertifikatMenu } from "@/lib/certifikat/dom";
 
 export type HbAktiv =
   | "boardroom" | "akademiet" | "rapportering" | "noegletal" | "budget" | "milestones" | "handouts"
@@ -85,7 +86,9 @@ export type HbAktiv =
   /** /webinar (19/9): webinartallene — tilmeldte, deltagelse, annoncespor. Alle rådgivere. */
   | "webinar"
   /** /deling (14/9): «Fortæl det videre», sidste punkt i medlemmets menu. */
-  | "deling";
+  | "deling"
+  /** /certifikat (29/9): «Dit certifikat» — efter «Fortæl det videre», kun når medlemmet er berettiget. */
+  | "certifikat";
 
 export interface HbNavInput {
   isAdvisor: boolean;
@@ -95,6 +98,12 @@ export interface HbNavInput {
       rådgivermenuen KUN for partnere. Udeladt = ikke partner; menuen er
       uændret for alle andre rådgivere. */
   isPartner?: boolean;
+  /** «Dit certifikat» (29/9, HANDOFF §3 «Menupunkt»): punktets tilstand fra
+      lib/certifikat/dom.ts certifikatMenu — «ny» (åbent, aldrig hentet: mærket
+      «Ny»), «laast» (hængelås efter teksten), «aaben» (punktet alene). Udeladt
+      eller null = intet punkt: menuen er ordret som før for alle, der ikke er
+      berettiget — og for rådgivere altid. */
+  certifikat?: CertifikatMenu | null;
 }
 
 export const BLOK_MEDLEMMETS_FLADER = "Medlemmets flader";
@@ -118,9 +127,9 @@ const rabataftaler = (active: HbAktiv): HbNavEntry => ({ label: "Rabataftaler", 
 
 /** Medlemmets menu — ORDRET som før 8/9 (HbMemberShell.tsx:107-220), minus
     «Podcast & Talks» (15/9, se filhovedet). */
-export function medlemmetsNav(active: HbAktiv, erAbonnent: boolean, boardroomTo: string): HbNavEntry[] {
+export function medlemmetsNav(active: HbAktiv, erAbonnent: boolean, boardroomTo: string, certifikat?: CertifikatMenu | null): HbNavEntry[] {
   if (erAbonnent) return [dineTal(active), rabataftaler(active)];
-  return [
+  const punkter: HbNavEntry[] = [
     { label: "Dit Boardroom", to: boardroomTo, active: active === "boardroom" },
     dineTal(active),
     {
@@ -143,6 +152,22 @@ export function medlemmetsNav(active: HbAktiv, erAbonnent: boolean, boardroomTo:
     // Kun fulde medlemmer — abonnenten er ikke «optaget i The Boardroom».
     { label: "Fortæl det videre", to: "/deling", active: active === "deling" },
   ];
+  // «Dit certifikat» (29/9): SIDST, efter «Fortæl det videre» — og KUN når
+  // medlemmet er berettiget (certifikat sat). Et lukket område skal ikke
+  // stå i menuen for dem, det aldrig åbner for. Mærket «Ny» går til siden
+  // selv (der er ingen anden side at gå til, modsat Events' «Live nu»).
+  if (certifikat) punkter.push(certifikatPunkt(active, certifikat));
+  return punkter;
+}
+
+export const CERTIFIKAT_LABEL = "Dit certifikat";
+export const CERTIFIKAT_NY = "Ny";
+
+function certifikatPunkt(active: HbAktiv, tilstand: CertifikatMenu): HbNavEntry {
+  const punkt: HbNavEntry = { label: CERTIFIKAT_LABEL, to: "/certifikat", active: active === "certifikat" };
+  if (tilstand === "ny") punkt.maerke = { tekst: CERTIFIKAT_NY, to: "/certifikat", titel: "Dit certifikat er klar til at blive hentet" };
+  if (tilstand === "laast") punkt.laast = true;
+  return punkt;
 }
 
 /** Rådgiverens menu (8/9) — se filhovedet. «Økonomi» (Ø2, 18/9) står sidst
@@ -188,7 +213,7 @@ export function raadgiverensNav(active: HbAktiv, isPartner = false): HbNavEntry[
 /** Hele nav'en for skallen. Rådgiveren får sin egen; medlemmet sin — den
     dag en rådgivers egen tier skulle være abonnent, vinder rådgivermenuen
     (før hang admin-blokken på begge grene af samme grund). */
-export function bygHbNav({ isAdvisor, erAbonnent, active, isPartner }: HbNavInput): HbNavEntry[] {
+export function bygHbNav({ isAdvisor, erAbonnent, active, isPartner, certifikat }: HbNavInput): HbNavEntry[] {
   if (isAdvisor) return raadgiverensNav(active, isPartner === true);
-  return medlemmetsNav(active, erAbonnent, erAbonnent ? "/kpis" : "/");
+  return medlemmetsNav(active, erAbonnent, erAbonnent ? "/kpis" : "/", certifikat);
 }

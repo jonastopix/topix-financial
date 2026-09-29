@@ -72,7 +72,8 @@ export const menupunktKunForPartnere = (nav: string, shell: string): boolean => 
     nav.indexOf('label: "Økonomi"') > nav.indexOf("export function raadgiverensNav(") &&
     nav.indexOf('label: "Økonomi"') < nav.indexOf("export function bygHbNav(") &&
     shell.includes("const { user, profile, signOut, membershipTier, isAdvisor, isPartner } = useAuth();") &&
-    shell.includes("bygHbNav({ isAdvisor, erAbonnent, active, isPartner })");
+    // Rettet med vilje 29/9 («Dit certifikat»): kaldet bærer også certifikat-tilstanden; isPartner er stadig useAuth's, ikke isAdmin.
+    shell.includes("bygHbNav({ isAdvisor, erAbonnent, active, isPartner, certifikat: certifikat.menu })");
 };
 
 /** Dom 5 (tillæg): hooket kalder præcis RPC'en og kun for partnere. */
@@ -122,7 +123,7 @@ describe("oekonomiPartner.guard — Ø2: partner-tjek først, kun partnere læse
   });
   it("selvbevis 4: «Økonomi» uden gate, eller skallen der giver isAdmin, falder", () => {
     expect(menupunktKunForPartnere(nav.replace('...(isPartner === true ? [{ label: "Økonomi", to: "/oekonomi", active: active === "oekonomi" }] : []),', '{ label: "Økonomi", to: "/oekonomi", active: active === "oekonomi" },'), shell)).toBe(false);
-    expect(menupunktKunForPartnere(nav, shell.replace("bygHbNav({ isAdvisor, erAbonnent, active, isPartner })", "bygHbNav({ isAdvisor, erAbonnent, active, isPartner: isAdmin })"))).toBe(false);
+    expect(menupunktKunForPartnere(nav, shell.replace("bygHbNav({ isAdvisor, erAbonnent, active, isPartner, certifikat: certifikat.menu })", "bygHbNav({ isAdvisor, erAbonnent, active, isPartner: isAdmin, certifikat: certifikat.menu })"))).toBe(false);
   });
   it("selvbevis 5: hooket der læser tabellen direkte, eller uden partner-gate, falder", () => {
     expect(hooketKalderRpcKunForPartnere(hook + '\nsupabase.from("kontrakter").select("*");', overblik)).toBe(false);

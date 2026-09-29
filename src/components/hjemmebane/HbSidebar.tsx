@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Link } from "react-router-dom";
-import { ListChecks, LogOut, X } from "lucide-react";
+import { ListChecks, Lock, LogOut, X } from "lucide-react";
 import topixIcon from "@/assets/topix-icon-green.png";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +23,10 @@ export interface HbNavEntry {
       mærkets eget link (eventets side); `titel` er skærmlæserens tekst.
       Udeladt = ingen ændring. Der fandtes intet mærke-mønster før dette. */
   maerke?: { tekst: string; to: string; titel?: string };
+  /** En hængelås EFTER teksten (29/9, «Dit certifikat» før det åbner): punktet
+      er der og kan åbnes (siden forklarer hvornår), men det er lukket endnu.
+      Dæmpet, uden animation, i samme farve som teksten. Udeladt = ingen ændring. */
+  laast?: boolean;
 }
 
 /** Miljø-strukturen som navigation. Døde links i previewen — kun "Dit Boardroom" er reel. */
@@ -83,21 +87,25 @@ interface HbSidebarProps {
   spotifyLink?: { href: string; tekst: string };
 }
 
-const NavItem = ({ label, active, to, maerke }: { label: string; active?: boolean; to?: string; maerke?: HbNavEntry["maerke"] }) => {
+const NavItem = ({ label, active, to, maerke, laast }: { label: string; active?: boolean; to?: string; maerke?: HbNavEntry["maerke"]; laast?: boolean }) => {
   const className = cn(
     "relative flex h-10 items-center rounded-full px-4 text-[15px] transition-colors",
     active ? "font-medium text-hb-ink" : "text-hb-ink-soft hover:bg-hb-sage/30 hover:text-hb-ink",
   );
   const marker = active && <span className="absolute left-0 h-5 w-[3px] rounded-full bg-hb-evergreen" />;
+  // Hængelåsen (29/9): et roligt ikon efter teksten — skærmlæseren får ordet.
+  const laas = laast && <Lock aria-label="Åbner senere" role="img" className="ml-2 h-3.5 w-3.5 shrink-0 opacity-70" />;
   const link = to ? (
     <Link to={to} className={cn(className, maerke && "min-w-0 flex-1")}>
       {marker}
       {label}
+      {laas}
     </Link>
   ) : (
     <a href="#" className={className}>
       {marker}
       {label}
+      {laas}
     </a>
   );
   if (!maerke) return link;
@@ -175,7 +183,7 @@ const SidebarContent = ({
               <p className="border-t border-hb-line pt-4 text-xs text-hb-ink-soft">{item.blok}</p>
             </div>
           )}
-          <NavItem label={item.label} active={item.active} to={item.to} maerke={item.maerke} />
+          <NavItem label={item.label} active={item.active} to={item.to} maerke={item.maerke} laast={item.laast} />
           {item.children && (
             /* Gren-hairline lokalt mørknet: hb-line (L88) drukner som fritstående
                1px-streg direkte på papiret (L97). Tokenen er urørt. */

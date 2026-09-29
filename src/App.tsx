@@ -28,6 +28,7 @@ const Milestones = lazy(() => import("./pages/Milestones"));
 const Settings = lazy(() => import("./pages/Settings"));
 const Konto = lazy(() => import("./pages/Konto"));
 const Deling = lazy(() => import("./pages/Deling"));
+const Certifikat = lazy(() => import("./pages/Certifikat"));
 const ChatShell = lazy(() => import("./pages/ChatShell"));
 const BookSession = lazy(() => import("./pages/BookSession"));
 const MedlemTilVirksomhed = lazy(() => import("./pages/MedlemTilVirksomhed"));
@@ -337,6 +338,8 @@ const App = () => (
               <Route path="/konto" element={<ProtectedRoute><Konto /></ProtectedRoute>} />
               {/* Delingskreativen (14/9, første skridt): én kreativ på skærmen. Intet menupunkt endnu. */}
               <Route path="/deling" element={<MemberRoute><Deling /></MemberRoute>} />
+              {/* «Dit certifikat» (29/9, trin 1): kun berettigede fulde medlemmer — siden selv sender alle andre til forsiden. */}
+              <Route path="/certifikat" element={<MemberRoute><Certifikat /></MemberRoute>} />
               <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
               <Route path="/admin/config" element={<AdminRoute><AdminConfig /></AdminRoute>} />
               <Route path="/admin/emails" element={<AdminRoute><EmailTemplates /></AdminRoute>} />
