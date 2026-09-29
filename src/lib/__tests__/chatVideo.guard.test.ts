@@ -27,6 +27,9 @@ import { resolve } from "node:path";
  *      collection-secret; mangler en, svares 503 not_configured med navnene —
  *      ingen fallback. Dommen og spejlet kender hverken iChatCollection eller
  *      BUNNY_STREAM i kode.
+ *   7. INGEN TOM VIDEO HOS BUNNY (29/9): uploadChatVideo afviser en fil på
+ *      0 bytes (erTomFil) FØR «opret» kaldes — så der aldrig oprettes et tomt
+ *      objekt i chat-biblioteket, uanset hvad fladen har gjort.
  */
 
 const ROD = process.cwd();
@@ -51,6 +54,7 @@ const BUNNY_ADMIN = "supabase/functions/bunny-content-admin/index.ts";
 const CONFIG = "supabase/config.toml";
 const DOM_DENO = "supabase/functions/_shared/chatVideo.ts";
 const DOM_SRC = "src/lib/chatVideo.ts";
+const UPLOAD = "src/lib/chatVideoUpload.ts";
 
 const GATE_START = 'const { data: isAdvisor, error: roleError } = await callerClient.rpc("has_role", {';
 const GATE_SLUT = 'return jsonResponse({ error: "Forbidden — advisor role required" }, 403);\n  }';
@@ -166,7 +170,19 @@ export const egneSecrets = (funktion: string, domDeno: string, domSrc: string): 
     /export function iChatBibliotek\(/.test(udenKommentarer(domDeno));
 };
 
-describe("chatVideo.guard — de seks domme på repoets filer", () => {
+// ── 7 ──────────────────────────────────────────────────────────────────────
+export const ingenTomVideoHosBunny = (upload: string): boolean => {
+  const u = udenKommentarer(upload);
+  const fn = u.slice(u.indexOf("export async function uploadChatVideo("));
+  const TJEK = 'if (erTomFil(fil)) return { ok: false, grund: "tom", besked: TOM_TEKST.optagelse };';
+  return u.includes('import { erTomFil, TOM_TEKST } from "@/lib/chatVideoFlade";') &&
+    fn.includes(TJEK) &&
+    foer(fn, TJEK, 'await supabase.functions.invoke("chat-video", {') &&
+    foer(fn, TJEK, "new tus.Upload(fil, {") &&
+    antal(fn, "await supabase.functions.invoke(") === 1;
+};
+
+describe("chatVideo.guard — de syv domme på repoets filer", () => {
   const funktion = laes(FUNKTION);
   it("1. Bucket A: authenticateUser først, ingen service role, kun to imports", () => expect(bucketA(funktion)).toBe(true));
   it("2. opret er rådgiver-gated FØR Bunny — gaten ordret som bunny-content-admin; ingen collection", () =>
@@ -176,6 +192,7 @@ describe("chatVideo.guard — de seks domme på repoets filer", () => {
   it("5. config.toml: chat-video har verify_jwt = true", () => expect(configErTrue(laes(CONFIG))).toBe(true));
   it("6. egne secrets: præcis de tre BUNNY_CHAT_*, aldrig BUNNY_STREAM_*, ingen collection, 503 med navnene", () =>
     expect(egneSecrets(funktion, laes(DOM_DENO), laes(DOM_SRC))).toBe(true));
+  it("7. uploadChatVideo afviser 0 bytes FØR opret og FØR TUS", () => expect(ingenTomVideoHosBunny(laes(UPLOAD))).toBe(true));
 });
 
 describe("chatVideo.guard — dommene fanger fejlen på en kopi", () => {
@@ -283,5 +300,16 @@ describe("chatVideo.guard — dommene fanger fejlen på en kopi", () => {
     expect(egneSecrets(f, deno, `${src}\nconst k = "BUNNY_STREAM_CHAT_COLLECTION_ID";\n`)).toBe(false);
     // Og en KOMMENTAR, der nævner de delte, fælder ikke — det er koden, der dømmes.
     expect(egneSecrets(`${f}\n// BUNNY_STREAM_* er Hjemmebanes — ikke her.\n`, deno, src)).toBe(true);
+  });
+
+  it("7. tjekket væk, tjekket efter opret, eller et tjek der lader 0 bytes igennem fælder dom 7", () => {
+    const u = laes(UPLOAD);
+    const TJEK = '  if (erTomFil(fil)) return { ok: false, grund: "tom", besked: TOM_TEKST.optagelse };\n';
+    expect(u).toContain(TJEK);
+    expect(ingenTomVideoHosBunny(u.replace(TJEK, ""))).toBe(false);
+    const efterOpret = u.replace(TJEK, "").replace("  const grant = data as Grant;", `${TJEK}  const grant = data as Grant;`);
+    expect(efterOpret).not.toBe(u);
+    expect(ingenTomVideoHosBunny(efterOpret)).toBe(false);
+    expect(ingenTomVideoHosBunny(u.replace("if (erTomFil(fil))", "if (fil.size < 0)"))).toBe(false);
   });
 });

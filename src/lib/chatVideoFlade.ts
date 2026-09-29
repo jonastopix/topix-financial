@@ -52,6 +52,26 @@ export function vaelgOptageformat(erUnderstoettet: (mimeType: string) => boolean
   return null;
 }
 
+/**
+ * INGEN TOM VIDEO (Jonas 29/9): en fil eller optagelse på 0 bytes må aldrig
+ * uploades — optageren samler blob'en af de chunks, der kom
+ * (ChatVideoOptager.tsx: new Blob(stykker)), så en tom liste giver 0 bytes, og
+ * intet tjekkede størrelsen før upload (recon-video-storage.md §3,
+ * recon-video-hurtigere.md §4). Ét tjek, brugt tre steder:
+ * optagerens «Send», «Vælg fil» og uploadChatVideo (før «opret», så der aldrig
+ * oprettes et tomt objekt hos Bunny). INGEN øvre bytegrænse: Bunny
+ * dokumenterer ingen (recon-video-hurtigere.md §4), og 3 minutter er loftet.
+ */
+export function erTomFil(fil: { size: unknown } | null | undefined): boolean {
+  const size = fil?.size;
+  return typeof size !== "number" || !Number.isFinite(size) || size <= 0;
+}
+
+export const TOM_TEKST = {
+  optagelse: "Optagelsen blev tom. Prøv at optage igen.",
+  fil: "Filen er tom.",
+} as const;
+
 export type FilLaengdeDom = "ok" | "for_lang" | "ukendt";
 
 /**
@@ -88,9 +108,18 @@ export function byggVideoBesked(i: { guid: string; varighed: number }): {
   };
 }
 
-/** «behandles» spørges igen hvert 10. sekund … */
+/**
+ * «behandles» spørges igen hvert 2. sekund det FØRSTE minut fra første svar
+ * (Jonas 29/9: «den bedste oplevelse for alle» — med JIT er videoen typisk
+ * afspillelig «within 10–15 seconds», premium-encoding.md:15, og ti sekunders
+ * takt gav op til ti sekunders unødig ventetid) …
+ */
+export const AFSPIL_POLL_HURTIG_MS = 2_000;
+/** … indtil der er gået så længe fra første svar; derefter den rolige takt. */
+export const AFSPIL_POLL_HURTIG_INDTIL_MS = 60_000;
+/** Den rolige takt: hvert 10. sekund … */
 export const AFSPIL_POLL_MS = 10_000;
-/** … i højst 10 minutter fra første svar. */
+/** … i højst 10 minutter fra første svar (uændret). */
 export const AFSPIL_POLL_MAKS_MS = 10 * 60_000;
 /** En «klar»-URL fornys så længe før `expires` (TTL er 3600 s i chat-video). */
 export const FORNY_FOER_MS = 60_000;
@@ -99,11 +128,25 @@ export const FORNY_MINDST_MS = 10_000;
 
 /**
  * Hvornår spørges «afspil» igen? Millisekunder, eller false for aldrig.
- *   behandles → hvert AFSPIL_POLL_MS, så længe der er gået under
- *               AFSPIL_POLL_MAKS_MS siden første svar.
+ *   behandles → hvert AFSPIL_POLL_HURTIG_MS, så længe der er gået under
+ *               AFSPIL_POLL_HURTIG_INDTIL_MS siden første svar; derefter hvert
+ *               AFSPIL_POLL_MS, så længe der er gået under AFSPIL_POLL_MAKS_MS.
  *   klar      → FORNY_FOER_MS før `expires` (sekunder), dog mindst FORNY_MINDST_MS.
- *               Uden `expires`: aldrig.
+ *               Uden `expires`: aldrig. (Uændret 29/9.)
  *   fejlet    → aldrig.
+ *
+ * REGNESTYKKET (29/9): afspil-kald pr. åben visning fra mount til «klar» efter
+ * T sekunder fra første svar, inkl. det første kald ved mount. Hvert
+ * «behandles»-svar koster 2 Bunny-kald (Get Video + play data), «klar» 1
+ * (recon-video-hurtigere.md §3).
+ *   FØR  (10 s hele vejen):        kald = 1 + ⌈T/10⌉
+ *   EFTER (2 s i 60 s, så 10 s):   kald = 1 + ⌈T/2⌉ for T ≤ 60; 31 + ⌈(T−60)/10⌉ derover
+ *   klar efter 10 s:  før 2 kald (3 Bunny)  → efter 6 kald (11 Bunny)
+ *   klar efter 30 s:  før 4 kald (7 Bunny)  → efter 16 kald (31 Bunny)
+ *   klar efter 60 s:  før 7 kald (13 Bunny) → efter 31 kald (61 Bunny)
+ *   loftet 10 min:    før 61 kald (121 Bunny) → efter 85 kald (169 Bunny)
+ * Ventetiden efter «klar» hos Bunny falder fra op til 10 s til op til 2 s det
+ * første minut. Det er den handel, Jonas valgte.
  */
 export function naesteAfspilForespoergsel(i: {
   status: ChatVideoStatus | null | undefined;
@@ -112,13 +155,40 @@ export function naesteAfspilForespoergsel(i: {
   foersteMs: number;
 }): number | false {
   if (i.status === "behandles") {
-    return i.nuMs - i.foersteMs < AFSPIL_POLL_MAKS_MS ? AFSPIL_POLL_MS : false;
+    const gaaet = i.nuMs - i.foersteMs;
+    if (gaaet < AFSPIL_POLL_HURTIG_INDTIL_MS) return AFSPIL_POLL_HURTIG_MS;
+    return gaaet < AFSPIL_POLL_MAKS_MS ? AFSPIL_POLL_MS : false;
   }
   if (i.status === "klar") {
     if (typeof i.expires !== "number" || !Number.isFinite(i.expires)) return false;
     return Math.max(i.expires * 1000 - FORNY_FOER_MS - i.nuMs, FORNY_MINDST_MS);
   }
   return false;
+}
+
+/**
+ * SENDELINJEN over skrivefeltet (Jonas 29/9): afsenderen skal SE, at videoen
+ * sendes — ikke kun en procent på kameraknappen. Tilstandene:
+ *   sender → «Sender video … 42 %» (procenten er TUS' fremdrift, kun filen)
+ *   sendt  → «Videoen er sendt.» — forsvinder af sig selv, når beskeden er
+ *            indsat (fladen ser rækken komme via realtime)
+ *   fejl   → beskeden fra uploaden + «Prøv igen», som sender den SAMME fil
+ *            igen uden at optage forfra (og uden ny upload, hvis kun
+ *            beskeden fejlede — guid'et gemmes)
+ * Ren tekstfunktion, så linjens ord kan prøves uden React.
+ */
+export type VideoSendeTilstand =
+  | { tilstand: "sender"; procent: number }
+  | { tilstand: "sendt" }
+  | { tilstand: "fejl"; besked: string };
+
+export function videoSendeTekst(t: VideoSendeTilstand): string {
+  if (t.tilstand === "sender") {
+    const p = Math.min(100, Math.max(0, Math.round(Number.isFinite(t.procent) ? t.procent : 0)));
+    return `Sender video … ${p} %`;
+  }
+  if (t.tilstand === "sendt") return "Videoen er sendt.";
+  return t.besked;
 }
 
 /**

@@ -1,19 +1,24 @@
 import { describe, expect, it } from "vitest";
 import {
+  AFSPIL_POLL_HURTIG_INDTIL_MS,
+  AFSPIL_POLL_HURTIG_MS,
   AFSPIL_POLL_MAKS_MS,
   AFSPIL_POLL_MS,
   byggVideoBesked,
   doemFilLaengde,
   erSkjultBobletekst,
+  erTomFil,
   formatVarighed,
   FORNY_FOER_MS,
   FORNY_MINDST_MS,
   naesteAfspilForespoergsel,
   OPTAGEFORMATER,
   sletGennemfoert,
+  TOM_TEKST,
   vaelgOptageformat,
   varighedTilBesked,
   VIDEO_MARKOER,
+  videoSendeTekst,
 } from "@/lib/chatVideoFlade";
 import { laesChatVideo, MAKS_SEKUNDER } from "@/lib/chatVideo";
 import { svarUddrag } from "@/lib/chatSvar";
@@ -97,12 +102,42 @@ describe("chatVideoFlade — varighed og beskedens form", () => {
 describe("chatVideoFlade — hvornår «afspil» spørges igen", () => {
   const NU = Date.parse("2026-09-29T12:00:00Z");
 
-  it("behandles: hvert 10. sekund i højst 10 minutter fra første svar", () => {
+  it("behandles: hvert 2. sekund det første minut fra første svar (29/9)", () => {
+    expect(AFSPIL_POLL_HURTIG_MS).toBe(2_000);
+    expect(AFSPIL_POLL_HURTIG_INDTIL_MS).toBe(60_000);
+    expect(naesteAfspilForespoergsel({ status: "behandles", nuMs: NU, foersteMs: NU })).toBe(2_000);
+    expect(naesteAfspilForespoergsel({ status: "behandles", nuMs: NU + 10_000, foersteMs: NU })).toBe(2_000);
+    expect(naesteAfspilForespoergsel({ status: "behandles", nuMs: NU + 59_999, foersteMs: NU })).toBe(2_000);
+  });
+
+  it("behandles: derefter hvert 10. sekund i højst 10 minutter fra første svar", () => {
     expect(AFSPIL_POLL_MS).toBe(10_000);
     expect(AFSPIL_POLL_MAKS_MS).toBe(600_000);
-    expect(naesteAfspilForespoergsel({ status: "behandles", nuMs: NU, foersteMs: NU })).toBe(10_000);
+    expect(naesteAfspilForespoergsel({ status: "behandles", nuMs: NU + 60_000, foersteMs: NU })).toBe(10_000);
     expect(naesteAfspilForespoergsel({ status: "behandles", nuMs: NU + 599_999, foersteMs: NU })).toBe(10_000);
     expect(naesteAfspilForespoergsel({ status: "behandles", nuMs: NU + 600_000, foersteMs: NU })).toBe(false);
+    expect(naesteAfspilForespoergsel({ status: "behandles", nuMs: NU + 3_600_000, foersteMs: NU })).toBe(false);
+  });
+
+  it("REGNESTYKKET i kommentaren holder: kald til «klar» efter 10, 30 og 60 s — og ved loftet", () => {
+    /** Kald fra mount til «klar» efter T ms: 1 ved mount + hvert interval, dommen selv giver. */
+    const kald = (klarEfterMs: number) => {
+      let n = 1, t = 0;
+      for (;;) {
+        const naeste = naesteAfspilForespoergsel({ status: "behandles", nuMs: NU + t, foersteMs: NU });
+        if (naeste === false) return n;
+        t += naeste;
+        n++;
+        if (t >= klarEfterMs) return n;
+      }
+    };
+    expect(kald(10_000)).toBe(6);
+    expect(kald(30_000)).toBe(16);
+    expect(kald(60_000)).toBe(31);
+    expect(kald(Number.POSITIVE_INFINITY)).toBe(85);
+    // Før 29/9 (10 s hele vejen) var det 2, 4, 7 og 61 — regnestykket står i chatVideoFlade.ts.
+    const foer = (klarEfterMs: number) => 1 + Math.ceil(klarEfterMs / 10_000);
+    expect([foer(10_000), foer(30_000), foer(60_000)]).toEqual([2, 4, 7]);
   });
 
   it("klar: et minut før expires, dog mindst 10 sekunder; uden expires aldrig", () => {
@@ -116,6 +151,38 @@ describe("chatVideoFlade — hvornår «afspil» spørges igen", () => {
     expect(naesteAfspilForespoergsel({ status: "fejlet", nuMs: NU, foersteMs: NU })).toBe(false);
     expect(naesteAfspilForespoergsel({ status: undefined, nuMs: NU, foersteMs: NU })).toBe(false);
     expect(naesteAfspilForespoergsel({ status: null, nuMs: NU, foersteMs: NU })).toBe(false);
+  });
+});
+
+describe("chatVideoFlade — erTomFil: 0 bytes uploades aldrig, ingen øvre grænse", () => {
+  it("0, negativ, NaN, ikke-tal, mangler eller intet objekt er tomt", () => {
+    for (const fil of [{ size: 0 }, { size: -1 }, { size: Number.NaN }, { size: "12" }, { size: null }, {}, null, undefined]) {
+      expect(erTomFil(fil as never), JSON.stringify(fil)).toBe(true);
+    }
+  });
+  it("én byte er nok — og der findes ingen øvre grænse (Bunny dokumenterer ingen)", () => {
+    expect(erTomFil({ size: 1 })).toBe(false);
+    expect(erTomFil({ size: 2 * 1024 * 1024 * 1024 })).toBe(false);
+    expect(erTomFil(new Blob(["x"]))).toBe(false);
+    expect(erTomFil(new Blob([]))).toBe(true);
+  });
+  it("teksterne er ordret Jonas' (29/9)", () => {
+    expect(TOM_TEKST.optagelse).toBe("Optagelsen blev tom. Prøv at optage igen.");
+    expect(TOM_TEKST.fil).toBe("Filen er tom.");
+  });
+});
+
+describe("chatVideoFlade — sendelinjens ord", () => {
+  it("sender: «Sender video … 42 %», afrundet og klemt til 0–100", () => {
+    expect(videoSendeTekst({ tilstand: "sender", procent: 42 })).toBe("Sender video … 42 %");
+    expect(videoSendeTekst({ tilstand: "sender", procent: 0 })).toBe("Sender video … 0 %");
+    expect(videoSendeTekst({ tilstand: "sender", procent: 99.6 })).toBe("Sender video … 100 %");
+    expect(videoSendeTekst({ tilstand: "sender", procent: 140 })).toBe("Sender video … 100 %");
+    expect(videoSendeTekst({ tilstand: "sender", procent: Number.NaN })).toBe("Sender video … 0 %");
+  });
+  it("sendt og fejl", () => {
+    expect(videoSendeTekst({ tilstand: "sendt" })).toBe("Videoen er sendt.");
+    expect(videoSendeTekst({ tilstand: "fejl", besked: "Videoen kunne ikke uploades. Prøv igen." })).toBe("Videoen kunne ikke uploades. Prøv igen.");
   });
 });
 

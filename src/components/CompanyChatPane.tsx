@@ -38,7 +38,8 @@ import { byggChatBesked } from "@/lib/chatDokument";
 import ChatVideoOptager from "@/components/ChatVideoOptager";
 import { ChatVideoBesked } from "@/components/ChatVideoBesked";
 import { uploadChatVideo } from "@/lib/chatVideoUpload";
-import { byggVideoBesked, erSkjultBobletekst } from "@/lib/chatVideoFlade";
+import { byggVideoBesked, erSkjultBobletekst, type VideoSendeTilstand } from "@/lib/chatVideoFlade";
+import { ChatVideoSendeLinje } from "@/components/ChatVideoSendeLinje";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 import { HbTag } from "@/components/hjemmebane/HbTag";
 import { hbControlClasses } from "@/components/hjemmebane/admin/HbField";
@@ -230,6 +231,15 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
   // kameraknappen i inputtet). KUN rådgiveren — medlemmets pane har ingen knap.
   const [videoOptagerAaben, setVideoOptagerAaben] = useState(false);
   const [videoFremdrift, setVideoFremdrift] = useState<number | null>(null);
+  /* SENDELINJEN (Jonas 29/9): det, afsenderen ser over skrivefeltet, mens
+     videoen sendes — sender/sendt/fejl (ChatVideoSendeLinje). «sendt» fjernes,
+     når beskeden er kommet ind i `messages` (realtime), se effekten nedenfor.
+     Ved fejl gemmes filen (og guid'et, hvis kun beskeden fejlede), så «Prøv
+     igen» sender den SAMME fil uden ny optagelse — og uden ny upload, hvis
+     Bunny allerede har den. */
+  const [videoSending, setVideoSending] = useState<VideoSendeTilstand | null>(null);
+  const [videoSendtId, setVideoSendtId] = useState<string | null>(null);
+  const videoIgenRef = useRef<{ fil: Blob; varighed: number; guid?: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
   // INGEN emnevælger (Jonas 4/9): emner klassificeres AUTOMATISK af AI
@@ -839,7 +849,7 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
   // med fremdrift på kameraknappen → FØRST når Bunny har modtaget filen,
   // indsættes beskeden: content = markøren («🎥 Video»), context_meta =
   // { video: { guid, varighed } }. Samme efterløb som en tekstbesked.
-  const handleSendVideo = useCallback(async ({ fil, varighed }: { fil: Blob; varighed: number }) => {
+  const handleSendVideo = useCallback(async ({ fil, varighed, guid: kendtGuid }: { fil: Blob; varighed: number; guid?: string }) => {
     if (!activeConvId || !user || videoFremdrift !== null) return;
     const convForSend = conversations.find(c => c.id === activeConvId);
     if (convForSend?.membershipTier === "expired") {
@@ -848,15 +858,26 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
     }
     const convId = activeConvId;
     const svar = svarPaa;
+    videoIgenRef.current = { fil, varighed, guid: kendtGuid };
     setVideoFremdrift(0);
+    setVideoSending({ tilstand: "sender", procent: 0 });
+    const fremdrift = (procent: number) => {
+      setVideoFremdrift(procent);
+      setVideoSending({ tilstand: "sender", procent });
+    };
     try {
-      const titel = `Chatvideo ${convForSend?.companyName ?? ""} ${new Date().toISOString()}`.replace(/\s+/g, " ").trim();
-      const upload = await uploadChatVideo(fil, { titel, onFremdrift: setVideoFremdrift });
-      if (upload.ok === false) {
-        toast.error(upload.besked);
-        return;
+      let guid = kendtGuid;
+      if (!guid) {
+        const titel = `Chatvideo ${convForSend?.companyName ?? ""} ${new Date().toISOString()}`.replace(/\s+/g, " ").trim();
+        const upload = await uploadChatVideo(fil, { titel, onFremdrift: fremdrift });
+        if (upload.ok === false) {
+          setVideoSending({ tilstand: "fejl", besked: upload.besked });
+          return;
+        }
+        guid = upload.guid;
+        videoIgenRef.current = { fil, varighed, guid };
       }
-      const besked = byggVideoBesked({ guid: upload.guid, varighed });
+      const besked = byggVideoBesked({ guid, varighed });
       const insertData: any = {
         conversation_id: convId,
         sender_id: user.id,
@@ -867,15 +888,42 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
       const { data, error } = await supabase.from("messages").insert(insertData).select().single();
       if (error || !data) {
         console.error("Failed to insert video message:", error);
-        toast.error("Videoen er uploadet, men beskeden kunne ikke gemmes. Prøv igen.");
+        setVideoSending({ tilstand: "fejl", besked: "Videoen er uploadet, men beskeden kunne ikke gemmes." });
         return;
       }
+      videoIgenRef.current = null;
+      setVideoSending({ tilstand: "sendt" });
+      setVideoSendtId((data as any).id);
       setSvarPaa(null);
       efterSendt((data as any).id, convId);
     } finally {
       setVideoFremdrift(null);
     }
   }, [activeConvId, user, conversations, svarPaa, videoFremdrift, efterSendt]);
+
+  /** «Prøv igen» på sendelinjen: den samme fil (og guid, hvis uploaden lykkedes). */
+  const proevVideoIgen = useCallback(() => {
+    const igen = videoIgenRef.current;
+    if (!igen) { setVideoSending(null); return; }
+    void handleSendVideo(igen);
+  }, [handleSendVideo]);
+
+  // «Videoen er sendt.» forsvinder af sig selv, når beskeden er kommet ind i
+  // samtalen (realtime INSERT → messages). Fallback efter 6 s, hvis realtime
+  // er langsom — linjen må aldrig hænge.
+  useEffect(() => {
+    if (!videoSendtId) return;
+    if (messages.some((m) => m.id === videoSendtId)) {
+      setVideoSendtId(null);
+      setVideoSending((t) => (t?.tilstand === "sendt" ? null : t));
+      return;
+    }
+    const id = window.setTimeout(() => {
+      setVideoSendtId(null);
+      setVideoSending((t) => (t?.tilstand === "sendt" ? null : t));
+    }, 6000);
+    return () => window.clearTimeout(id);
+  }, [videoSendtId, messages]);
 
   const activeConv = conversations.find((c) => c.id === activeConvId);
 
@@ -2025,6 +2073,8 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                   {svarPaa && (
                     <SvarerPaaBanner navn={navnFor(svarPaa.sender_id)} uddrag={svarUddrag(svarPaa.content)} onFjern={() => setSvarPaa(null)} />
                   )}
+                  {/* Sendelinjen (29/9): «Sender video … 42 %» / «Videoen er sendt.» / fejl + «Prøv igen». */}
+                  <ChatVideoSendeLinje tilstand={videoSending} onProevIgen={proevVideoIgen} />
                   <div className="flex gap-2 items-end">
                     <ChatRichInput
                       onSubmit={handleSend}

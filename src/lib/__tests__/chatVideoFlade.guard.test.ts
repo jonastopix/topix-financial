@@ -24,6 +24,14 @@ import { resolve } from "node:path";
  *      «vaelg»; getUserMedia står ÉT sted, inde i startOptagelse, og effekten på
  *      `open` kalder hverken startOptagelse eller getUserMedia — kun knapperne
  *      «Optag video» og «Optag igen» starter kameraet.
+ *   6. DEN BEDSTE OPLEVELSE (Jonas 29/9): (a) «behandles» spørges hvert 2. sekund
+ *      det første minut (AFSPIL_POLL_HURTIG_MS = 2_000, …_INDTIL_MS = 60_000) og
+ *      derefter hvert 10. sekund til loftet — dømt i naesteAfspilForespoergsel;
+ *      (b) INGEN TOM VIDEO: erTomFil FØR onSend i optagerens Send og FØR
+ *      længden i «Vælg fil», med Jonas' to linjer; (c) SENDELINJEN: CompanyChatPane
+ *      tegner ChatVideoSendeLinje FØR ChatRichInput, sætter sender/sendt/fejl i
+ *      handleSendVideo, og bruger INGEN toast om uploaden — kun den udløbne
+ *      virksomheds toast bliver; «Prøv igen» sender den samme fil (videoIgenRef).
  */
 
 const ROD = process.cwd();
@@ -40,6 +48,8 @@ const INPUT = "src/components/ChatRichInput.tsx";
 const BESKED = "src/components/ChatVideoBesked.tsx";
 const OPTAGER = "src/components/ChatVideoOptager.tsx";
 const HANDLINGER = "src/hooks/useMessageActions.ts";
+const FLADE = "src/lib/chatVideoFlade.ts";
+const SENDELINJE = "src/components/ChatVideoSendeLinje.tsx";
 
 /** Alle .ts/.tsx under src (uden prøver), som {sti, kilde}. */
 function alleSrcFiler(dir = "src"): { sti: string; kilde: string }[] {
@@ -137,6 +147,53 @@ export const optagelsenHolderLoftet = (optager: string): boolean => {
   /onClick=\{\(\) => void startOptagelse\(\)\}>\s*Optag video\s*</.test(optager);
 };
 
+// ── 6 ──────────────────────────────────────────────────────────────────────
+/** (a) Takten: 2 s i 60 s, så 10 s til loftet — i dommen, ikke i fladen. */
+export const taktenErHurtigFoerst = (flade: string): boolean => {
+  const fn = flade.slice(flade.indexOf("export function naesteAfspilForespoergsel("), flade.indexOf("export function sletGennemfoert("));
+  return flade.includes("export const AFSPIL_POLL_HURTIG_MS = 2_000;") &&
+    flade.includes("export const AFSPIL_POLL_HURTIG_INDTIL_MS = 60_000;") &&
+    flade.includes("export const AFSPIL_POLL_MS = 10_000;") &&
+    flade.includes("export const AFSPIL_POLL_MAKS_MS = 10 * 60_000;") &&
+    fn.includes("const gaaet = i.nuMs - i.foersteMs;") &&
+    fn.includes("if (gaaet < AFSPIL_POLL_HURTIG_INDTIL_MS) return AFSPIL_POLL_HURTIG_MS;") &&
+    fn.includes("return gaaet < AFSPIL_POLL_MAKS_MS ? AFSPIL_POLL_MS : false;") &&
+    foer(fn, "if (gaaet < AFSPIL_POLL_HURTIG_INDTIL_MS) return AFSPIL_POLL_HURTIG_MS;", "return gaaet < AFSPIL_POLL_MAKS_MS ? AFSPIL_POLL_MS : false;");
+};
+
+/** (b) Tomme filer stoppes FØR de sendes, på begge veje, med Jonas' ord. */
+export const ingenTomVideo = (optager: string, flade: string): boolean => {
+  const send = optager.slice(optager.indexOf("const send = () => {"), optager.indexOf("return (\n    <Dialog"));
+  const vaelg = optager.slice(optager.indexOf("const vaelgFil = useCallback("), optager.indexOf("// Åbnes dialogen"));
+  return flade.includes('  optagelse: "Optagelsen blev tom. Prøv at optage igen.",') &&
+    flade.includes('  fil: "Filen er tom.",') &&
+    flade.includes("return typeof size !== \"number\" || !Number.isFinite(size) || size <= 0;") &&
+    send.includes("if (erTomFil(forhaandsvisning.fil)) {") && send.includes("setLinje(TOM_TEKST.optagelse);") &&
+    foer(send, "if (erTomFil(forhaandsvisning.fil)) {", "onSend({ fil: forhaandsvisning.fil, varighed: forhaandsvisning.varighed });") &&
+    vaelg.includes("if (erTomFil(fil)) {") && vaelg.includes("setLinje(TOM_TEKST.fil);") &&
+    foer(vaelg, "if (erTomFil(fil)) {", "const url = URL.createObjectURL(fil);") &&
+    foer(vaelg, "if (erTomFil(fil)) {", "visForhaandsvisning(fil, varighed);") &&
+    // Ingen øvre bytegrænse — chunk-filtret `e.data.size > 0` er ikke en grænse.
+    !/MAKS_BYTES|1024 \* 1024|\.size > [1-9]|size >= /.test(optager);
+};
+
+/** (c) Sendelinjen: findes, står FØR skrivefeltet, drives af handleSendVideo, ingen toast om uploaden. */
+export const sendelinjenFindes = (company: string, sendelinje: string): boolean => {
+  const fn = company.slice(company.indexOf("const handleSendVideo = useCallback("), company.indexOf("const proevVideoIgen = useCallback("));
+  return company.includes("<ChatVideoSendeLinje tilstand={videoSending} onProevIgen={proevVideoIgen} />") &&
+    foer(company, "<ChatVideoSendeLinje tilstand={videoSending} onProevIgen={proevVideoIgen} />", "<ChatRichInput\n") &&
+    fn.includes('setVideoSending({ tilstand: "sender", procent: 0 });') &&
+    fn.includes('setVideoSending({ tilstand: "sender", procent });') &&
+    fn.includes('setVideoSending({ tilstand: "fejl", besked: upload.besked });') &&
+    fn.includes('setVideoSending({ tilstand: "sendt" });') &&
+    fn.includes("videoIgenRef.current = { fil, varighed, guid };") &&
+    antal(fn, "toast.") === 1 && fn.includes('toast.error("Denne virksomhed er udløbet — beskeder kan ikke sendes");') &&
+    company.includes("void handleSendVideo(igen);") &&
+    sendelinje.includes('role="status"') && !/from "sonner"|\btoast[.(]/.test(sendelinje.replace(/\/\*[\s\S]*?\*\//g, "")) &&
+    sendelinje.includes("const tekst = videoSendeTekst(tilstand);") &&
+    /Prøv igen\s*<\/HbButton>/.test(sendelinje);
+};
+
 describe("chatVideoFlade.guard — de fem domme på repoets filer", () => {
   const filer = alleSrcFiler();
   it("1. kun CompanyChatPane giver videoKnap (gated på isAdvisor); medlemmets input er uændret", () =>
@@ -149,6 +206,9 @@ describe("chatVideoFlade.guard — de fem domme på repoets filer", () => {
     expect(boblenSkjulerMarkoeren(laes(MEMBER))).toBe(true);
   });
   it("5. optagelsen: MP4-først-valget, loftet, længdetjekket — og ingen automatisk start (kun «Optag video» kalder getUserMedia)", () => expect(optagelsenHolderLoftet(laes(OPTAGER))).toBe(true));
+  it("6a. takten: 2 s det første minut, så 10 s til loftet", () => expect(taktenErHurtigFoerst(laes(FLADE))).toBe(true));
+  it("6b. ingen tom video: erTomFil før Send og før «Vælg fil», med Jonas' ord, ingen øvre grænse", () => expect(ingenTomVideo(laes(OPTAGER), laes(FLADE))).toBe(true));
+  it("6c. sendelinjen findes før skrivefeltet, drives af handleSendVideo, og ingen toast om uploaden", () => expect(sendelinjenFindes(laes(COMPANY), laes(SENDELINJE))).toBe(true));
 });
 
 describe("chatVideoFlade.guard — dommene fanger fejlen på en kopi", () => {
@@ -209,5 +269,38 @@ describe("chatVideoFlade.guard — dommene fanger fejlen på en kopi", () => {
     // Starttilstanden tilbage på «starter», eller et ekstra getUserMedia-kald, fælder.
     expect(optagelsenHolderLoftet(byt(o, 'useState<Fase>("vaelg")', 'useState<Fase>("starter")'))).toBe(false);
     expect(optagelsenHolderLoftet(`${o}\nconst x = () => navigator.mediaDevices.getUserMedia({ video: true });\n`)).toBe(false);
+  });
+
+  it("6a. 10 s fra start, 2 s uden 60 s-grænsen, eller grænsen ombyttet fælder", () => {
+    const fl = laes(FLADE);
+    expect(taktenErHurtigFoerst(byt(fl, "export const AFSPIL_POLL_HURTIG_MS = 2_000;", "export const AFSPIL_POLL_HURTIG_MS = 10_000;"))).toBe(false);
+    expect(taktenErHurtigFoerst(byt(fl, "export const AFSPIL_POLL_HURTIG_INDTIL_MS = 60_000;", "export const AFSPIL_POLL_HURTIG_INDTIL_MS = 600_000;"))).toBe(false);
+    expect(taktenErHurtigFoerst(byt(fl, "    if (gaaet < AFSPIL_POLL_HURTIG_INDTIL_MS) return AFSPIL_POLL_HURTIG_MS;\n", ""))).toBe(false);
+    expect(taktenErHurtigFoerst(byt(fl, "return gaaet < AFSPIL_POLL_MAKS_MS ? AFSPIL_POLL_MS : false;", "return AFSPIL_POLL_MS;"))).toBe(false);
+  });
+
+  it("6b. tjekket væk fra Send, væk fra «Vælg fil», efter onSend, en anden tekst, eller en øvre bytegrænse fælder", () => {
+    const o = laes(OPTAGER), fl = laes(FLADE);
+    expect(ingenTomVideo(byt(o, "    if (erTomFil(forhaandsvisning.fil)) {\n      setLinje(TOM_TEKST.optagelse);\n      return;\n    }\n", ""), fl)).toBe(false);
+    expect(ingenTomVideo(byt(o, "    if (erTomFil(fil)) {\n      setFase((f) => (f === \"forhaandsvis\" || f === \"vaelg\" ? f : \"afvist\"));\n      setLinje(TOM_TEKST.fil);\n      return;\n    }\n", ""), fl)).toBe(false);
+    const efter = byt(o, "    if (erTomFil(forhaandsvisning.fil)) {\n      setLinje(TOM_TEKST.optagelse);\n      return;\n    }\n    onSend({ fil: forhaandsvisning.fil, varighed: forhaandsvisning.varighed });\n",
+      "    onSend({ fil: forhaandsvisning.fil, varighed: forhaandsvisning.varighed });\n    if (erTomFil(forhaandsvisning.fil)) {\n      setLinje(TOM_TEKST.optagelse);\n      return;\n    }\n");
+    expect(ingenTomVideo(efter, fl)).toBe(false);
+    expect(ingenTomVideo(o, byt(fl, '  fil: "Filen er tom.",', '  fil: "Filen er for lille.",'))).toBe(false);
+    expect(ingenTomVideo(o, byt(fl, "size <= 0;", "size <= 1024;"))).toBe(false);
+    expect(ingenTomVideo(`${o}\nconst MAKS_BYTES = 200 * 1024 * 1024;\n`, fl)).toBe(false);
+  });
+
+  it("6c. linjen væk, linjen efter feltet, en toast om uploaden, eller «Prøv igen» der ikke sender samme fil fælder", () => {
+    const c = laes(COMPANY), s = laes(SENDELINJE);
+    expect(sendelinjenFindes(byt(c, "                  <ChatVideoSendeLinje tilstand={videoSending} onProevIgen={proevVideoIgen} />\n", ""), s)).toBe(false);
+    const flyttet = byt(c, "                  <ChatVideoSendeLinje tilstand={videoSending} onProevIgen={proevVideoIgen} />\n", "")
+      .replace("                  {!isMobile && <div className=\"safe-bottom-spacer\" />}", "                  <ChatVideoSendeLinje tilstand={videoSending} onProevIgen={proevVideoIgen} />\n                  {!isMobile && <div className=\"safe-bottom-spacer\" />}");
+    expect(flyttet).not.toBe(c);
+    expect(sendelinjenFindes(flyttet, s)).toBe(false);
+    expect(sendelinjenFindes(byt(c, '          setVideoSending({ tilstand: "fejl", besked: upload.besked });', '          toast.error(upload.besked);'), s)).toBe(false);
+    expect(sendelinjenFindes(byt(c, "void handleSendVideo(igen);", "setVideoOptagerAaben(true);"), s)).toBe(false);
+    expect(sendelinjenFindes(c, byt(s, 'role="status"', 'role="alert"'))).toBe(false);
+    expect(sendelinjenFindes(c, `${s}\nimport { toast } from "sonner";\n`)).toBe(false);
   });
 });
