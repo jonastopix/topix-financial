@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   GAMMEL_DAGE,
   aabneInvitationer,
@@ -6,7 +6,10 @@ import {
   invitationStatusFor,
   invitationTekst,
   invitationsTal,
+  invitationsLink,
   invitationsTalTekst,
+  kanKopiereLink,
+  kopierTilClipboard,
   normaliserEmail,
   type InvitationRaekke,
 } from "@/lib/invitationer";
@@ -66,5 +69,46 @@ describe("e-mail", () => {
     expect(erGyldigEmail("jeppe@firma.dk")).toBe(true);
     expect(erGyldigEmail("jeppe@firma")).toBe(false);
     expect(erGyldigEmail("")).toBe(false);
+  });
+});
+
+const TOKEN = "3f2b8c1e-7a4d-4e6f-9b0a-1c2d3e4f5a6b";
+
+describe("invitationsLink — samme form som kundens og mailens", () => {
+  it("er /auth?mode=signup&invite=<token> på app.theboardroom.dk", () => {
+    expect(invitationsLink(TOKEN)).toBe(`https://app.theboardroom.dk/auth?mode=signup&invite=${TOKEN}`);
+  });
+});
+
+describe("kanKopiereLink — kun pending med token", () => {
+  it("pending med token: ja", () => {
+    expect(kanKopiereLink({ status: "pending", token: TOKEN })).toBe(true);
+  });
+  it("accepteret og udløbet: nej, selv med token", () => {
+    expect(kanKopiereLink({ status: "accepted", token: TOKEN })).toBe(false);
+    expect(kanKopiereLink({ status: "expired", token: TOKEN })).toBe(false);
+  });
+  it("pending uden token (ikke hentet, tom): nej", () => {
+    expect(kanKopiereLink({ status: "pending" })).toBe(false);
+    expect(kanKopiereLink({ status: "pending", token: null })).toBe(false);
+    expect(kanKopiereLink({ status: "pending", token: "" })).toBe(false);
+  });
+});
+
+describe("kopierTilClipboard", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  it("skriver teksten til clipboard", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    await kopierTilClipboard("abc");
+    expect(writeText).toHaveBeenCalledWith("abc");
+  });
+  it("kaster, når clipboard mangler", async () => {
+    vi.stubGlobal("navigator", {});
+    await expect(kopierTilClipboard("abc")).rejects.toThrow(/Clipboard/);
+  });
+  it("kaster videre, når clipboard afviser", async () => {
+    vi.stubGlobal("navigator", { clipboard: { writeText: vi.fn().mockRejectedValue(new Error("NotAllowedError")) } });
+    await expect(kopierTilClipboard("abc")).rejects.toThrow("NotAllowedError");
   });
 });

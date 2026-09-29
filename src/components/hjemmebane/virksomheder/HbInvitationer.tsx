@@ -2,11 +2,11 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { RotateCcw, Trash2, UserPlus } from "lucide-react";
+import { Link2, RotateCcw, Trash2, UserPlus } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { raadgiverHentefejlTekst } from "@/lib/raadgiverHentefejl";
-import { erGyldigEmail, invitationTekst, invitationsTal, invitationsTalTekst } from "@/lib/invitationer";
+import { erGyldigEmail, invitationTekst, invitationsLink, invitationsTal, invitationsTalTekst, kanKopiereLink, kopierTilClipboard } from "@/lib/invitationer";
 import {
   INVITATIONER_KEY, gensendInvitation, hentInvitationer, invaliderInvitationer, opretInvitation, sletInvitation, type AabenInvitation,
 } from "@/hooks/invitationer";
@@ -43,8 +43,19 @@ const spaerretAdvarsel = (email: string) =>
     duration: 15000,
   });
 
-/** Gensend + slet for én åben invitation. Slet er to klik, som listen. */
-export const InvitationHandlinger = ({ inv, companyId }: { inv: { id: string; email: string }; companyId: string | null }) => {
+/** «Kopiér link» (29/9): rådgiveren henter selv linket, når et medlem ikke finder
+    mailen. Samme link som kundens knap (invitationsLink). Kun ved pending. */
+const kopierLink = async (token: string) => {
+  try {
+    await kopierTilClipboard(invitationsLink(token));
+    toast.success("Linket er kopieret");
+  } catch {
+    toast.error("Linket kunne ikke kopieres", { description: "Din browser afviste adgangen til udklipsholderen. Prøv igen, eller tillad den i browseren." });
+  }
+};
+
+/** Kopiér link + gensend + slet for én åben invitation. Slet er to klik, som listen. */
+export const InvitationHandlinger = ({ inv, companyId }: { inv: { id: string; email: string; status: string; token?: string | null }; companyId: string | null }) => {
   const queryClient = useQueryClient();
   const [bekraeftSlet, setBekraeftSlet] = useState(false);
   const skriv = useMutation({
@@ -56,6 +67,15 @@ export const InvitationHandlinger = ({ inv, companyId }: { inv: { id: string; em
   });
   return (
     <span className="flex shrink-0 items-center gap-2 text-xs">
+      {kanKopiereLink(inv) && (
+        <button
+          type="button"
+          onClick={() => void kopierLink(inv.token as string)}
+          className="inline-flex items-center gap-1 text-hb-evergreen underline-offset-4 hover:underline"
+        >
+          <Link2 className="h-3 w-3" /> Kopiér link
+        </button>
+      )}
       <button
         type="button"
         disabled={skriv.isPending}
