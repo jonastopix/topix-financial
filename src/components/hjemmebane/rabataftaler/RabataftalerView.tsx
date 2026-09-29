@@ -1,9 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { hasRichTextContent } from "@/lib/hjemmebane/richtext";
 import { getAssetPreviewUrl } from "@/lib/hjemmebane/adminContentApi";
 import { listMedlemsPartnere, type MedlemsPartner } from "@/lib/hjemmebane/akademiApi";
+import {
+  afgoerAftaleMaal, AFTALE_FINDES_IKKE, laesRabataftaleId, MARKERING_MS, rabataftaleElementId,
+} from "@/lib/hjemmebane/rabataftaleAdresse";
 import { hbButtonVariants } from "../HbButton";
 
 /** Rabataftaler-miljøet (13-08-2026). Datamodellen og admin-fladen fandtes
@@ -19,7 +23,15 @@ import { hbButtonVariants } from "../HbButton";
     markedsføringsbilleder er materiale vi hverken ejer eller vedligeholder.
     Skal en enkelt aftale have et billede, kan rigtekst-feltet bære det.
     RLS: "Members can view published partners" er KUN published-gated —
-    abonnenter må bevidst gerne se rabataftaler (Jonas, 13-08-2026). */
+    abonnenter må bevidst gerne se rabataftaler (Jonas, 13-08-2026).
+
+    EN ADRESSE PR. AFTALE (29/9-2026, trin 2 af #-henvisningerne):
+    /rabataftaler?aftaleId={id} — husets mønster for ét element på en liste
+    (RapporteringView ?reportId=, FeedbackView ?feedbackId=, chattens
+    ?messageId=; lib/hjemmebane/rabataftaleAdresse.ts). Hver <article> bærer
+    id="aftale-{id}". Findes aftalen blandt dem, der vises: scroll til midten og
+    en ring i to sekunder. Findes den ikke (arkiveret, udløbet, ukendt): listen
+    som altid, med én rolig linje over. Parameteren ryddes bagefter, hash bevares. */
 
 /** Udløbet aftale = valid_until er passeret. Aftalen gælder TIL OG MED
     dagen (kolonnen er DATE), så grænsen lægges ved døgnets udgang —
@@ -128,6 +140,42 @@ export const RabataftalerView = () => {
   // bare være støj i en kurateret liste.
   const aftaler = (aftalerQuery.data ?? []).filter((aftale) => !erUdloebet(aftale.valid_until));
 
+  // ── Adressen: ?aftaleId= (29/9). Hooks i topblokken, før enhver return. ──
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [markeret, setMarkeret] = useState<string | null>(null);
+  const [findesIkke, setFindesIkke] = useState(false);
+  const oensketId = laesRabataftaleId(location.search);
+  const vistIds = aftaler.map((aftale) => aftale.id).join(",");
+  useEffect(() => {
+    const maal = afgoerAftaleMaal({
+      oensketId,
+      henter: aftalerQuery.isLoading,
+      fejlet: aftalerQuery.isError,
+      vistIds: vistIds === "" ? [] : vistIds.split(","),
+    });
+    if (maal.art === "intet" || maal.art === "venter") return;
+    if (maal.art === "fundet") {
+      setFindesIkke(false);
+      setMarkeret(maal.id);
+      setTimeout(() => {
+        document.getElementById(rabataftaleElementId(maal.id))?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 150);
+    } else {
+      setFindesIkke(true);
+    }
+    // Ryd parameteren (som RapporteringView): navigate frem for setSearchParams,
+    // så hash'en bevares, og et nyt klik på samme adresse trigger igen.
+    navigate({ pathname: location.pathname, search: "", hash: location.hash }, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [oensketId, aftalerQuery.isLoading, aftalerQuery.isError, vistIds]);
+  // Markeringen er kort (MARKERING_MS, som chattens ?messageId=).
+  useEffect(() => {
+    if (markeret === null) return;
+    const timer = setTimeout(() => setMarkeret(null), MARKERING_MS);
+    return () => clearTimeout(timer);
+  }, [markeret]);
+
   return (
     <div>
       <section className="max-w-3xl">
@@ -143,6 +191,11 @@ export const RabataftalerView = () => {
       </section>
 
       <section className="mt-10 max-w-4xl md:mt-12">
+        {findesIkke && (
+          <p className="mb-6 text-sm text-hb-ink-soft" data-aftale-findes-ikke>
+            {AFTALE_FINDES_IKKE}
+          </p>
+        )}
         {aftalerQuery.isLoading ? (
           <p className="text-sm text-hb-ink-soft">Henter rabataftaler…</p>
         ) : aftaler.length === 0 ? (
@@ -150,7 +203,15 @@ export const RabataftalerView = () => {
         ) : (
           <div className="border-b border-hb-line">
             {aftaler.map((aftale) => (
-              <article key={aftale.id} className="border-t border-hb-line py-8">
+              <article
+                key={aftale.id}
+                id={rabataftaleElementId(aftale.id)}
+                data-aftale-id={aftale.id}
+                className={cn(
+                  "scroll-mt-24 border-t border-hb-line py-8 transition-shadow",
+                  markeret === aftale.id && "rounded-hb ring-2 ring-hb-evergreen/50",
+                )}
+              >
                 <div className="flex items-start gap-6">
                   {aftale.logo_path && <PartnerLogo path={aftale.logo_path} navn={aftale.name} />}
                   <div className="min-w-0 flex-1">
