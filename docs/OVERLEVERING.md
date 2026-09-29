@@ -10859,7 +10859,7 @@ Chatten (Claude) skrev 28/9, at Klaviyo-mailens «4.375 kr. om måneden» var fo
 
 ---
 
-### 29. september — 14-dagsmailen ramte Mailguns probation (134 af 319 ude kl. 10:45; resten indhentes i hold af 26 i timen); loft, indhentning, Mailgun-dom og alarm (#1112–#1115, alarmen bevist i drift 11:09); vedhæftningens sti (#1116); rådgiverens svar på refleksioner i drift (#1117); «#» i chatten (#1118, #1120, #1125 — migrationen kørt 13:58 FØR merget); chat-video (#1119, #1121); medlemsoverblikket og dets nulpunkt (#1122); påstanden om et åbent upload-hul trukket tilbage (#1123); statusmail trin 1 (#1124). Update i Lovable ikke bekræftet. EFTERMIDDAG: fejllinjer + community-teksten kender rabathenvisning (#1126, migration IKKE KØRT); overblikket gjort enkelt — «Mangler at booke» på forsiden, /virksomheder som før (#1129, Jonas 14:19); statusmailen på pause (draft #1127); Mailgun kun ved business verification; webinaralarmen for larmende; lærestreger (j)–(m).
+### 29. september — 14-dagsmailen ramte Mailguns probation (134 af 319 ude kl. 10:45; resten indhentes i hold af 26 i timen); loft, indhentning, Mailgun-dom og alarm (#1112–#1115, alarmen bevist i drift 11:09); vedhæftningens sti (#1116); rådgiverens svar på refleksioner i drift (#1117); «#» i chatten (#1118, #1120, #1125 — migrationen kørt 13:58 FØR merget); chat-video (#1119, #1121); medlemsoverblikket og dets nulpunkt (#1122); påstanden om et åbent upload-hul trukket tilbage (#1123); statusmail trin 1 (#1124). Update i Lovable ikke bekræftet. EFTERMIDDAG: fejllinjer + community-teksten kender rabathenvisning (#1126, migration IKKE KØRT); overblikket gjort enkelt — «Mangler at booke» på forsiden, /virksomheder som før (#1129, Jonas 14:19); statusmailen på pause (draft #1127); Mailgun kun ved business verification; webinaralarmen for larmende; lærestreger (j)–(m). AFTEN: «Dit certifikat» trin 1 (#1133, migration kørt 17:19, flaget sat på tre 17:33) og forhåndsvisningen for rådgivere (#1135); migration `20260929180000` kørt 17:35; chatvideoen starter først ved «Optag video» (#1134) og er i drift (første video 17:46); Lovable committede en pakke trods «commit intet»; chatvideoens behandlingstid afgjort (nyt bibliotek 765771, #1137); Update med #1133 i drift 18:22; certifikat trin 2 merget (#1136); ALLE virksomheder får certifikatet (migration `20260929195000` kørt 18:31); rådgiverens menupunkt (#1138) og alle virksomheder (#1139) merget; chatvideoen hurtig i drift (18:41); certifikat trin 2 I DRIFT (cron 18:46, job 574); lærestreger (n)–(w).
 
 #### 0. Opstarten — `docs/opstart-29-09.md`
 
@@ -10888,6 +10888,15 @@ Tiderne er commit-tiden på main (dansk). Titlerne er ordret fra `git log --onel
 | #1126 | 14:25 | fix(chat, rabataftaler): fejllinjer ved hentefejl + community-teksten kender rabathenvisning | fejllinjer på /rabataftaler og i chattens #-forslag; migrationen `20260929180000_community_tekst_rabathenvisning.sql` er **IKKE KØRT** og skal køres i SQL editor (§5) |
 | #1128 | 15:13 | docs: bogføring 29/9 — OVERLEVERING, mangelliste, opstart; tre migrationer bogført KØRT med værn vendt | formiddagens bogføring |
 | #1129 | 15:14 | feat(forside): «Mangler at booke» — /virksomheder tilbage som før #1122 | /virksomheder genskabt byte-ens fra før #1122; `src/` — Update (§5) |
+| #1134 | 17:28 | Chatvideo: kameraet starter først ved «Optag video», ikke når dialogen åbner | `src/` — Update (§8) |
+| #1133 | 17:43 | Dit certifikat, trin 1: side, menupunkt og hentningsspor | migration `20260929190000` kørt 17:19 FØR merget; flaget sat 17:33 (§7) |
+| #1135 | 18:01 | Certifikat: forhåndsvisning for rådgivere på /certifikat/forhaandsvisning (intet gemmes) | `src/` — Update; ikke i Lovables spejl kl. 18:20 (§7) |
+| #1136 | 18:20 | Certifikat trin 2: klokken når «Dit certifikat» åbner | deploy, tørkørsel og cron-migrationen `20260929200000` står tilbage (§7) |
+| #1137 | 18:36 | Chatvideo: eget Bunny-bibliotek (boardroom-chat, Premium + JIT) — klar ved isPlayable | tre secrets lagt ind 18:35; `chat-video` deployet eksplicit 18:38 (§8) |
+| #1138 | 18:37 | Certifikat: «Dit certifikat» i rådgiverens menu under Medlemmets flader (forhåndsvisningen) | `src/` — Update ikke bekræftet (§7) |
+| #1139 | 18:42 | Certifikat til alle virksomheder: migration 20260929195000 KØRT 18:31 (flaget er nu et fravalg) | migrationen kørt før merget (§7) |
+
+Ud over PR'erne står to commits fra `gpt-engineer-app[bot]` kl. 18:41–18:42 («Work in progress» `c1bdb285` og «Lovable update» `0bcd1d28`). Begge rører kun `src/integrations/supabase/types.ts` (+27): Lovables autogenererede typer for `certificate_downloads` og `certificate_eligible`.
 
 **#1127 er en DRAFT-PR på pause** (statusmailens edge function + cron, titel «PAUSE — statusmail trin 2 (skal forenkles før merge)»). **Den må ikke merges** (§5).
 
@@ -11018,7 +11027,7 @@ Bygget i #1129. **Update og drift-bevis står åbent.** Kort: [`a29-overblik-bev
 
 **Åbne punkter fra eftermiddagen:**
 - **Drift-beviset for «Mangler at booke» efter Update:** tallene N og M ses i drift. Kort [`a29-overblik-bevis`](mangelliste.html#a29-overblik-bevis).
-- **Migrationen `20260929180000_community_tekst_rabathenvisning.sql` (#1126) skal køres** i SQL editor. Den er IKKE KØRT. Kort [`a29-migration-community-rabathenvisning`](mangelliste.html#a29-migration-community-rabathenvisning).
+- ~~Migrationen `20260929180000_community_tekst_rabathenvisning.sql` (#1126) skal køres i SQL editor~~ — **LØST 29/9 17:35:** kørt (§9). Kort [`a29-migration-community-rabathenvisning`](mangelliste.html#a29-migration-community-rabathenvisning).
 - **Statusmailen:** draft #1127 er på pause og må ikke merges. Den laves om til at sige det samme som «Mangler at booke». Kort [`a29-statusmail-v2`](mangelliste.html#a29-statusmail-v2).
 - **Mailgun business verification:** tjek banneret og send formularen igen (privat vindue). Loftet i koden ændres først ved skriftlig grænse (§3). Kort [`a29-mailgun-verificering`](mangelliste.html#a29-mailgun-verificering).
 - **Webinaralarmen:** rettelsen er under bygning (vindue A), og `webinar-mail-cron` skal deployes eksplicit (§3).
@@ -11082,6 +11091,109 @@ Huset har intet eget lærestreg-dokument. Fælderne står i DEL 4. Dagens læres
 - *Viste sig:* tilstanden var forældet. Vinduet STOPPEDE korrekt.
 - *Ændrer:* **git pull og mål igen, før et vindue handler på «merget/kørt».**
 
+**(n) #1132 blev merget, selvom gh svarede «no runs found».**
+- *Viste sig:* merget gik igennem uden en kørsel at vente på. Årsagen er ikke fundet.
+- *Ændrer:* vagten er nu dobbelt (tal-tjek og to målinger med 20 s imellem), og der ventes med `gh run watch`.
+- *Siden:* vagten ventede kun på den FØRSTE CI-kørsel og mergede derfor ikke #1136 i første forsøg. **Den venter nu på ALLE kørsler på commit'en.**
+
+**(o) Et migrationshoved vendt til KØRT kan fælde `ukoerteFoerKoerte`.**
+- *Viste sig:* står en ældre migration ukørt, fælder `metaSend.guard` dom 11, når en nyere vendes til KØRT. #1133 blev fældet af det, fordi `20260929180000` stod ukørt (§9). A's tal fra hele suiten blev ikke set, så CI fandt fejlen i stedet.
+- *Ændrer:* **kør migrationerne i rækkefølge, og se hele suitens tal, før der pushes.**
+
+**(p) `storageSize 0` hos Bunny blev læst som en tom upload.**
+- *Viste sig:* Bunny udfylder feltet først efter encoding.
+- *Ændrer:* **slå feltets betydning op, før der konkluderes.**
+
+**(q) «Ét tryk» blev fortolket som automatisk kamerastart.**
+- *Viste sig:* Jonas ville selv trykke «Optag» (#1134).
+- *Ændrer:* **spørg, når en formulering kan læses på to måder, og det koster en omgang at rette.**
+
+**(r) En flade skjult for rådgivere kan ejeren ikke se.**
+- *Viste sig:* Jonas: «Hvordan dælen ser jeg området med certifikat?» (#1135).
+- *Ændrer:* **når en flade skjules for rådgivere, skal rådgiverne have en forhåndsvisning.**
+
+**(s) En sti i en kodeblok uden instruktion blev kørt som kommando.**
+- *Ændrer:* **skriv altid, hvad der skal gøres med stien.**
+
+**(t) Supabase Storage blev foreslået i stedet for Bunny til chatvideo.**
+- *Viste sig:* Jonas afviste det.
+- *Ændrer:* **man skifter ikke det valgte system ud, fordi det første forsøg er langsomt. Tun det først** (§8).
+
+**(u) #1136 (certifikat-klokke) fejlede i CI i `bodyFelter.guard`.**
+- *Viste sig:* en ny edge function skal klassificeres (STRIKS/EKSTERNE/AFVENTER). Commit-kommandoen kørte kun de tre nye prøvefiler, ikke hele suiten.
+- *Ændrer:* **hele suiten køres lokalt før push, også når ændringen «kun» er nye filer.**
+
+**(v) «Intet menupunkt» til forhåndsvisningen var forkert.**
+- *Troet:* forhåndsvisningen kunne nås på URL'en alene (#1135).
+- *Viste sig:* Jonas: «Certifikat er jo ikke i menuen … Jeg kan jo heller ikke finde det som rådgiver». Punktet står nu under «Medlemmets flader» (PR #1138).
+- *Ændrer:* **en side, som ejeren ikke kan finde, hjælper ikke.**
+
+**(w) «Flag» var fagsprog.**
+- *Viste sig:* Jonas: «Hvad fanden betyder flag?»
+- *Ændrer:* **brug ord, ejeren bruger, eller forklar ordet første gang.**
+
+#### 7. «Dit certifikat» — trin 1 merget, flaget sat på tre, forhåndsvisningen for rådgivere, trin 2 i PR
+
+- **#1133 (17:43), trin 1:** side, menupunkt og hentningsspor. Migrationen `20260929190000` blev **KØRT 17:19**; FØR/EFTER og REST 200 står i filhovedet.
+- **Flaget `certificate_eligible = true` er sat 17:33** på tre virksomheder. Alle tre var `false` før.
+  - BRILLEVÆRK (`6971b6d7…`)
+  - Capture IT A/S (`f7bde263…`)
+  - PHILBERT ApS (`926f0b16…`)
+- **CARMA STUDIO (`9797633d…`) er bevidst IKKE sat,** fordi den er ude af platformen (slut 11/9).
+- **BRILLEVÆRK og Capture IT har forlænget** (slutdato 2027). Startdatoen er urørt.
+- **PHILBERT slutter 29/9 og skal hente certifikatet samme dag.**
+- **#1135 (18:01), forhåndsvisningen for rådgivere** på `/certifikat/forhaandsvisning`. Jonas: «Hvordan dælen ser jeg området med certifikat?» Den ægte side med eksempeldata, bag `AdvisorRoute`, intet gemmes. Lærestreg (r).
+- **Trin 2 (`certifikat-klokke`) er merget (#1136, 18:20)** efter rettelsen i `bodyFelter.guard` (lærestreg (u)); hele suiten kørte i en ren kopi: 559 filer / 7834 prøver. **Tilbage:** eksplicit deploy → tørkørsel → migrationen `20260929200000`. Kort [`a29-certifikat-klokke`](mangelliste.html#a29-certifikat-klokke).
+- **Kl. 18:22 gik Update igennem med #1133.** Målt udefra: `index-D04bwATF.js` indeholder «Dit certifikat» ×2, `certificate_eligible` ×2 og `certificate_downloads` ×3. Lovables spejl havde `0be77bf7` (#1133), men ikke `1793c467` (#1135), da den blev spurgt 18:20. Publiceringen tog også Lovables autogenererede `src/integrations/supabase/types.ts` med (+27 linjer, typerne for `certificate_downloads` og `certificate_eligible`).
+- **Kl. 18:28: Topix.dk ApS fik flaget som testkonto** (kontakt@topix.dk, medlemskonto uden roller, start 19/4-2026, låst til 12/4-2027).
+- **Kl. 18:31: ALLE virksomheder fik certifikatet** (Jonas 18:29). Migrationen `20260929195000` er **KØRT**: standard `true`, ja 52 og nej 0. **Flaget er nu et fravalg.** Migrationen ligger i PR.
+- **Rådgiverens menupunkt** «Dit certifikat» under «Medlemmets flader» → `/certifikat/forhaandsvisning` er merget (#1138, 18:37). Lærestreg (v). Migrationen `20260929195000` er merget med #1139 (18:42).
+- **Update for #1135/#1138 er IKKE bekræftet.**
+- **Certifikat trin 2 er I DRIFT:**
+  - deploy af `certifikat-klokke` 18:41
+  - tørkørsel 18:44 (request 25060): klar 3, skrevet 0; sprunget: `ingen_startdato` 2, `ikke_aabnet` 25, `ikke_fuldt_medlem` 22
+  - rigtig kørsel 18:45 (request 25063): skrevet 3; 3 rækker `certifikat_klar`
+  - cron 18:46: jobid **574**, `15 6 * * *`, active
+  - Kørt i hånden FØR cron'en, så PHILBERT fik klokken samme dag.
+- **Afklaring (Jonas 18:47):** udløbne medlemmer er irrelevante for certifikatet, og ingen af dem kan forlænge.
+
+#### 8. Chatvideo — i drift; behandlingstiden AFGJORT (nyt bibliotek, bevis mangler)
+
+- **#1134 (17:28):** kameraet starter først ved «Optag video» (Jonas: selv trykke Optag eller Vælg fil). Lærestreg (q).
+- **I drift:** secret `BUNNY_STREAM_CHAT_COLLECTION_ID` er sat, og `chat-video` er deployet. **Den første video blev uploadet 17:46** og kunne afspilles med thumbnail efter Bunnys behandling.
+- **Behandlingstiden:** Bunny-biblioteket 720547 kører Free Encoding (best-effort-kø) med 240/360/480/720/1080p. Early-Play er fravalgt, fordi den ifølge Bunny «publicly expose the original video files».
+- **AFGJORT (Jonas 18:04: «Ja, hvis det virker?»):** et separat chat-bibliotek med Premium Encoding og JIT. Kort [`a29-chat-video-behandlingstid`](mangelliste.html#a29-chat-video-behandlingstid). Lærestreg (t).
+  - **Biblioteket:** «boardroom-chat», Library ID **765771**, oprettet 29/9 ca. 18:06.
+  - **Encoding:** Premium Encoding (1080p-tier, $0,05/min), Just-In-Time slået til (Bunny: «Preview»), Early-Play fra (Bunny tillader det ikke sammen med JIT), kun 480p og 720p, kun H.264. Anbefalet: MP4 fallback fra.
+  - **Security:** embed view token authentication og «block direct url file access» slået til. Anbefalet: «Enable direct play» fra (Bunny: «Anyone with the URL or video ID will be able to watch the video»).
+  - **Koden:** vindue A omlægger `chat-video` til tre nye secrets (`BUNNY_CHAT_LIBRARY_ID`, `BUNNY_CHAT_API_KEY`, `BUNNY_CHAT_TOKEN_AUTH_KEY`). Collection-kravet udgår, og Akademiet beholder `BUNNY_STREAM_*`.
+  - **Beviset mangler:** en testupload med tidtagning i det nye bibliotek, før koden merges.
+  - **Siden:** koden er merget (#1137, 18:36; hele suiten 559 / 7842 grøn i en ren kopi), og de tre secrets er lagt ind i Lovable 18:35. Testuploaden direkte i Bunny: Jonas «ret hurtigt tror jeg». Tiden er ikke målt præcist.
+  - **I DRIFT:** `chat-video` deployet eksplicit 18:38 fra Lovable (stod på `4db2e0b8`). **Jonas 18:41: «Videon fungerer hurtigt nu».** Kortet er lukket.
+  - **Næste:** A bygger forbedringer (poll hvert 2. s det første minut, 0-bytes-tjek, synlig uploadlinje med «Prøv igen»). Endnu ikke merget.
+  - **Saldoen:** Bunny-kontoen havde $7,55 kl. 18:06. Premium trækkes løbende, og automatisk genopfyldning er ikke målt.
+
+#### 9. Migrationen `20260929180000` (community rabathenvisning) — KØRT 17:35
+
+Den blev kørt, fordi `metaSend.guard` (`ukoerteFoerKoerte`) fældede #1133: filen stod ukørt før `20260929190000`, der var kørt. Lærestreg (o). Kort [`a29-migration-community-rabathenvisning`](mangelliste.html#a29-migration-community-rabathenvisning) er lukket.
+
+#### 10. Lovable committede en pakke trods «commit intet»
+
+Under «tilføj secret» committede Lovable `@lovable.dev/email-js@0.1.0` (`90820dcf`, 17:04; `bun.lock` + `package.json`), selvom beskeden sagde «commit intet» (lærestreg (b)). Pakken bruges af fire edge functions via `npm:` og er **beholdt**.
+
+#### 11. Åbne punkter — aften
+
+- ~~Certifikat trin 2~~ — **LØST, i drift 18:46.** Kort [`a29-certifikat-klokke`](mangelliste.html#a29-certifikat-klokke).
+- **PHILBERT henter certifikatet 29/9** (§7).
+- ~~Chatvideoens behandlingstid~~ — **LØST 18:41** (§8). Fra før: AFGJORT 18:04 — biblioteket «boardroom-chat» (765771) er oprettet; tilbage er testuploaden med tidtagning og omlægningen til de tre nye secrets (vindue A), før koden merges. Saldoen $7,55 og genopfyldningen er umålt (§8).
+- ~~Update i Lovable ville ca. 18:05 ikke hente #1133/#1135 (årsag ikke målt; PHILBERT afhænger af det)~~ — **#1133 I DRIFT 18:22** (målt i bundlen, §7). #1135 var ikke i Lovables spejl 18:20 — forhåndsvisningen kræver et nyt Update.
+- ~~Certifikat trin 2 efter merget (#1136): deploy, tørkørsel og cron-migrationen `20260929200000`~~ — **LØST: I DRIFT 18:41–18:46** (cron job 574; §7).
+- ~~Migrationen `20260929195000` og menupunktet (#1138) ligger i PR~~ — **merget** (#1138 18:37, #1139 18:42). Update for #1135/#1138 er ikke bekræftet.
+- ~~Chat-biblioteket: deploy af `chat-video` og beviset i chatten~~ — **LØST 18:38–18:41** (Jonas: «Videon fungerer hurtigt nu»; §8). A's forbedringer er endnu ikke merget.
+- **Vedhæftninger i `chat-attachments` slettes ikke, når beskeden slettes.** Kort [`a29-vedhaeftning-slettes-ikke`](mangelliste.html#a29-vedhaeftning-slettes-ikke).
+- **De døde statusmail-grene skal slettes.** Kort [`a29-statusmail-grene`](mangelliste.html#a29-statusmail-grene).
+- **Update/drift-beviset** står fortsat åbent (§5).
+
 ---
 
 ## DEL 3 · Det der venter
@@ -11090,14 +11202,24 @@ Huset har intet eget lærestreg-dokument. Fælderne står i DEL 4. Dagens læres
 
 ### 30/9 og frem — de åbne fra 29/9 (skrevet 29/9 eftermiddag)
 
+**Opstarten 30/9:** `docs/opstart-30-09.md` samler disse rækker med alle 191 ældre åbne kort i én prioriteret liste — et FORSLAG, som Jonas godkender, før der bygges.
+
 | hvornår | hvad | hvor det står |
 |---|---|---|
 | **29/9 ~18:30 — 14-dagsmailen indhentet** | 134 af 319 ude kl. 10:45; 112 manglede kl. 14:00; ~26 i timen; frist 5/10 23:59; ticket-nummer indsættes af Jonas | DEL 2 «29. september» §3; kort `a22-webinarmail-foerste-hold` |
 | **efter Update — drift-beviset** | #-henvisninger i chatten, rabataftalens adresse, videoknappen «ikke sat op endnu», forsidens «Mangler at booke» (N og M i drift; /virksomheder som før #1122) | DEL 2 «29. september» §5; kort `m28-hash-i-chatten`, `a29-overblik-bevis` |
-| **migrationen `20260929180000` (#1126)** | IKKE KØRT — køres i SQL editor | kort `a29-migration-community-rabathenvisning` |
+| **✅ migrationen `20260929180000` (#1126)** | KØRT 17:35 | DEL 2 «29. september» §9 |
 | **Mailgun business verification** | tjek banneret, send formularen igen (privat vindue); loftet 90 i koden ændres først ved skriftlig grænse | DEL 2 «29. september» §3; kort `a29-mailgun-verificering` |
 | **webinaralarmen** | rettelsen under bygning (vindue A); eksplicit deploy af `webinar-mail-cron` | DEL 2 «29. september» §3 |
-| **chat-video i drift** | collection «chat» + secret + eksplicit deploy; bevis i browseren | kort `a29-chat-video-i-drift` |
+| **✅ chat-video i drift** | secret sat, `chat-video` deployet, første video 17:46 | DEL 2 «29. september» §8 |
+| **✅ chatvideoens behandlingstid** | #1137 merget 18:36; `chat-video` deployet 18:38; Jonas 18:41: «Videon fungerer hurtigt nu»; saldo $7,55 og genopfyldning umålt | DEL 2 «29. september» §8 |
+| **chatvideo — A's forbedringer** | poll hvert 2. s det første minut, 0-bytes-tjek, uploadlinje med «Prøv igen»; ikke merget | DEL 2 «29. september» §8 |
+| **✅ Update med #1133 — i drift 18:22** | målt i bundlen; #1135 (forhåndsvisningen) var ikke i spejlet 18:20 og kræver et nyt Update | DEL 2 «29. september» §7, §11 |
+| **✅ migrationen `20260929195000` + menupunktet** | #1139 merget 18:42, #1138 merget 18:37; Update for #1135/#1138 ikke bekræftet | DEL 2 «29. september» §7 |
+| **✅ certifikat trin 2 — I DRIFT** | deploy 18:41, tørkørsel 18:44, rigtig kørsel 18:45 (3 klokker), cron 18:46 (job 574) | DEL 2 «29. september» §7 |
+| **29/9 — PHILBERT henter certifikatet** | kontrakten slutter 29/9 | DEL 2 «29. september» §7 |
+| **vedhæftninger slettes ikke med beskeden** | filerne bliver liggende til medlemmet hard-slettes | kort `a29-vedhaeftning-slettes-ikke` |
+| **døde grene** | `feat/statusmail-cron`, `feat/statusmail-motor` slettes | kort `a29-statusmail-grene` |
 | **statusmail — PAUSE** | draft #1127 må ikke merges; laves om til at sige det samme som «Mangler at booke» | DEL 2 «29. september» §5; kort `a29-statusmail-v2` |
 | **Mortens 12 retter uden booking** | årsagen ikke målt | kort `a29-morten-retter-uden-booking` |
 | **✅ `ansoegning_visninger` målt kørt 29/9 14:26** | hovedet vendt til KØRT; `metaSend.guard` dom 11 grøn | DEL 2 «29. september» §2 |

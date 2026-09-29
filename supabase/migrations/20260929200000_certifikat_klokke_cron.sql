@@ -1,4 +1,19 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod — 29/9-2026 kl. 18:46 dansk tid (Lovable SQL editor), EFTER den eksplicitte deploy (18:41) og tørkørslen (18:44). EFTER (18:46): jobid 574 · certifikat-klokke · 15 6 * * * · active true.
+--
+-- BOGFØRT (målt af Jonas 29/9-2026 i Lovable SQL editor, rækkefølgen holdt):
+--   18:41  certifikat-klokke deployet eksplicit fra build-chat: «Successfully deployed edge
+--          functions: certifikat-klokke» (Lovable stod på 1fcfe395 med 114d9735 under).
+--   18:44  tørkørsel: SELECT public.kald_edge('certifikat-klokke'), request 25060 → 200.
+--          dry_run true · i_dag 2026-09-29 · berettigede 52 · klar 3 (BRILLEVÆRK åbnede
+--          2026-08-13, PHILBERT ApS 2026-09-22, Capture IT A/S 2026-07-28 — 1 modtager hver)
+--          · skrevet 0 · sprunget: ingen_startdato 2, ikke_aabnet 25, ikke_fuldt_medlem 22,
+--          ikke_berettiget 0, ugyldig_startdato 0, ingen_modtagere 0 · raadgivere 0 · har_hentet 0.
+--   18:45  rigtig kørsel: SELECT public.kald_edge('certifikat-klokke', '{"dry_run": false}'::jsonb),
+--          request 25063 → 200, skrevet 3. SELECT count(*) FROM notifications WHERE
+--          type = 'certifikat_klar' = 3. Kørt i hånden FØR cron'en, så PHILBERT ApS
+--          (slut 29/9) fik klokken samme dag.
+--   18:46  cron.schedule som herunder. EFTER: jobid 574 · certifikat-klokke · 15 6 * * * · active true.
+--
 -- RÆKKEFØLGEN (CLAUDE.md «Deployment af edge functions»): merge → EKSPLICIT deploy af
 -- certifikat-klokke fra build-chat (bed den KØRE deploy-værktøjet og vise resultatet) →
 -- tørkørsel i hånden, svaret læst → FØRST DA denne migration.

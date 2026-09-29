@@ -1634,6 +1634,32 @@
     ebitda_margin_pct-noten. Talt med grep på div-taggene: før 186 (inkl.
     skabelonen i kommentaren) og 56 lukkede; efter 198 og 57 lukkede.
     Lukket: 1 (bliver stående). Omskrevet: 2. Tilføjet: 12.
+  RØRT 29/9 AFTEN — CERTIFIKATET, CHATVIDEOEN I DRIFT, MIGRATIONEN KØRT
+  (OVERLEVERING DEL 2 «29. september» §1, §5–§11; #1133, #1134, #1135;
+  lærestreger (n)–(t))
+    LUKKET (3): a29-chat-video-i-drift — i drift 17:46 (secret, deploy,
+    første video); a29-migration-community-rabathenvisning — kørt 17:35;
+    a29-statusmail-v2 — statusmailen droppet (#1132).
+    AJOUR (2): a29-chat-video-huller — (4) filstørrelsen tjekkes ikke før
+    upload; a29-hash-huller — (1) i drift efter migrationen.
+    TILFØJET (4, Ny 29/9): a29-chat-video-behandlingstid,
+    a29-vedhaeftning-slettes-ikke (Chat og rådgiverforløbet);
+    a29-statusmail-grene, a29-certifikat-klokke (Rådgiverfladen).
+    Talt med grep på kortenes div-tag (class card) og på lukket-status:
+    før 273 og 98 lukkede; efter 277 og 101 lukkede.
+    Lukket: 3. Ajour: 2. Tilføjet: 4.
+    TILLÆG 3 AFTEN — LUKKET (2): a29-chat-video-behandlingstid (hurtig i drift
+    18:41, #1137, deploy 18:38); a29-certifikat-klokke (i drift, cron job 574
+    18:46). #1138 og #1139 merget. Talt: 277 kort og 103 lukkede.
+    Opstarten 30/9: docs/opstart-30-09.md.
+    TILLÆG 2 AFTEN: a29-certifikat-klokke — #1136 merget 18:20, #1133 i drift
+    18:22, alle 52 virksomheder fik certifikatet 18:31 (migration
+    20260929195000), menupunktet i PR #1138; a29-chat-video-behandlingstid —
+    #1137 merget 18:36, secrets 18:35, uploadtid ikke målt præcist.
+    TILLÆG AFTEN: a29-chat-video-behandlingstid — AFGJORT 18:04 (bibliotek
+    765771, Premium + JIT), status beslutning → mangler, mærket «I gang»;
+    a29-certifikat-klokke — #1136 rettes (bodyFelter.guard), Update henter
+    ikke #1133/#1135 (årsag ikke målt; PHILBERT afhænger af det).
   RØRT 29/9 SEN EFTERMIDDAG — OVERBLIKKET GJORT ENKELT, MAILGUN, STATUSMAILEN PÅ
   PAUSE (OVERLEVERING DEL 2 «29. september» §1, §3–§6; #1126, #1128, #1129;
   draft #1127)
@@ -3248,26 +3274,41 @@
       <p><strong>Tre ting, der skal afgøres FØR byg:</strong> <strong>(1) Hvilke typer</strong> — de tre med én adresse, eller også dem med to og dem uden (rabataftaler kræver en adresse først). <strong>(2) Hvordan en henvisning gemmes</strong> — JSON-dokument som Community (ny lagerform for <code>messages.content</code>, ny renderer, <code>renTekst</code> og Slack-uddraget skal lære noderne) eller et <code>a</code>-tag i den nuværende HTML (overlever rensningen, men er en fuld sideindlæsning i ny fane, <code>ChatRichInput.tsx:212-215</code>, og bærer ingen type). <strong>(3) Hvad der sker i mailen</strong> — i dag fast tekst uden indhold; en henvisning kan kun ses dér, hvis <code>notify-chat-reply</code> og mailen bygges af beskeden, og så gennem <code>renTekst</code>, som fjerner al markup (<code>richtext.ts:18-28</code>). Databasen efterprøver ikke <code>context_id</code> (modsat <code>svar_paa_id</code>, <code>20260917090000:148-156</code>). Recon: <code>~/Downloads/recon-to-oensker.md</code> §1–§3, §6.</p>
       <div class="meta"><span class="tag gold">BYGGET 29/9 — BEVIS UDESTÅR efter Update</span><span class="tag gold">Jonas 28/9: ønske</span><span class="tag ny">Ny 28/9</span><span class="tag size">Mellem</span></div>
     </div>
-    <div class="card new" id="a29-chat-video-i-drift" data-status="mangler" data-spor="6" data-rammer="alle">
-      <h3>Chat-video i drift: Bunny-collectionen «chat», secret'en BUNNY_STREAM_CHAT_COLLECTION_ID og en eksplicit deploy af chat-video — og beviset i en browser</h3>
+    <div class="card new loest" id="a29-chat-video-i-drift" data-status="loest" data-spor="6" data-rammer="alle">
+      <h3>LUKKET 29/9 17:46 — chat-video er i drift: secret sat, deployet, første video afspillet. Var: Bunny-collectionen «chat», secret'en BUNNY_STREAM_CHAT_COLLECTION_ID og en eksplicit deploy af chat-video — og beviset i en browser</h3>
+      <p><strong>LUKKET 29/9:</strong> secret <code>BUNNY_STREAM_CHAT_COLLECTION_ID</code> er sat, og <code>chat-video</code> er deployet. Den første video blev uploadet 17:46 og kunne afspilles med thumbnail efter Bunnys behandling. <strong>Åbent:</strong> behandlingstiden — se <a href="#a29-chat-video-behandlingstid">a29-chat-video-behandlingstid</a>. OVERLEVERING DEL 2 «29. september» §8.</p>
       <p>Serverdelen (#1119) og fladen (#1121) er merget 29/9. Indtil collectionen findes i Bunny, dens id står som secret <code>BUNNY_STREAM_CHAT_COLLECTION_ID</code>, og <code>chat-video</code> er udrullet eksplicit fra Lovables build-chat, svarer alle tre handlinger 503, og knappen siger «Video er ikke sat op endnu.». <strong>Beviset i browseren:</strong> en optagelse sendt, «behandles» → «klar», afspillet med lyd. <strong>Ikke målt:</strong> Chrome optager WebM/Opus — om Bunny encoder Opus (Bunnys lydliste nævner det ikke); Bunnys referrer på Lovables preview-domæne. OVERLEVERING DEL 2 «29. september» §5.</p>
-      <div class="meta"><span class="tag rust">Ikke i drift — secret, collection, deploy</span><span class="tag">Opus og preview-referrer umålt</span><span class="tag ny">Ny 29/9</span><span class="tag size">Lille</span></div>
+      <div class="meta"><span class="tag loest">Lukket 29/9 17:46 — i drift</span><span class="tag">Opus og preview-referrer umålt</span><span class="tag ny">Ny 29/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" id="a29-chat-video-huller" data-status="mangler" data-spor="6" data-rammer="raadgiver">
-      <h3>Chat-video: en video kan blive forældreløs hos Bunny; «behandles» spørges kun i 10 minutter; loftet på 180 s håndhæves ikke af serveren</h3>
+      <h3>Chat-video: en video kan blive forældreløs hos Bunny; «behandles» spørges kun i 10 minutter; loftet på 180 s håndhæves ikke af serveren; filstørrelsen tjekkes ikke før upload</h3>
+      <p><strong>29/9 aften:</strong> (4) filstørrelsen tjekkes ikke før upload — hverken for en optagelse eller for «Vælg fil».</p>
       <p>(1) Kan beskeden ikke gemmes EFTER uploaden, ligger videoen hos Bunny uden en besked, der peger på den — ingen kode rydder op. (2) Visningen spørger «afspil» hvert 10. sekund i højst 10 minutter; en encoding, der tager længere, står som «behandles», til siden genindlæses. (3) <code>MAKS_SEKUNDER = 180</code> holdes af optageren og længdetjekket i browseren — <code>chat-video</code> ser ikke længden. OVERLEVERING DEL 2 «29. september» §5.</p>
-      <div class="meta"><span class="tag">Tre huller, målt i koden</span><span class="tag ny">Ny 29/9</span><span class="tag size">Lille</span></div>
+      <div class="meta"><span class="tag">Fire huller, målt i koden</span><span class="tag ny">Ny 29/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" id="a29-hash-huller" data-status="mangler" data-spor="6" data-rammer="alle">
       <h3>#-henvisningerne: community_json_til_tekst kender ikke rabathenvisningen; chatten tilbyder ikke opslag; ingen «forslag kunne ikke hentes»-linje; lektioner uden områdenavne</h3>
-      <p><strong>29/9 14:25 (#1126, «fejllinjer ved hentefejl + community-teksten kender rabathenvisning»):</strong> (1) og (3) er bygget — (1) virker først, når <a href="#a29-migration-community-rabathenvisning">migrationen 20260929180000</a> er kørt; (3) er <code>src/</code> og venter på Update. (2) og (4) står.</p>
+      <p><strong>29/9 14:25 (#1126, «fejllinjer ved hentefejl + community-teksten kender rabathenvisning»):</strong> (1) og (3) er bygget — (1) virker først, når <a href="#a29-migration-community-rabathenvisning">migrationen 20260929180000</a> er kørt; (3) er <code>src/</code> og venter på Update. (2) og (4) står. <strong>29/9 17:35:</strong> migrationen er kørt, så (1) er i drift.</p>
       <p>Tilbage efter <a href="#m28-hash-i-chatten">#-henvisningerne i chatten</a> (#1118, #1120, #1125): (1) SQL-funktionen <code>community_json_til_tekst</code> kender ikke rabathenvisningen; (2) chatten tilbyder ikke Community-opslag som henvisning; (3) chatten mangler en linje, når forslagene ikke kan hentes; (4) lektioner vises uden områdenavne. OVERLEVERING DEL 2 «29. september» §5.</p>
       <div class="meta"><span class="tag">Fire huller</span><span class="tag ny">Ny 29/9</span><span class="tag size">Lille</span></div>
     </div>
-    <div class="card new" id="a29-migration-community-rabathenvisning" data-status="mangler" data-spor="6" data-rammer="alle">
-      <h3>Migrationen 20260929180000_community_tekst_rabathenvisning.sql (#1126) er IKKE KØRT — skal køres i Lovables SQL editor</h3>
+    <div class="card new loest" id="a29-migration-community-rabathenvisning" data-status="loest" data-spor="6" data-rammer="alle">
+      <h3>LUKKET 29/9 17:35 — migrationen er kørt. Var: migrationen 20260929180000_community_tekst_rabathenvisning.sql (#1126) er IKKE KØRT — skal køres i Lovables SQL editor</h3>
+      <p><strong>LUKKET 29/9 17:35:</strong> kørt i prod, fordi <code>metaSend.guard</code> (<code>ukoerteFoerKoerte</code>) fældede #1133 — filen stod ukørt før <code>20260929190000</code>, der var kørt. OVERLEVERING DEL 2 «29. september» §9, lærestreg (o).</p>
       <p>Merget med #1126 (29/9 14:25, «community-teksten kender rabathenvisning»). Filhovedet: «-- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).» Indtil den er kørt, kender SQL-teksten stadig ikke rabathenvisningen (<a href="#a29-hash-huller">a29-hash-huller</a> punkt 1). Efter kørslen: vend hovedet til KØRT med FØR/EFTER, og vend et værn med, hvis det kræver IKKE KØRT. OVERLEVERING DEL 2 «29. september» §5.</p>
-      <div class="meta"><span class="tag rust">IKKE KØRT</span><span class="tag ny">Ny 29/9</span><span class="tag size">Lille</span></div>
+      <div class="meta"><span class="tag loest">Lukket 29/9 17:35 — kørt</span><span class="tag ny">Ny 29/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new loest" id="a29-chat-video-behandlingstid" data-status="loest" data-spor="6" data-rammer="alle">
+      <h3>LUKKET 29/9 18:41 — chatvideoen er hurtig i drift (eget bibliotek, #1137). Var: chatvideoens behandlingstid — AFGJORT 18:04: et separat bibliotek «boardroom-chat» (765771) med Premium Encoding og JIT; beviset (testupload med tidtagning) mangler før merge</h3>
+      <p><strong>LUKKET 29/9:</strong> #1137 merget 18:36; <code>chat-video</code> deployet eksplicit 18:38 fra Lovable (stod på <code>4db2e0b8</code>). <strong>Jonas 18:41: «Videon fungerer hurtigt nu».</strong> Tilbage, uden for kortet: A's forbedringer (poll hvert 2. s det første minut, 0-bytes-tjek, uploadlinje med «Prøv igen») er ikke merget; saldoen $7,55 og genopfyldningen er umålt. OVERLEVERING DEL 2 «29. september» §8.</p>
+      <p><strong>Jonas 18:04:</strong> «Ja, hvis det virker?» <strong>Biblioteket:</strong> «boardroom-chat», Library ID 765771, oprettet 29/9 ca. 18:06. <strong>Encoding:</strong> Premium Encoding (1080p-tier, $0,05/min), Just-In-Time slået til (Bunny: «Preview»), Early-Play fra (Bunny tillader det ikke sammen med JIT), kun 480p og 720p, kun H.264; anbefalet: MP4 fallback fra. <strong>Security:</strong> embed view token authentication og «block direct url file access» slået til; anbefalet: «Enable direct play» fra (Bunny: «Anyone with the URL or video ID will be able to watch the video»).</p>
+      <p><strong>Koden:</strong> vindue A omlægger <code>chat-video</code> til tre nye secrets (<code>BUNNY_CHAT_LIBRARY_ID</code>, <code>BUNNY_CHAT_API_KEY</code>, <code>BUNNY_CHAT_TOKEN_AUTH_KEY</code>); collection-kravet udgår, og Akademiet beholder <code>BUNNY_STREAM_*</code>. <strong>Beviset mangler:</strong> en testupload med tidtagning i det nye bibliotek, før koden merges. <strong>Saldoen:</strong> $7,55 kl. 18:06; Premium trækkes løbende, og automatisk genopfyldning er ikke målt. <strong>Siden:</strong> koden er merget (#1137, 18:36), og de tre secrets er lagt ind 18:35. Testuploaden direkte i Bunny: Jonas «ret hurtigt tror jeg» — tiden er ikke målt præcist. Tilbage: deploy af <code>chat-video</code> og beviset i chatten. Før: det gamle bibliotek 720547 på Free Encoding (best-effort-kø). Supabase Storage i stedet er afvist af Jonas (lærestreg (t)). OVERLEVERING DEL 2 «29. september» §8.</p>
+      <div class="meta"><span class="tag loest">Lukket 29/9 18:41 — hurtig i drift</span><span class="tag ny">Ny 29/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="a29-vedhaeftning-slettes-ikke" data-status="fejl" data-spor="6" data-rammer="alle">
+      <h3>Vedhæftninger i chat-attachments slettes ikke, når beskeden slettes — filerne bliver liggende, til medlemmet hard-slettes</h3>
+      <p><code>useMessageActions.ts:78-106</code>: sletningen fjerner beskedens række (og en chatvideo hos Bunny), men ikke filerne i <code>chat-attachments</code>. De bliver liggende, til medlemmet hard-slettes (<code>slet-medlemsdata-cron</code>'s bruger-buckets). OVERLEVERING DEL 2 «29. september» §11.</p>
+      <div class="meta"><span class="tag">Filer uden besked</span><span class="tag ny">Ny 29/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="ide" data-spor="senere" data-rammer="medlem">
       <h3>«Spørg din rådgiver om det her» som knap på hvert nøgletal — beskeden bærer tallet som en frosset chip</h3>
@@ -3516,10 +3557,22 @@
       <p>Målt 29/9 (medlemsoverblikkets nulpunkt): <code>companies.intro_session_used_at</code> er sat hos 12 uden en række i <code>session_bookings</code>; kun 11 rækker nogensinde. Årsagen er IKKE målt: håndafkrydsning, et fejlet rollback eller en slettet række. Til sammenligning: Jonas-retten blev sat i hånden for 23 virksomheder 13/9 20:50–20:54 UTC (Jonas: «det var mig»); Jonas-sessionen er kun en del af medlemskabet for NYE medlemmer → «ikke omfattet». Medlemmer booker gennem platformen (Calendly). <strong>29/9 eftermiddag:</strong> i forsidens <a href="#a29-overblik-bevis">«Mangler at booke»</a> tæller en ret markeret i hånden som booket — kortet her handler kun om, hvorfor rækkerne mangler. OVERLEVERING DEL 2 «29. september» §4.</p>
       <div class="meta"><span class="tag">Årsag ikke målt</span><span class="tag ny">Ny 29/9</span><span class="tag size">Lille</span></div>
     </div>
-    <div class="card new" id="a29-statusmail-v2" data-status="mangler" data-spor="senere" data-rammer="raadgiver">
-      <h3>Statusmailen laves om til at sige det samme som «Mangler at booke» (draft #1127, på pause — må ikke merges)</h3>
-      <p>Trin 1 er merget 29/9 14:00 (#1124: <code>byggOverblik</code>, Deno-spejle, mailens tekst). Trin 2 — edge function + cron, mandag 07:00 dansk tid — ligger som <strong>DRAFT #1127 «PAUSE — statusmail trin 2 (skal forenkles før merge)»</strong>. <strong>Beslutning 29/9 eftermiddag:</strong> statusmailen sættes på pause og laves om til at sige det samme som forsidens blok <a href="#a29-overblik-bevis">«Mangler at booke»</a>. (Fra formiddagen, stadig sandt: <code>MAERKE_PARAM</code> står to steder; en sammenligning med sidste uge kræver et ugentligt øjebliksbillede.) OVERLEVERING DEL 2 «29. september» §5.</p>
-      <div class="meta"><span class="tag rust">PAUSE — #1127 må ikke merges</span><span class="tag ny">Ny 29/9</span><span class="tag size">Mellem</span></div>
+    <div class="card new loest" id="a29-statusmail-v2" data-status="loest" data-spor="senere" data-rammer="raadgiver">
+      <h3>LUKKET 29/9 — statusmailen er droppet (#1132). Var: statusmailen laves om til at sige det samme som «Mangler at booke» (draft #1127, på pause — må ikke merges)</h3>
+      <p><strong>LUKKET 29/9:</strong> «chore: fjern statusmailen og det gamle overbliks døde kode — forsiden henter nu 3 kilder i stedet for 13» (#1132). Tilbage er de døde grene: <a href="#a29-statusmail-grene">a29-statusmail-grene</a>.</p>
+      <p>Trin 1 var merget 29/9 14:00 (#1124); trin 2 lå som draft #1127 på pause. Beslutningen 29/9 eftermiddag var, at statusmailen skulle sige det samme som <a href="#a29-overblik-bevis">«Mangler at booke»</a>. OVERLEVERING DEL 2 «29. september» §5.</p>
+      <div class="meta"><span class="tag loest">Lukket 29/9 — droppet (#1132)</span><span class="tag ny">Ny 29/9</span><span class="tag size">Mellem</span></div>
+    </div>
+    <div class="card new" id="a29-statusmail-grene" data-status="mangler" data-spor="senere" data-rammer="ingen">
+      <h3>De døde grene feat/statusmail-cron og feat/statusmail-motor skal slettes — statusmailen er droppet</h3>
+      <p>Statusmailen er fjernet (#1132); grenene <code>feat/statusmail-cron</code> (lokal og på origin) og <code>feat/statusmail-motor</code> (origin) har ingen fremtid. OVERLEVERING DEL 2 «29. september» §11.</p>
+      <div class="meta"><span class="tag">Oprydning</span><span class="tag ny">Ny 29/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new loest" id="a29-certifikat-klokke" data-status="loest" data-spor="6" data-rammer="medlem">
+      <h3>LUKKET 29/9 18:46 — certifikat trin 2 er I DRIFT (cron job 574). Var: «Dit certifikat» trin 2 (certifikat-klokke): efter merge — eksplicit deploy, tørkørsel og cron-migrationen 20260929200000</h3>
+      <p><strong>LUKKET 29/9:</strong> deploy 18:41; tørkørsel 18:44 (request 25060: klar 3, skrevet 0; sprunget: ingen_startdato 2, ikke_aabnet 25, ikke_fuldt_medlem 22); rigtig kørsel 18:45 (request 25063: skrevet 3; 3 rækker <code>certifikat_klar</code>); cron 18:46 (jobid 574, <code>15 6 * * *</code>, active). Kørt i hånden før cron'en, så PHILBERT fik klokken samme dag. #1138 (menupunktet, 18:37) og #1139 (alle virksomheder, 18:42) er merget; Update for #1135/#1138 er ikke bekræftet. <strong>Afklaring (Jonas 18:47):</strong> udløbne medlemmer er irrelevante, og ingen af dem kan forlænge. OVERLEVERING DEL 2 «29. september» §7.</p>
+      <p>Trin 1 er merget (#1133, migration <code>20260929190000</code> kørt 17:19); flaget <code>certificate_eligible</code> er sat 17:33 på BRILLEVÆRK, Capture IT A/S og PHILBERT ApS (CARMA STUDIO bevidst ikke — ude af platformen, slut 11/9). Forhåndsvisningen for rådgivere er #1135. Trin 2 — klokken «Dit certifikat er klar» — er <strong>merget (#1136, 18:20)</strong> efter rettelsen i <code>bodyFelter.guard</code> (lærestreg (u)). <strong>#1133 i drift 18:22</strong> (Update; målt i bundlen <code>index-D04bwATF.js</code>); #1135 var ikke i Lovables spejl 18:20. <strong>Kl. 18:31: ALLE virksomheder fik certifikatet</strong> (Jonas 18:29; migration <code>20260929195000</code> KØRT, ja 52, nej 0 — flaget er nu et fravalg; i PR). Topix.dk ApS er testkonto (18:28). Rådgiverens menupunkt → <code>/certifikat/forhaandsvisning</code> ligger i PR #1138. <strong>Tilbage efter merget:</strong> eksplicit deploy af <code>certifikat-klokke</code> → tørkørsel → migrationen <code>20260929200000</code>. PHILBERT slutter 29/9 og skal hente certifikatet samme dag. OVERLEVERING DEL 2 «29. september» §7.</p>
+      <div class="meta"><span class="tag loest">Lukket 29/9 18:46 — i drift</span><span class="tag ny">Ny 29/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" id="m16e-online-realtime" data-status="mangler" data-spor="6" data-rammer="raadgiver">
       <h3>«Online nu» på rådgiverens forside (Realtime Presence, privat kanal) — i drift #931, migrationen bevist 18:42; et kundemedlem skal dukke op før antagelse (a) er sand</h3>
