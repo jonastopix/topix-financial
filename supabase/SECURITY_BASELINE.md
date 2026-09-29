@@ -978,15 +978,28 @@ function (Bucket A) — caller access is gated by RLS on the underlying
 Frontend consumes it through `useChatAttachmentUrl` (TanStack Query,
 staleTime 9 min against the 10 min TTL).
 
-**Remaining items (→ chat-attachments PR 5, tracked in BACKLOG.md)**:
-- INSERT policy (`Authenticated users can upload chat attachments`)
-  still lacks a tenant/path check — should be tightened to the caller's
-  own `{userId}/` prefix.
-- `uploadChatAttachments` still stores the public-URL *form* in
-  `message.context_meta.attachments[].url`; the edge function's parser
-  handles both that form and a plain `path` field, so switching writes
-  to `path` is cleanup, not a blocker. Historical public-URL copies
-  outside the app are dead as of 2026-08-06 (accepted).
+**Path must belong to the sender (2026-09-29, «ændring 5»)**:
+`get-chat-attachment-url` reads `sender_id` together with `context_meta`
+in the same `callerClient` lookup and refuses (403, nothing signed) unless
+`stiTilhoererAfsender(path, sender_id)` holds — the path's first folder must
+be exactly the message's `sender_id` (`_shared/chatVedhaeftningSti.ts`,
+mirrored in `src/lib`, parity test). Before this, RLS on `messages` only
+proved the caller may SEE the message; `context_meta` has no constraint in
+the database, so a member could put another user's path into their own
+message and get it signed.
+
+**INSERT policy (`Authenticated users can upload chat attachments`)**:
+tightened to `bucket_id = 'chat-attachments' AND (storage.foldername(name))[1]
+= auth.uid()::text` by `20260929150000_chat_vedhaeftning_mappetjek.sql` —
+**IKKE KØRT** at the time of writing (29/9). Until it is run, any authenticated
+user can write anywhere in the bucket. Two older migration comments claimed
+the folder check existed (`20260911030000:12-13`, `20260903233000:56-57`);
+they were wrong — see the new migration's header.
+
+- `uploadChatAttachments` writes the `path` form (`{userId}/{ts}-{name}`);
+  the historical public-URL form in `attachments[].url` is still read.
+  Historical public-URL copies outside the app are dead as of 2026-08-06
+  (accepted).
 
 ### Other buckets (not security-critical at this time)
 
