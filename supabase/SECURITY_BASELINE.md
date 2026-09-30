@@ -259,6 +259,14 @@ Mirror of `protect_aftale_spor` (same body, same rule): UPDATE always raises; DE
 - Kildeværn: `src/lib/__tests__/companiesKolonnevaern.guard.test.ts` — hvidlisten ⊆ ikke-forbudte kolonner, hver medlemssti i `src/` skriver kun hvidlistede kolonner, hver fil der opdaterer companies er klassificeret (medlem/rådgiver), og hvidlisten åbner intet ubrugt. Bevis-kørslen (rullet tilbage) står i migrationens filhoved.
 - Åbent: `name` og `cvr_number` er medlemsskrivbare (Indstillinger) — analysens A4 (navnet i invitationsmailen) og CVR-genbrugskæden er ikke lukket af værnet.
 
+### `protect_maaned_foerste_godkendelse()` on `maaned_foerste_godkendelse BEFORE UPDATE` (Boardroom Score 30/9-2026, migration `20260930130000`)
+
+UPDATE always raises, for every role including `service_role` — the table is memory («when was this month FIRST approved»), and memory is never edited. DELETE has no client policy; the only DELETE is the cascade from `companies`. Not SECURITY DEFINER; `search_path = public`; EXECUTE revoked from PUBLIC/anon/authenticated.
+
+### `husk_foerste_godkendelse()` on `financial_report_facts AFTER INSERT OR UPDATE OF data_basis` (same migration)
+
+Writes one row per `(company_id, period_key)` into `maaned_foerste_godkendelse` with `now()` when a facts row BECOMES `measured` (INSERT, or UPDATE that flips `data_basis` to measured); `ON CONFLICT DO NOTHING` — the first stays. SECURITY DEFINER with `search_path = public` for the same reason as `cleanup_facts_on_report_delete`: every writer of facts (`commit_report_facts`, the annual/baseline edge functions with service role) must never have its INSERT rolled back by RLS on the memory table. It inserts into that one table only; EXECUTE revoked from PUBLIC/anon/authenticated (a trigger function cannot be called directly anyway). No existing SECURITY DEFINER function was changed. Proof of operation is a run, not the catalog — see `docs/boardroom-score.md` §4a for the FØR/EFTER query and the «replace a month, timestamp must not move» probe.
+
 ## 4. Data Normalization Triggers
 
 ### `trg_normalize_invitation_email` on `company_invitations BEFORE INSERT`
@@ -873,6 +881,12 @@ skrivende edge functions bruger `SUPABASE_SERVICE_ROLE_KEY`.
 - **Rådgivere:** SELECT på `webinar_delinger` og `webinar_deling_spor` (listen). Opret/forlæng/luk går KUN gennem `webinar-deling` (Bucket A: `authenticateUser` + `has_role` advisor via `callerClient.rpc`, `verify_jwt = true`), så en deling aldrig findes uden spor.
 - **Opbevaring 12 måneder (Jonas 21/9):** cron-jobbet `webinar-delinger-opbevaring` (`52 4 * * *`, migration `20260922021000`, ren SQL) sletter delinger 12 måneder efter det tidligste passerede af `lukket_at`/`udloeber_at`; sporet følger med cascaden. Antallet står i `cron.job_run_details.return_message` («DELETE n»).
 - **Sporet er append-only:** INSERT/SELECT for service_role, SELECT for rådgivere, ingen UPDATE/DELETE-politik, og `protect_webinar_deling_spor` (§3) nægter UPDATE altid og DELETE direkte (cascaden fra `webinar_delinger` slipper igennem). Hver visning og afvisning PÅ EN KENDT DELING logges med IP/user-agent (`deling_id NOT NULL`); et ukendt token skrives aldrig i sporet (det kan ikke slettes, og der er ingen rate-limit) — kun i functionens log, uden tokenet.
+
+### Boardroom Score — hukommelsen `maaned_foerste_godkendelse` (30/9-2026, migration `20260930130000`)
+
+- **Read-only for every client.** SELECT for company members (`company_id = user_company_id(auth.uid())`) and advisors (`has_role(auth.uid(), 'advisor')`); no INSERT/UPDATE/DELETE policy for anyone. The only writer is the trigger `husk_foerste_godkendelse` (§3) on `financial_report_facts`; the only DELETE is the cascade from `companies`. UPDATE is refused by `protect_maaned_foerste_godkendelse` (§3).
+- **Why it exists:** the Boardroom Score streak judges on a month's FIRST approval. `financial_report_facts.created_at` dies with the row on «Erstat gammel data» (soft-delete → `cleanup_facts_on_report_delete` deletes facts → `commit_report_facts` inserts anew) and on permanent deletion, so a corrected old month looked late. The memory survives both. Design and the operational proof: `docs/boardroom-score.md` §4a.
+- **Data:** company id, period key, one timestamp. No amounts, no persons.
 
 ## 6. Security Outcomes from Hardening Patches 5–10
 
