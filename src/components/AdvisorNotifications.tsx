@@ -22,7 +22,7 @@ interface Notification {
 }
 
 const AdvisorNotifications = () => {
-  const { user, isAdvisor } = useAuth();
+  const { user, isAdvisor, laeseMarkeringTilladt } = useAuth();
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [open, setOpen] = useState(false);
@@ -55,7 +55,9 @@ const AdvisorNotifications = () => {
 
   const unreadCount = notifications.filter((n) => !n.read_at).length;
 
+  // En tjenestekonto KIGGER (30/9, tjenestekonto.guard dom 6): intet markeres læst.
   const markAsRead = async (id: string) => {
+    if (!laeseMarkeringTilladt) return;
     await supabase
       .from("advisor_notifications" as any)
       .update({ read_at: new Date().toISOString() })
@@ -66,6 +68,7 @@ const AdvisorNotifications = () => {
   };
 
   const markAllRead = async () => {
+    if (!laeseMarkeringTilladt) return;
     const unreadIds = notifications.filter((n) => !n.read_at).map((n) => n.id);
     if (unreadIds.length === 0) return;
     await supabase

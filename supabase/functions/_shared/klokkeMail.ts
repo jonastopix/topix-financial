@@ -110,6 +110,7 @@ export const SELVMAILENDE_REFERENCER = [
   "meta_haendelser",    // meta-send-cron (#1069, i main siden 21/9 aften): alarmmail + drift-klokke
   "ga_haendelser",      // ga-send-cron (merget 21/9 aften, da848925): alarmmail + drift-klokke
   "webinar_mails",      // webinar-mail-cron (29/9): alarmmail + drift-klokke (skrivAlarm) ved fejlede mails, stop eller pause hos Mailgun
+  "drift_agent_koersler", // drift-agent-cron (30/9, driftsagenten skive 1): én samlet alarmmail + drift-klokke ved rødt
 ] as const;
 export const SELVMAILENDE_GRUND = "mailes allerede af sin egen alarm (sendManagedEmail i samme kørsel som klokken)";
 

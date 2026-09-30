@@ -43,6 +43,8 @@ import { formatDuration } from "@/components/hjemmebane/admin/editors/shared";
 import { handoutConfigs, moduleOrder, type HandoutModule } from "@/lib/handoutConfig";
 import { HbButton } from "../HbButton";
 import { FornyelsesBaand } from "./FornyelsesBaand";
+import { ScoreKort } from "./ScoreKort";
+import { useBoardroomScore } from "@/hooks/useBoardroomScore";
 import { HbCard } from "../HbCard";
 import { EstimatMaerke } from "../EstimatMaerke";
 import { dinMaanedDom, sparklineKoordinater, type DinMaanedDom, type MaanedsRaekke } from "@/lib/hjemmebane/dinMaaned";
@@ -1421,7 +1423,7 @@ const FejringRaekke = ({ fejring }: { fejring: Fejring }) => (
 );
 
 export const BoardroomView = () => {
-  const { user, profile, companyId, isAdvisor } = useAuth();
+  const { user, profile, companyId, isAdvisor, laeseMarkeringTilladt } = useAuth();
   const akademi = useAkademiData();
   // Forside PR 5: velkomstvideoens GUID (app_config — «Anyone authenticated can read config») til Bunny-coveret; dommen om AT vise den er velkomstHovedhistorie.
   const { velkomstvideoGuid } = useAppConfig();
@@ -2011,12 +2013,14 @@ export const BoardroomView = () => {
   const weeklyDisplayed = focus.slice(0, 4).some((i) => i.kind === "weekly-focus");
   useEffect(() => {
     const row = weeklyFocusQuery.data;
-    if (weeklyDisplayed && row && !row.seen_at && !seenMarked.current) {
+    // En tjenestekonto KIGGER (30/9, tjenestekonto.guard dom 6): medlemmets
+    // ugefokus må ikke stå som set, fordi Claude åbnede virksomheden.
+    if (weeklyDisplayed && row && !row.seen_at && !seenMarked.current && laeseMarkeringTilladt) {
       seenMarked.current = true;
       markSeen.mutate(row.id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [weeklyDisplayed, weeklyFocusQuery.data]);
+  }, [weeklyDisplayed, weeklyFocusQuery.data, laeseMarkeringTilladt]);
 
   // ── Opgave-modellens skrivevej (B1/B6/B7/B11) ───────────────────────────
   // Fladen kalder de tre edge functions og gentager INGEN regler —
@@ -2160,6 +2164,9 @@ export const BoardroomView = () => {
       ),
     [sorted, processing],
   );
+  // BOARDROOM SCORE (30/9 — Jonas D3): ÉN hook (react-query + motoren), kaldt her
+  // i topblokken FØR enhver betinget return (React #310). Kortet tegner kun dommen.
+  const boardroomScore = useBoardroomScore();
 
   const firstName = profile?.full_name?.split(" ")[0] || user?.email?.split("@")[0] || "dig";
 
@@ -2412,6 +2419,23 @@ export const BoardroomView = () => {
           </div>
         )}
       </div>
+
+      {/* ── BOARDROOM SCORE (30/9-2026 — Jonas D3 «Boardroom Score (0–1000) plus
+          tal-streak først»; docs/boardroom-score.md §7: «mellem Din måned og
+          planen»). Egen sektion i fuld bredde UNDER toppen og OVER «Din plan» —
+          toppens to kolonner (Jonas «A på alle», 17/9) er urørt. Mobil: efter
+          tiles, før planen. Kun med virksomhed (som «Din måned»). ── */}
+      {companyId && (
+        <HbSection eyebrow="Boardroom Score" hairline className="mt-10 md:mt-12" data-forside-score>
+          <ScoreKort
+            dom={boardroomScore.dom}
+            afventerMigration={boardroomScore.afventerMigration}
+            isLoading={boardroomScore.isLoading}
+            isError={boardroomScore.isError}
+            onProevIgen={boardroomScore.refetch}
+          />
+        </HbSection>
+      )}
 
       {/* ── DIN PLAN (forside PR 3, Jonas «A» til valg 3): ÉN sektion afløser
           «Dine skridt» + «Dine mål» — de aktive mål (højst tre) som rækker

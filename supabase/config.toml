@@ -339,6 +339,12 @@ project_id = "loiavmastgeieqyiwyyr"
   # role (tag · publiceret · slip · afvis) — agent-forslag-afgoer-forbilledet.
   [functions.nyhed-udkast-afgoer]
     verify_jwt = true
+  # Driftsagenten, skive 1 (30/9-2026). Bucket B, authenticateServiceRole FØRST,
+  # kaldt gennem kald_edge hvert 15. min. Tørkørsel som standard — uden
+  # «dry_run: false» dømmes der, men intet skrives; mailer kun med låsen
+  # app_config['driftsagent_aktiv'] åben.
+  [functions.drift-agent-cron]
+    verify_jwt = true
   # Gensenderen for klaviyo_haendelser (21/9-2026). Bucket B, authenticateServiceRole
   # FØRST, kaldt gennem kald_edge hvert 5. minut. Tørkørsel som standard — uden
   # «dry_run: false» dømmes der, men intet sendes og intet mailes. Sender KUN
@@ -373,6 +379,15 @@ project_id = "loiavmastgeieqyiwyyr"
   # verificeret af laesAfmeldToken (HMAC, konstant tid) FØR service role —
   # samme klasse som aftale-underskrift og webinar-delt.
   [functions.webinar-afmeld]
+    verify_jwt = false
+  # Klikket på Mortens hilsen i «dagen før»-mailen (udkast 30/9-2026). verify_jwt =
+  # FALSE, bevidst — af samme grund som webinar-afmeld: et menneske, der klikker i
+  # sin indbakke, sender hverken Authorization eller apikey. Legitimationen er
+  # mail-rækkens id i URL'en (uuid), formen dømt FØR opslaget og rækken slået op
+  # af verifyVideoKlik; kun et kendt id logges (anonymt: id + tid). Viderestillingen
+  # går ALTID til konfigurationens video på iframe.mediadelivery.net — aldrig til
+  # noget fra URL'en, så functionen er ingen åben viderestilling.
+  [functions.webinar-video]
     verify_jwt = false
   # Metas Conversions API fra platformen (udkast 21/9-2026 aften). Bucket B,
   # authenticateServiceRole FØRST, kaldt gennem kald_edge hvert 5. minut. Tørkørsel

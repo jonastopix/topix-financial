@@ -5,6 +5,8 @@
     ejerskabet på både læsning og upsert. */
 
 import { supabase } from "@/integrations/supabase/client";
+import { hentTjenestekonti } from "@/hooks/tjenestekonti";
+import { synligeRaadgivere } from "@/lib/tjenestekonto";
 
 /** DET fælles kolonnesæt fra visnings-RPC'erne (get_member_profile,
     get_event_participants, get_member_directory) — én type, ét sted.
@@ -42,9 +44,15 @@ export type MemberProfileFields = {
     virksomhedsmedlemmer + rådgivere (is_advisor = true, sorteret sidst
     af RPC'en selv). */
 export async function listMemberDirectory(): Promise<MemberProfile[]> {
-  const { data, error } = await supabase.rpc("get_member_directory" as any);
+  // Tjenestekonti (claude@topix.dk, 30/9) er rådgivere i RPC'ens advisor-UNION,
+  // men ingen person i Netværket — filtreret her, fordi RPC'en er SECURITY
+  // DEFINER og ikke må ændres (src/lib/tjenestekonto.ts).
+  const [{ data, error }, tjenestekonti] = await Promise.all([
+    supabase.rpc("get_member_directory" as any),
+    hentTjenestekonti(),
+  ]);
   if (error) throw new Error(error.message);
-  return (data ?? []) as unknown as MemberProfile[];
+  return synligeRaadgivere((data ?? []) as unknown as MemberProfile[], tjenestekonti);
 }
 
 /* externalHref BOEDE HER indtil 22/9-2026. Den er flyttet til

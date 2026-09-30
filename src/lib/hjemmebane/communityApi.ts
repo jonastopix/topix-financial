@@ -4,6 +4,8 @@
     profiler eller reaktioner direkte, og skrivereglerne bor i databasen. */
 
 import { supabase } from "@/integrations/supabase/client";
+import { hentTjenestekonti } from "@/hooks/tjenestekonti";
+import { synligeRaadgivere } from "@/lib/tjenestekonto";
 
 /** RPC'erne og community-tabellerne er endnu ikke i de genererede
     Supabase-typer (migrationerne køres manuelt i Lovable; typegen følger
@@ -140,10 +142,14 @@ export interface CommunityMedlem {
 }
 
 export async function hentCommunityMedlemmer(): Promise<CommunityMedlem[]> {
-  const rows = throwIfError(
-    await (supabase.rpc as any)("get_community_medlemmer"),
-  ) as CommunityMedlem[] | null;
-  return rows ?? [];
+  // Tjenestekonti (claude@topix.dk, 30/9) kan ikke @-nævnes — de er ingen
+  // person. Filtreret her: RPC'en er SECURITY DEFINER (src/lib/tjenestekonto.ts).
+  const [res, tjenestekonti] = await Promise.all([
+    (supabase.rpc as any)("get_community_medlemmer"),
+    hentTjenestekonti(),
+  ]);
+  const rows = throwIfError(res) as CommunityMedlem[] | null;
+  return synligeRaadgivere(rows ?? [], tjenestekonti);
 }
 
 /** Beder notify-community-svar notificere trådens forfatter om et nyt

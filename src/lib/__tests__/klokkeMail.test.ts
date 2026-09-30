@@ -78,13 +78,14 @@ describe("klokkeMail — typerne står ét sted", () => {
     expect(klassificer("")).toBe("ukendt");
   });
   it("en «drift»-klokke fra en selvmailende alarm (gensenderen, profil-cronen) er «aldrig» — de øvrige drift-klokker er alarm", () => {
-    expect([...SELVMAILENDE_REFERENCER]).toEqual(["klaviyo_haendelser", "klaviyo_profil", "meta_haendelser", "ga_haendelser", "webinar_mails"]);
+    expect([...SELVMAILENDE_REFERENCER]).toEqual(["klaviyo_haendelser", "klaviyo_profil", "meta_haendelser", "ga_haendelser", "webinar_mails", "drift_agent_koersler"]);
     expect(SELVMAILENDE_GRUND).toContain("egen alarm");
     expect(klassificer("drift", "klaviyo_haendelser")).toBe("aldrig");
     expect(klassificer("drift", "klaviyo_profil")).toBe("aldrig");
     expect(klassificer("drift", "meta_haendelser")).toBe("aldrig"); // #1069 mailer selv driftModtager
     expect(klassificer("drift", "ga_haendelser")).toBe("aldrig");   // ga-send-cron ligeså
     expect(klassificer("drift", "webinar_mails")).toBe("aldrig");   // webinar-mail-cron (29/9) mailer selv driftModtager
+    expect(klassificer("drift", "drift_agent_koersler")).toBe("aldrig"); // drift-agent-cron (30/9) mailer selv driftModtager
     expect(klassificer("drift", "cron_vagt_log")).toBe("alarm");
     expect(klassificer("drift", "meta_hentning")).toBe("alarm");
     expect(klassificer("drift", null)).toBe("alarm");

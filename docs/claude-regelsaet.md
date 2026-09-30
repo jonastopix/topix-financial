@@ -121,7 +121,22 @@ Morgenrapporten nævner, hvilken model der fik hvad.
 - **Skyklonen:** `/home/claude/topix-financial`. Lovables lockfil peger på Lovables pakke-mirror (`europe-west1-npm.pkg.dev`), som ikke kan nås herfra. Installér præcis de samme versioner ved at omskrive URL'erne til `registry.npmjs.org` i en KOPI af `bun.lock` (aldrig i repoet), køre `bun install --frozen-lockfile` dér og flytte `node_modules` ind. Kontrollér bagefter: `@supabase/supabase-js` skal være 2.97.0.
 - **GitHub:** push, PR og merge virker gennem sessionens proxy. Det gør sletning af grene ikke («Write access to this GitHub API path is not permitted through this proxy»). JSON-kald kræver `Content-Type: application/json`.
 - **Jonas' Mac:** mappen `topix-financial` er forbundet til en isoleret Linux-VM uden `gh`, `bun` og GitHub-login. Den bruges kun til at LÆSE og til at hente filer ind med stage.
-- **Produktion:** Supabase-forbindelsen ser kun `boardroom-2-prod`, IKKE Lovables prod (`loiavmastgeieqyiwyyr`). SQL, deploy og Update går gennem Lovable i browseren på Jonas' Mac, som kun kan bruges, når Mac'en er tændt, og Claude-appen er åben.
+- **Produktion:** Supabase-forbindelsen ser kun `boardroom-2-prod`, IKKE Lovables prod (`loiavmastgeieqyiwyyr`). Prod nås gennem Lovables egen MCP-forbindelse (§6a), forbundet af Jonas 30/9 kl. 16:40.
+- **Arbejdsmiljøets netværk** når IKKE `*.supabase.co`, `api.supabase.com` eller Lovable (målt 30/9 16:35: CONNECT 403). Al prod-adgang går gennem MCP-forbindelsen.
+
+## 6a. Lovable-forbindelsen (MCP, fra 30/9 16:40)
+
+Jonas forbandt Lovables officielle MCP-server (`https://mcp.lovable.dev`, [dokumentation](https://docs.lovable.dev/integrations/lovable-mcp-server)) til Claude 30/9 kl. 16:40 med sin egen Lovable-konto («Jeg er klar til, at vi får forbundet dig direkte, så du kan køre SQL og deploys i Lovable også … Men bliv ved med at være grundig!»). Forbindelsen har HELE hans kontos adgang — fire workspaces og alle projekter. Derfor:
+
+- **Kun ét projekt:** «Boardroom Compass», `project_id = 0bcda7a6-4154-4a81-9f82-fcdf623eb7ea`, workspace «Topix / The Boardroom» (`RQtkhlPP9ZEYYWj32M66`). Målt 30/9 16:41 med `query_database`: `current_user = postgres`, Postgres 17.6, 52 virksomheder, 30 cron-jobs, `net._http_response` max id 26455 — samme database som SQL editoren. Andre projekter og workspaces (SnowWave, Dansk Løn Service, Jonas' workspace, Topix Reimagined, The Boardroom Elevated) røres ALDRIG uden en særskilt besked fra Jonas.
+- **`query_database` kører som `postgres`** (`bypassrls = t`, `createrole = t`, målt 30/9): den ser alt og kan alt. Reglerne i §2 og §3 gælder uændret — forbindelsen flytter kun HÆNDERNE, ikke beslutningerne:
+  - SELECT frit. Aldrig `SELECT *` på de ti tabeller med nøgle-/tokenkolonner (målt 30/9: `aftale_underskrift`, `ansoegninger`, `company_betalingslink`, `company_invitations`, `email_unsubscribe_tokens`, `webinar_delinger`, `kanoniske_noegler`, `planlagte_haendelser`, `webinar_haendelser`, `backfill_log_kanoniske_noegler_20260918`) — vælg kolonnerne. Aldrig `vault`, aldrig secrets.
+  - Skrivning: SELECT før → skrivning guardet på den forventede nuværende værdi → SELECT efter. FØR-værdierne skrives i chatten/rapporten, så de kan rulles tilbage.
+  - Migrationer kun fra en fil på main (eller en PR-gren, der merges straks efter) med «IKKE KØRT» i hovedet; kør filens krop ordret, mål, og vend hovedet til KØRT i samme PR/opfølgning.
+  - `kald_edge(...)` (tørkørsler, beviser) er en skrivning i `net`-køen, men ikke af data: må uden at spørge, når body er en tørkørsel eller functionen er godkendt i drift.
+- **`send_message` til build-chatten** bruges KUN til deploy af edge functions og kun med den faste tekst: «Rør ingen kode, og commit intet. Kør deploy-værktøjet for …, og vis mig værktøjets resultat ordret.» Svaret læses med `get_message`, og `get_diff` på beskeden skal være TOM (ingen kodeændring). Viser diffen en ændring: stop og meld til Jonas. Deployen er først bevist ved et kald, der svarer med noget kun den nye kode kan (CLAUDE.md, «Deployment af edge functions»). `send_message` koster credits — én besked pr. deploy-runde, ikke én pr. function.
+- **`deploy_project` (= Update)** først når den nye commit er målt i Lovables kopi (`list_edits`/`read_file` på en ændret fil), og når `§1a` holder (alle migrationer, frontenden læser, er kørt og målt).
+- **Aldrig:** `create_project`, `remix_project`, `enable_database`, `set_project_visibility`, `set_*_knowledge`, workspace-skills, connectors — uden Jonas' særskilte ja.
 
 ## 7. Arbejdsgangen for én opgave
 

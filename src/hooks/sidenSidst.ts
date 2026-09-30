@@ -59,7 +59,13 @@ export interface SidenSidst {
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-export async function hentSidenSidst(userId: string, nu: Date = new Date()): Promise<SidenSidst> {
+/**
+ * skrivStempel = false (30/9, tjenestekonto.guard dom 6): listen regnes fra det
+ * gemte stempel, men stemplet flyttes ikke og sessionen husker intet — en
+ * tjenestekonto KIGGER, og mens opslaget «er jeg en tjenestekonto?» henter,
+ * venter stemplet til næste kørsel (forsiden har flaget i nøglen).
+ */
+export async function hentSidenSidst(userId: string, nu: Date = new Date(), skrivStempel = true): Promise<SidenSidst> {
   let siden = laesSessionSiden(userId);
   if (!siden) {
     const { data: stempel, error: laeseFejl } = await (supabase
@@ -69,13 +75,15 @@ export async function hentSidenSidst(userId: string, nu: Date = new Date()): Pro
       .maybeSingle() as any);
     if (laeseFejl) throw new Error(laeseFejl.message);
     siden = sidenAf((stempel as { set_at: string } | null)?.set_at ?? null, nu);
-    // Stemplet sættes NU — den næste session ser herfra. Fejler skrivningen,
-    // vises listen alligevel (læsning er vigtigere end bogføring).
-    const { error: skriveFejl } = await (supabase
-      .from("forside_sidst_set" as any)
-      .upsert({ user_id: userId, set_at: nu.toISOString() } as any, { onConflict: "user_id" }) as any);
-    if (skriveFejl) console.warn("[siden-sidst] stemplet blev ikke sat:", skriveFejl.message);
-    skrivSessionSiden(userId, siden);
+    if (skrivStempel) {
+      // Stemplet sættes NU — den næste session ser herfra. Fejler skrivningen,
+      // vises listen alligevel (læsning er vigtigere end bogføring).
+      const { error: skriveFejl } = await (supabase
+        .from("forside_sidst_set" as any)
+        .upsert({ user_id: userId, set_at: nu.toISOString() } as any, { onConflict: "user_id" }) as any);
+      if (skriveFejl) console.warn("[siden-sidst] stemplet blev ikke sat:", skriveFejl.message);
+      skrivSessionSiden(userId, siden);
+    }
   }
   const param = { siden: siden.toISOString() };
   const ny = await (supabase.rpc(SIDEN_SIDST_RPC as any, param) as any);

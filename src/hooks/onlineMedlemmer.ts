@@ -1,21 +1,21 @@
 /**
  * src/hooks/onlineMedlemmer.ts
  *
- * Rådgiveren lytter på den private Presence-kanal ONLINE_KANAL og slår
- * navn, billede og virksomhed op med sin egen RLS (16/9,
- * plan-online-realtime.md §2; migration 20260917100000_online_presence.sql:
- * SELECT-politikken «Raadgivere ser online-medlemmer»). De rene dele —
- * presence-state → id'er, dommen over hvem der vises, ordene — bor i
- * src/lib/hjemmebane/online.ts.
+ * Rådgiveren henter friske HJERTESLAG og slår navn, billede og virksomhed op
+ * med sin egen RLS (30/9-2026; migration 20260930120000_online_hjerteslag.sql:
+ * SELECT-politikken «Raadgivere ser hjerteslag»; modellen og regnestykket i
+ * src/lib/hjemmebane/online.ts). Erstatter lytningen på Presence-kanalen fra
+ * 16/9 — ingen realtime-kanal tilbage.
  *
  * TO DELE:
- *   useOnlineMedlemmer(aktiv)  — kanalen. private: true; INGEN track (rådgiveren
- *                                er ikke «online medlem» og har ingen INSERT-ret).
- *                                sync/join/leave → presenceState() → onlineIds.
- *                                status: henter (før første sync) · live
- *                                (SUBSCRIBED) · fejl (CHANNEL_ERROR, TIMED_OUT,
- *                                CLOSED) — fejl og tom er to beskeder.
- *                                Cleanup: removeChannel (unsubscribe sender leave).
+ *   useOnlineMedlemmer(aktiv)  — react-query over hentOnlineIds:
+ *                                online_hjerteslag_friske(ONLINE_VINDUE_S)
+ *                                (serverens ur) → onlineIds. Genhentes hvert
+ *                                ONLINE_GENHENT_MS og ved fokus.
+ *                                status: henter (før første svar) · live
+ *                                (svar) · fejl (hentningen fejlede — også en
+ *                                genhentning: et gammelt svar må ikke stå som
+ *                                «nu») — fejl og tom er to beskeder.
  *   hentOnlineDom(ids)         — én hentning (react-query i fladen, nøglen bærer
  *                                id'erne): profiles (user_id, full_name,
  *                                avatar_url — «Advisors can view all profiles»),
@@ -25,15 +25,15 @@
  *                                Alle gennem kraevRaekker: en fejl bliver en
  *                                HentningsFejl med kildens navn, og fladen viser
  *                                husets fejltekst — aldrig «ingen online».
- *
- * INGEN SQL-ændring ud over de to Realtime-politikker; ingen debug-kode
- * (beviset laves i browserens Netværk → WS-rammer, se rapporten).
  */
-import { useEffect, useState } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { kraevRaekker } from "@/lib/kraevRaekker";
 import {
-  ONLINE_KANAL,
+  ONLINE_FRISKE_FUNKTION,
+  ONLINE_GENHENT_MS,
+  ONLINE_TABEL,
+  ONLINE_VINDUE_S,
   onlineIds,
   type OnlineDomInput,
   type OnlineMedlemskab,
@@ -44,38 +44,33 @@ import {
 
 export interface OnlineKanal {
   status: OnlineStatus;
-  /** Sorterede, unikke bruger-id'er fra presence-state (tom før første sync). */
+  /** Sorterede, unikke bruger-id'er med friske hjerteslag (tom før første svar). */
   ids: string[];
 }
 
+export const ONLINE_IDS_KEY = ["forside", "online-hjerteslag"] as const;
+
+type FriskeSvar = { data: { user_id: unknown }[] | null; error: { message: string } | null };
+
+/** Friske hjerteslag, målt mod serverens ur (SECURITY INVOKER — RLS afgør). */
+export async function hentOnlineIds(): Promise<string[]> {
+  const res = (await supabase.rpc(ONLINE_FRISKE_FUNKTION as never, { vindue_sekunder: ONLINE_VINDUE_S } as never)) as unknown as FriskeSvar;
+  return onlineIds(kraevRaekker(res, ONLINE_TABEL));
+}
+
 export function useOnlineMedlemmer(aktiv: boolean): OnlineKanal {
-  const [status, setStatus] = useState<OnlineStatus>("henter");
-  const [ids, setIds] = useState<string[]>([]);
-
-  useEffect(() => {
-    if (!aktiv) return;
-    let levende = true;
-    setStatus("henter");
-    const channel = supabase.channel(ONLINE_KANAL, { config: { private: true } });
-    const laesState = () => {
-      if (levende) setIds(onlineIds(channel.presenceState()));
-    };
-    channel
-      .on("presence", { event: "sync" }, laesState)
-      .on("presence", { event: "join" }, laesState)
-      .on("presence", { event: "leave" }, laesState)
-      .subscribe((s) => {
-        if (!levende) return;
-        if (s === "SUBSCRIBED") setStatus("live");
-        else if (s === "CHANNEL_ERROR" || s === "TIMED_OUT" || s === "CLOSED") setStatus("fejl");
-      });
-    return () => {
-      levende = false;
-      void supabase.removeChannel(channel);
-    };
-  }, [aktiv]);
-
-  return { status, ids };
+  const q = useQuery({
+    queryKey: ONLINE_IDS_KEY,
+    queryFn: hentOnlineIds,
+    enabled: aktiv,
+    refetchInterval: ONLINE_GENHENT_MS,
+    refetchOnWindowFocus: true,
+    staleTime: 0,
+    // Feltet blinker ikke: mellem to hentninger står det forrige svar.
+    placeholderData: keepPreviousData,
+  });
+  const status: OnlineStatus = q.isError ? "fejl" : q.data ? "live" : "henter";
+  return { status, ids: q.data ?? [] };
 }
 
 /** Nøglen bærer id'erne, så en ny online giver ét nyt opslag — og intet når ingen er online. */

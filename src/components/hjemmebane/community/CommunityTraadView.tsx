@@ -162,7 +162,7 @@ const SvarRaekke = ({
 export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const { user, isAdvisor } = useAuth();
+  const { user, isAdvisor, laeseMarkeringTilladt } = useAuth();
 
   const [redigererTraad, setRedigererTraad] = useState(false);
   const [traadTitel, setTraadTitel] = useState("");
@@ -180,9 +180,12 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
   // En visning er en bivirkning af at kigge, ikke en handling — fejl fra
   // registreringen må ALDRIG nå brugeren (RPC'en er selv stille ved
   // manglende adgang; her sluges også netværksfejl).
+  // En tjenestekonto KIGGER (30/9, tjenestekonto.guard dom 6): ingen visning
+  // i trådens tæller. Flaget i afhængighederne: mens opslaget henter, venter
+  // registreringen (RPC'en er idempotent pr. bruger og tråd).
   useEffect(() => {
-    if (traadId) registrerVisning(traadId).catch(() => {});
-  }, [traadId]);
+    if (traadId && laeseMarkeringTilladt) registrerVisning(traadId).catch(() => {});
+  }, [traadId, laeseMarkeringTilladt]);
 
   /* Svar og reaktioner rører både svarlisten, trådens tællere
      (antal_svar/antal_reaktioner står på tråden) og feedets metalinje —

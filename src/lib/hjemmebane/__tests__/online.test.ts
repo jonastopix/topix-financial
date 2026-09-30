@@ -2,19 +2,26 @@ import { describe, expect, it } from "vitest";
 import {
   INGEN_ONLINE_TEKST,
   LEGAT_MAERKE,
-  ONLINE_KANAL,
+  ONLINE_FRISKE_FUNKTION,
+  ONLINE_GENHENT_MS,
+  ONLINE_HJERTESLAG_MS,
   ONLINE_LOFT,
+  ONLINE_MIN_AFSTAND_MS,
   ONLINE_OVERSKRIFT,
+  ONLINE_TABEL,
+  ONLINE_VINDUE_S,
   onlineIds,
   onlineMedlemmer,
   onlineOverskrift,
   onlineTitel,
   onlineUdsnit,
+  skalSlaa,
+  vinduetHolder,
   type OnlineDomInput,
 } from "@/lib/hjemmebane/online";
 
-/* «Online nu» (Jonas 16/9): presence-state → personer, og dommen over hvem
-   der vises. Nøglen er user.id; flere faner = én person. */
+/* «Online nu» (Jonas 16/9; hjerteslag 30/9): hjerteslagsrækker → personer,
+   vinduets regnestykke, og dommen over hvem der vises. */
 
 const U1 = "11111111-1111-4111-8111-111111111111";
 const U2 = "22222222-2222-4222-8222-222222222222";
@@ -30,23 +37,66 @@ const dom = (over: Partial<OnlineDomInput> = {}): OnlineDomInput => ({
   ...over,
 });
 
-describe("onlineIds — presence-state til personer", () => {
-  it("tom state → ingen", () => {
-    expect(onlineIds({})).toEqual([]);
+describe("onlineIds — hjerteslagsrækker til personer", () => {
+  it("ingen rækker → ingen", () => {
+    expect(onlineIds([])).toEqual([]);
     expect(onlineIds(null)).toEqual([]);
     expect(onlineIds(undefined)).toEqual([]);
   });
-  it("én nøgle med to presences (to faner) → ét id", () => {
-    expect(onlineIds({ [U1]: [{ presence_ref: "a" }, { presence_ref: "b" }] })).toEqual([U1]);
+  it("samme bruger to gange → ét id", () => {
+    expect(onlineIds([{ user_id: U1 }, { user_id: U1 }])).toEqual([U1]);
   });
-  it("en nøgle med tom liste er ikke online", () => {
-    expect(onlineIds({ [U1]: [] })).toEqual([]);
-  });
-  it("nøgler der ikke er UUID'er (serverens egen nøgle når key glemmes) vises aldrig som et medlem", () => {
-    expect(onlineIds({ "phx-abc": [{ presence_ref: "a" }], [U2]: [{ presence_ref: "b" }] })).toEqual([U2]);
+  it("id'er der ikke er UUID'er (eller ikke strenge) vises aldrig som et medlem", () => {
+    expect(onlineIds([{ user_id: "abc" }, { user_id: null }, { user_id: 7 }, { user_id: U2 }])).toEqual([U2]);
   });
   it("sorteret og unik", () => {
-    expect(onlineIds({ [U3]: [{ presence_ref: "a" }], [U1]: [{ presence_ref: "b" }] })).toEqual([U1, U3]);
+    expect(onlineIds([{ user_id: U3 }, { user_id: U1 }])).toEqual([U1, U3]);
+  });
+});
+
+describe("vinduet — interval + mindste afstand < vinduet", () => {
+  it("husets tal holder: 60 s + 20 s = 80 s < 150 s", () => {
+    expect(ONLINE_HJERTESLAG_MS).toBe(60_000);
+    expect(ONLINE_MIN_AFSTAND_MS).toBe(20_000);
+    expect(ONLINE_VINDUE_S).toBe(150);
+    expect(ONLINE_GENHENT_MS).toBe(30_000);
+    expect(vinduetHolder({ hjerteslagMs: ONLINE_HJERTESLAG_MS, minAfstandMs: ONLINE_MIN_AFSTAND_MS, vindueS: ONLINE_VINDUE_S })).toBe(true);
+  });
+  it("genhentningen er kortere end vinduet (ellers står et gammelt svar længere end et medlem er online)", () => {
+    expect(ONLINE_GENHENT_MS).toBeLessThan(ONLINE_VINDUE_S * 1000);
+  });
+  it("MUTATION: interval = vinduet fælder dommen", () => {
+    expect(vinduetHolder({ hjerteslagMs: 150_000, minAfstandMs: 0, vindueS: 150 })).toBe(false);
+  });
+  it("MUTATION: interval + afstand = vinduet (ikke strengt mindre) fælder dommen", () => {
+    expect(vinduetHolder({ hjerteslagMs: 130_000, minAfstandMs: 20_000, vindueS: 150 })).toBe(false);
+    expect(vinduetHolder({ hjerteslagMs: 129_999, minAfstandMs: 20_000, vindueS: 150 })).toBe(true);
+  });
+  it("MUTATION: vinduet i sekunder læst som millisekunder fælder dommen", () => {
+    expect(vinduetHolder({ hjerteslagMs: ONLINE_HJERTESLAG_MS, minAfstandMs: ONLINE_MIN_AFSTAND_MS, vindueS: ONLINE_VINDUE_S / 1000 })).toBe(false);
+  });
+  it("MUTATION: interval 0, negativ afstand eller afstand ≥ interval fælder dommen", () => {
+    expect(vinduetHolder({ hjerteslagMs: 0, minAfstandMs: 0, vindueS: 150 })).toBe(false);
+    expect(vinduetHolder({ hjerteslagMs: 60_000, minAfstandMs: -1, vindueS: 150 })).toBe(false);
+    expect(vinduetHolder({ hjerteslagMs: 60_000, minAfstandMs: 60_000, vindueS: 150 })).toBe(false);
+  });
+});
+
+describe("skalSlaa — hvornår medlemmet slår hjerteslag", () => {
+  const NU = 1_000_000;
+  it("første slag med synlig fane: ja", () => {
+    expect(skalSlaa({ synlig: true, nuMs: NU, sidsteMs: null })).toBe(true);
+  });
+  it("skjult fane: aldrig — heller ikke det første", () => {
+    expect(skalSlaa({ synlig: false, nuMs: NU, sidsteMs: null })).toBe(false);
+    expect(skalSlaa({ synlig: false, nuMs: NU, sidsteMs: NU - 10 * ONLINE_HJERTESLAG_MS })).toBe(false);
+  });
+  it("forrige slag yngre end mindste afstand: nej; præcis mindste afstand: ja", () => {
+    expect(skalSlaa({ synlig: true, nuMs: NU, sidsteMs: NU - ONLINE_MIN_AFSTAND_MS + 1 })).toBe(false);
+    expect(skalSlaa({ synlig: true, nuMs: NU, sidsteMs: NU - ONLINE_MIN_AFSTAND_MS })).toBe(true);
+  });
+  it("intervallets slag (60 s efter) går altid igennem med synlig fane", () => {
+    expect(skalSlaa({ synlig: true, nuMs: NU, sidsteMs: NU - ONLINE_HJERTESLAG_MS })).toBe(true);
   });
 });
 
@@ -97,8 +147,9 @@ describe("onlineMedlemmer — hvem vises", () => {
 });
 
 describe("ordene og udsnittet", () => {
-  it("kanalnavn, overskrift og tom tekst", () => {
-    expect(ONLINE_KANAL).toBe("online-medlemmer");
+  it("tabel, funktion, overskrift og tom tekst", () => {
+    expect(ONLINE_TABEL).toBe("online_hjerteslag");
+    expect(ONLINE_FRISKE_FUNKTION).toBe("online_hjerteslag_friske");
     expect(ONLINE_OVERSKRIFT).toBe("Online nu");
     expect(INGEN_ONLINE_TEKST).toBe("Ingen medlemmer online lige nu.");
     expect(onlineOverskrift(0)).toBe("Online nu");
