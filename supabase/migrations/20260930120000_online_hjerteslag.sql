@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod — 30/9-2026 kl. 15:59 dansk tid (Jonas, Lovable SQL editor), FØR merget af #1169 og FØR Update. EFTER (15:59:56): 1 online_hjerteslag · 2 rls true · 3 fire PERMISSIVE politikker for authenticated (INSERT/UPDATE/SELECT egen række, SELECT has_role advisor) · 4 trigger online_hjerteslag_servertid BEFORE INSERT OR UPDATE · 5 online_hjerteslag_friske security_definer=f authenticated=t anon=f; online_hjerteslag_servertid (triggerfunktion) security_definer=f · 6 anon SELECT/INSERT false, authenticated SELECT/INSERT/UPDATE true, DELETE/TRUNCATE false · 7 de to Presence-politikker urørte · 8 has_role fra authenticated true.
 --
 -- «Online nu» som HJERTESLAG I EN TABEL (30/9-2026) — erstatter Presence-
 -- kanalen fra 20260917100000_online_presence.sql i koden. Den gamle
