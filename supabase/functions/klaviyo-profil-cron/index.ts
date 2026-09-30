@@ -53,6 +53,18 @@
 // mail (rensetMedlemResultat → findForbudteNoegler i Deno.serve før svaret går).
 // Fejlede medlemsskrivninger går i samme alarm (felt «medlem»).
 //
+// LÅSEN (rådet 30/9, «RET FØRST» fund 1): job 571 kører ALLEREDE {"dry_run": false}
+// hvert :17 — uden en lås ville første kørsel efter udrulningen være en umålt
+// backfill til alle medlemsmails. Medlemspasset skriver derfor kun for alvor, når
+// medlemSkriverRigtigt(toer, app_config.klaviyo_medlem_aktiv, email) siger ja:
+// tørkørsel aldrig; ellers låsen ELLER prøven til én adresse ({dry_run:false, email}).
+// Låsen læses fail-closed FØR tørkørslens return, så også en tørkørsel viser
+// medlem.laas_aktiv. En lukket lås i en rigtig kørsel: planen står i svaret,
+// intet skrives, og posterne tælles i medlem.holdt_af_laas. Webinarpasset er
+// i drift og står IKKE bag låsen.
+// SLETTEDE (fund 3): false skrives kun for mails, platformen stadig kender
+// (medlemsmails.kendte) — en slettet persons mail POST'es aldrig til Klaviyo.
+//
 // KASTER ALDRIG mod én mail: fejler skrivningen for én, tælles den som fejlet,
 // og de andre skrives. Vælter hele kørslen (databasen væk), er svaret 500.
 
@@ -65,7 +77,7 @@ import { driftModtager } from "../_shared/driftModtager.ts";
 import { indgangsMailHtml } from "../_shared/indgangsMail.ts";
 import { skrivMedlemHvisNoegle, skrivProfilHvisNoegle } from "../_shared/klaviyoAfsendelse.ts";
 import { afviger, naesteSessionPrMail, profilVaerdier, type Profilvaerdier, type SidstSkrevet, type TilmeldingTid } from "../_shared/klaviyoDato.ts";
-import { medlemPlan, medlemsmails, type MedlemPlanPost, type MedlemProfil, type MedlemResultat, type MedlemTilknytning, type MedlemVirksomhed, rensetMedlemResultat, tomtMedlemResultat } from "../_shared/klaviyoMedlem.ts";
+import { laasVaerdiErAktiv, MEDLEM_LAAS_NOEGLE, medlemPlan, medlemSkriverRigtigt, medlemsmails, type MedlemPlanPost, type MedlemProfil, type MedlemResultat, type MedlemTilknytning, type MedlemVirksomhed, rensetMedlemResultat, tomtMedlemResultat } from "../_shared/klaviyoMedlem.ts";
 import { type FejletSkrivning, PROFIL_ALARM_KLOKKE_TYPE, PROFIL_ALARM_MAIL_LABEL, profilAlarmNoegle, profilAlarmTekst } from "../_shared/klaviyoProfil.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -211,6 +223,9 @@ export async function koerProfil(
     r.ok = false;
     console.error(`${LOG} medlemspasset kunne ikke læse:`, grund);
   }
+  // 3c. Låsen (R13) — læst fail-closed FØR tørkørslens return, så svaret altid viser den.
+  r.medlem.laas_aktiv = await medlemLaasErAktiv(admin);
+  r.medlem.sender_rigtigt = medlemSkriverRigtigt(a.toerKoersel, r.medlem.laas_aktiv, a.email);
 
   if (a.toerKoersel) return r;
 
@@ -225,9 +240,11 @@ export async function koerProfil(
     if (eks) eks.udfald = svar.spor.udfald;
   }
 
-  // 4b. Medlemsfeltet — efter webinarets skrivninger, inden for SAMME budget.
+  // 4b. Medlemsfeltet — efter webinarets skrivninger, inden for SAMME budget, og KUN bag låsen (R13).
   const medlemFejl: FejletSkrivning[] = [];
-  for (const p of medlemPoster) {
+  const medlemSkrives: MedlemPlanPost[] = r.medlem.sender_rigtigt ? medlemPoster : [];
+  if (!r.medlem.sender_rigtigt) r.medlem.holdt_af_laas = medlemPoster.length;
+  for (const p of medlemSkrives) {
     if (Date.now() - a.startMs > BUDGET_MS) { r.medlem.udsat++; continue; }
     const svar = await skrivMedlemHvisNoegle(admin, p.email, p.oensket, a.nu);
     r.medlem.skrevet++;
@@ -262,7 +279,7 @@ async function planlaegMedlem(
 ): Promise<MedlemPlanPost[]> {
   const virksomheder = await alleSider<MedlemVirksomhed>((fra, til) =>
     admin.from("companies")
-      .select("id, contract_end_date, subscription_status, subscription_current_period_end, is_legat, vis_i_netvaerk, contact_email")
+      .select("id, contract_end_date, subscription_status, subscription_current_period_end, is_legat, vis_i_netvaerk, contact_email, er_kunde, is_demo, data_slettet_at")
       .order("id", { ascending: true }).range(fra, til));
   const tilknytninger = await alleSider<MedlemTilknytning>((fra, til) =>
     admin.from("company_members").select("company_id, user_id")
@@ -288,11 +305,27 @@ async function planlaegMedlem(
   const sidst = new Map<string, boolean | null>(tilstand.map((t) => [t.email, t.tb_medlem]));
   m.tilstand_true = tilstand.filter((t) => t.tb_medlem === true).length;
 
-  const plan = medlemPlan(dom.mails, sidst, a.email);
+  const plan = medlemPlan(dom.mails, dom.kendte, sidst, a.email);
   m.saet_true = plan.saet_true;
   m.saet_false = plan.saet_false;
   m.uaendret = plan.uaendret;
+  m.ukendt_udeladt = plan.ukendt_udeladt;
   return plan.poster;
+}
+
+/** R13: app_config.klaviyo_medlem_aktiv, fail-closed — kan den ikke læses, er den lukket (samme form som webinar-mail-cron). */
+async function medlemLaasErAktiv(admin: SupabaseClient): Promise<boolean> {
+  try {
+    const { data, error } = await admin.from("app_config").select("config_value").eq("config_key", MEDLEM_LAAS_NOEGLE).maybeSingle();
+    if (error) {
+      console.error(`${LOG} app_config (${MEDLEM_LAAS_NOEGLE}) kunne ikke læses — låsen er lukket:`, error.message);
+      return false;
+    }
+    return laasVaerdiErAktiv((data as { config_value?: unknown } | null)?.config_value ?? null);
+  } catch (e) {
+    console.error(`${LOG} låsen kastede — fail-closed:`, e);
+    return false;
+  }
 }
 
 /** Alarmen: én mail pr. dansk kalenderdøgn (nøglen bærer datoen; loggen slås op først) og én klokke pr. døgn (titlen bærer datoen). */

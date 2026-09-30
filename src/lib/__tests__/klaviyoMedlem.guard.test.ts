@@ -3,13 +3,15 @@ import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 /**
- * Kildeværn for medlemsfeltet tb_medlem (30/9-2026). Elleve domme, hver bevist på en
- * kopi med fejlen indsat:
+ * Kildeværn for medlemsfeltet tb_medlem (30/9-2026). Tolv domme, hver bevist på en
+ * kopi med fejlen indsat (dom 3, 9 og 10 udvidet og dom 12 ny efter det tekniske råds
+ * «RET FØRST» 30/9: slettet/egen/demo, låsen):
  *   1. FELTNAVNET ÉT STED: strengen "tb_medlem" står kun i klaviyoMedlem.ts (MEDLEM_FELT);
  *      kroppen bygges med [MEDLEM_FELT].
  *   2. INGEN SJETTE ADGANGSDOM: klaviyoMedlem.ts kalder computeMembershipTier og har ingen
  *      egen dato-sammenligning (docs/adgangsdomme.md §1).
- *   3. LEGAT OG GÆST DØMMES FØR TIER (Jonas 30/9 07:22): is_legat === true og
+ *   3. SLETTET, EGEN, DEMO, LEGAT OG GÆST DØMMES FØR TIER (Jonas 30/9 07:22; rådet 30/9):
+ *      data_slettet_at, er_kunde === false, is_demo === true, is_legat === true og
  *      vis_i_netvaerk === false står før computeMembershipTier i virksomhedsGrund.
  *   4. REN DOM: klaviyoMedlem.ts importerer kun membershipTier.ts; ingen Deno, fetch eller kald.
  *   5. NØGLEN ÉT STED: skrivMedlemHvisNoegle læser KLAVIYO_SECRET (KLAVIYO_API_KEY) og fanger
@@ -20,8 +22,12 @@ import { resolve } from "node:path";
  *      har intet mailfelt; medlemsfejlene går aldrig i r.fejlede_liste.
  *   9. AFMELDTE-PORTEN GÆLDER IKKE medlemspasset (et afmeldt medlem skal stadig markeres).
  *  10. MIGRATIONEN: første linje præcis «-- IKKE KØRT. DEPLOY: …»; kun tilføjende; seks
- *      kolonner; medlem_udfald-CHECK'en har samme liste som udfald-CHECK'en.
+ *      kolonner; medlem_udfald-CHECK'en har samme liste som udfald-CHECK'en; låsen
+ *      indsættes som 'false'::jsonb med ON CONFLICT DO NOTHING (aldrig true, aldrig update).
  *  11. ISOLERET: medlemspassets læsning står i try/catch — den vælter aldrig webinarpasset.
+ *  12. LÅSEN: medlemSkriverRigtigt = !toer && (laas || email !== null); cronen læser
+ *      MEDLEM_LAAS_NOEGLE fail-closed FØR tørkørslens return og skriver KUN posterne i
+ *      medlemSkrives, der er tom, når sender_rigtigt er falsk. Webinarløkken er IKKE bag låsen.
  */
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -57,7 +63,10 @@ export const ingenSjetteDom = (medlem: string): boolean => {
 // ── 3 ──────────────────────────────────────────────────────────────────────
 export const legatOgGaestFoerTier = (medlem: string): boolean => {
   const g = blok(udenKommentarer(medlem), "export function virksomhedsGrund(", "export function erMedlemsvirksomhed(");
-  return foer(g, 'if (v.is_legat === true) return "legat";', "computeMembershipTier(") &&
+  return foer(g, 'if (v.data_slettet_at !== null && v.data_slettet_at !== undefined) return "slettet";', "computeMembershipTier(") &&
+    foer(g, 'if (v.er_kunde === false) return "egen";', "computeMembershipTier(") &&
+    foer(g, 'if (v.is_demo === true) return "demo";', "computeMembershipTier(") &&
+    foer(g, 'if (v.is_legat === true) return "legat";', "computeMembershipTier(") &&
     foer(g, 'if (v.vis_i_netvaerk === false) return "gaest";', "computeMembershipTier(") &&
     /if \(tier === "full"\) return "aktiv_kontrakt";/.test(g) && /if \(tier === "subscriber"\) return "aktivt_abonnement";/.test(g);
 };
@@ -114,7 +123,7 @@ export const ingenMailISvaret = (funktion: string, medlem: string): boolean => {
 export const afmeldteIkkeIMedlemspasset = (funktion: string): boolean => {
   const f = udenKommentarer(funktion);
   const plan = blok(f, "async function planlaegMedlem(", "\n}\n");
-  const loekke = blok(f, "for (const p of medlemPoster)", "\n  }\n");
+  const loekke = blok(f, "for (const p of medlemSkrives)", "\n  }\n");
   return plan.length > 0 && !/afmeld/i.test(plan) && loekke.length > 0 && !/afmeld/i.test(loekke);
 };
 
@@ -128,6 +137,9 @@ export const migrationenErRigtig = (mig: string, tabel: string): boolean => {
     kolonner.every((k) => new RegExp(`add column if not exists ${k.split(" ")[0]}\\s+${k.split(" ")[1]}\\b`).test(m)) &&
     // Kun tilføjende: ingen drop ud over den ene CHECK's idempotens, ingen alter column, ingen not null, ingen politik.
     drops.every((d) => d === "drop constraint") && (m.match(/drop constraint if exists klaviyo_profil_medlem_udfald_check/g) ?? []).length === 1 &&
+    // Låsen: indsat som false, aldrig overskrevet, aldrig true.
+    /insert into public\.app_config \(config_key, config_value, description\)\s*values \('klaviyo_medlem_aktiv', 'false'::jsonb, '[^']*'\)\s*on conflict \(config_key\) do nothing;/i.test(m) &&
+    !/'true'::jsonb|config_value\s*=\s*'true'/i.test(m) &&
     !/alter column|set not null|\b(boolean|text|integer|timestamptz)\s+not null|create policy|security definer|delete from|update public|truncate/i.test(m) &&
     liste(m, "klaviyo_profil_medlem_udfald_check\\s+check \\(medlem_udfald is null or medlem_udfald") === liste(udenSqlKommentarer(tabel), "klaviyo_profil_udfald_check check \\(udfald") &&
     liste(m, "klaviyo_profil_medlem_udfald_check\\s+check \\(medlem_udfald is null or medlem_udfald") !== undefined;
@@ -140,9 +152,37 @@ export const isoleret = (funktion: string): boolean => {
     (koer.match(/planlaegMedlem\(/g) ?? []).length === 1;
 };
 
+// ── 12 ─────────────────────────────────────────────────────────────────────
+export const laasenPorter = (funktion: string, medlem: string): boolean => {
+  const f = udenKommentarer(funktion), m = udenKommentarer(medlem);
+  const koer = blok(f, "export async function koerProfil", "async function planlaegMedlem(");
+  const regel = blok(m, "export function medlemSkriverRigtigt(", "\n}\n");
+  const vaerdi = blok(m, "export function laasVaerdiErAktiv(", "\n}\n");
+  const laesning = blok(f, "async function medlemLaasErAktiv(", "\n}\n");
+  const webinarLoekke = blok(koer, "for (const p of plan)", "\n  }\n");
+  return m.includes('export const MEDLEM_LAAS_NOEGLE = "klaviyo_medlem_aktiv";') &&
+    /return !toerKoersel && \(laasAktiv === true \|\| email !== null\);/.test(regel) &&
+    /return v === true \|\| v === "true";/.test(vaerdi) &&
+    // Fail-closed læsning af den ene nøgle.
+    /\.eq\("config_key", MEDLEM_LAAS_NOEGLE\)/.test(laesning) && /låsen er lukket:`, error\.message\);\s*return false;/.test(laesning) && /catch \(e\) \{\s*console\.error\([^\n]*\);\s*return false;\s*\}/.test(laesning) &&
+    !/return true;/.test(laesning) &&
+    // Låsen læses og dømmes FØR tørkørslens return (svaret viser den altid).
+    foer(koer, "r.medlem.laas_aktiv = await medlemLaasErAktiv(admin);", "if (a.toerKoersel) return r;") &&
+    koer.includes("r.medlem.sender_rigtigt = medlemSkriverRigtigt(a.toerKoersel, r.medlem.laas_aktiv, a.email);") &&
+    // Skrivningen går KUN gennem medlemSkrives, som er tom uden lås.
+    koer.includes("const medlemSkrives: MedlemPlanPost[] = r.medlem.sender_rigtigt ? medlemPoster : [];") &&
+    foer(koer, "const medlemSkrives", "for (const p of medlemSkrives)") &&
+    !/for \(const p of medlemPoster\)/.test(koer) &&
+    (koer.match(/await skrivMedlemHvisNoegle\(/g) ?? []).length === 1 &&
+    foer(koer, "for (const p of medlemSkrives)", "await skrivMedlemHvisNoegle(") &&
+    // Webinarpasset er i drift og står ikke bag låsen.
+    webinarLoekke.length > 0 && !/laas|sender_rigtigt/.test(webinarLoekke);
+};
+
 const sharedFiler = () => readdirSync(resolve(process.cwd(), SHARED)).filter((f) => f.endsWith(".ts") && f !== "klaviyoMedlem.ts").map((f) => laes(`${SHARED}/${f}`));
 
-describe("klaviyoMedlem.guard — de elleve domme på repoets filer", () => {
+describe("klaviyoMedlem.guard — de tolv domme på repoets filer", () => {
+  it("12. låsen porter medlemspassets skrivning", () => expect(laasenPorter(laes(FUNKTION), laes(MEDLEM))).toBe(true));
   it("1. feltnavnet står ét sted", () => expect(feltnavnetEtSted(laes(MEDLEM), [...sharedFiler(), laes(FUNKTION)])).toBe(true));
   it("2. ingen sjette adgangsdom", () => expect(ingenSjetteDom(laes(MEDLEM))).toBe(true));
   it("3. legat og gæst dømmes før tier", () => expect(legatOgGaestFoerTier(laes(MEDLEM))).toBe(true));
@@ -172,6 +212,18 @@ describe("klaviyoMedlem.guard — dommene fanger fejlen på en kopi", () => {
     expect(legatOgGaestFoerTier(m.replace('  if (v.is_legat === true) return "legat";\n', ""))).toBe(false);
     expect(legatOgGaestFoerTier(m.replace('  if (v.vis_i_netvaerk === false) return "gaest";\n', ""))).toBe(false);
     expect(legatOgGaestFoerTier(m.replace('  if (v.is_legat === true) return "legat";\n', "").replace('  if (tier === "full")', '  if (v.is_legat === true) return "legat";\n  if (tier === "full")'))).toBe(false);
+  });
+  it("3b. egen, demo eller slettet fjernet — eller flyttet efter tier — fælder dom 3", () => {
+    const m = laes(MEDLEM);
+    for (const linje of [
+      '  if (v.er_kunde === false) return "egen";\n',
+      '  if (v.is_demo === true) return "demo";\n',
+      '  if (v.data_slettet_at !== null && v.data_slettet_at !== undefined) return "slettet";\n',
+    ]) {
+      expect(legatOgGaestFoerTier(m.replace(linje, ""))).toBe(false);
+      expect(legatOgGaestFoerTier(m.replace(linje, "").replace('  if (tier === "full")', `${linje}  if (tier === "full")`))).toBe(false);
+    }
+    expect(legatOgGaestFoerTier(m.replace('if (v.er_kunde === false) return "egen";', 'if (v.er_kunde !== true) return "egen";'))).toBe(false);
   });
   it("4. en import af klaviyo.ts eller Deno.env fælder dom 4", () => {
     const m = laes(MEDLEM);
@@ -206,8 +258,8 @@ describe("klaviyoMedlem.guard — dommene fanger fejlen på en kopi", () => {
   });
   it("9. en afmeldte-port i medlemspasset fælder dom 9", () => {
     const f = laes(FUNKTION);
-    expect(afmeldteIkkeIMedlemspasset(f.replace("  const plan = medlemPlan(dom.mails, sidst, a.email);", "  const plan = medlemPlan(new Set([...dom.mails].filter((x) => !afmeldte.has(x))), sidst, a.email);"))).toBe(false);
-    expect(afmeldteIkkeIMedlemspasset(f.replace("  for (const p of medlemPoster) {\n", "  for (const p of medlemPoster) {\n    if (erAfmeldt(p.email)) continue;\n"))).toBe(false);
+    expect(afmeldteIkkeIMedlemspasset(f.replace("  const plan = medlemPlan(dom.mails, dom.kendte, sidst, a.email);", "  const plan = medlemPlan(new Set([...dom.mails].filter((x) => !afmeldte.has(x))), dom.kendte, sidst, a.email);"))).toBe(false);
+    expect(afmeldteIkkeIMedlemspasset(f.replace("  for (const p of medlemSkrives) {\n", "  for (const p of medlemSkrives) {\n    if (erAfmeldt(p.email)) continue;\n"))).toBe(false);
   });
   it("10. en forklaring over linje 1, en drop column, en not null eller en afvigende CHECK fælder dom 10", () => {
     const m = laes(MIG), t = laes(MIG_TABEL);
@@ -216,6 +268,37 @@ describe("klaviyoMedlem.guard — dommene fanger fejlen på en kopi", () => {
     expect(migrationenErRigtig(m.replace("add column if not exists tb_medlem            boolean,", "add column if not exists tb_medlem            boolean not null default false,"), t)).toBe(false);
     expect(migrationenErRigtig(m.replace("'fejl', 'timeout'));", "'fejl'));"), t)).toBe(false);
     expect(migrationenErRigtig(m.replace("  add column if not exists medlem_grund         text;", "  add column if not exists medlem_andet         text;"), t)).toBe(false);
+  });
+  it("10b. låsen indsat som true, uden ON CONFLICT DO NOTHING, fjernet eller slået til med en update fælder dom 10", () => {
+    const m = laes(MIG), t = laes(MIG_TABEL);
+    expect(migrationenErRigtig(m.replace("values ('klaviyo_medlem_aktiv', 'false'::jsonb,", "values ('klaviyo_medlem_aktiv', 'true'::jsonb,"), t)).toBe(false);
+    expect(migrationenErRigtig(m.replace("on conflict (config_key) do nothing;", "on conflict (config_key) do update set config_value = excluded.config_value;"), t)).toBe(false);
+    expect(migrationenErRigtig(m.replace(/insert into public\.app_config[\s\S]*?do nothing;\n/, ""), t)).toBe(false);
+    expect(migrationenErRigtig(`${m}\nupdate public.app_config set config_value = 'true'::jsonb where config_key = 'klaviyo_medlem_aktiv';`, t)).toBe(false);
+  });
+  it("12. en lås, der ikke porter, fælder dom 12", () => {
+    const f = laes(FUNKTION), m = laes(MEDLEM);
+    // Skrivningen uden om låsen: løkken over alle poster.
+    expect(laasenPorter(f.replace("for (const p of medlemSkrives) {", "for (const p of medlemPoster) {"), m)).toBe(false);
+    // medlemSkrives uden porten.
+    expect(laasenPorter(f.replace("r.medlem.sender_rigtigt ? medlemPoster : [];", "medlemPoster;"), m)).toBe(false);
+    // Reglen uden låsen (job 571's {"dry_run": false} ville skrive alt).
+    expect(laasenPorter(f, m.replace("return !toerKoersel && (laasAktiv === true || email !== null);", "return !toerKoersel;"))).toBe(false);
+    // Prøven til én adresse åbner ikke længere — og en tørkørsel, der skriver.
+    expect(laasenPorter(f, m.replace("return !toerKoersel && (laasAktiv === true || email !== null);", "return laasAktiv === true || email !== null;"))).toBe(false);
+    // Værdien løsnet: enhver truthy åbner.
+    expect(laasenPorter(f, m.replace('return v === true || v === "true";', "return Boolean(v);"))).toBe(false);
+    // Låsen læst efter tørkørslens return (tørkørslen viser den ikke).
+    const laasLinje = "  r.medlem.laas_aktiv = await medlemLaasErAktiv(admin);\n";
+    const toer = "  if (a.toerKoersel) return r;\n";
+    expect(laasenPorter(f.replace(laasLinje, "").replace(toer, toer + laasLinje), m)).toBe(false);
+    // Fail-open læsning.
+    const i = f.indexOf("async function medlemLaasErAktiv(");
+    expect(laasenPorter(f.slice(0, i) + f.slice(i).replace("låsen er lukket:`, error.message);\n      return false;", "låsen er lukket:`, error.message);\n      return true;"), m)).toBe(false);
+    // Forkert nøgle.
+    expect(laasenPorter(f, m.replace('export const MEDLEM_LAAS_NOEGLE = "klaviyo_medlem_aktiv";', 'export const MEDLEM_LAAS_NOEGLE = "webinar_mail_aktiv";'))).toBe(false);
+    // Webinarpasset lagt bag låsen.
+    expect(laasenPorter(f.replace("  for (const p of plan) {\n", "  for (const p of plan) {\n    if (!r.medlem.sender_rigtigt) continue;\n"), m)).toBe(false);
   });
   it("11. læsningen uden try/catch fælder dom 11", () => {
     const f = laes(FUNKTION);

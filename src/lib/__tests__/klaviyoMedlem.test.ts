@@ -3,8 +3,11 @@ import {
   bygMedlemKrop,
   erMedlemsvirksomhed,
   findForbudteNoegler,
+  laasVaerdiErAktiv,
   MEDLEM_FELT,
+  MEDLEM_LAAS_NOEGLE,
   medlemPlan,
+  medlemSkriverRigtigt,
   medlemsmails,
   normaliserMail,
   rensetMedlemResultat,
@@ -28,6 +31,9 @@ const virk = (id: string, over: Partial<MedlemVirksomhed> = {}): MedlemVirksomhe
   is_legat: false,
   vis_i_netvaerk: true,
   contact_email: `kontakt@${id}.dk`,
+  er_kunde: true,
+  is_demo: false,
+  data_slettet_at: null,
   ...over,
 });
 
@@ -89,7 +95,7 @@ describe("R6 alle brugere + kontaktmailen i en medlemsvirksomhed", () => {
       NU,
     );
     expect([...d.mails].sort()).toEqual(["bogholder@a.dk", "ejer@a.dk", "kontakt@a.dk"]);
-    expect(d.virksomheder).toEqual({ aktiv_kontrakt: 1, aktivt_abonnement: 0, legat: 0, gaest: 0, uden_dato: 0, udloebet: 1 });
+    expect(d.virksomheder).toEqual({ aktiv_kontrakt: 1, aktivt_abonnement: 0, slettet: 0, egen: 0, demo: 0, legat: 0, gaest: 0, uden_dato: 0, udloebet: 1 });
   });
 });
 
@@ -127,7 +133,7 @@ describe("R8 normalisering og uden mail", () => {
 
 describe("R9 kun ændringer skrives", () => {
   it("medlem og sidst true → uændret; medlem og sidst false/aldrig → sæt true", () => {
-    const p = medlemPlan(new Set(["a@x.dk", "b@x.dk", "c@x.dk"]), new Map([["a@x.dk", true], ["b@x.dk", false]]));
+    const p = medlemPlan(new Set(["a@x.dk", "b@x.dk", "c@x.dk"]), new Set(["a@x.dk", "b@x.dk", "c@x.dk"]), new Map([["a@x.dk", true], ["b@x.dk", false]]));
     expect(p.poster).toEqual([{ email: "b@x.dk", oensket: true }, { email: "c@x.dk", oensket: true }]);
     expect(p).toMatchObject({ saet_true: 2, saet_false: 0, uaendret: 1 });
   });
@@ -135,12 +141,13 @@ describe("R9 kun ændringer skrives", () => {
 
 describe("R10 false kun for et tidligere medlem", () => {
   it("sidst true og ikke medlem nu → false; sidst false → uændret; aldrig skrevet → røres ikke", () => {
-    const p = medlemPlan(new Set<string>(), new Map<string, boolean | null>([["ophoert@x.dk", true], ["allerede@x.dk", false], ["null@x.dk", null]]));
+    const kendte = new Set(["ophoert@x.dk", "allerede@x.dk", "null@x.dk"]);
+    const p = medlemPlan(new Set<string>(), kendte, new Map<string, boolean | null>([["ophoert@x.dk", true], ["allerede@x.dk", false], ["null@x.dk", null]]));
     expect(p.poster).toEqual([{ email: "ophoert@x.dk", oensket: false }]);
-    expect(p).toMatchObject({ saet_true: 0, saet_false: 1, uaendret: 1 });
+    expect(p).toMatchObject({ saet_true: 0, saet_false: 1, uaendret: 1, ukendt_udeladt: 0 });
   });
   it("«kun» begrænser planen til én mail (beviset)", () => {
-    const p = medlemPlan(new Set(["a@x.dk", "lh@greensolar.dk"]), new Map(), "lh@greensolar.dk");
+    const p = medlemPlan(new Set(["a@x.dk", "lh@greensolar.dk"]), new Set(), new Map(), "lh@greensolar.dk");
     expect(p.poster).toEqual([{ email: "lh@greensolar.dk", oensket: true }]);
   });
 });
@@ -148,7 +155,108 @@ describe("R10 false kun for et tidligere medlem", () => {
 describe("R11 afmeldte markeres også", () => {
   it("dommen kender ingen afmeldte: medlemsmails tager ingen afmeldte-parameter, og planen sætter true", () => {
     expect(medlemsmails.length).toBe(4);
-    expect(medlemPlan(new Set(["afmeldt@x.dk"]), new Map()).poster).toEqual([{ email: "afmeldt@x.dk", oensket: true }]);
+    expect(medlemPlan(new Set(["afmeldt@x.dk"]), new Set(["afmeldt@x.dk"]), new Map()).poster).toEqual([{ email: "afmeldt@x.dk", oensket: true }]);
+  });
+});
+
+describe("R0 slettet, egen og demo er ikke medlem — dømt før legat, gæst og tier", () => {
+  it("er_kunde = false (Topix.dk ApS) → egen, også med kontrakt til 2030 og aktivt abonnement", () => {
+    expect(virksomhedsGrund(virk("t", { er_kunde: false, contract_end_date: "2030-12-31" }), NU)).toBe("egen");
+    expect(virksomhedsGrund(virk("t", { er_kunde: false, subscription_status: "active", subscription_current_period_end: "2027-01-01T00:00:00Z" }), NU)).toBe("egen");
+    expect(erMedlemsvirksomhed(virk("t", { er_kunde: false }), NU)).toBe(false);
+    expect(virksomhedsGrund(virk("t", { er_kunde: null }), NU)).toBe("aktiv_kontrakt");
+  });
+  it("is_demo = true → demo; null og false er ikke demo", () => {
+    expect(virksomhedsGrund(virk("d", { is_demo: true }), NU)).toBe("demo");
+    expect(erMedlemsvirksomhed(virk("d", { is_demo: true }), NU)).toBe(false);
+    expect(virksomhedsGrund(virk("d", { is_demo: null }), NU)).toBe("aktiv_kontrakt");
+  });
+  it("data_slettet_at sat → slettet, FØR alt andet (også legat, egen og demo)", () => {
+    expect(virksomhedsGrund(virk("s", { data_slettet_at: "2026-09-08T08:08:00Z" }), NU)).toBe("slettet");
+    expect(virksomhedsGrund(virk("s", { data_slettet_at: "2026-09-08T08:08:00Z", is_legat: true, er_kunde: false, is_demo: true }), NU)).toBe("slettet");
+    expect(erMedlemsvirksomhed(virk("s", { data_slettet_at: "2026-09-08T08:08:00Z" }), NU)).toBe(false);
+  });
+  it("egen før demo før legat: rækkefølgen er fast", () => {
+    expect(virksomhedsGrund(virk("x", { er_kunde: false, is_demo: true, is_legat: true }), NU)).toBe("egen");
+    expect(virksomhedsGrund(virk("x", { is_demo: true, is_legat: true }), NU)).toBe("demo");
+  });
+  it("brugere og kontaktmail i egen og demo er ikke medlemsmails — men platformen kender dem stadig", () => {
+    const d = medlemsmails(
+      [virk("topix", { er_kunde: false }), virk("demo", { is_demo: true })],
+      [{ company_id: "topix", user_id: "u1" }, { company_id: "demo", user_id: "u2" }],
+      [{ user_id: "u1", email: "kontakt@topix.dk" }, { user_id: "u2", email: "demo@x.dk" }],
+      NU,
+    );
+    expect(d.mails.size).toBe(0);
+    expect([...d.kendte].sort()).toEqual(["demo@x.dk", "kontakt@demo.dk", "kontakt@topix.dk"]);
+    expect(d.virksomheder).toMatchObject({ egen: 1, demo: 1, aktiv_kontrakt: 0 });
+  });
+});
+
+describe("R12 false kun for en mail, platformen stadig kender", () => {
+  it("en slettet virksomhed giver hverken medlemsmails eller kendte mails", () => {
+    const d = medlemsmails(
+      [virk("s", { data_slettet_at: "2026-09-08T08:08:00Z", contact_email: "gammel@s.dk" })],
+      [{ company_id: "s", user_id: "u1" }],
+      [{ user_id: "u1", email: "person@s.dk" }],
+      NU,
+    );
+    expect(d.mails.size).toBe(0);
+    expect(d.kendte.size).toBe(0);
+    expect(d.virksomheder.slettet).toBe(1);
+  });
+  it("sidst true, ikke medlem og ukendt (slettet) → INGEN skrivning, talt som ukendt_udeladt", () => {
+    const p = medlemPlan(new Set<string>(), new Set<string>(), new Map<string, boolean | null>([["slettet@x.dk", true]]));
+    expect(p.poster).toEqual([]);
+    expect(p).toMatchObject({ saet_true: 0, saet_false: 0, uaendret: 0, ukendt_udeladt: 1 });
+  });
+  it("sidst true, ikke medlem men stadig kendt (udløbet) → false; kun den kendte skrives", () => {
+    const sidst = new Map<string, boolean | null>([["udloebet@x.dk", true], ["slettet@x.dk", true]]);
+    const p = medlemPlan(new Set<string>(), new Set(["udloebet@x.dk"]), sidst);
+    expect(p.poster).toEqual([{ email: "udloebet@x.dk", oensket: false }]);
+    expect(p).toMatchObject({ saet_false: 1, ukendt_udeladt: 1 });
+  });
+  it("en person, der også er bruger i en levende virksomhed, er stadig kendt", () => {
+    const d = medlemsmails(
+      [virk("s", { data_slettet_at: "2026-09-08T08:08:00Z" }), virk("levende", { contract_end_date: "2026-01-01" })],
+      [{ company_id: "s", user_id: "u1" }, { company_id: "levende", user_id: "u1" }],
+      [{ user_id: "u1", email: "person@x.dk" }],
+      NU,
+    );
+    expect(d.kendte.has("person@x.dk")).toBe(true);
+    expect(d.mails.has("person@x.dk")).toBe(false);
+  });
+  it("prøven til én slettet mail skriver heller ikke false", () => {
+    const p = medlemPlan(new Set<string>(), new Set<string>(), new Map<string, boolean | null>([["slettet@x.dk", true]]), "slettet@x.dk");
+    expect(p.poster).toEqual([]);
+    expect(p.ukendt_udeladt).toBe(1);
+  });
+});
+
+describe("R13 låsen app_config.klaviyo_medlem_aktiv", () => {
+  it("nøglen og værdien: kun jsonb true eller «true» åbner", () => {
+    expect(MEDLEM_LAAS_NOEGLE).toBe("klaviyo_medlem_aktiv");
+    expect(laasVaerdiErAktiv(true)).toBe(true);
+    expect(laasVaerdiErAktiv("true")).toBe(true);
+    for (const v of [false, "false", null, undefined, 1, "ja", {}]) expect(laasVaerdiErAktiv(v)).toBe(false);
+  });
+  it("tørkørsel skriver aldrig — heller ikke med åben lås eller én adresse", () => {
+    expect(medlemSkriverRigtigt(true, true, null)).toBe(false);
+    expect(medlemSkriverRigtigt(true, true, "lh@greensolar.dk")).toBe(false);
+    expect(medlemSkriverRigtigt(true, false, null)).toBe(false);
+  });
+  it("rigtig kørsel uden lås og uden adresse (job 571) → skriver IKKE", () => {
+    expect(medlemSkriverRigtigt(false, false, null)).toBe(false);
+  });
+  it("prøven til én adresse er tilladt uden lås; åben lås tillader hele kørslen", () => {
+    expect(medlemSkriverRigtigt(false, false, "lh@greensolar.dk")).toBe(true);
+    expect(medlemSkriverRigtigt(false, true, null)).toBe(true);
+  });
+  it("svaret: låsen er lukket i et tomt resultat, og renseren bevarer lås-felterne", () => {
+    const t = tomtMedlemResultat();
+    expect(t).toMatchObject({ laas_aktiv: false, sender_rigtigt: false, holdt_af_laas: 0, ukendt_udeladt: 0 });
+    const r = rensetMedlemResultat({ ...t, laas_aktiv: true, sender_rigtigt: true, holdt_af_laas: 0, fejl: ["x@y.dk"] });
+    expect(r).toMatchObject({ laas_aktiv: true, sender_rigtigt: true });
   });
 });
 
