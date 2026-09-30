@@ -34,7 +34,8 @@ import { bygBeskedMeta, laesChipFraState, type NoegletalChip } from "@/lib/noegl
 // Citatet over et svar på et refleksionsfelt (29/9) — egen linje: chatSvar.guard dom 3 læser linjen ovenfor ordret.
 import { RefleksionCitat } from "@/components/ChatSvarCitat";
 import { kanBesvares, svarUddrag } from "@/lib/chatSvar";
-import { sendeUdfald, sendefejlTekst, visSendefejl, type FejletBesked } from "@/lib/chatSendefejl";
+import { sendeUdfald, visSendefejl, type FejletBesked } from "@/lib/chatSendefejl";
+import { ChatSendefejlLinje } from "@/components/ChatSendefejlLinje";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 import { format, startOfDay } from "date-fns";
 import { da } from "date-fns/locale";
@@ -978,26 +979,13 @@ const MemberChatPane = () => {
                 ) : (
                 <>
                 {visSendefejl(fejletBesked, activeConvId) && (
-                  /* Sendefejl-linjen (30/9, mønstret fra #1140's sendelinje): rust-ikon,
-                     beskedens uddrag, «Prøv igen» (samme række) og «Kassér». */
-                  <div
-                    role="alert"
-                    data-sendefejl
-                    className="mb-2 flex items-center gap-2 rounded-hb border border-hb-line bg-hb-surface px-3 py-2 text-xs text-hb-ink"
-                  >
-                    <AlertCircle className="h-3.5 w-3.5 shrink-0 text-hb-rust" aria-hidden />
-                    <span className="min-w-0 flex-1 truncate">{sendefejlTekst(fejletBesked)}</span>
-                    <HbButton type="button" variant="link" className="text-xs" disabled={sending} onClick={() => void proevFejletIgen()}>
-                      Prøv igen
-                    </HbButton>
-                    <button
-                      type="button"
-                      onClick={() => setFejletBesked(null)}
-                      className="text-xs text-hb-ink-soft underline-offset-4 hover:underline"
-                    >
-                      Kassér
-                    </button>
-                  </div>
+                  /* Sendefejl-linjen (30/9, mønstret fra #1140's sendelinje) — samme komponent som rådgiverens chat. */
+                  <ChatSendefejlLinje
+                    besked={fejletBesked}
+                    sender={sending}
+                    onProevIgen={() => void proevFejletIgen()}
+                    onKasser={() => setFejletBesked(null)}
+                  />
                 )}
                 {svarPaa && (
                   <SvarerPaaBanner navn={navnFor(svarPaa.sender_id)} uddrag={svarUddrag(svarPaa.content)} onFjern={() => setSvarPaa(null)} />

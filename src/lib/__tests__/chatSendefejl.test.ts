@@ -47,6 +47,8 @@ describe("visSendefejl", () => {
 const udenKommentarer = (k: string) =>
   k.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "").replace(/\/\/[^\n]*/g, "");
 const PANE = udenKommentarer(readFileSync(resolve(process.cwd(), "src/components/MemberChatPane.tsx"), "utf8"));
+// Rådgiverens chat (30/9): samme linje, samme komponent — CompanyChatPane var tavs på samme måde.
+const RAADGIVER_PANE = udenKommentarer(readFileSync(resolve(process.cwd(), "src/components/CompanyChatPane.tsx"), "utf8"));
 
 export const sendefejlVises = (kilde: string): boolean => {
   const send = kilde.slice(kilde.indexOf("const handleSend = useCallback("), kilde.indexOf("const proevFejletIgen"));
@@ -55,7 +57,8 @@ export const sendefejlVises = (kilde: string): boolean => {
     send.includes('if (sendeUdfald(svar) === "sendt") {') &&
     /\} else \{[\s\S]*?setFejletBesked\(\{ raekke: insertData \}\)/.test(send) &&
     kilde.includes("visSendefejl(fejletBesked, activeConvId) &&") &&
-    kilde.includes("onClick={() => void proevFejletIgen()}") &&
+    kilde.includes("onProevIgen={() => void proevFejletIgen()}") &&
+    kilde.includes("<ChatSendefejlLinje") &&
     // «Prøv igen» indsætter den SAMME række — ingen ny upload.
     kilde.includes('supabase.from("messages").insert(fejletBesked.raekke as any)')
   );
@@ -71,5 +74,25 @@ describe("MemberChatPane — kildeværn for sendefejlen", () => {
       "if (!error && data) {",
     );
     expect(sendefejlVises(gammel)).toBe(false);
+  });
+});
+
+describe("CompanyChatPane — kildeværn for sendefejlen (rådgiverens chat)", () => {
+  it("en fejlet indsættelse gemmes og vises med «Prøv igen»", () => {
+    expect(sendefejlVises(RAADGIVER_PANE)).toBe(true);
+  });
+  it("selvbevis: den gamle tavse gren fælder værnet", () => {
+    const gammel = RAADGIVER_PANE.replace(
+      /if \(sendeUdfald\(svar\) === "sendt"\) \{[\s\S]*?setFejletBesked\(\{ raekke: insertData \}\);/,
+      "if (!error && data) {",
+    );
+    expect(gammel).not.toBe(RAADGIVER_PANE);
+    expect(sendefejlVises(gammel)).toBe(false);
+  });
+  it("begge paneler bruger den ENE linje-komponent (ingen kopi af markup)", () => {
+    for (const kilde of [PANE, RAADGIVER_PANE]) {
+      expect(kilde).toContain("<ChatSendefejlLinje");
+      expect(kilde).not.toContain("data-sendefejl");
+    }
   });
 });
