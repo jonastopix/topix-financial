@@ -69,11 +69,12 @@ export const HbMemberShell = ({
      admin-skallen skulle gøre det samme (mobilens grønne bundstykke). */
   useHbDokumentGrund(rodRef);
   const { user, profile, signOut, membershipTier, isAdvisor, isPartner } = useAuth();
-  /* ONLINE NU (Jonas 16/9, hooks/onlineTracking): medlemmet tracker sig selv
-     på den private Presence-kanal, så rådgiverne kan se hvem der har appen
-     åben. Gaten er useAuth's RÅ isAdvisor — ikke viewingAsMember: i «Se som
-     medlem» er rådgiveren stadig rådgiver og tracker aldrig. Abonnenter
-     tracker (de er medlemmer i skallen); om de vises afgør rådgiverens dom.
+  /* ONLINE NU (Jonas 16/9; hjerteslag 30/9, hooks/onlineTracking): medlemmet
+     slår hjerteslag i online_hjerteslag (egen række, mens fanen er synlig),
+     så rådgiverne kan se hvem der har appen åben. Gaten er useAuth's RÅ
+     isAdvisor — ikke viewingAsMember: i «Se som medlem» er rådgiveren stadig
+     rådgiver og slår aldrig hjerteslag. Abonnenter slår hjerteslag (de er
+     medlemmer i skallen); om de vises afgør rådgiverens dom.
      Hook i topblokken, før enhver betinget return. */
   useOnlineTracking(!!user && !isAdvisor, user?.id);
   const avatarSrc = profile?.avatar_url || undefined;

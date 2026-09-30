@@ -617,6 +617,31 @@ different channel (Realtime Concepts). The eight existing `postgres_changes`
 channels are unchanged. `has_role` is called, not modified. The presence
 payload carries no PII (`online_at` only; the presence key is the user id,
 which the advisor already reads via `profiles`).
+**Superseded in the client 30/9-2026** by the heartbeat table below: the
+Presence channel never showed a name (members only had INSERT and were
+most likely rejected at join — silently; unproven). The two policies above
+are left in place (no DROP in that PR); no client opens the channel.
+
+### Online heartbeat — `online_hjerteslag`
+Migration `20260930120000_online_hjerteslag.sql` (30/9-2026). One row per
+user (`user_id` PK → `auth.users` ON DELETE CASCADE, `sidst_set`). RLS
+enabled; four PERMISSIVE policies, all `to authenticated`:
+- INSERT with check `user_id = auth.uid()`; UPDATE using + with check
+  `user_id = auth.uid()` — a member writes only its own row.
+- SELECT using `user_id = auth.uid()` — own row only. REQUIRED for the
+  upsert: PostgreSQL applies the SELECT policy to the existing and new row
+  of `INSERT … ON CONFLICT DO UPDATE` (CREATE POLICY, «Policies Applied by
+  Command Type»). A member sees nothing about anyone else.
+- SELECT using `has_role(auth.uid(), 'advisor')` — advisors (admin
+  inherits) see all rows.
+No DELETE policy; DELETE and TRUNCATE revoked from `authenticated`
+(TRUNCATE ignores RLS), everything revoked from `anon`. A BEFORE INSERT OR
+UPDATE trigger (`online_hjerteslag_servertid`, SECURITY INVOKER) sets
+`sidst_set = now()` — the client clock is never trusted. The advisor reads
+through `online_hjerteslag_friske(vindue_sekunder)` (SQL, STABLE, SECURITY
+INVOKER — RLS decides; execute granted to `authenticated` only). No
+SECURITY DEFINER. `has_role` is called, not modified. Guard:
+`src/components/hjemmebane/forside/__tests__/online.guard.test.ts` dom 1–3, 8.
 
 ### Shared member-profile layer (`member_profiles`)
 - Purpose: the PERSONAL layer of the member profile — `linkedin_url`,
