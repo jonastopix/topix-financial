@@ -6,7 +6,7 @@
  * står i tabellen public.tjenestekonti (migration 20260930140000; kun admin
  * skriver, enhver indlogget læser user_id).
  *
- * TO DOMME, begge rene (ingen React, ingen Supabase):
+ * TRE DOMME, alle rene (ingen React, ingen Supabase):
  *
  *   erSynligRaadgiver / synligeRaadgivere — kontoen kan SE alt, en rådgiver
  *     ser, men OPTRÆDER aldrig som en person: ikke i netværket, ikke i «Dine
@@ -19,6 +19,9 @@
  *     den?») eller som OPSLAG pr. id (navnet på den, der gjorde noget), filtrerer
  *     BEVIDST ikke: fjernes kontoen dér, bliver den et medlem i tallene. Hvert
  *     sted står i kildeværnet (tjenestekonto.guard) med sin grund.
+ *
+ *   laeseMarkeringTilladt — det at SE skriver intet spor fra en tjenestekonto
+ *     (læst, set, visning, login-log). Stederne står i kildeværnet (dom 6).
  *
  *   inaktivitetsLogudAktiv — logud efter inaktivitet gælder alle UNDTAGEN en
  *     tjenestekonto. Fail-safe: kan tabellen ikke læses, gælder den normale
@@ -53,14 +56,39 @@ export type TjenestekontoStatus = "pending" | "error" | "success";
 
 /**
  * Skal inaktivitets-logud være slået til?
- *   ingen bruger        → nej
- *   opslaget henter     → nej (vent — se filhovedet)
- *   opslaget fejlede    → JA (fail-safe: den normale regel)
- *   svaret er «tjeneste» → nej; ellers ja
+ *   ingen bruger         → nej
+ *   et ja står           → nej (også når en GENHENTNING fejlede: react-query
+ *                          sætter status "error", men bevarer data — et
+ *                          tidligere ja står ved magt, ellers ville kontoen
+ *                          logges ud i samme øjeblik, et genopslag fejler)
+ *   opslaget henter      → nej (vent — se filhovedet)
+ *   opslaget fejlede     → JA (fail-safe: den normale regel)
+ *   ellers               → ja
  */
 export function inaktivitetsLogudAktiv(harBruger: boolean, status: TjenestekontoStatus, erTjenestekonto: boolean | undefined): boolean {
   if (!harBruger) return false;
+  if (erTjenestekonto === true) return false;
   if (status === "pending") return false;
-  if (status === "error") return true;
-  return erTjenestekonto !== true;
+  return true; // "error" uden et ja → den normale regel; "success" uden ja → ja
+}
+
+/**
+ * Må det at SE noget skrive et spor, andre kan se (læst-markeringer, «set»-
+ * stempler, visninger, notifikationer markeret læst, login-loggen)? En
+ * tjenestekonto KIGGER — medlemmet må ikke se «læst», fordi Claude åbnede
+ * samtalen, og rådgivernes ulæst-tællere må ikke nulstilles af den.
+ *   ingen bruger         → nej (intet at skrive for)
+ *   et ja står           → nej (også ved en fejlet genhentning, som ovenfor)
+ *   opslaget henter      → nej (vent; stederne genkører, når svaret kommer)
+ *   opslaget fejlede     → JA (den normale regel: en ulæselig tabel må ikke
+ *                          stoppe læst-markeringen for ALLE rådgivere og
+ *                          medlemmer — prisen er, at en tjenestekonto, hvis
+ *                          ALLERFØRSTE opslag fejler, markerer som alle andre)
+ *   ellers               → ja
+ */
+export function laeseMarkeringTilladt(harBruger: boolean, status: TjenestekontoStatus, erTjenestekonto: boolean | undefined): boolean {
+  if (!harBruger) return false;
+  if (erTjenestekonto === true) return false;
+  if (status === "pending") return false;
+  return true;
 }

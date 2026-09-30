@@ -75,16 +75,19 @@ export const EventEditor = forwardRef<EditorHandle, EventEditorProps>(
     const tilmeldteTal = svarTal ? svarTal.tilmeldt : registrationCount;
     const andreTal = svarTal ? svarTal.kan_ikke + svarTal.har_ikke_svaret : 0;
     const raadgivereQuery = useRaadgivere();
-    // Værtsvælgeren (30/9): tjenestekonti (claude@topix.dk) er ingen vært. Uden
-    // svaret om tjenestekonti vises ingen rådgivere — hellere en tom vælger et
-    // øjeblik end kontoen i listen.
+    // Værtsvælgeren (30/9): tjenestekonti (claude@topix.dk) er ingen vært. KUN
+    // vælgeren (de ledige) filtreres; opslaget af eksisterende værter får hele
+    // listen, så en allerede gemt vært aldrig står som «Ukendt rådgiver». Uden
+    // svaret om tjenestekonti tilbydes ingen rådgivere — hellere en tom vælger
+    // et øjeblik end kontoen i listen.
     const tjenestekontiQuery = useTjenestekonti();
-    const vaertRaadgivere = React.useMemo(
+    const alleRaadgivere = raadgivereQuery.data ?? INGEN_RAADGIVERE;
+    const vaelgbareRaadgivere = React.useMemo(
       () =>
         tjenestekontiQuery.data
-          ? new Map(synligeRaadgivere([...(raadgivereQuery.data ?? INGEN_RAADGIVERE).values()], tjenestekontiQuery.data).map((r) => [r.user_id, r]))
+          ? new Map(synligeRaadgivere([...alleRaadgivere.values()], tjenestekontiQuery.data).map((r) => [r.user_id, r]))
           : INGEN_RAADGIVERE,
-      [raadgivereQuery.data, tjenestekontiQuery.data],
+      [alleRaadgivere, tjenestekontiQuery.data],
     );
     const [vaerterDraft, setVaerterDraft] = useState<VaertUdkast[] | null>(null);
     const vaerter: VaertUdkast[] = vaerterDraft ?? (vaerterQuery.data ?? []).map(tilUdkast);
@@ -343,7 +346,7 @@ export const EventEditor = forwardRef<EditorHandle, EventEditorProps>(
           />
         </HbField>
 
-        <VaerterFelt eventId={event.id} vaerter={vaerter} onChange={setVaerterDraft} raadgivere={vaertRaadgivere} />
+        <VaerterFelt eventId={event.id} vaerter={vaerter} onChange={setVaerterDraft} raadgivere={alleRaadgivere} vaelgbare={vaelgbareRaadgivere} />
 
         <HbField
           label="Optagelse"

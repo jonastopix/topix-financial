@@ -1,5 +1,22 @@
 -- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
 --
+-- ⚠ RÆKKEFØLGEN ER IKKE VALGFRI: Update FØR denne migration lægger rådgivernes
+-- forside og Netværket ned. Klienten læser public.tjenestekonti gennem
+-- kraevRaekker (src/hooks/tjenestekonti.ts: hentTjenestekonti) — en manglende
+-- tabel er en HentningsFejl, og hver liste, der filtrerer tjenestekonti
+-- (Netværket, «Dine rådgivere», vælgerne, @-nævnelser), viser fejlteksten i
+-- stedet for rækkerne. Filtret er fail-closed med vilje: hellere husets
+-- fejltekst end kontoen vist som person.
+--
+-- MÅLINGEN FØR Update-klik (CLAUDE.md «Nye migrations»): EFTER-SELECT'en
+-- nederst i trin 1 — forventet 1 · true · 2 · true · false. Den sidste række
+-- (efter_grant_anon) er grunden til, at REST-målingen med anon-nøglen IKKE
+-- duer her: `GET /rest/v1/tjenestekonti?select=user_id&limit=0` med anon-
+-- nøglen kan ikke give 200, fordi anon bevidst ikke har SELECT (REVOKE ALL
+-- herunder) — forventet 401 med kode 42501 «permission denied», mod 404
+-- PGRST205 for en manglende tabel (IKKE MÅLT). Klienten læser som
+-- authenticated; efter_grant_authenticated = true er det, der skal stå.
+--
 -- TJENESTEKONTI (30/9-2026 — Jonas' ja kl. 10:01): en rådgiverkonto for
 -- claude@topix.dk, som Claude bruger i Claude-appens browser til at SE design og
 -- opdateringer. KUN læsning; Jonas logger den ind én gang. To krav:
@@ -59,15 +76,25 @@ CREATE POLICY "Admin skriver tjenestekonti"
   USING (public.has_role(auth.uid(), 'admin'::app_role))
   WITH CHECK (public.has_role(auth.uid(), 'admin'::app_role));
 
+-- Rettighederne skrives ud i stedet for at lænes på projektets standard-
+-- privilegier: klienten læser som authenticated (policyen afgør rækkerne),
+-- admin skriver som authenticated (policyen afgør hvem); anon får intet.
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.tjenestekonti TO authenticated;
 REVOKE ALL ON public.tjenestekonti FROM anon;
 
--- EFTER: tabellen, RLS og de to policies (forventet: 1 · true · 2).
+-- EFTER: tabellen, RLS, de to policies, og at klientens rolle (authenticated)
+-- må læse, mens anon ikke må (forventet: 1 · true · 2 · true · false).
+-- DETTE er målingen før Update-klik — se filhovedet.
 SELECT 'efter_tabel' AS sektion, count(*)::text AS vaerdi
 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'tjenestekonti'
 UNION ALL
 SELECT 'efter_rls', relrowsecurity::text FROM pg_class WHERE oid = 'public.tjenestekonti'::regclass
 UNION ALL
-SELECT 'efter_policies', count(*)::text FROM pg_policy WHERE polrelid = 'public.tjenestekonti'::regclass;
+SELECT 'efter_policies', count(*)::text FROM pg_policy WHERE polrelid = 'public.tjenestekonti'::regclass
+UNION ALL
+SELECT 'efter_grant_authenticated', has_table_privilege('authenticated', 'public.tjenestekonti', 'SELECT')::text
+UNION ALL
+SELECT 'efter_grant_anon', has_table_privilege('anon', 'public.tjenestekonti', 'SELECT')::text;
 
 -- ─── TRIN 2 — SEPARAT, først når claude@topix.dk er oprettet som rådgiver ─────
 -- Kør de tre udsagn herunder hver for sig (Lovables editor eksporterer kun

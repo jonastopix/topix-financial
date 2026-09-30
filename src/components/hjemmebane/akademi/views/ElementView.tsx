@@ -130,6 +130,7 @@ export const ElementView = ({ areaKey, slug }: { areaKey: string; slug: string }
   const data = useAkademiData();
   const entry = data.bySlug.get(slug);
   const seenWrittenRef = useRef<string | null>(null);
+  const { laeseMarkeringTilladt } = useAuth();
   /** «Kunne du bruge den?»: item.id for den lektion der er svaret på i
       DETTE besøg. Kvitteringen vises kun når svaret OGSÅ står i cachen
       (progress.brugbar != null): ved succes står det der, og kvitteringen
@@ -140,14 +141,16 @@ export const ElementView = ({ areaKey, slug }: { areaKey: string; slug: string }
       Nøglet pr. item.id, fordi komponenten lever videre på tværs af slugs. */
   const [brugbarSvaretFor, setBrugbarSvaretFor] = useState<string | null>(null);
 
-  // seen_at ved første visning — én gang pr. element pr. besøg.
+  // seen_at ved første visning — én gang pr. element pr. besøg. En
+  // tjenestekonto KIGGER (30/9, tjenestekonto.guard dom 6): intet stempel;
+  // flaget i afhængighederne, så stemplet venter, mens opslaget henter.
   useEffect(() => {
-    if (!entry || data.loading || !entry.drip.unlocked) return;
+    if (!entry || data.loading || !entry.drip.unlocked || !laeseMarkeringTilladt) return;
     if (entry.progress?.seen_at || seenWrittenRef.current === entry.item.id) return;
     seenWrittenRef.current = entry.item.id;
     data.writeProgress(entry.item.id, { seen_at: new Date().toISOString() });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entry?.item.id, data.loading]);
+  }, [entry?.item.id, data.loading, laeseMarkeringTilladt]);
 
   if (data.loading) return <p className="text-sm text-hb-ink-soft">Henter…</p>;
 
@@ -241,9 +244,10 @@ export const ElementView = ({ areaKey, slug }: { areaKey: string; slug: string }
             <HbVideoEmbed
               itemId={item.id}
               resumeAt={done ? null : (progress?.last_position_seconds ?? null)}
-              onPosition={(seconds) =>
-                data.writeProgress(item.id, { last_position_seconds: seconds })
-              }
+              onPosition={(seconds) => {
+                // Afspilningspositionen er også et spor af at kigge (dom 6).
+                if (laeseMarkeringTilladt) data.writeProgress(item.id, { last_position_seconds: seconds });
+              }}
               onCompleted={() => {
                 if (!done) acknowledge();
               }}

@@ -458,7 +458,12 @@ true) — every logged-in user may read WHICH user_ids are service accounts
 `src/lib/tjenestekonto.ts`); no other column is sensitive. No member or
 advisor write path: a client cannot mark itself a service account (the
 only effects of the mark are "no inactivity logout" and "not shown as a
-person"). anon: REVOKE ALL. No function, trigger or existing policy touched.
+person", and — 30/9 — "viewing writes no read marks"). Grants written out:
+SELECT/INSERT/UPDATE/DELETE to authenticated (the policies decide rows and
+who), anon: REVOKE ALL. Measure before the Update click with the migration's
+EFTER-SELECT (efter_grant_authenticated = true, efter_grant_anon = false) —
+a REST probe with the anon key cannot return 200 for this table. No
+function, trigger or existing policy touched.
 
 ### Self-only policies
 ```sql

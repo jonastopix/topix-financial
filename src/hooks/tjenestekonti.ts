@@ -13,11 +13,18 @@
  *                                    falde tilbage på den normale logud-regel.
  *   useTjenestekonti()             — react-query om hentTjenestekonti.
  *
+ * ÉN CACHE (30/9): hentTjenestekonti går gennem appens queryClient.fetchQuery
+ * med TJENESTEKONTI_KEY og samme staleTime som useTjenestekonti — hver liste,
+ * der filtrerer (Netværket, @-nævnelser, vælgerne …), deler ét opslag i ti
+ * minutter i stedet for et kald hver. Klienten registreres af App.tsx
+ * (brugTjenestekontiKlient); uden den (enhedstests) hentes direkte. Fejl caches
+ * ikke — fetchQuery kaster, og næste kald prøver igen.
+ *
  * Tabellen er ikke i de genererede typer endnu — deraf as any (samme mønster
  * som member_profiles i memberProfile.ts).
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, type QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { kraevRaekker } from "@/lib/kraevRaekker";
 import { synligeRaadgivere, tjenestekontoIds } from "@/lib/tjenestekonto";
@@ -29,10 +36,23 @@ export interface RaadgiverRaekke {
 }
 
 export const TJENESTEKONTI_KEY = ["tjenestekonti"] as const;
+export const TJENESTEKONTI_STALE_MS = 10 * 60 * 1000;
 
-export async function hentTjenestekonti(): Promise<Set<string>> {
+let appensKlient: QueryClient | null = null;
+
+/** Kaldes én gang af App.tsx med appens queryClient (se filhovedet «ÉN CACHE»). */
+export function brugTjenestekontiKlient(klient: QueryClient): void {
+  appensKlient = klient;
+}
+
+async function hentTjenestekontiDirekte(): Promise<Set<string>> {
   const res = await (supabase.from("tjenestekonti" as any).select("user_id") as any);
   return tjenestekontoIds(kraevRaekker(res, "tjenestekonti") as { user_id: string | null }[]);
+}
+
+export async function hentTjenestekonti(): Promise<Set<string>> {
+  if (!appensKlient) return hentTjenestekontiDirekte();
+  return appensKlient.fetchQuery({ queryKey: TJENESTEKONTI_KEY, queryFn: hentTjenestekontiDirekte, staleTime: TJENESTEKONTI_STALE_MS });
 }
 
 export async function hentSynligeRaadgiverProfiler(): Promise<RaadgiverRaekke[]> {
@@ -50,5 +70,5 @@ export async function erTjenestekonto(userId: string): Promise<boolean> {
 }
 
 export function useTjenestekonti(enabled = true) {
-  return useQuery({ queryKey: TJENESTEKONTI_KEY, queryFn: hentTjenestekonti, staleTime: 10 * 60 * 1000, enabled });
+  return useQuery({ queryKey: TJENESTEKONTI_KEY, queryFn: hentTjenestekontiDirekte, staleTime: TJENESTEKONTI_STALE_MS, enabled });
 }

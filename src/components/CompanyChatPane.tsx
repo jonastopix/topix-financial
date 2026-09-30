@@ -211,7 +211,7 @@ const ForfatterAvatar = ({ navn, avatarUrl, className = "h-9 w-9" }: { navn: str
 
 const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } = {}) => {
   const laast = !!laastTilCompanyId;
-  const { user, isAdvisor: rawAdvisor, companyId, isCompanyOverride, companyName } = useAuth();
+  const { user, isAdvisor: rawAdvisor, companyId, isCompanyOverride, companyName, laeseMarkeringTilladt } = useAuth();
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
   // Låst tilstand: er samtalelisten hentet? Uden den ville tom-tilstanden
@@ -665,7 +665,9 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
       setMessages((data || []).reverse());
       setSvarPaa(null);
 
-      if (user) {
+      // En tjenestekonto KIGGER (30/9, tjenestekonto.guard dom 6): ingen «læst»
+      // til medlemmet, ingen nulstillede ulæst-tællere hos rådgiverne.
+      if (user && laeseMarkeringTilladt) {
         await supabase.rpc("mark_messages_read", { p_conversation_id: activeConvId });
       }
     };
@@ -695,7 +697,7 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
             });
           }
 
-          if (newMsg.sender_id !== user?.id && user) {
+          if (newMsg.sender_id !== user?.id && user && laeseMarkeringTilladt) {
             await supabase.rpc("mark_messages_read", { p_conversation_id: activeConvId });
           }
         }
@@ -731,7 +733,7 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activeConvId, user]);
+  }, [activeConvId, user, laeseMarkeringTilladt]);
 
   /* Rul beskedlisten til bunden når `messages` ændrer sig — men KUN
      listens EGEN scroll-container (messagesContainerRef), aldrig

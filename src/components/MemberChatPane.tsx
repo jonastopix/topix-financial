@@ -73,7 +73,7 @@ const ForfatterAvatar = ({ navn, avatarUrl, className = "h-9 w-9" }: { navn: str
   );
 
 const MemberChatPane = () => {
-  const { user, companyId, companyName } = useAuth();
+  const { user, companyId, companyName, laeseMarkeringTilladt } = useAuth();
   const isMobile = useIsMobile();
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
@@ -308,7 +308,9 @@ const MemberChatPane = () => {
       setMessages((data || []).reverse());
       setSvarPaa(null);
 
-      if (user) {
+      // En tjenestekonto KIGGER (30/9, tjenestekonto.guard dom 6): ingen «læst»
+      // til medlemmet, ingen nulstillede ulæst-tællere hos rådgiverne.
+      if (user && laeseMarkeringTilladt) {
         await supabase.rpc("mark_messages_read", { p_conversation_id: activeConvId });
       }
     };
@@ -338,7 +340,7 @@ const MemberChatPane = () => {
             });
           }
 
-          if (newMsg.sender_id !== user?.id && user) {
+          if (newMsg.sender_id !== user?.id && user && laeseMarkeringTilladt) {
             await supabase.rpc("mark_messages_read", { p_conversation_id: activeConvId });
           }
         }
@@ -374,7 +376,7 @@ const MemberChatPane = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activeConvId, user]);
+  }, [activeConvId, user, laeseMarkeringTilladt]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });

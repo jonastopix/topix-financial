@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { erSynligRaadgiver, inaktivitetsLogudAktiv, synligeRaadgivere, tjenestekontoIds } from "@/lib/tjenestekonto";
+import { erSynligRaadgiver, inaktivitetsLogudAktiv, laeseMarkeringTilladt, synligeRaadgivere, tjenestekontoIds } from "@/lib/tjenestekonto";
 
 const CLAUDE = "c1";
 const tjenestekonti = new Set([CLAUDE]);
@@ -42,9 +42,31 @@ describe("tjenestekonto — inaktivitets-logud", () => {
   it("fejl i opslaget → den normale regel (fail-safe)", () => {
     expect(inaktivitetsLogudAktiv(true, "error", undefined)).toBe(true);
   });
+  it("fejlet GENHENTNING med et bevaret ja → stadig slået fra (et tidligere ja står ved magt)", () => {
+    expect(inaktivitetsLogudAktiv(true, "error", true)).toBe(false);
+    expect(inaktivitetsLogudAktiv(true, "error", false)).toBe(true);
+  });
   it("tjenestekonto → slået fra; alle andre → slået til", () => {
     expect(inaktivitetsLogudAktiv(true, "success", true)).toBe(false);
     expect(inaktivitetsLogudAktiv(true, "success", false)).toBe(true);
     expect(inaktivitetsLogudAktiv(true, "success", undefined)).toBe(true);
+  });
+});
+
+describe("tjenestekonto — læse-markering", () => {
+  it("ingen bruger → nej", () => {
+    expect(laeseMarkeringTilladt(false, "success", false)).toBe(false);
+  });
+  it("tjenestekonto → nej, også ved en fejlet genhentning med bevaret ja", () => {
+    expect(laeseMarkeringTilladt(true, "success", true)).toBe(false);
+    expect(laeseMarkeringTilladt(true, "error", true)).toBe(false);
+  });
+  it("mens opslaget henter → nej (stederne genkører, når svaret kommer)", () => {
+    expect(laeseMarkeringTilladt(true, "pending", undefined)).toBe(false);
+  });
+  it("fejl uden et ja → den normale regel (ja); alle andre → ja", () => {
+    expect(laeseMarkeringTilladt(true, "error", undefined)).toBe(true);
+    expect(laeseMarkeringTilladt(true, "error", false)).toBe(true);
+    expect(laeseMarkeringTilladt(true, "success", false)).toBe(true);
   });
 });

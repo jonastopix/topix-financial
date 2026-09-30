@@ -26,6 +26,16 @@
 //      !!user alene.
 //   5. Migrationen: kun admin skriver (policy med has_role admin), ingen ændring af
 //      eksisterende funktioner, og første linje er IKKE KØRT-linjen.
+//   6. Ingen læse-markering fra en tjenestekonto: hvert sted, hvor det at SE
+//      skriver et spor (mark_messages_read, notifikationer set/læst, klokker
+//      læst, community-visning, conversation_last_seen, forside_sidst_set,
+//      ugefokus seen_at, akademiets seen_at/afspilningsposition, login-loggen),
+//      er gated — laeseMarkeringTilladt (useAuth) eller stedets egen port —
+//      eller står på LAESE_UNDTAGET med grunden. Nye steder uden port fælder.
+//
+// ROLLE_LISTE (rettet 30/9): rækkefølgen i rollelisten er fri — både
+// ["advisor", "admin"] og ["admin", "advisor"] — og .eq("role", "advisor") er
+// også en rådgiverliste. select'en skal blot indeholde user_id.
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -52,7 +62,11 @@ function filer(dir: string, endelser: string[]): string[] {
 const laes = (sti: string) => readFileSync(resolve(ROD, sti), "utf8");
 
 const RPC_LISTE = /\brpc\b[^;\n]{0,40}["'](get_all_advisor_profiles|get_member_directory|get_community_medlemmer)["']/;
-const ROLLE_LISTE = /from\(["']user_roles["']\)\s*\.select\(["']user_id[^"']*["']\)[\s\S]{0,60}?\.in\(["']role["'],\s*\[["']advisor["'],\s*["']admin["']\]\)/;
+const ROLLE = `["'](?:advisor|admin)["']`;
+const ROLLE_LISTE = new RegExp(
+  String.raw`from\(["']user_roles["']\)\s*\.select\(["'][^"']*\buser_id\b[^"']*["']\)[\s\S]{0,60}?\.` +
+    String.raw`(?:in\(["']role["'],\s*\[\s*` + ROLLE + String.raw`\s*(?:,\s*` + ROLLE + String.raw`\s*)?\]\)|eq\(["']role["'],\s*["']advisor["']\))`,
+);
 const BRUGER_HOOK = /\buseRaadgivere\(/;
 const KLIENT_FILTER = /\b(synligeRaadgivere|hentSynligeRaadgiverProfiler)\(/;
 const EDGE_FILTER = /\budenTjenestekonti\(/;
@@ -126,6 +140,69 @@ function edgeDom(kilder: Readonly<Record<string, string>>, undtaget: Readonly<Re
   return fejl;
 }
 
+// ─── Dom 6: læse-markeringer ────────────────────────────────────────────────
+/** Skrivninger, som det at SE udløser. Et fund i en fil kræver en port. */
+const LAESE_SKRIVNINGER: readonly RegExp[] = [
+  /["']mark_messages_read["']/,
+  /["']mark_notifications_seen["']/,
+  /["']mark_notification_read["']/,
+  /from\(["']advisor_notifications["'][^)]*\)\s*\.update\(\{\s*read_at/,
+  /(?<!function )\bregistrerVisning\(traad/, // kaldet — ikke definitionen i communityApi.ts
+  /from\(["']conversation_last_seen["'][^)]*\)\s*\.upsert\(/,
+  /from\(["']forside_sidst_set["'][^)]*\)\s*\.upsert\(/,
+  /from\(["']weekly_focus["']\)\s*\.update\(\{\s*seen_at/,
+  /writeProgress\([^)]*\{\s*(?:seen_at|last_position_seconds)\s*:/,
+  /["']log_user_login["']/,
+  /\.update\(\{\s*(?:velkomstvideo_set_at|deling_hentet_at)\s*:/,
+];
+
+/** Standardporten: laeseMarkeringTilladt i en betingelse. */
+const STANDARD_PORT = /(?:if \(|&&|\|\|)[^\n;]*!?\blaeseMarkeringTilladt\b/;
+
+/** Steder med deres egen port (i stedet for standardporten). */
+const EGEN_PORT: Readonly<Record<string, RegExp>> = {
+  // Login-loggen skrives i onAuthStateChange, før konteksten findes: eget opslag.
+  "src/hooks/useAuth.tsx": /erTjenestekonto\(nyBrugerId\)[\s\S]{0,120}?if \(tjeneste\) return;[\s\S]{0,80}?["']log_user_login["']/,
+  // Stemplet ligger i en ren hentefunktion; forsiden giver flaget ind (se dom 6, forsiden).
+  "src/hooks/sidenSidst.ts": /if \(skrivStempel\) \{[\s\S]{0,300}?forside_sidst_set/,
+};
+
+/** Steder, der BEVIDST ikke gater — med grunden. */
+const LAESE_UNDTAGET: Readonly<Record<string, string>> = {
+  "src/hooks/useOnboardingTjekliste.ts": "KUN MEDLEMMER: velkomstvideo_set_at skrives kun, når aktiv (!isAdvisor) — en tjenestekonto er rådgiver",
+  "src/hooks/useDelingHentet.ts": "KUN MEDLEMMER: deling_hentet_at skrives kun for !isAdvisor — en tjenestekonto er rådgiver",
+};
+
+/** De kendte steder — værnet må ikke bestå tomt. */
+const LAESE_STEDER = [
+  "src/components/CompanyChatPane.tsx",
+  "src/components/MemberChatPane.tsx",
+  "src/hooks/useConversationLastSeen.ts",
+  "src/hooks/useNotifications.ts",
+  "src/hooks/useAdvisorNotifications.ts",
+  "src/components/AdvisorNotifications.tsx",
+  "src/components/hjemmebane/community/CommunityTraadView.tsx",
+  "src/components/hjemmebane/boardroom/BoardroomView.tsx",
+  "src/components/hjemmebane/akademi/views/ElementView.tsx",
+  "src/hooks/sidenSidst.ts",
+  "src/hooks/useAuth.tsx",
+];
+
+function laeseDom(kilder: Readonly<Record<string, string>>, undtaget: Readonly<Record<string, string>> = LAESE_UNDTAGET): string[] {
+  const fejl: string[] = [];
+  for (const [sti, kilde] of Object.entries(kilder)) {
+    const skriver = LAESE_SKRIVNINGER.some((r) => r.test(kilde));
+    if (!skriver) {
+      if (sti in undtaget) fejl.push(`${sti}: står på LAESE_UNDTAGET, men skriver ingen læse-markering`);
+      continue;
+    }
+    if (sti in undtaget) continue;
+    const port = EGEN_PORT[sti] ?? STANDARD_PORT;
+    if (!port.test(kilde)) fejl.push(`${sti}: skriver en læse-markering uden port for tjenestekonti og står ikke på LAESE_UNDTAGET`);
+  }
+  return fejl;
+}
+
 const klientKilder = Object.fromEntries(
   filer("src", [".ts", ".tsx"]).filter((f) => !f.endsWith("integrations/supabase/types.ts")).map((f) => [f, laes(f)]),
 );
@@ -180,10 +257,12 @@ describe("tjenestekonto.guard — ingen tjenestekonto som person", () => {
     }
   });
 
-  it("4. useAuth: inaktivitets-logud går gennem inaktivitetsLogudAktiv", () => {
+  it("4. useAuth: inaktivitets-logud og læse-markeringen går gennem dommene — fra SAMME query", () => {
     const auth = klientKilder["src/hooks/useAuth.tsx"];
     expect(auth).toContain("useInactivityLogout(logudAktiv, sessionTimeoutMinutes)");
     expect(auth).toContain("inaktivitetsLogudAktiv(!!user, tjenestekontoQuery.status, tjenestekontoQuery.data)");
+    expect(auth).toContain("laeseMarkeringTilladt(!!user, tjenestekontoQuery.status, tjenestekontoQuery.data)");
+    expect(auth).toContain("erTjenestekonto: erTjenestekontoNu, laeseMarkeringTilladt: maaMarkereLaest,");
     expect(auth).not.toContain("useInactivityLogout(!!user");
   });
 
@@ -197,5 +276,51 @@ describe("tjenestekonto.guard — ingen tjenestekonto som person", () => {
     // Trin 2 (claude@topix.dk) står kun som kommentar — den køres separat, efter kontoen findes.
     expect(kode).not.toMatch(/INSERT INTO/i);
     expect(sql).toContain("ON CONFLICT (user_id) DO NOTHING");
+  });
+  it("1./2. mutation: rollelisten i omvendt rækkefølge og .eq(\"role\", \"advisor\") fanges også", () => {
+    const omvendt = { ...klientKilder, "src/lib/nyListe.ts": 'supabase.from("user_roles").select("user_id").in("role", ["admin", "advisor"]);' };
+    expect(klientDom(omvendt)).toEqual([expect.stringContaining("nyListe.ts")]);
+    const eq = { ...klientKilder, "src/lib/nyListe2.ts": 'supabase.from("user_roles").select("user_id, role").eq("role", "advisor");' };
+    expect(klientDom(eq)).toEqual([expect.stringContaining("nyListe2.ts")]);
+    const edgeOmvendt = { ...edgeKilder, "supabase/functions/ny-fanout/index.ts": "await admin.from('user_roles').select('user_id').in('role', ['admin', 'advisor']);" };
+    expect(edgeDom(edgeOmvendt)).toEqual([expect.stringContaining("ny-fanout")]);
+    const edgeEq = { ...edgeKilder, "supabase/functions/ny-fanout2/index.ts": "await admin.from('user_roles').select('user_id').eq('role', 'advisor');" };
+    expect(edgeDom(edgeEq)).toEqual([expect.stringContaining("ny-fanout2")]);
+    // Et enkelt-opslag (select id på én bruger) er ingen liste og fanges ikke.
+    expect(ROLLE_LISTE.test("from('user_roles').select('id').eq('user_id', x).eq('role', 'advisor')")).toBe(false);
+  });
+
+  it("6. ingen læse-markering fra en tjenestekonto: hvert sted er gated eller har en grund", () => {
+    expect(laeseDom(klientKilder)).toEqual([]);
+    for (const sti of LAESE_STEDER) {
+      expect(klientKilder[sti], sti).toBeDefined();
+      expect(LAESE_SKRIVNINGER.some((r) => r.test(klientKilder[sti])), sti).toBe(true);
+      expect(sti in LAESE_UNDTAGET, sti).toBe(false);
+    }
+    // Forsiden giver flaget ind til stemplet — og har det i nøglen, så stemplet sættes, når svaret kommer.
+    const forside = klientKilder["src/components/hjemmebane/forside/RaadgiverForsideView.tsx"];
+    expect(forside).toContain("hentSidenSidst(user!.id, new Date(), laeseMarkeringTilladt)");
+    expect(forside).toContain("queryKey: [...SIDEN_SIDST_KEY(user?.id), laeseMarkeringTilladt]");
+  });
+
+  it("6. mutation: porten fjernet fra chatten fælder dommen", () => {
+    const sti = "src/components/CompanyChatPane.tsx";
+    const uden = { ...klientKilder, [sti]: klientKilder[sti].replace(/ && laeseMarkeringTilladt\)/g, ")") };
+    expect(uden[sti]).not.toBe(klientKilder[sti]);
+    expect(laeseDom(uden)).toEqual([expect.stringContaining(sti)]);
+  });
+
+  it("6. mutation: et nyt sted uden port fælder dommen; en rådden undtagelse fælder også", () => {
+    const ny = { ...klientKilder, "src/components/NyTraad.tsx": 'useEffect(() => { void supabase.rpc("mark_messages_read", { p_conversation_id: id }); }, [id]);' };
+    expect(laeseDom(ny)).toEqual([expect.stringContaining("NyTraad.tsx")]);
+    const klokke = { ...klientKilder, "src/hooks/nyKlokke.ts": 'await supabase.from("advisor_notifications").update({ read_at: nu }).eq("id", id);' };
+    expect(laeseDom(klokke)).toEqual([expect.stringContaining("nyKlokke.ts")]);
+    expect(laeseDom(klientKilder, { ...LAESE_UNDTAGET, "src/lib/tjenestekonto.ts": "skriver intet" })).toEqual([expect.stringContaining("src/lib/tjenestekonto.ts")]);
+  });
+
+  it("6. mutation: login-loggen uden tjenestekonto-opslaget fælder dommen", () => {
+    const sti = "src/hooks/useAuth.tsx";
+    const uden = { ...klientKilder, [sti]: klientKilder[sti].replace("if (tjeneste) return;", "") };
+    expect(laeseDom(uden)).toEqual([expect.stringContaining(sti)]);
   });
 });
