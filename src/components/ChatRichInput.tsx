@@ -42,6 +42,12 @@ interface ChatRichInputProps {
       `fremdrift` (0–100) mens videoen uploades: knappen viser procenten og
       er spærret. Låst af chatVideoFlade.guard. */
   videoKnap?: VideoKnap;
+  /** Lavere i hvile (30/9-2026, Jonas: «chatten på virksomhedssiderne er
+      lidt for små»): én linje, tre ved fokus, vokser med indholdet. VALGFRI
+      — KUN CompanyChatPane i låst tilstand (virksomhedssiden) sætter den;
+      gælder kun desktop (ikke den kompakte mobilform). Uden prop er feltet
+      tegn-for-tegn som før (10/9: tre linjer at starte på). */
+  lavIHvile?: boolean;
 }
 
 export interface VideoKnap {
@@ -210,6 +216,7 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
   showInnerSend,
   variant,
   videoKnap,
+  lavIHvile = false,
 }) => {
   const hb = variant === "hb";
   const isMobile = useIsMobile();
@@ -273,7 +280,14 @@ const ChatRichInput: React.FC<ChatRichInputProps> = ({
           // resizes-content). Før: én linje (38/40 px), rul efter ~4 (120 px).
           // Samme felt for medlem og rådgiver; rådgiverens smallere spalte
           // ændrer bredden, ikke højden.
-          isCompact ? "py-2.5 min-h-[80px] max-h-[33vh]" : "py-2 min-h-[76px] max-h-[33vh]"
+          isCompact ? "py-2.5 min-h-[80px] max-h-[33vh]" : "py-2 min-h-[76px] max-h-[33vh]",
+          // lavIHvile (30/9, KUN virksomhedssidens chat på desktop): én linje
+          // i hvile (20 + 16 + 4 = 40 px), tre linjer (76 px) så snart feltet
+          // har fokus, og derefter vokser det med indholdet op til 33vh som
+          // før. tailwind-merge lader min-h-[40px] erstatte min-h-[76px];
+          // focus:min-h-[76px] er sin egen variant. Medlemmets chat, /chat og
+          // community sender ikke propen — 10/9-beslutningen står der.
+          !isCompact && lavIHvile && "min-h-[40px] focus:min-h-[76px] transition-[min-height] duration-150",
         ),
         inputmode: "text",
         enterkeyhint: "send",
