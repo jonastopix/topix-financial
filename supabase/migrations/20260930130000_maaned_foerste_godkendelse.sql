@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod 30/9-2026 ca. 17:40 via Lovable-MCP'en (query_database, i én transaktion). EFTER målt: tabel findes · rls true · to SELECT-policies · trigger_husk_foerste_godkendelse O · protect-trigger O · maalte facts 186 · hukommelse rækker 186 · EXECUTE for anon/authenticated false. FØR: tabel null, 186 målte (distinkte 186).
 --
 -- MAANED_FOERSTE_GODKENDELSE — hukommelsen om, hvornår en måned FØRSTE gang
 -- blev godkendt (Boardroom Score / tal-streak, docs/boardroom-score.md §1 og §4;
