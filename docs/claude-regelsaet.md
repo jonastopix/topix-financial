@@ -77,6 +77,31 @@ Før en opgave bygges, skriver Claude en VÆRDIVURDERING. Det er ikke en byggepl
 
 Fejlen, der gav reglen (29/9 aften): «Spørg din rådgiver» (#1144) og «systembeskeder ud af chatten» (#1145) blev valgt, fordi de stod som «gør det» og «Lille». Ingen målte først, om medlemmerne bruger Nøgletal eller skriver i chatten, eller hvad chatten faktisk fyldes med. #1145 skjulte til sidst kun én type og blev lukket.
 
+## 4b. Det tekniske råd — ingen merge uden uafhængigt gennemsyn (Jonas 30/9 08:05)
+
+Jonas: «Lav et teknisk råd: Lav en CTO og en der kigger på UX og design på platformen. De skal kigge på fejl inden noget rulles ud.»
+
+- **CTO:** en agent, der IKKE har set arbejdet blive lavet, læser hver kode-PR før merge. Den følger dataflowet på tværs af filer, sikkerheden, driften og deploy-rækkefølgen, og den tjekker, at værnene faktisk fælder. Dommen er **MERGE / RET FØRST / STOP**.
+  - Instruksen står i en fast skabelon, så alle gennemsyn stiller de samme spørgsmål.
+  - Den største model (Fable) bruges, når PR'en rører penge, mails til rigtige mennesker, adgang eller offentlige endpoints. Ellers bruges Opus.
+- **UX og design:** gennemgår alt, hvad medlemmer og rådgivere ser: designsprog, mobil, tekster og tilgængelighed. Den ser helst den udrullede side i Claude-browseren (tjenestekontoen claude@topix.dk).
+- **RET FØRST** rettes af en anden agent end den, der byggede. Høje fund rettes altid før merge. Lave fund rettes eller bogføres som åbne.
+- **Ren dokumentation** går ikke gennem rådet.
+- **Første dag (30/9) fandt rådet reelle fejl i alle PR'er**, bl.a.:
+  - en Klaviyo-skrivning til alle medlemsprofiler uden lås
+  - en streak, der straffede rettelser
+  - en tjenestekonto, der ville markere medlemmers beskeder som læst
+  - en offentlig tilmelding, der kunne flytte andres tilmelding
+  - en rettighed, der gav skriveadgang til cron
+
+## 4c. Lærestreger 30/9
+
+- **(y) Et afbrudt agentkald kan køre videre i baggrunden og dø halvvejs.** Før en opgave startes igen, tjekkes `git worktree list` for en halvfærdig udgave. Udkastet gemmes, og der arbejdes videre derfra. Der må aldrig køre to agenter på samme gren.
+- **(z) Migrationernes tidsstempler kolliderede tre gange på én dag** (20260930090000, 100000 og 120000), fordi parallelle grene valgte «næste rigtige tid». Før en migration får et navn, tjekkes alle åbne PR'er: `git ls-remote` + `git show origin/<gren>:supabase/migrations`.
+- **(æ) Bed aldrig Jonas teste noget, før forudsætningerne er læst.** Testen af «Online nu» med kontakt@topix.dk kunne aldrig vise noget, fordi testvirksomheden er sorteret fra med vilje. Det stod i bogføringen fra 16/9.
+- **(ø) At se er ikke altid at læse.** Når en side åbnes, kan den skrive, fx `read_at`, `last_seen` og `log_user_login`. En konto, der kun skal se, skal springe de skrivninger over.
+- **(å) `gh` findes ikke i skyen.** PR-nummeret gives eksplicit til merge.sh.
+
 ## 5. Modelvalg
 
 Den største model bruges kun, hvor den gør forskel.
@@ -86,7 +111,8 @@ Den største model bruges kun, hvor den gør forskel.
 | Bogføring, recon med KUN fund, målinger, opsummeringer | lille (haiku) |
 | Almindelig kode, tests, værn, mindre flader | mellem (sonnet) |
 | Svær eller detaljeret kode: motorer, penge, adgang, migrationer med data, spejl og paritet | stor (opus/fable) |
-| Gennemsyn af diffs før merge | mellem eller stor efter risiko |
+| Gennemsyn af diffs før merge | det tekniske råd (§4b): Opus, Fable ved penge/mails/adgang/offentlige endpoints |
+| Det sværeste, hvor en fejl koster penge eller data (bogføringsmotor, score-arkitektur) | største (fable) |
 
 Morgenrapporten nævner, hvilken model der fik hvad.
 
@@ -95,7 +121,22 @@ Morgenrapporten nævner, hvilken model der fik hvad.
 - **Skyklonen:** `/home/claude/topix-financial`. Lovables lockfil peger på Lovables pakke-mirror (`europe-west1-npm.pkg.dev`), som ikke kan nås herfra. Installér præcis de samme versioner ved at omskrive URL'erne til `registry.npmjs.org` i en KOPI af `bun.lock` (aldrig i repoet), køre `bun install --frozen-lockfile` dér og flytte `node_modules` ind. Kontrollér bagefter: `@supabase/supabase-js` skal være 2.97.0.
 - **GitHub:** push, PR og merge virker gennem sessionens proxy. Det gør sletning af grene ikke («Write access to this GitHub API path is not permitted through this proxy»). JSON-kald kræver `Content-Type: application/json`.
 - **Jonas' Mac:** mappen `topix-financial` er forbundet til en isoleret Linux-VM uden `gh`, `bun` og GitHub-login. Den bruges kun til at LÆSE og til at hente filer ind med stage.
-- **Produktion:** Supabase-forbindelsen ser kun `boardroom-2-prod`, IKKE Lovables prod (`loiavmastgeieqyiwyyr`). SQL, deploy og Update går gennem Lovable i browseren på Jonas' Mac, som kun kan bruges, når Mac'en er tændt, og Claude-appen er åben.
+- **Produktion:** Supabase-forbindelsen ser kun `boardroom-2-prod`, IKKE Lovables prod (`loiavmastgeieqyiwyyr`). Prod nås gennem Lovables egen MCP-forbindelse (§6a), forbundet af Jonas 30/9 kl. 16:40.
+- **Arbejdsmiljøets netværk** når IKKE `*.supabase.co`, `api.supabase.com` eller Lovable (målt 30/9 16:35: CONNECT 403). Al prod-adgang går gennem MCP-forbindelsen.
+
+## 6a. Lovable-forbindelsen (MCP, fra 30/9 16:40)
+
+Jonas forbandt Lovables officielle MCP-server (`https://mcp.lovable.dev`, [dokumentation](https://docs.lovable.dev/integrations/lovable-mcp-server)) til Claude 30/9 kl. 16:40 med sin egen Lovable-konto («Jeg er klar til, at vi får forbundet dig direkte, så du kan køre SQL og deploys i Lovable også … Men bliv ved med at være grundig!»). Forbindelsen har HELE hans kontos adgang — fire workspaces og alle projekter. Derfor:
+
+- **Kun ét projekt:** «Boardroom Compass», `project_id = 0bcda7a6-4154-4a81-9f82-fcdf623eb7ea`, workspace «Topix / The Boardroom» (`RQtkhlPP9ZEYYWj32M66`). Målt 30/9 16:41 med `query_database`: `current_user = postgres`, Postgres 17.6, 52 virksomheder, 30 cron-jobs, `net._http_response` max id 26455 — samme database som SQL editoren. Andre projekter og workspaces (SnowWave, Dansk Løn Service, Jonas' workspace, Topix Reimagined, The Boardroom Elevated) røres ALDRIG uden en særskilt besked fra Jonas.
+- **`query_database` kører som `postgres`** (`bypassrls = t`, `createrole = t`, målt 30/9): den ser alt og kan alt. Reglerne i §2 og §3 gælder uændret — forbindelsen flytter kun HÆNDERNE, ikke beslutningerne:
+  - SELECT frit. Aldrig `SELECT *` på de ti tabeller med nøgle-/tokenkolonner (målt 30/9: `aftale_underskrift`, `ansoegninger`, `company_betalingslink`, `company_invitations`, `email_unsubscribe_tokens`, `webinar_delinger`, `kanoniske_noegler`, `planlagte_haendelser`, `webinar_haendelser`, `backfill_log_kanoniske_noegler_20260918`) — vælg kolonnerne. Aldrig `vault`, aldrig secrets.
+  - Skrivning: SELECT før → skrivning guardet på den forventede nuværende værdi → SELECT efter. FØR-værdierne skrives i chatten/rapporten, så de kan rulles tilbage.
+  - Migrationer kun fra en fil på main (eller en PR-gren, der merges straks efter) med «IKKE KØRT» i hovedet; kør filens krop ordret, mål, og vend hovedet til KØRT i samme PR/opfølgning.
+  - `kald_edge(...)` (tørkørsler, beviser) er en skrivning i `net`-køen, men ikke af data: må uden at spørge, når body er en tørkørsel eller functionen er godkendt i drift.
+- **`send_message` til build-chatten** bruges KUN til deploy af edge functions og kun med den faste tekst: «Rør ingen kode, og commit intet. Kør deploy-værktøjet for …, og vis mig værktøjets resultat ordret.» Svaret læses med `get_message`, og `get_diff` på beskeden skal være TOM (ingen kodeændring). Viser diffen en ændring: stop og meld til Jonas. Deployen er først bevist ved et kald, der svarer med noget kun den nye kode kan (CLAUDE.md, «Deployment af edge functions»). `send_message` koster credits — én besked pr. deploy-runde, ikke én pr. function.
+- **`deploy_project` (= Update)** først når den nye commit er målt i Lovables kopi (`list_edits`/`read_file` på en ændret fil), og når `§1a` holder (alle migrationer, frontenden læser, er kørt og målt).
+- **Aldrig:** `create_project`, `remix_project`, `enable_database`, `set_project_visibility`, `set_*_knowledge`, workspace-skills, connectors — uden Jonas' særskilte ja.
 
 ## 7. Arbejdsgangen for én opgave
 

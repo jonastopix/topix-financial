@@ -6,6 +6,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
+import { hentTjenestekonti } from "@/hooks/tjenestekonti";
+import { synligeRaadgivere } from "@/lib/tjenestekonto";
 import { kraevRaekker } from "@/lib/kraevRaekker";
 import { notifyChatMessage } from "@/lib/chatNotify";
 import { uploadChatAttachments } from "@/lib/chatAttachments";
@@ -209,7 +211,7 @@ const ForfatterAvatar = ({ navn, avatarUrl, className = "h-9 w-9" }: { navn: str
 
 const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } = {}) => {
   const laast = !!laastTilCompanyId;
-  const { user, isAdvisor: rawAdvisor, companyId, isCompanyOverride, companyName } = useAuth();
+  const { user, isAdvisor: rawAdvisor, companyId, isCompanyOverride, companyName, laeseMarkeringTilladt } = useAuth();
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
   // Låst tilstand: er samtalelisten hentet? Uden den ville tom-tilstanden
@@ -305,7 +307,8 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
         .select("user_id, full_name, avatar_url")
         .in("user_id", uniqueIds);
       if (profErr) throw profErr;
-      return (profiles || [])
+      // Tjenestekonti (claude@topix.dk) kan ikke få en samtale tildelt — de er ingen person.
+      return synligeRaadgivere(profiles || [], await hentTjenestekonti())
         .map((p) => ({
           user_id: p.user_id,
           full_name: p.full_name || "Unavngivet",
@@ -662,7 +665,9 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
       setMessages((data || []).reverse());
       setSvarPaa(null);
 
-      if (user) {
+      // En tjenestekonto KIGGER (30/9, tjenestekonto.guard dom 6): ingen «læst»
+      // til medlemmet, ingen nulstillede ulæst-tællere hos rådgiverne.
+      if (user && laeseMarkeringTilladt) {
         await supabase.rpc("mark_messages_read", { p_conversation_id: activeConvId });
       }
     };
@@ -692,7 +697,7 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
             });
           }
 
-          if (newMsg.sender_id !== user?.id && user) {
+          if (newMsg.sender_id !== user?.id && user && laeseMarkeringTilladt) {
             await supabase.rpc("mark_messages_read", { p_conversation_id: activeConvId });
           }
         }
@@ -728,7 +733,7 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activeConvId, user]);
+  }, [activeConvId, user, laeseMarkeringTilladt]);
 
   /* Rul beskedlisten til bunden når `messages` ændrer sig — men KUN
      listens EGEN scroll-container (messagesContainerRef), aldrig

@@ -38,6 +38,7 @@ export const RAADGIVER_KILDE_ORD: Readonly<Record<string, string>> = {
   profiles: "medlemmernes navne",
   member_profiles: "medlemmernes profiler",
   get_all_advisor_profiles: "rådgiverne",
+  tjenestekonti: "rådgiverne",
   conversations: "samtalerne",
   messages: "beskederne",
   financial_report_facts: "virksomhedernes tal",
@@ -61,8 +62,8 @@ export const RAADGIVER_KILDE_ORD: Readonly<Record<string, string>> = {
   uploads: "uploads",
   // Kohortelinjen (16/9): login-historikken bag «kom igen efter dag 1».
   user_login_log: "login-historikken",
-  // «Online nu» (16/9): Realtime Presence-kanalen — ikke en tabel, men en kilde der kan fejle.
-  realtime_presence: "hvem der er online",
+  // «Online nu» (30/9): hjerteslagene i online_hjerteslag (Presence-kanalen fra 16/9 er fjernet).
+  online_hjerteslag: "hvem der er online",
   // «Sessioner i dag» (17/9, PR 2): bookede sessioner på dagens danske dato.
   session_bookings: "sessionerne",
   // Ansøgningerne der venter (18/9): forsidens linje og /ansoegninger.

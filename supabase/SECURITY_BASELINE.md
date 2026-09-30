@@ -252,6 +252,13 @@ to the entire access-control model.
 
 Mirror of `protect_aftale_spor` (same body, same rule): UPDATE always raises; DELETE raises only when direct (`pg_trigger_depth() <= 1` inside the trigger) — the cascade from `webinar_delinger` runs inside the RI trigger (depth 2) and passes, so a share and its trail can be deleted together (`oprettet_af` is `on delete restrict`). The trail (`webinar_deling_spor`) is append-only for every role including `service_role`. No SECURITY DEFINER; `search_path = public`. Not exercised in a real Postgres in the draft (no local/WASM Postgres) — the migration header carries the transaction-and-rollback probe; the SQL is locked by `webinarDeling.guard` dom 4.
 
+### `companies_medlem_kolonnevaern()` on `companies BEFORE UPDATE` (udkast 29/9-2026, migration `20260930090000` — IKKE KØRT)
+- Sikkerhedsanalysen 29/9 fund 1 (KRITISK): «Members can update own company» har ingen kolonnebegrænsning, så et medlem kunne selv sætte `contract_end_date`, `is_legat`, `*_session_used_at`, prisfelter, `stripe_customer_id`, `status` … Kolonne-GRANTs duer ikke (rådgivere deler rollen `authenticated`).
+- Når kalderen er et medlem — `current_user` eller JWT-rollen er `authenticated`/`anon`, og `has_role(auth.uid(), 'advisor')` er falsk — afvises (42501) enhver ændret kolonne UDEN for hvidlisten: `name, cvr_number, contact_email, website, contact_phone, industry_code, industry_label, logo_url, weekly_focus_enabled, description, offboarding_requested_at, onboarding_completed` (målt i `src/` 29/9). Fail-closed: en ny kolonne er beskyttet, til nogen åbner den.
+- Rådgivere/admin, `service_role` (edge functions) og `postgres` uden JWT (SQL editor, migrationer, pg_cron) passerer. SECURITY INVOKER, `search_path = public`; ingen eksisterende funktion eller companies-policy er rørt.
+- Kildeværn: `src/lib/__tests__/companiesKolonnevaern.guard.test.ts` — hvidlisten ⊆ ikke-forbudte kolonner, hver medlemssti i `src/` skriver kun hvidlistede kolonner, hver fil der opdaterer companies er klassificeret (medlem/rådgiver), og hvidlisten åbner intet ubrugt. Bevis-kørslen (rullet tilbage) står i migrationens filhoved.
+- Åbent: `name` og `cvr_number` er medlemsskrivbare (Indstillinger) — analysens A4 (navnet i invitationsmailen) og CVR-genbrugskæden er ikke lukket af værnet.
+
 ## 4. Data Normalization Triggers
 
 ### `trg_normalize_invitation_email` on `company_invitations BEFORE INSERT`
@@ -416,6 +423,10 @@ overlevende tabellers politikker med koncern-referencer fandt kun denne
 ene ramt (pulse_checkins' gruppe-politik var eksplicit erstattet).
 Fremtidige CASCADE-drops skal efterfølges af `pg_policies`-diff i prod.
 
+**Addendum (2026-09-29, sikkerhedsanalysen fund 6 og 7 — migration `20260930090000`, IKKE KØRT)**:
+- **Fund 7:** «Members can insert own notifications» på `advisor_notifications` (WITH CHECK `member_id = auth.uid()` alene; `type`, `advisor_id`, `title`, `body` frie) droppes. Ingen klient brugte den (eneste klient-insert, `src/lib/advisorNotifications.ts`, havde ingen kaldere og er slettet); alle skrivere er edge functions med service role. `advisor_notifications` har derefter ingen klient-INSERT.
+- **Fund 6 — ÅBENT:** «Users can insert own reports/milestones/kpi targets/benchmarks» tjekker stadig kun `user_id` (BACKLOG [P4] ovenfor). En WITH CHECK på `company_id = user_company_id(auth.uid())` er ikke skrevet, fordi `user_company_id` tager én vilkårlig række (LIMIT 1) og `company_members` ikke er unik på `user_id` — et medlem i to virksomheder ville miste skriveadgang. Migrationens FØR-SELECT sektion 5–6 måler antallet af brugere i flere virksomheder og eksisterende rækker uden for skribentens virksomhed; stramningen skrives, når tallene er læst.
+
 ### Advisor access (full read, scoped write)
 ```sql
 has_role(auth.uid(), 'advisor'::app_role)
@@ -446,7 +457,25 @@ committet for paritet som migration
 ```sql
 has_role(auth.uid(), 'admin'::app_role)
 ```
-Applied to: `app_config` management, `user_roles` management
+Applied to: `app_config` management, `user_roles` management,
+`tjenestekonti` (FOR ALL, USING + WITH CHECK — migration
+`20260930140000_tjenestekonti.sql`, 30/9-2026)
+
+**`tjenestekonti` (30/9-2026)**: `user_id` (PK, FK auth.users ON DELETE
+CASCADE), `formaal`, `oprettet_at`. RLS enabled. Two policies: "Admin
+skriver tjenestekonti" (FOR ALL TO authenticated, admin predicate above)
+and "Indloggede ser tjenestekonti" (FOR SELECT TO authenticated, USING
+true) — every logged-in user may read WHICH user_ids are service accounts
+(the client filters advisor lists from SECURITY DEFINER RPCs with it,
+`src/lib/tjenestekonto.ts`); no other column is sensitive. No member or
+advisor write path: a client cannot mark itself a service account (the
+only effects of the mark are "no inactivity logout" and "not shown as a
+person", and — 30/9 — "viewing writes no read marks"). Grants written out:
+SELECT/INSERT/UPDATE/DELETE to authenticated (the policies decide rows and
+who), anon: REVOKE ALL. Measure before the Update click with the migration's
+EFTER-SELECT (efter_grant_authenticated = true, efter_grant_anon = false) —
+a REST probe with the anon key cannot return 200 for this table. No
+function, trigger or existing policy touched.
 
 ### Self-only policies
 ```sql
@@ -618,6 +647,31 @@ different channel (Realtime Concepts). The eight existing `postgres_changes`
 channels are unchanged. `has_role` is called, not modified. The presence
 payload carries no PII (`online_at` only; the presence key is the user id,
 which the advisor already reads via `profiles`).
+**Superseded in the client 30/9-2026** by the heartbeat table below: the
+Presence channel never showed a name (members only had INSERT and were
+most likely rejected at join — silently; unproven). The two policies above
+are left in place (no DROP in that PR); no client opens the channel.
+
+### Online heartbeat — `online_hjerteslag`
+Migration `20260930120000_online_hjerteslag.sql` (30/9-2026). One row per
+user (`user_id` PK → `auth.users` ON DELETE CASCADE, `sidst_set`). RLS
+enabled; four PERMISSIVE policies, all `to authenticated`:
+- INSERT with check `user_id = auth.uid()`; UPDATE using + with check
+  `user_id = auth.uid()` — a member writes only its own row.
+- SELECT using `user_id = auth.uid()` — own row only. REQUIRED for the
+  upsert: PostgreSQL applies the SELECT policy to the existing and new row
+  of `INSERT … ON CONFLICT DO UPDATE` (CREATE POLICY, «Policies Applied by
+  Command Type»). A member sees nothing about anyone else.
+- SELECT using `has_role(auth.uid(), 'advisor')` — advisors (admin
+  inherits) see all rows.
+No DELETE policy; DELETE and TRUNCATE revoked from `authenticated`
+(TRUNCATE ignores RLS), everything revoked from `anon`. A BEFORE INSERT OR
+UPDATE trigger (`online_hjerteslag_servertid`, SECURITY INVOKER) sets
+`sidst_set = now()` — the client clock is never trusted. The advisor reads
+through `online_hjerteslag_friske(vindue_sekunder)` (SQL, STABLE, SECURITY
+INVOKER — RLS decides; execute granted to `authenticated` only). No
+SECURITY DEFINER. `has_role` is called, not modified. Guard:
+`src/components/hjemmebane/forside/__tests__/online.guard.test.ts` dom 1–3, 8.
 
 ### Shared member-profile layer (`member_profiles`)
 - Purpose: the PERSONAL layer of the member profile — `linkedin_url`,
