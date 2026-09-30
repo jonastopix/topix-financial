@@ -316,7 +316,7 @@ export const arterITakt = (dom: string, spejl: string, migration: string, cron: 
   const arter = listeIKode(dom, "ARTER"), med = listeIKode(dom, "MED_INVITATION");
   const artCheck = listeICheck(migration, /check \(art in \(([^)]*)\)\)/);
   const invCheck = listeICheck(migration, /check \(invitation is null or art in \(([^)]*)\)\)/);
-  const PLAN = '{ art: "fjorten_dage", dageFoer: 14, time: 8, minut: 0, kraeverIkkeBegyndt: false },';
+  const PLAN = '{ art: "fjorten_dage", dageFoer: 14, time: 8, minut: 0, indhentesSenestDageFoer: 8, kraeverIkkeBegyndt: false },';
   // 30/9: det, der SENDES, er PLANEN — aldrig en håndskrevet liste — og de udgåede
   // har ingen linje i den. AKTIVE (læst af PLANENs art-felter) + UDGÅEDE = ARTER.
   const AKTIVE = 'export const AKTIVE_ARTER: readonly MailArt[] = PLANEN.map((p) => p.art);';
@@ -423,6 +423,43 @@ export const fejledeIndhentes = (cron: string, dom: string, spejl: string): bool
     foer(f, "const fejlede = new Set(", "const plan = planlaegKoersel(") &&
     f.includes("for_sent_efter_fejl: 0") &&
     iDommen(dom) && iDommen(spejl)
+  );
+};
+
+// ── 18 ─────────────────────────────────────────────────────────────────────
+/**
+ * 30/9: INDHENTNINGENS LOFT følger teksten. Uden tre_dage i PLANEN løb en fejlet
+ * «om en uge» til dagen før en_dag (to dage før sessionen). Nu har hver tidssat
+ * påmindelse et loft (indhentesSenestDageFoer: 8 · 4 · 1), indhentningSlut tager
+ * den TIDLIGSTE af næste arts dato og loftet, et manglende loft er fail-closed —
+ * i begge spejle — og alarmens frist læser SAMME funktion.
+ */
+export const indhentningFoelgerTeksten = (dom: string, spejl: string, alarm: string): boolean => {
+  const iDommen = (k: string) => {
+    const d = udenKommentarer(k);
+    const doem = d.slice(d.indexOf("export function doemMail("), d.indexOf("export function erPaamindelse("));
+    const slut = d.slice(d.indexOf("export function indhentningSlut("), d.indexOf("export function sammeDanskeDato("));
+    return (
+      d.includes('{ art: "fjorten_dage", dageFoer: 14, time: 8, minut: 0, indhentesSenestDageFoer: 8, kraeverIkkeBegyndt: false },') &&
+      d.includes('{ art: "syv_dage", dageFoer: 7, time: 8, minut: 0, indhentesSenestDageFoer: 4, kraeverIkkeBegyndt: false },') &&
+      d.includes('{ art: "en_dag", dageFoer: 1, time: 8, minut: 0, indhentesSenestDageFoer: 1, kraeverIkkeBegyndt: false },') &&
+      doem.includes("const slut = indhentningSlut(i.sessionTid, art);") &&
+      doem.includes("if (i.nu.getTime() < slut.getTime()) {") &&
+      !doem.includes("planlagtTid(i.sessionTid, naeste)") && !doem.includes("sammeDanskeDato(") &&
+      slut.includes("plan.indhentesSenestDageFoer === undefined) return null;") &&
+      slut.includes("const a = danskMidnatDageFoer(naesteTid, 0);") &&
+      slut.includes("const b = danskMidnatDageFoer(new Date(ms), plan.indhentesSenestDageFoer - 1);") &&
+      slut.includes("return new Date(Math.min(a.getTime(), b.getTime()));")
+    );
+  };
+  const a = udenKommentarer(alarm);
+  const frist = a.slice(a.indexOf("export function fristFor("), a.indexOf("export interface Prognose"));
+  return (
+    iDommen(dom) && iDommen(spejl) &&
+    a.includes("indhentningSlut") &&
+    !a.includes("naesteTidssatteArt") &&
+    frist.includes("const slut = indhentningSlut(sessionTid, art);") &&
+    frist.includes("new Date(Math.max(efterNaade.getTime(), slut.getTime()))")
   );
 };
 
@@ -612,6 +649,8 @@ describe("webinarMail.guard — platformens før-webinar-mails", () => {
     expect(jobTimeoutIMigrationen(laes(MIG_JOB))).toBe(60_000);
     expect(budgetDaekkerVaersteForloeb(laes(CRON), laes(BUDGET), laes(MIG_JOB))).toBe(true);
   });
+  it("18. indhentningens loft følger teksten (8 · 4 · 1 dage før), fail-closed, i begge spejle, og alarmens frist læser samme funktion", () =>
+    expect(indhentningFoelgerTeksten(laes(DOM), laes(DOM_SPEJL), laes(ALARM))).toBe(true));
 });
 
 describe("webinarMail.guard — dommene fanger fejlen på en kopi", () => {
@@ -627,6 +666,26 @@ describe("webinarMail.guard — dommene fanger fejlen på en kopi", () => {
     expect(fejledeIndhentes(cron, dom.split("        fejlede: i.fejlede,\n").join(""), spejl)).toBe(false);
     expect(fejledeIndhentes(cron, dom, spejl.split("if (!(i.fejlede?.has(noegle(mail, i.sessionTid, art)) ?? false)) {").join("if (true) {"))).toBe(false);
     expect(fejledeIndhentes(cron, dom.split("    Number(erStraks(b.art)) - Number(erStraks(a.art)) ||\n").join(""), spejl)).toBe(false);
+  });
+
+  it("et loft flyttet, fjernet eller fail-open, min byttet til max, loftet ikke inklusivt, den gamle regel tilbage i dommen, eller alarmen på næste art alene, fælder dom 18", () => {
+    const dom = laes(DOM), spejl = laes(DOM_SPEJL), alarm = laes(ALARM);
+    expect(indhentningFoelgerTeksten(dom, spejl, alarm)).toBe(true);
+    // Loftet for «om en uge» flyttet til 2 dage før — i kun det ene spejl.
+    expect(indhentningFoelgerTeksten(dom, spejl.split("indhentesSenestDageFoer: 4,").join("indhentesSenestDageFoer: 2,"), alarm)).toBe(false);
+    // Loftet fjernet fra syv_dage.
+    expect(indhentningFoelgerTeksten(dom.split(" indhentesSenestDageFoer: 4,").join(""), spejl, alarm)).toBe(false);
+    // Fail-open: et manglende loft giver ikke længere null.
+    expect(indhentningFoelgerTeksten(dom.split(" || plan.indhentesSenestDageFoer === undefined) return null;").join(") return null;"), spejl, alarm)).toBe(false);
+    // Den SENESTE af de to grænser i stedet for den tidligste.
+    expect(indhentningFoelgerTeksten(dom, spejl.split("Math.min(a.getTime(), b.getTime())").join("Math.max(a.getTime(), b.getTime())"), alarm)).toBe(false);
+    // Loftet ikke inklusivt (en dag for tidligt).
+    expect(indhentningFoelgerTeksten(dom.split("plan.indhentesSenestDageFoer - 1)").join("plan.indhentesSenestDageFoer)"), spejl, alarm)).toBe(false);
+    // Den gamle regel (næste arts dato alene) tilbage i dommen.
+    expect(indhentningFoelgerTeksten(dom.split("const slut = indhentningSlut(i.sessionTid, art);").join("const naesteTid = planlagtTid(i.sessionTid, naeste); const slut = naesteTid;"), spejl, alarm)).toBe(false);
+    // Alarmen regner fristen af næste art selv — og kan blive uenig med dommen.
+    expect(indhentningFoelgerTeksten(dom, spejl, alarm.split("const slut = indhentningSlut(sessionTid, art);").join("const slut = planlagtTid(sessionTid, naesteTidssatteArt(art));"))).toBe(false);
+    expect(indhentningFoelgerTeksten(dom, spejl, alarm.split("Math.max(efterNaade.getTime(), slut.getTime())").join("efterNaade.getTime()"))).toBe(false);
   });
 
   it("ukendte ikke givet ind, timeout som afvisning, 5xx som afvisning, opslaget fjernet eller efter nåden, eller delingen byttet om, fælder dom 15", () => {
@@ -865,7 +924,7 @@ describe("webinarMail.guard — dommene fanger fejlen på en kopi", () => {
     expect(enTil).not.toBe(dom);
     expect(arterITakt(enTil, spejl, migArter, cron)).toBe(false);
     // Planen flyttet (13 dage) — i det ene spejl, eller i begge.
-    const PLAN = '{ art: "fjorten_dage", dageFoer: 14, time: 8, minut: 0, kraeverIkkeBegyndt: false },';
+    const PLAN = '{ art: "fjorten_dage", dageFoer: 14, time: 8, minut: 0, indhentesSenestDageFoer: 8, kraeverIkkeBegyndt: false },';
     const flyttet = PLAN.replace("dageFoer: 14", "dageFoer: 13");
     expect(arterITakt(dom.split(PLAN).join(flyttet), spejl, migArter, cron)).toBe(false);
     expect(arterITakt(dom.split(PLAN).join(flyttet), spejl.split(PLAN).join(flyttet), migArter, cron)).toBe(false);
@@ -880,7 +939,7 @@ describe("webinarMail.guard — dommene fanger fejlen på en kopi", () => {
     // Og den gamle CHECK i ROLLBACK-kommentaren dømmes IKKE på: den er i filen.
     expect(migArter).toContain("check (art in ('bekraeftelse', 'syv_dage', 'tre_dage', 'en_dag', 'dagen', 'en_time'));");
     // 30/9: en udgået art lagt tilbage i PLANEN uden at blive fjernet fra UDGAAEDE_ARTER.
-    const EN_DAG = '  { art: "en_dag", dageFoer: 1, time: 8, minut: 0, kraeverIkkeBegyndt: false },\n';
+    const EN_DAG = '  { art: "en_dag", dageFoer: 1, time: 8, minut: 0, indhentesSenestDageFoer: 1, kraeverIkkeBegyndt: false },\n';
     const TRE = '  { art: "tre_dage", dageFoer: 3, time: 8, minut: 0, kraeverIkkeBegyndt: false },\n';
     expect(dom).toContain(EN_DAG);
     expect(arterITakt(dom.split(EN_DAG).join(TRE + EN_DAG), spejl.split(EN_DAG).join(TRE + EN_DAG), migArter, cron)).toBe(false);

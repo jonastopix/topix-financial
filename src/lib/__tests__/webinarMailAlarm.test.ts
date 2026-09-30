@@ -22,6 +22,7 @@ import {
   type AlarmInput,
   type WebinarAlarmTekstInput,
 } from "../../../supabase/functions/_shared/webinarMailAlarm.ts";
+import { indhentningSlut } from "../../../supabase/functions/_shared/webinarMailDom.ts";
 
 /**
  * Alarmen ved fejlede webinarmails — omdømt 29/9 14:04: den må kun lyde, når et
@@ -130,11 +131,16 @@ describe("webinarMailAlarm — nøglerne i dansk tid", () => {
 });
 
 describe("webinarMailAlarm — fristen (dommens INDHENTNING) og prognosen", () => {
-  it("fristFor: tidssatte arter = max(planlagt + nåde, dansk midnat før næste art); straks/en_time = starten; udgåede (30/9) = null", () => {
-    // fjorten_dage for 13/10 er planlagt 29/9 08:00 dansk; næste er syv_dage 6/10 08:00 → frist = midnat 6/10 dansk = 5/10 22:00Z.
+  it("fristFor: tidssatte arter = max(planlagt + nåde, indhentningSlut); straks/en_time = starten; udgåede (30/9) = null", () => {
+    // fjorten_dage for 13/10 er planlagt 29/9 08:00 dansk; næste er syv_dage 6/10, loft 8 dage før (5/10) → frist = midnat 6/10 dansk = 5/10 22:00Z.
     expect(fristFor("fjorten_dage", SESSION)?.toISOString()).toBe("2026-10-05T22:00:00.000Z");
-    // 30/9 (tre_dage og dagen udgået): syv_dage 6/10 08:00 dansk; næste er en_dag 12/10 08:00 → midnat 12/10 dansk = 11/10 22:00Z.
-    expect(fristFor("syv_dage", SESSION)?.toISOString()).toBe("2026-10-11T22:00:00.000Z");
+    // 30/9: syv_dage 6/10 08:00 dansk; næste er en_dag 12/10, men loftet 4 dage før (9/10 til og med) er tidligere
+    // → frist = midnat 10/10 dansk = 9/10 22:00Z (uden loftet: 11/10 22:00Z).
+    expect(fristFor("syv_dage", SESSION)?.toISOString()).toBe("2026-10-09T22:00:00.000Z");
+    // Alarmen og dommen er enige: fristen er dommens indhentningSlut for alle tidssatte arter.
+    for (const art of ["fjorten_dage", "syv_dage", "en_dag"] as const) {
+      expect(fristFor(art, SESSION)?.toISOString(), art).toBe(indhentningSlut(SESSION, art)?.toISOString());
+    }
     // en_dag 12/10 08:00 dansk; næste er en_time 13/10 10:00 dansk → midnat 13/10 dansk = 12/10 22:00Z (> planlagt + 2 t).
     expect(fristFor("en_dag", SESSION)?.toISOString()).toBe("2026-10-12T22:00:00.000Z");
     // De udgåede har ingen plan og dermed ingen frist.

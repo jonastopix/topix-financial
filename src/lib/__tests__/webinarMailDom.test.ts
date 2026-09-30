@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   afsendelseUkendt, AKTIVE_ARTER, ARTER, baererInvitation, BEKRAEFTELSE_FRA, erPaamindelse, BEKRAEFTELSE_FRA_MS, doemMail, erAfmeldtIEwebinar,
   googleKalenderUrl, kbhTilUtc, MED_INVITATION, noegle, outlookKalenderUrl, PLANEN, planlaegKoersel,
-  naesteTidssatteArt, planlagtTid, sammeDanskeDato, SEN_TILMELDING_NAADE_MS, UDGAAEDE_ARTER,
-  type MailArt, type Tilmeldt,
+  indhentningSlut, naesteTidssatteArt, planlagtTid, sammeDanskeDato, SEN_TILMELDING_NAADE_MS, UDGAAEDE_ARTER,
+  type MailArt, type Plan, type Tilmeldt,
 } from "@/lib/webinar/mailDom";
 
 /**
@@ -267,7 +267,7 @@ describe("fjorten_dage — «om to uger», MED invitationen, til alle (Jonas 28/
 
   it("står ANDEN i ARTER og i PLANEN — efter bekræftelsen, før «om en uge»", () => {
     expect(ARTER[1]).toBe("fjorten_dage");
-    expect(PLANEN[1]).toEqual({ art: "fjorten_dage", dageFoer: 14, time: 8, minut: 0, kraeverIkkeBegyndt: false });
+    expect(PLANEN[1]).toEqual({ art: "fjorten_dage", dageFoer: 14, time: 8, minut: 0, indhentesSenestDageFoer: 8, kraeverIkkeBegyndt: false });
   });
 
   it("bærer invitationen — som bekræftelsen, og kun de to", () => {
@@ -538,16 +538,57 @@ describe("INDHENTNING — en mail, VI fejlede med at sende, droppes ikke efter n
       .toEqual({ send: false, art: "en_dag", grund: "for_sent_efter_fejl" });
   });
 
-  it("30/9: syv_dage indhentes nu til en_dags dato — 11/10 23:59 dansk (før: tre_dages, 9/10 23:59)", () => {
-    // syv_dage 6/10 08:00 dansk → næste tidssatte art er en_dag 12/10 08:00 dansk.
+  it("30/9: syv_dage («om en uge») indhentes højst til og med 9/10 23:59 dansk — loftet 4 dage før, ikke en_dags dato", () => {
+    // syv_dage 6/10 08:00 dansk → næste tidssatte art er en_dag 12/10 08:00 dansk, men
+    // loftet (indhentesSenestDageFoer 4: 13/10 − 4 = 9/10) er tidligere og afgør.
     expect(naesteTidssatteArt("syv_dage")).toBe("en_dag");
-    // 10/10 12:00 dansk (10:00Z): før 30/9 var det tre_dages dato → for_sent_efter_fejl; nu sendes den.
-    expect(dom("syv_dage", "2026-10-10T10:00:00.000Z", { fejlede: fejlet("syv_dage") })).toMatchObject({ send: true, indhentning: true });
-    // 11/10 23:59 dansk (21:59Z) → send.
-    expect(dom("syv_dage", "2026-10-11T21:59:00.000Z", { fejlede: fejlet("syv_dage") })).toMatchObject({ send: true, indhentning: true });
-    // 12/10 00:01 dansk (11/10 22:01Z) — en_dags danske dato → for_sent_efter_fejl.
-    expect(dom("syv_dage", "2026-10-11T22:01:00.000Z", { fejlede: fejlet("syv_dage") }))
+    expect(PLANEN.find((p) => p.art === "syv_dage")?.indhentesSenestDageFoer).toBe(4);
+    expect(indhentningSlut(SESSION, "syv_dage")?.toISOString()).toBe("2026-10-09T22:00:00.000Z");
+    // 9/10 23:59 dansk (21:59Z) → send.
+    expect(dom("syv_dage", "2026-10-09T21:59:00.000Z", { fejlede: fejlet("syv_dage") })).toMatchObject({ send: true, indhentning: true });
+    // 10/10 00:00 dansk (9/10 22:00Z) — eksklusivt → for_sent_efter_fejl.
+    expect(dom("syv_dage", "2026-10-09T22:00:00.000Z", { fejlede: fejlet("syv_dage") }))
       .toEqual({ send: false, art: "syv_dage", grund: "for_sent_efter_fejl" });
+    // 10/10 12:00 og 11/10 23:59 dansk: FØR loftet ville de være sendt (til en_dags dato). Nu ikke.
+    for (const nu of ["2026-10-10T10:00:00.000Z", "2026-10-11T21:59:00.000Z"]) {
+      expect(dom("syv_dage", nu, { fejlede: fejlet("syv_dage") }), nu)
+        .toEqual({ send: false, art: "syv_dage", grund: "for_sent_efter_fejl" });
+    }
+  });
+
+  it("30/9: indhentningSlut pr. art for 13/10 kl. 11 — fjorten_dage 5/10 22:00Z · syv_dage 9/10 22:00Z · en_dag 12/10 22:00Z; ingen for straks, en_time, udgåede og ulæselig tid", () => {
+    expect(indhentningSlut(SESSION, "fjorten_dage")?.toISOString()).toBe("2026-10-05T22:00:00.000Z");
+    expect(indhentningSlut(SESSION, "syv_dage")?.toISOString()).toBe("2026-10-09T22:00:00.000Z");
+    expect(indhentningSlut(SESSION, "en_dag")?.toISOString()).toBe("2026-10-12T22:00:00.000Z");
+    for (const art of ["bekraeftelse", "en_time", "tre_dage", "dagen"] as MailArt[]) expect(indhentningSlut(SESSION, art), art).toBeNull();
+    expect(indhentningSlut("ikke en tid", "syv_dage")).toBeNull();
+    // Vintertid (UTC+1): session 10/11 kl. 11 dansk — syv_dage-loftet 6/11 23:59 dansk → slut 6/11 23:00Z.
+    expect(indhentningSlut("2026-11-10T10:00:00.000Z", "syv_dage")?.toISOString()).toBe("2026-11-06T23:00:00.000Z");
+  });
+
+  it("30/9: hver tidssat påmindelse med en næste art (dageFoer) HAR et loft, mellem 1 og artens egne dage før", () => {
+    for (const p of PLANEN) {
+      if (p.straks === true || p.dageFoer === undefined) continue;
+      expect(p.indhentesSenestDageFoer, p.art).toBeDefined();
+      // Loftet er efter artens egen dag (eller samme dag) — ellers kunne den aldrig indhentes.
+      expect(p.indhentesSenestDageFoer!, p.art).toBeLessThanOrEqual(p.dageFoer);
+      expect(p.indhentesSenestDageFoer!, p.art).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it("30/9: et manglende loft er fail-closed — ingen indhentning", () => {
+    const orig = PLANEN.find((p) => p.art === "syv_dage")!;
+    const kopi = { ...orig };
+    delete (kopi as { indhentesSenestDageFoer?: number }).indhentesSenestDageFoer;
+    const i = (PLANEN as Plan[]).indexOf(orig);
+    (PLANEN as Plan[])[i] = kopi;
+    try {
+      expect(indhentningSlut(SESSION, "syv_dage")).toBeNull();
+      expect(dom("syv_dage", "2026-10-06T10:05:00.000Z", { fejlede: fejlet("syv_dage") }))
+        .toEqual({ send: false, art: "syv_dage", grund: "for_sent_efter_fejl" });
+    } finally {
+      (PLANEN as Plan[])[i] = orig;
+    }
   });
 
   it("30/9: en_dag → en_time (før: → dagen); vinduet er uændret til 12/10 23:59 dansk", () => {
