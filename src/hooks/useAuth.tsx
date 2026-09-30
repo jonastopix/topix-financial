@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, createContext, useContext, useCallback } f
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 import { useInactivityLogout } from "./useInactivityLogout";
+import { erTjenestekonto } from "./tjenestekonti";
+import { inaktivitetsLogudAktiv } from "@/lib/tjenestekonto";
 import { InactivityWarningDialog } from "@/components/InactivityWarningDialog";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -514,7 +516,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Inactivity auto-logout (reads session_timeout_minutes from app_config)
   const sessionTimeoutMinutes = useSessionTimeout();
-  const { showWarning, secondsLeft, extendSession } = useInactivityLogout(!!user, sessionTimeoutMinutes);
+  // TJENESTEKONTI (30/9-2026, src/lib/tjenestekonto.ts): claude@topix.dk logges
+  // ikke ud efter inaktivitet — alle andre som før. Fejl → den normale regel;
+  // mens opslaget henter, venter reglen (et gammelt stempel ville ellers logge
+  // tjenestekontoen ud i samme øjeblik, reglen slås til).
+  const tjenestekontoQuery = useQuery({
+    queryKey: ["tjenestekonto", user?.id ?? null],
+    queryFn: () => erTjenestekonto(user!.id),
+    enabled: !!user,
+    retry: false,
+    staleTime: 10 * 60 * 1000,
+  });
+  const logudAktiv = inaktivitetsLogudAktiv(!!user, tjenestekontoQuery.status, tjenestekontoQuery.data);
+  const { showWarning, secondsLeft, extendSession } = useInactivityLogout(logudAktiv, sessionTimeoutMinutes);
 
   return (
     <AuthContext.Provider value={{

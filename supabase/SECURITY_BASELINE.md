@@ -445,7 +445,20 @@ committet for paritet som migration
 ```sql
 has_role(auth.uid(), 'admin'::app_role)
 ```
-Applied to: `app_config` management, `user_roles` management
+Applied to: `app_config` management, `user_roles` management,
+`tjenestekonti` (FOR ALL, USING + WITH CHECK — migration
+`20260930100000_tjenestekonti.sql`, 30/9-2026)
+
+**`tjenestekonti` (30/9-2026)**: `user_id` (PK, FK auth.users ON DELETE
+CASCADE), `formaal`, `oprettet_at`. RLS enabled. Two policies: "Admin
+skriver tjenestekonti" (FOR ALL TO authenticated, admin predicate above)
+and "Indloggede ser tjenestekonti" (FOR SELECT TO authenticated, USING
+true) — every logged-in user may read WHICH user_ids are service accounts
+(the client filters advisor lists from SECURITY DEFINER RPCs with it,
+`src/lib/tjenestekonto.ts`); no other column is sensitive. No member or
+advisor write path: a client cannot mark itself a service account (the
+only effects of the mark are "no inactivity logout" and "not shown as a
+person"). anon: REVOKE ALL. No function, trigger or existing policy touched.
 
 ### Self-only policies
 ```sql

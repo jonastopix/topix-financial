@@ -38,6 +38,7 @@ export const RAADGIVER_KILDE_ORD: Readonly<Record<string, string>> = {
   profiles: "medlemmernes navne",
   member_profiles: "medlemmernes profiler",
   get_all_advisor_profiles: "rådgiverne",
+  tjenestekonti: "rådgiverne",
   conversations: "samtalerne",
   messages: "beskederne",
   financial_report_facts: "virksomhedernes tal",

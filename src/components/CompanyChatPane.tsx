@@ -6,6 +6,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
+import { hentTjenestekonti } from "@/hooks/tjenestekonti";
+import { synligeRaadgivere } from "@/lib/tjenestekonto";
 import { kraevRaekker } from "@/lib/kraevRaekker";
 import { notifyChatMessage } from "@/lib/chatNotify";
 import { uploadChatAttachments } from "@/lib/chatAttachments";
@@ -305,7 +307,8 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
         .select("user_id, full_name, avatar_url")
         .in("user_id", uniqueIds);
       if (profErr) throw profErr;
-      return (profiles || [])
+      // Tjenestekonti (claude@topix.dk) kan ikke få en samtale tildelt — de er ingen person.
+      return synligeRaadgivere(profiles || [], await hentTjenestekonti())
         .map((p) => ({
           user_id: p.user_id,
           full_name: p.full_name || "Unavngivet",

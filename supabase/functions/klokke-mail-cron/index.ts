@@ -18,6 +18,7 @@
 //
 // KØRSLEN:
 //   1. Rådgiverne: user_roles advisor/admin (som skrivRaadgiverBesked finder dem),
+//      UDEN tjenestekonti (_shared/tjenestekonti.ts, 30/9 — svarets `tjenestekonti`),
 //      mailen fra auth.admin.getUserById (som send-notification-email), fornavnet
 //      fra profiles.full_name. Ingen hårdkodede adresser — alarmens modtager er
 //      driftModtager() (ét sted).
@@ -43,6 +44,7 @@ import { authenticateServiceRole, corsHeaders } from "../_shared/edgeFunctionAut
 import { ukendteFelter, ukendteFelterBesked } from "../_shared/kendteFelter.ts";
 import { sendManagedEmail } from "../_shared/managedEmail.ts";
 import { driftModtager } from "../_shared/driftModtager.ts";
+import { hentTjenestekonti, udenTjenestekonti } from "../_shared/tjenestekonti.ts";
 import { indgangsMailHtml } from "../_shared/indgangsMail.ts";
 import {
   ALARM_MODTAGER_ID,
@@ -110,6 +112,8 @@ export interface KlokkeMailResultat {
   ukendte: { id: string; type: string }[];
   /** Rådgivere uden mailadresse — deres rækker venter. */
   uden_adresse: string[];
+  /** Tjenestekonti (30/9) sprunget over som modtagere — beviset for den nye kode i svaret. */
+  tjenestekonti: string[];
   fejl: string[];
 }
 
@@ -122,7 +126,7 @@ function tomtResultat(toerKoersel: boolean, nu: Date): KlokkeMailResultat {
     morgen_koersel: erMorgenkoersel(nu), morgen_graense: morgenGraense(nu).toISOString(), forrige_morgen: forrigeMorgen(nu).toISOString(),
     raadgivere: [], raekker_laest: 0, alarm: null, community: [], morgen: [],
     sprunget: { laest: 0, mailet: 0, uden_advisor: 0, aldrig: 0, legacy: 0, venter_paa_morgen: 0 },
-    ukendte: [], uden_adresse: [], fejl: [],
+    ukendte: [], uden_adresse: [], tjenestekonti: [], fejl: [],
   };
 }
 
@@ -130,7 +134,18 @@ function tomtResultat(toerKoersel: boolean, nu: Date): KlokkeMailResultat {
 async function hentRaadgivere(admin: SupabaseClient, r: KlokkeMailResultat): Promise<Raadgiver[]> {
   const { data: roller, error: rolleFejl } = await admin.from("user_roles").select("user_id").in("role", ["advisor", "admin"]);
   if (rolleFejl) throw new Error(`user_roles: ${rolleFejl.message}`);
-  const ids = [...new Set(((roller ?? []) as { user_id: string }[]).map((x) => x.user_id))];
+  const alle = [...new Set(((roller ?? []) as { user_id: string }[]).map((x) => x.user_id))];
+  // Tjenestekonti (claude@topix.dk, 30/9) er ingen person og får ingen mail — deres
+  // klokker står i klokken og venter, som en rådgiver uden adresse. Fail-soft: kan
+  // tabellen ikke læses, står det i fejl (kørslen svarer 500), og mailene går som før.
+  let ids = alle;
+  try {
+    const tjenestekonti = await hentTjenestekonti(admin);
+    ids = udenTjenestekonti(alle, tjenestekonti);
+    r.tjenestekonti = alle.filter((id) => tjenestekonti.has(id));
+  } catch (e) {
+    r.fejl.push(e instanceof Error ? e.message : String(e));
+  }
   const { data: profiler } = await admin.from("profiles").select("user_id, full_name").in("user_id", ids);
   const navne = new Map<string, string | null>();
   for (const p of (profiler ?? []) as { user_id: string; full_name: string | null }[]) {

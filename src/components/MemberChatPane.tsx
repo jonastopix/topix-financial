@@ -17,6 +17,7 @@ import MessageEditDialog from "@/components/MessageEditDialog";
 import MobileMessageActionDrawer from "@/components/MobileMessageActionDrawer";
 import { computeMembershipTier } from "@/lib/membershipTier";
 import { useQuery } from "@tanstack/react-query";
+import { hentSynligeRaadgiverProfiler, type RaadgiverRaekke } from "@/hooks/tjenestekonti";
 import DOMPurify from "dompurify";
 import {
   Send, MessageCircle, CheckCheck, FileText, Target, Quote,
@@ -110,10 +111,13 @@ const MemberChatPane = () => {
   // Fetch all advisors for member header (independent of conversation participation)
   const { data: allAdvisors } = useQuery({
     queryKey: ["all-advisor-profiles"],
+    // Tjenestekonti (claude@topix.dk) står aldrig i «Dine rådgivere» — hentSynligeRaadgiverProfiler.
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_all_advisor_profiles" as any);
-      if (error) { console.error("Failed to fetch advisor profiles:", error); return []; }
-      return (data as any[] || []).map((r: any) => ({
+      let data: RaadgiverRaekke[];
+      try {
+        data = await hentSynligeRaadgiverProfiler();
+      } catch (error) { console.error("Failed to fetch advisor profiles:", error); return []; }
+      return data.map((r) => ({
         user_id: r.user_id as string,
         full_name: r.full_name as string,
         avatar_url: r.avatar_url as string | null,

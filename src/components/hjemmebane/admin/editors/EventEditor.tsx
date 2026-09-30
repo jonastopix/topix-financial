@@ -2,6 +2,8 @@ import * as React from "react";
 import { forwardRef, useImperativeHandle, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRaadgivere } from "@/hooks/useRaadgivere";
+import { useTjenestekonti } from "@/hooks/tjenestekonti";
+import { synligeRaadgivere } from "@/lib/tjenestekonto";
 import { INGEN_RAADGIVERE } from "@/lib/hjemmebane/ansigter";
 import { tilUdkast, validerVaerter, type VaertUdkast } from "@/lib/hjemmebane/vaerter";
 import { listVaerterForEvents, saveVaerter } from "@/lib/hjemmebane/vaerterApi";
@@ -73,6 +75,17 @@ export const EventEditor = forwardRef<EditorHandle, EventEditorProps>(
     const tilmeldteTal = svarTal ? svarTal.tilmeldt : registrationCount;
     const andreTal = svarTal ? svarTal.kan_ikke + svarTal.har_ikke_svaret : 0;
     const raadgivereQuery = useRaadgivere();
+    // Værtsvælgeren (30/9): tjenestekonti (claude@topix.dk) er ingen vært. Uden
+    // svaret om tjenestekonti vises ingen rådgivere — hellere en tom vælger et
+    // øjeblik end kontoen i listen.
+    const tjenestekontiQuery = useTjenestekonti();
+    const vaertRaadgivere = React.useMemo(
+      () =>
+        tjenestekontiQuery.data
+          ? new Map(synligeRaadgivere([...(raadgivereQuery.data ?? INGEN_RAADGIVERE).values()], tjenestekontiQuery.data).map((r) => [r.user_id, r]))
+          : INGEN_RAADGIVERE,
+      [raadgivereQuery.data, tjenestekontiQuery.data],
+    );
     const [vaerterDraft, setVaerterDraft] = useState<VaertUdkast[] | null>(null);
     const vaerter: VaertUdkast[] = vaerterDraft ?? (vaerterQuery.data ?? []).map(tilUdkast);
     const dirty = Object.keys(draft).length > 0 || vaerterDraft !== null;
@@ -330,7 +343,7 @@ export const EventEditor = forwardRef<EditorHandle, EventEditorProps>(
           />
         </HbField>
 
-        <VaerterFelt eventId={event.id} vaerter={vaerter} onChange={setVaerterDraft} raadgivere={raadgivereQuery.data ?? INGEN_RAADGIVERE} />
+        <VaerterFelt eventId={event.id} vaerter={vaerter} onChange={setVaerterDraft} raadgivere={vaertRaadgivere} />
 
         <HbField
           label="Optagelse"

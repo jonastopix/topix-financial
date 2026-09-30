@@ -6,6 +6,8 @@ import { budgetOmsaetningFor, type BudgetRaekke } from "@/lib/budgetSignalInput"
 import { afgoerForsidensDom, type OpgaveTilDom, type VirksomhedTilDom, type BetaltIkkeOprettet, type AnsoegningTilForside, type VentelisteTilDom } from "@/lib/forsidensDom";
 import { virksomhedsnavnAf } from "@/lib/ansoegninger/ansoegningVisning";
 import { kraevRaekker } from "@/lib/kraevRaekker";
+import { synligeRaadgivere } from "@/lib/tjenestekonto";
+import { hentTjenestekonti } from "@/hooks/tjenestekonti";
 import { hentAlleSider } from "@/lib/budgetEngine";
 import type { MaalRaekke } from "@/lib/hjemmebane/planen";
 import { fletKvitteringer, laesKvittering, type Kvittering } from "@/lib/opgaveLukning";
@@ -147,6 +149,10 @@ export const ADVISOR_DASHBOARD_QUERY_KEY = (userId: string | undefined) =>
 export const hentAdvisorDashboard = () =>
       Sentry.startSpan({ name: "advisor-dashboard.load", op: "advisor.query" }, async (span) => {
       const svarGraense = new Date(Date.now() - SVAR_VINDUE_DAGE * 86400000).toISOString();
+      // Tjenestekonti (claude@topix.dk) er ingen person i tildelings-vælgeren
+      // (AdvisorQueueRow) — hentes parallelt med resten, afventes ved brugen.
+      const tjenestekontiLoefte = hentTjenestekonti();
+      tjenestekontiLoefte.catch(() => {});
       const twoWeeksAgo = new Date(Date.now() - 14 * 86400000).toISOString();
       // Paginerede hentninger (PR 1, 17/9): hentAlleSider kaster den rå fejl;
       // her oversættes den til { data: null, error: { message } }, så
@@ -453,7 +459,7 @@ export const hentAdvisorDashboard = () =>
         .slice(0, 20);
       // 10/9: ingen af forsidens hentninger må fejle stille — dommen får
       // færre linjer, og forsiden ser normal ud. Alt går gennem kraevRaekker.
-      const advisorProfiles = (kraevRaekker(advisorProfilesRes, "get_all_advisor_profiles") as any[]).map((advisor) => ({
+      const advisorProfiles = synligeRaadgivere(kraevRaekker(advisorProfilesRes, "get_all_advisor_profiles") as any[], await tjenestekontiLoefte).map((advisor) => ({
         user_id: advisor.user_id,
         full_name: advisor.full_name || "Ukendt",
       }));

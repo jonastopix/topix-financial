@@ -6,13 +6,14 @@ import { SKRIVE_TOOLS, toerResultat } from "../_shared/agentToerkoersel.ts";
 import { effektivRapportPeriodeKey, rapporteringsStatus } from "../_shared/rapportStatus.ts";
 import { skrivUgensFokus } from "../_shared/agentSkriveveje.ts";
 import { maaKoereLive } from "../_shared/agentLiveAdgang.ts";
+import { hentTjenestekonti, udenTjenestekonti } from "../_shared/tjenestekonti.ts";
 // Fase 0a («Én plan»): write_company_action dømmer gennem den delte motor
 // (højst ét åbent forslag pr. virksomhed; ingen gentagelse inden for 30 døgn).
 import { doemSkrivning, SKRIVE_SELECT_KOLONNER, skriveFilter } from "../_shared/skridtForslag.ts";
 // Fase 5 («Én plan»): et skridt hører til et aktivt mål — motoren vælger det.
 import { maaForeslaaMod, vaelgMaalForForslag, type MaalTilValg } from "../_shared/maal.ts";
 
-const DEPLOY_STAMP = "run-company-agent v6 live-port (2026-09-30)";
+const DEPLOY_STAMP = "run-company-agent v7 tjenestekonti (2026-09-30)";
 const MODEL = "google/gemini-2.5-flash";
 
 // ARBEJDSGANGS-MINIMUMMET I PROMPTEN — hvorfor det findes: målt mod prod
@@ -530,13 +531,22 @@ async function executeTool(name: string, args: any, adminClient: any, trigger: s
       if (asAdvisor) {
         let advisorId: string | null = conv.assigned_advisor_id ?? null;
         if (!advisorId) {
-          const { data: advisorRole } = await adminClient
+          // Tjenestekonti (claude@topix.dk, 30/9) er aldrig afsender over for et
+          // medlem — de er ingen person (_shared/tjenestekonti.ts). Fail-closed:
+          // kan tabellen ikke læses, postes intet som rådgiver.
+          const { data: advisorRoles } = await adminClient
             .from("user_roles")
             .select("user_id")
-            .in("role", ["advisor", "admin"])
-            .limit(1)
-            .maybeSingle();
-          advisorId = advisorRole?.user_id ?? null;
+            .in("role", ["advisor", "admin"]);
+          let tjenestekonti: Set<string>;
+          try {
+            tjenestekonti = await hentTjenestekonti(adminClient);
+          } catch (e) {
+            console.error("[run-company-agent] tjenestekonti:", e instanceof Error ? e.message : e);
+            return { ok: false, reason: "tjenestekonti_ukendt" };
+          }
+          const ids = [...new Set(((advisorRoles ?? []) as { user_id: string }[]).map((r) => r.user_id))];
+          advisorId = udenTjenestekonti(ids, tjenestekonti)[0] ?? null;
         }
         if (!advisorId) return { ok: false, reason: "no_advisor_available" };
         senderId = advisorId;
