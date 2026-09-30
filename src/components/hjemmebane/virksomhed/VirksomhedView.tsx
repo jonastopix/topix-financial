@@ -439,7 +439,7 @@ const Blok1 = ({ d, facts, derfor }: { d: VirksomhedsData; facts: CompanyFact[];
       {/* Agentforslagene, afgørbare — bullet'en ovenfor siger kun antallet.
           Panelet henter selv (company-nøglet) og ejer kaldet til
           agent-forslag-afgoer; monteret som på MemberDetail:1465. */}
-      <AgentForslagPanel companyId={d.company.id} />
+      <AgentForslagPanel companyId={d.company.id} virksomhedsnavn={d.company.name} />
     </HbSection>
   );
 };

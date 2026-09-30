@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { ejefald, kraeverAfgoerelse, ugefokusForklaring, UNDERSTOETTEDE_SKRIVEVEJE_FLADE } from "../forslagFlade";
 
 // Driftværn for puklen «N agentforslag venter på din afgørelse» (rettet
 // 7/9). agent_proposals.status kan være proposed | approved | rejected |
@@ -56,9 +57,72 @@ describe("puklen tæller kun det der kan afgøres — status = 'proposed', aldri
       expect(query, "count/head kan ikke bære rækker — dommen kræver proposed_at pr. række").not.toContain("head: true");
     });
 
-    it(`${sti}: tæller med udløbsdommen erForslagGyldigt fra @/lib/forslagUdloeb`, () => {
-      expect(kilde, "importen af dommen mangler").toContain('from "@/lib/forslagUdloeb"');
-      expect(kilde, "optællingen kalder ikke dommen").toContain("erForslagGyldigt(p.proposed_at");
+    // 30/9 (design §9): kun forslag, der KRÆVER rådgiveren, tæller — gyldige
+    // OG godkendbare. Dommen kraeverAfgoerelse (@/lib/forslagFlade) bærer
+    // både udløbsdommen og godkend-vejen; hentningen SKAL bære tool.
+    it(`${sti}: tæller med kraeverAfgoerelse fra @/lib/forslagFlade og henter tool`, () => {
+      expect(kilde, "importen af dommen mangler").toMatch(/import \{[^}]*kraeverAfgoerelse[^}]*\} from "@\/lib\/forslagFlade"/);
+      expect(kilde, "optællingen kalder ikke dommen").toContain("kraeverAfgoerelse(p, ");
+      expect(agentProposalsQuery(kilde), "select'en mangler tool — godkend-vejen kan ikke dømmes").toMatch(/\.select\("[^"]*\btool\b/);
+      // Ingen lokal kopi af dommen ved siden af.
+      expect(kilde).not.toContain("erForslagGyldigt(");
+      expect(kilde).not.toContain("UNDERSTOETTEDE_SKRIVEVEJE_FLADE");
     });
   }
+});
+
+// Dommen selv (30/9, agent-forslag-design §9): et forslag kræver rådgiveren
+// ⇔ gyldigt (indeværende ISO-uge) OG godkendbart (tool med godkend-vej).
+describe("kraeverAfgoerelse — kun det, der kan afgøres, venter på nogen", () => {
+  // Onsdag 30/9-2026 kl. 12 lokal tid (uge 40).
+  const nu = new Date(2026, 8, 30, 12, 0, 0);
+  const iUgen = new Date(2026, 8, 29, 9, 0, 0).toISOString();
+  const sidsteUge = new Date(2026, 8, 25, 9, 0, 0).toISOString();
+
+  it("ugens fokus fra denne uge → ja", () => {
+    expect(kraeverAfgoerelse({ proposed_at: iUgen, tool: "update_weekly_focus" }, nu)).toBe(true);
+  });
+  it("opgaveforslag (write_company_action) → nej, heller ikke fra denne uge", () => {
+    expect(kraeverAfgoerelse({ proposed_at: iUgen, tool: "write_company_action" }, nu)).toBe(false);
+  });
+  it("ugens fokus fra en passeret uge → nej (kan kun forkastes)", () => {
+    expect(kraeverAfgoerelse({ proposed_at: sidsteUge, tool: "update_weekly_focus" }, nu)).toBe(false);
+  });
+  it("null tool eller ulæseligt stempel → nej (fail-closed)", () => {
+    expect(kraeverAfgoerelse({ proposed_at: iUgen, tool: null }, nu)).toBe(false);
+    expect(kraeverAfgoerelse({ proposed_at: "ikke en dato", tool: "update_weekly_focus" }, nu)).toBe(false);
+  });
+  it("følger godkend-listen: hvert godkendbart tool giver ja", () => {
+    for (const t of UNDERSTOETTEDE_SKRIVEVEJE_FLADE) {
+      expect(kraeverAfgoerelse({ proposed_at: iUgen, tool: t }, nu)).toBe(true);
+    }
+  });
+});
+
+// Panelet (30/9, design §9): linjen over ugefokus-forslaget og knappen, der
+// siger hvad den gør.
+describe("AgentForslagPanel — forståeligt for en rådgiver", () => {
+  const panel = readFileSync(resolve(process.cwd(), "src/components/AgentForslagPanel.tsx"), "utf8");
+
+  it("ugefokusForklaring siger hvad godkendelse gør og at forslaget udløber søndag", () => {
+    expect(ugefokusForklaring("Carma")).toBe("Godkend, så står det som ugens fokus på Carmas forside denne uge. Forslaget udløber søndag.");
+    expect(ugefokusForklaring("Topix")).toContain("på Topix' forside");
+    expect(ugefokusForklaring(null)).toContain("på medlemmets forside");
+    expect(ejefald("Bland Selv Frø")).toBe("Bland Selv Frøs");
+  });
+
+  it("linjen står over et godkendbart ugefokus-forslag, og knappen hedder «Foreslå ugens fokus»", () => {
+    expect(panel).toContain("ugefokusForklaring(virksomhedsnavn)");
+    expect(panel).toContain('"Foreslå ugens fokus"');
+    expect(panel).not.toContain("Kør agent (tørt)");
+    // Et ikke-godkendbart forslag er til orientering — intet løfte om «endnu».
+    expect(panel).toContain("TIL_ORIENTERING_TEKST");
+    expect(panel).not.toContain("Kan endnu ikke godkendes herfra");
+  });
+
+  it("knappen kører stadig TØRT og som company_review", () => {
+    const kald = panel.slice(panel.indexOf('invoke("run-company-agent"'));
+    expect(kald.slice(0, 300)).toContain('trigger: "company_review"');
+    expect(kald.slice(0, 300)).toContain("dry_run: true");
+  });
 });

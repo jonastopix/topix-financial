@@ -41,7 +41,7 @@
  * company-nøglet læsning på alle tolv kilder (målt 4/9).
  */
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { erForslagGyldigt } from "@/lib/forslagUdloeb";
+import { kraeverAfgoerelse } from "@/lib/forslagFlade";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import type { Json } from "@/integrations/supabase/types";
@@ -306,9 +306,11 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
     // uden at kopiere ISO-uge-beregningen til SQL (to domme). Derfor er
     // count/head erstattet af rækker med proposed_at, og tallet regnes i
     // kode nedenfor med samme funktion som panelet og afgørelsen.
+    // tool hentes med (30/9, design §9): kun GODKENDBARE forslag kræver
+    // rådgiveren — samme dom som AdvisorDashboard (kraeverAfgoerelse).
     supabase
       .from("agent_proposals")
-      .select("proposed_at")
+      .select("proposed_at, tool")
       .eq("company_id", companyId)
       .eq("status", "proposed")
       .limit(500),
@@ -464,9 +466,10 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
     handouts: kraevRaekker(handoutsRes, "handouts"),
     opgaver: kraevRaekker(actionsRes, "company_actions"),
     skridt: kraevRaekker(skridtRes, "company_actions"),
-    // Kun forslag der stadig kan afgøres (udløbsdommen, se hentningen).
-    agentforslagVenter: (kraevRaekker(proposalsRes, "agent_proposals") as { proposed_at: string }[]).filter((p) =>
-      erForslagGyldigt(p.proposed_at, nu),
+    // Kun forslag der KRÆVER rådgiveren (gyldige OG godkendbare, 30/9 —
+    // design §9); de øvrige står til orientering i Agent-loggen.
+    agentforslagVenter: (kraevRaekker(proposalsRes, "agent_proposals") as { proposed_at: string; tool: string | null }[]).filter((p) =>
+      kraeverAfgoerelse(p, nu),
     ).length,
     udloebneForslag: (() => { if (udloebneRes.error) throw new HentningsFejl("agent_proposals", udloebneRes.error.message); return udloebneRes.count ?? 0; })(),
     udloebneSeneste: (udloebneRes.data ?? []) as { id: string; title: string; expires_at: string | null }[],
