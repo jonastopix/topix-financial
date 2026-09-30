@@ -11196,6 +11196,94 @@ Under «tilføj secret» committede Lovable `@lovable.dev/email-js@0.1.0` (`9082
 - **De døde statusmail-grene skal slettes.** Kort [`a29-statusmail-grene`](mangelliste.html#a29-statusmail-grene).
 - **Update/drift-beviset** står fortsat åbent (§5).
 
+### 30. september — dagen og aftenen: kolonneværnet på companies, «Online nu» som hjerteslag, `tb_medlem` på Klaviyo-profilen, tjenestekontoen claude@, fem webinarmails pr. session, og Lovable-forbindelsen (MCP) (#1157, #1167, #1169, #1170, #1172, #1175, #1177)
+
+Tiderne er commit-tiden på main (dansk). Titlerne er ordret fra `git log origin/main`. Afsnittet skriver kun det, commit-beskederne og dagens målinger dækker. Det, der ikke er målt, står som åbent i §8.
+
+#### 1. Merget 30/9
+
+| # | tid | titel | drift |
+|---|---|---|---|
+| #1167 | 09:38 | Færre webinarpåmindelser: «om tre dage» og «det er i dag» droppes (merges efter Jonas' ja) | `webinar-mail-cron` udrullet fra build-chatten; beviset: `tre_dage` giver 400 `art_ugyldig` (§3, §6) |
+| #1175 | 13:35 | docs: det tekniske råd (§4b), lærestreger 30/9, agentarkitekturen og dagens recons | kun dokumentation |
+| #1157 | 16:12 | Sikkerhed: medlemmer kan kun rette hvidlistede felter på egen virksomhed (merges efter kørsel) | migration `20260930090000` kørt i prod (§2) |
+| #1169 | 16:12 | Online nu: hjerteslag i en tabel i stedet for Realtime Presence (merges efter kørsel) | migration `20260930120000` kørt i prod; `src/` — Update; ikke bevist med et kundemedlem (§8) |
+| #1170 | 16:12 | Klaviyo: tb_medlem holder medlemsmarkeringen opdateret automatisk (merges efter kørsel) | migration `20260930110000` kørt i prod; `klaviyo-profil-cron` udrullet; låsen er FALSE (§5) |
+| #1172 | 16:12 | Tjenestekonto til claude@: ingen auto-logud, usynlig som rådgiver, markerer intet som læst (merges efter kørsel) | migration `20260930140000` kørt i prod; `src/` og tre functions (§4) |
+| #1177 | 16:47 | Regelsæt §6a: Lovable-forbindelsen (MCP) | kun dokumentation (`docs/claude-regelsaet.md`, `CLAUDE.md`) |
+
+De fire PR'er med «merges efter kørsel» i titlen (#1157, #1169, #1170, #1172) bar hver deres migration, som er bogført KØRT i PR'en (regelsættets §1a: main er altid Update-sikker). De blev merget samlet kl. 16:12.
+
+#### 2. Migrationer kørt i prod 30/9
+
+Hver fil er bogført KØRT i sin PR med «Jonas, målt», og kildeværnet godtager KØRT-linjen.
+
+| fil | PR | hvad |
+|---|---|---|
+| `20260930090000_…` | #1157 | `companies_medlem_kolonnevaern` (BEFORE UPDATE, SECURITY INVOKER, `search_path = public`): afviser med 42501 enhver ændret kolonne uden for hvidlisten, når kalderen er medlem. Rådgivere/admin, `service_role` og `postgres` uden JWT passerer. Policyen «Members can insert own notifications» droppet (fund 7). |
+| `20260930110000_…` | #1170 | seks nullable kolonner + CHECK på `klaviyo_profil` (`tb_medlem`, `tb_medlem_skrevet_at`, `medlem_forsoegt_at`, `medlem_udfald`, `medlem_status`, `medlem_grund`) og låsen `app_config.klaviyo_medlem_aktiv` (standard false, `ON CONFLICT DO NOTHING`). Omdøbt fra `20260930090000`, som #1157 havde optaget. |
+| `20260930120000_…` | #1169 | `online_hjerteslag` (user_id PK, `sidst_set`), politikker (medlemmet: INSERT/UPDATE/SELECT på egen række; rådgiver: SELECT), trigger der sætter `sidst_set = now()`, funktionen `online_hjerteslag_friske(vindue_sekunder)` (SECURITY INVOKER, serverens ur). Ingen SECURITY DEFINER, ingen DROP. |
+| `20260930140000_…` | #1172 | `public.tjenestekonti` (user_id): kun admin skriver, enhver indlogget læser. Omdøbt fra `20260930100000`, som #1158 havde optaget. |
+
+- **Fund 6 i #1157 er ÅBENT** (commit-beskeden): `user_company_id` (LIMIT 1) og ikke-unik `company_members` gør en `company_id`-WITH CHECK umulig at verificere fra koden. En FØR-SELECT måler.
+- `SECURITY_BASELINE.md` (§3/§5), `docs/adgangsdomme.md` og `CLAUDE.md` er opdateret i #1157; `CLAUDE.md` og `docs/marketingmotoren.md` §9.5 i #1170; `SECURITY_BASELINE.md` og `CLAUDE.md` i #1169.
+
+#### 3. Udrullet fra build-chatten 30/9
+
+- **Fem functions:** `webinar-mail-cron`, `klokke-mail-cron`, `run-company-agent`, `send-welcome-message` og `klaviyo-profil-cron`.
+  - **Beviset for `webinar-mail-cron`:** arten `tre_dage` giver **400 `art_ugyldig`**. Kun den nye kode kan svare det (CLAUDE.md, «Deployment af edge functions»).
+- **Kl. ~16:55: `send-report-reminder` og onboarding-rytmen.** Det var **den første deploy gennem Lovable-MCP'en** (§7).
+  - `get_diff` på beskeden svarede «Message has no associated edit» — altså ingen kodeændring, som reglen kræver.
+  - Samme dag målt: `companies` 52, `company_members` 30, `financial_reports` 436, `financial_report_facts` 306 rækker. Alle er under PostgRESTs grænse på 1.000, så #1165's paginering ændrer ingen modtagere i dag.
+
+#### 4. Tjenestekontoen claude@topix.dk (#1172)
+
+- **Kontoen:** `claude@topix.dk`, `user_id` `04556818-3613-4017-960c-f09ffe03ba29`. En rådgiverkonto, som en maskine bruger til at SE platformen.
+- **Tre regler** (`CLAUDE.md`, «Tjenestekonti»): ingen inaktivitets-logud · det at SE skriver intet spor (`laeseMarkeringTilladt`) · kontoen optræder aldrig som person (`erSynligRaadgiver`/`synligeRaadgivere` i klienten, `_shared/tjenestekonti.ts` i edge-laget).
+- **Set i browseren kl. 16:30 (målt):** rådgiverforsiden virker. Netværket viser kun Jonas og Morten under «Dine rådgivere».
+- **Åbent:** Netværket viser testkontoen «Jonas Herlev · Topix.dk ApS» (`vis_i_netvaerk = true`). Rettelsen er feltet «Gæst» (`vis_i_netvaerk = false`) og venter på Jonas' ja (§8). Det er en UPDATE på en eksisterende række, så regelsættets §3 gælder.
+
+#### 5. Klaviyo-medlemspasset (#1170) — tørkørslen målt, låsen er stadig FALSE
+
+`klaviyo-profil-cron` skriver i et andet pas profilfeltet `tb_medlem`; segmentet «Medlemmer (auto)» skal erstatte den håndfyldte liste `Xr6Pm9` (`docs/marketingmotoren.md` §9.5).
+
+- **Tørkørsel (kald 26440, status 200):** låsen `false` · medlemsmails **31** · `saet_true` 31 · `saet_false` 0 · `fejl` [].
+- **Virksomheder efter dom:** `aktiv_kontrakt` 27 · `egen` 1 · `gaest` 13 · `slettet` 8 · `udloebet` 3 · `demo` 0 · `legat` 0.
+- **Næste, i rækkefølge:**
+  1. prøve til `lh@greensolar.dk` (`{"dry_run": false, "email": "lh@greensolar.dk"}`)
+  2. Jonas' guarded UPDATE af låsen `app_config.klaviyo_medlem_aktiv`
+  3. segmentet «Medlemmer (auto)» i Klaviyo (`tb_medlem` er true)
+
+#### 6. Webinarmails: fem pr. session (#1167)
+
+- **Jonas 30/9 kl. 06:06** (morgenlistens D1): «om tre dage» (`tre_dage`) og «det er i dag» (`dagen`) droppes. De står i `UDGAAEDE_ARTER` og i `ARTER` (ordforrådet = `webinar_mails_art_check`, sporet har rækker med dem) — ingen migration.
+- **eWebinars 10-minutters-påmindelse er slettet af Jonas 30/9.**
+- **Deltageren får nu:** bekræftelse · 14 dage før · 7 dage før · dagen før (08:00) · 1 time før.
+- **Indhentningens loft pr. art** (senere tilføjelse i #1167): `fjorten_dage` 8 · `syv_dage` 4 · `en_dag` 1 dage før sessionen. Uden loftet ville en fejlet «om en uge» kunne indhentes til to dage før sessionen. For 13/10 kl. 11 slutter indhentningen 5/10, 9/10 og 12/10 kl. 23:59 dansk.
+- **Udrulning bevist:** §3 (`tre_dage` → 400 `art_ugyldig`).
+
+#### 7. Lovable-forbindelsen (MCP) — forbundet 30/9 kl. 16:40 (#1177)
+
+Regelsættets §6a står i `docs/claude-regelsaet.md`. Kort:
+
+- Forbindelsen har hele Jonas' Lovable-kontos adgang, men bruges KUN på «Boardroom Compass» (`0bcda7a6-4154-4a81-9f82-fcdf623eb7ea`).
+- Målt 16:41 med `query_database`: `current_user = postgres`, Postgres 17.6, 52 virksomheder, 30 cron-jobs — samme database som SQL editoren.
+- Arbejdsmiljøets netværk når ikke Supabase eller Lovable (CONNECT 403 målt 16:35); al prod-adgang går derfor gennem MCP'en.
+- Reglerne i §2 og §3 gælder uændret: forbindelsen flytter hænderne, ikke beslutningerne. Build-chatten bruges kun til deploy, med den faste tekst, og `get_diff` skal være tom.
+
+#### 8. Åbne punkter — aften 30/9
+
+- **Netværket viser testkontoen «Jonas Herlev · Topix.dk ApS»** (`vis_i_netvaerk = true`). Rettelsen er «Gæst» (`vis_i_netvaerk = false`) — **venter på Jonas' ja**. Kort [`a30-netvaerk-testkonto-gaest`](mangelliste.html#a30-netvaerk-testkonto-gaest).
+- **Ja til SECURITY DEFINER venter** (FORBIDDEN-listen): `drift_agent_laes` (#1174) og `husk_foerste_godkendelse` (#1171). Kort [`a30-security-definer-ja`](mangelliste.html#a30-security-definer-ja).
+- **«Online nu» er ikke bevist med et rigtigt kundemedlem.** Testkontoen kontakt@topix.dk filtreres bevidst fra. Kort [`m16e-online-realtime`](mangelliste.html#m16e-online-realtime).
+- **Klaviyo-medlemspasset:** prøven til `lh@greensolar.dk`, Jonas' guarded UPDATE af låsen og segmentet «Medlemmer (auto)» udestår (§5). Kort [`a30-klaviyo-tb-medlem`](mangelliste.html#a30-klaviyo-tb-medlem).
+- **boardroom-2-prod:** nøglerotation og nedlukning, guidet med Jonas. Kort [`a30-boardroom-2-prod`](mangelliste.html#a30-boardroom-2-prod).
+- **Mortens video til «dagen før»-mailen er under bygning.** Kort [`a30-video-dagen-foer`](mangelliste.html#a30-video-dagen-foer).
+- **Fund 6 i #1157** (§2): `company_id`-WITH CHECK kan ikke verificeres fra koden. Kort [`a30-companies-kolonnevaern`](mangelliste.html#a30-companies-kolonnevaern).
+- **Update i Lovable** for #1169 og #1172 (`src/`) er ikke bekræftet i denne bogføring. Det er ikke målt.
+
+Lukket i dag (kortene er markeret løst, ikke slettet): [`a30-companies-kolonnevaern`](mangelliste.html#a30-companies-kolonnevaern), [`a30-webinar-fem-mails`](mangelliste.html#a30-webinar-fem-mails), [`a30-tjenestekonto`](mangelliste.html#a30-tjenestekonto), [`a30-lovable-mcp`](mangelliste.html#a30-lovable-mcp).
+
 ---
 
 ## DEL 3 · Det der venter

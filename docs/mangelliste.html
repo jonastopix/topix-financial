@@ -1634,6 +1634,25 @@
     ebitda_margin_pct-noten. Talt med grep på div-taggene: før 186 (inkl.
     skabelonen i kommentaren) og 56 lukkede; efter 198 og 57 lukkede.
     Lukket: 1 (bliver stående). Omskrevet: 2. Tilføjet: 12.
+  RØRT 30/9 AFTEN — DAGEN OG AFTENEN (OVERLEVERING DEL 2 «30. september»
+  §1–§8; #1157, #1167, #1169, #1170, #1172, #1175, #1177)
+    LUKKET (4, Ny 30/9): a30-companies-kolonnevaern (#1157, migration
+    20260930090000 kørt; fund 6 er stadig åbent og står på kortet);
+    a30-webinar-fem-mails (#1167, webinar-mail-cron udrullet, tre_dage giver
+    400 art_ugyldig); a30-tjenestekonto (#1172, migration 20260930140000
+    kørt, set i browseren 16:30); a30-lovable-mcp (#1177, forbundet 16:40,
+    første deploy gennem MCP'en ~16:55, get_diff tom).
+    TILFØJET ÅBNE (5, Ny 30/9): a30-netvaerk-testkonto-gaest (venter på
+    Jonas' ja), a30-security-definer-ja (drift_agent_laes #1174,
+    husk_foerste_godkendelse #1171), a30-klaviyo-tb-medlem (tørkørslen målt,
+    låsen false), a30-boardroom-2-prod (nøglerotation og nedlukning),
+    a30-video-dagen-foer (Mortens video under bygning).
+    AJOUR (1): m16e-online-realtime — Presence-kanalen er erstattet af
+    hjerteslag i en tabel (#1169, migration 20260930120000 kørt); beviset med
+    et kundemedlem udestår stadig, kortet bliver åbent.
+    Talt med grep på kortenes div-tag (class card) og på lukket-status
+    (status loest): før 277 og 110 lukkede; efter 286 og 114 lukkede.
+    Lukket: 4. Ajour: 1. Tilføjet: 9 (4 lukkede + 5 åbne).
   RØRT 29/9 AFTEN — CERTIFIKATET, CHATVIDEOEN I DRIFT, MIGRATIONEN KØRT
   (OVERLEVERING DEL 2 «29. september» §1, §5–§11; #1133, #1134, #1135;
   lærestreger (n)–(t))
@@ -2386,6 +2405,21 @@
   <h2>Indgangen — fra ansøgning til aktivt medlem</h2>
   <p class="lede">Ansøgningsflowet bor i platformen fra 18/9 (#984–#1010): formular, motor, kø, venteliste, e-underskrift, booking — og Jonas har været hele vejen igennem (18/9 aften). Kæden fra underskrift til adgang er hel og bevist (OVERLEVERING DEL 2). Det der står, er det basen skal bekræfte før prøven, hullerne omkring kæden, ankomstens løse ender og beviserne der udestår.</p>
   <div class="grid">
+    <div class="card new loest" id="a30-webinar-fem-mails" data-status="loest" data-spor="1" data-rammer="medlem">
+      <h3>LUKKET 30/9 — deltageren får fem webinarmails pr. session: «om tre dage» og «det er i dag» er droppet (#1167), og eWebinars 10-minutters-påmindelse er slettet</h3>
+      <p><strong>LUKKET 30/9:</strong> Jonas kl. 06:06 (morgenlistens D1): «om tre dage» (<code>tre_dage</code>) og «det er i dag» (<code>dagen</code>) droppes. #1167 er merget 09:38; <code>webinar-mail-cron</code> er udrullet fra build-chatten. <strong>Beviset:</strong> arten <code>tre_dage</code> giver <strong>400 <code>art_ugyldig</code></strong> — kun den nye kode kan svare det. Ingen migration: arterne står i <code>UDGAAEDE_ARTER</code> og i <code>ARTER</code> (ordforrådet = <code>webinar_mails_art_check</code>). Indhentningens loft pr. art: <code>fjorten_dage</code> 8 · <code>syv_dage</code> 4 · <code>en_dag</code> 1 dage før sessionen. <strong>eWebinars 10-minutters-påmindelse er slettet af Jonas 30/9.</strong> Deltageren får nu: bekræftelse, 14 dage, 7 dage, dagen før (08:00) og 1 time før. OVERLEVERING DEL 2 «30. september» §3, §6.</p>
+      <div class="meta"><span class="tag loest">Lukket 30/9 — udrullet og bevist (400 art_ugyldig)</span><span class="tag ny">Ny 30/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="a30-klaviyo-tb-medlem" data-status="mangler" data-spor="1" data-rammer="raadgiver">
+      <h3>Klaviyo-medlemsmarkeringen <code>tb_medlem</code> (#1170) er udrullet, men låsen er FALSE — prøven, Jonas' UPDATE af låsen og segmentet «Medlemmer (auto)» udestår</h3>
+      <p><strong>Målt 30/9:</strong> migration <code>20260930110000</code> kørt; <code>klaviyo-profil-cron</code> udrullet. <strong>Tørkørsel (kald 26440, status 200):</strong> låsen <code>false</code> · medlemsmails 31 · <code>saet_true</code> 31 · <code>saet_false</code> 0 · <code>fejl</code> []. Virksomheder efter dom: <code>aktiv_kontrakt</code> 27 · <code>egen</code> 1 · <code>gaest</code> 13 · <code>slettet</code> 8 · <code>udloebet</code> 3 · <code>demo</code> 0 · <code>legat</code> 0. <strong>Næste, i rækkefølge:</strong> (1) prøve til <code>lh@greensolar.dk</code>; (2) Jonas' guarded UPDATE af <code>app_config.klaviyo_medlem_aktiv</code>; (3) segmentet «Medlemmer (auto)» i Klaviyo. Listen <code>Xr6Pm9</code> beholdes, til alle flow og kampagner er skiftet. OVERLEVERING DEL 2 «30. september» §5.</p>
+      <div class="meta"><span class="tag gold">Udrullet — låsen false</span><span class="tag ny">Ny 30/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="a30-video-dagen-foer" data-status="mangler" data-spor="1" data-rammer="medlem">
+      <h3>Mortens video til «dagen før»-mailen er under bygning</h3>
+      <p>Status 30/9 aften: videoen bygges. Mailen «dagen før» (08:00) er en af de fem påmindelser pr. session (<a href="#a30-webinar-fem-mails">a30-webinar-fem-mails</a>). Intet mere er målt. OVERLEVERING DEL 2 «30. september» §8.</p>
+      <div class="meta"><span class="tag">Under bygning</span><span class="tag ny">Ny 30/9</span><span class="tag size">Lille</span></div>
+    </div>
     <div class="card new loest" id="a22-ga-mp-rapporter" data-status="loest" data-spor="1" data-rammer="ingen">
       <h3>Platformens hændelser til Google Analytics er ikke set i GA4's rapporter</h3>
       <p><strong>LØST 22/9 — bevist i GA4's rapport. Rapporter → Engagement → Hændelser, 21/9, <code>application_started</code> med sekundær dimension Time (22/9 08:13): time 18 = 2 hændelser fra 1 bruger (Jonas' GTM-klik 18:02 + platformens hændelse 18:04, samme klient-id), time 22 = 1 hændelse (platformens fra prøvekladden 22:27 — GTM-tagget var slukket fra 21:40). Kl. 00:09 stod de ikke der endnu: Measurement Protocol behandles langsommere end browserens hændelser. Realtid og dagens rapport er ikke beviset — rapporten dagen efter er.</strong> <code>ga-send-cron</code> er i drift (job 569, låsen <code>true</code> 21:02). Measurement Protocol er bevist modtaget i DebugView: <code>tracking_test_debug</code> 20:57:58 og <code>tracking_test_debug_session</code> 20:59:34 med <code>session_id</code> og <code>timestamp_micros</code>. Men platformens egne <code>application_started</code> (18:04 og 22:27) stod IKKE i rapporten for 21/9 kl. 00:09 — de fire <code>application_started</code> dér var GTM-klik kl. 14, 15 og 17.</p>
@@ -3584,7 +3618,7 @@
     </div>
     <div class="card new" id="m16e-online-realtime" data-status="mangler" data-spor="6" data-rammer="raadgiver">
       <h3>«Online nu» på rådgiverens forside (Realtime Presence, privat kanal) — i drift #931, migrationen bevist 18:42; et kundemedlem skal dukke op før antagelse (a) er sand</h3>
-      <p>Jonas 16/9: ja til realtid; kun rådgivere ser; legat og gæster vises, legat mærket. To politikker på <code>realtime.messages</code> kørt 18:41–18:42 (INSERT presence for authenticated; SELECT kun <code>has_role(…, 'advisor')</code>); «Allow public access» rørt ikke. Test 18:45 med kontakt@topix.dk viste ingen — Topix.dk ApS er <code>er_kunde=false</code> og filtreres bevidst fra. <strong>Bevis:</strong> et KUNDEMEDLEM på forsiden efter Update-klik (a). Står den tom en formiddag mens kunder er logget ind, holder (a) ikke, og medlemmets del fjernes (ny beslutning). (b)–(d) (medlemmet ser ikke de andre; leave-tid; CHANNEL_ERROR ved rollback) kræver Network-fanen — Jonas vil ikke derind. Ukendt: Realtime-planen (200/500 forbindelser). Historik: OVERLEVERING DEL 2 «16. september (eftermiddag og aften)» §29, §32.</p>
+      <p>Jonas 16/9: ja til realtid; kun rådgivere ser; legat og gæster vises, legat mærket. To politikker på <code>realtime.messages</code> kørt 18:41–18:42 (INSERT presence for authenticated; SELECT kun <code>has_role(…, 'advisor')</code>); «Allow public access» rørt ikke. Test 18:45 med kontakt@topix.dk viste ingen — Topix.dk ApS er <code>er_kunde=false</code> og filtreres bevidst fra. <strong>AJOUR 30/9 (#1169):</strong> Presence-kanalen er erstattet af hjerteslag i en tabel (<code>online_hjerteslag</code>, migration <code>20260930120000</code> kørt i prod); medlemmet upserter egen række, rådgiveren læser <code>online_hjerteslag_friske(150)</code>. Testkontoen kontakt@topix.dk filtreres stadig bevidst fra. <strong>Ikke bevist med et rigtigt kundemedlem endnu — kortet bliver åbent.</strong> OVERLEVERING DEL 2 «30. september» §2, §8. <strong>Bevis:</strong> et KUNDEMEDLEM på forsiden efter Update-klik (a). Står den tom en formiddag mens kunder er logget ind, holder (a) ikke, og medlemmets del fjernes (ny beslutning). (b)–(d) (medlemmet ser ikke de andre; leave-tid; CHANNEL_ERROR ved rollback) kræver Network-fanen — Jonas vil ikke derind. Ukendt: Realtime-planen (200/500 forbindelser). Historik: OVERLEVERING DEL 2 «16. september (eftermiddag og aften)» §29, §32.</p>
       <div class="meta"><span class="tag gold">I DRIFT — BEVIS UDESTÅR: et kundemedlem på forsiden</span><span class="tag">Jonas: ja — kun rådgivere ser</span><span class="tag size">Mellem</span></div>
     </div>
     <div class="card new" id="m16-fremdrift-hentefejl" data-status="mangler" data-spor="6" data-rammer="raadgiver">
@@ -3710,6 +3744,26 @@
   <h2>Drift og fundament — ydeevne, overvågning, RLS, døde felter</h2>
   <p class="lede">Ingen fejlovervågning. Hændelser findes ved manuel måling, ikke af nogen alarm — RLS-hullet 3/9 blev fundet med en lånt identitet, ikke af et værn.</p>
   <div class="grid">
+    <div class="card new loest" id="a30-companies-kolonnevaern" data-status="loest" data-spor="6" data-rammer="ingen">
+      <h3>LUKKET 30/9 — et medlem kan kun rette hvidlistede felter på egen virksomhed (#1157, kolonneværn på <code>companies</code>)</h3>
+      <p><strong>LUKKET 30/9:</strong> før kunne et medlem UPDATE alle kolonner på sin egen virksomhed (kontraktdato, legat, gratis sessioner, prisfelter, <code>stripe_customer_id</code>). Ny BEFORE UPDATE-trigger <code>companies_medlem_kolonnevaern</code> (SECURITY INVOKER) afviser med 42501 enhver ændret kolonne uden for hvidlisten, når kalderen er medlem; rådgivere/admin, <code>service_role</code> og <code>postgres</code> uden JWT passerer. Migration <code>20260930090000</code> kørt i prod 30/9 (Jonas, målt); #1157 merget 16:12. Samtidig droppet: policyen «Members can insert own notifications» (fund 7). Kildeværn <code>companiesKolonnevaern.guard</code>; <code>SECURITY_BASELINE.md</code> og <code>docs/adgangsdomme.md</code> opdateret. <strong>Rest, ÅBENT (fund 6):</strong> <code>user_company_id</code> (LIMIT 1) og ikke-unik <code>company_members</code> gør en <code>company_id</code>-WITH CHECK umulig at verificere fra koden; en FØR-SELECT måler. OVERLEVERING DEL 2 «30. september» §2.</p>
+      <div class="meta"><span class="tag loest">Lukket 30/9 — migration kørt i prod</span><span class="tag">Fund 6 åbent</span><span class="tag ny">Ny 30/9</span><span class="tag size">Mellem</span></div>
+    </div>
+    <div class="card new loest" id="a30-lovable-mcp" data-status="loest" data-spor="senere" data-rammer="ingen">
+      <h3>LUKKET 30/9 — Lovable-forbindelsen (MCP) er forbundet, og reglerne står i regelsættets §6a (#1177); første deploy gennem MCP'en ~16:55</h3>
+      <p><strong>LUKKET 30/9:</strong> Jonas forbandt Lovables MCP-server kl. 16:40. Målt 16:41 med <code>query_database</code> på «Boardroom Compass»: <code>current_user = postgres</code>, Postgres 17.6, 52 virksomheder, 30 cron-jobs. Arbejdsmiljøets netværk når ikke Supabase eller Lovable (CONNECT 403, 16:35), så al prod-adgang går gennem MCP'en. Reglerne (kun ét projekt, SELECT frit, skrivning guardet, faste deploy-tekster, <code>get_diff</code> tom) står i <code>docs/claude-regelsaet.md</code> §6a. <strong>Første deploy gennem MCP'en</strong> kl. ~16:55: <code>send-report-reminder</code> og onboarding-rytmen; <code>get_diff</code>: «Message has no associated edit» = ingen kodeændring. Målt samme dag: <code>companies</code> 52, <code>company_members</code> 30, <code>financial_reports</code> 436, <code>financial_report_facts</code> 306 rækker — alle under PostgRESTs 1.000, så #1165's paginering ændrer ingen modtagere i dag. OVERLEVERING DEL 2 «30. september» §3, §7.</p>
+      <div class="meta"><span class="tag loest">Lukket 30/9 — forbundet 16:40, deploy 16:55</span><span class="tag ny">Ny 30/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card decision new" id="a30-security-definer-ja" data-status="beslutning" data-spor="senere" data-rammer="ingen">
+      <h3>Ja til SECURITY DEFINER venter: <code>drift_agent_laes</code> (#1174) og <code>husk_foerste_godkendelse</code> (#1171)</h3>
+      <p>SECURITY DEFINER-funktioner står på FORBIDDEN-listen i <code>CLAUDE.md</code> uden eksplicit grønt lys og hører under regelsættets §3. Begge afventer Jonas' ja pr. funktion. OVERLEVERING DEL 2 «30. september» §8.</p>
+      <div class="meta"><span class="tag gold">Venter på Jonas' ja</span><span class="tag gold">SECURITY DEFINER</span><span class="tag ny">Ny 30/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="a30-boardroom-2-prod" data-status="mangler" data-spor="senere" data-rammer="ingen">
+      <h3>boardroom-2-prod (Supabase-projektet den lokale forbindelse ser): nøglerotation og nedlukning — guidet med Jonas</h3>
+      <p>Regelsættets §6: Supabase-forbindelsen ser kun <code>boardroom-2-prod</code>, ikke Lovables prod (<code>loiavmastgeieqyiwyyr</code>). Nøglerne roteres og projektet lukkes ned, guidet skridt for skridt med Jonas. Ikke påbegyndt i bogføringen. OVERLEVERING DEL 2 «30. september» §8.</p>
+      <div class="meta"><span class="tag">Guidet med Jonas</span><span class="tag ny">Ny 30/9</span><span class="tag size">Lille</span></div>
+    </div>
     <div class="card blocked new" id="a22-forside-langsom" data-status="fejl" data-spor="senere" data-rammer="raadgiver">
       <h3>Rådgiverens forside står længe med skeletter, før indholdet kommer</h3>
       <p>Målt 22/9 04:15: <strong>databasen hænger ikke</strong> — 0 låse, 2 aktive forbindelser. Målt 04:52 som Jonas med RLS (<code>maal-forside-som-raadgiver.sql</code>): alle <strong>32 forespørgsler</strong> på forsiden tager tilsammen <strong>785 ms</strong> kørt én ad gangen; den tungeste 162 ms (<code>budget_targets</code>).</p>
@@ -3870,6 +3924,16 @@
       <h3>Data-drevne Akademi-områder og handout-definitioner — bevidst udskudt 4/8; ikke før nogen vil oprette et område uden en udvikler</h3>
       <p>De seks områder er en konstant spejlet af CHECK-constraints; handouts er kode. Rabataftaler krævede netop en migration. Forudsætning for «handouts som data-drevet fane» i konvergensen. Historik: BACKLOG 4/8; <code>docs/hjemmebane/konvergens.md</code>.</p>
       <div class="meta"><span class="tag gold">Udskudt med vilje</span><span class="tag size">Mellem</span></div>
+    </div>
+    <div class="card new loest" id="a30-tjenestekonto" data-status="loest" data-spor="6" data-rammer="raadgiver">
+      <h3>LUKKET 30/9 — tjenestekontoen claude@topix.dk (#1172): ingen auto-logud, usynlig som rådgiver, markerer intet som læst</h3>
+      <p><strong>LUKKET 30/9:</strong> #1172 merget 16:12; migration <code>20260930140000</code> (<code>public.tjenestekonti</code>) kørt i prod. Kontoen: <code>claude@topix.dk</code>, <code>user_id</code> <code>04556818-3613-4017-960c-f09ffe03ba29</code>. <strong>Set i browseren kl. 16:30 (målt):</strong> rådgiverforsiden virker; Netværket viser kun Jonas og Morten under «Dine rådgivere». Tre regler i <code>CLAUDE.md</code> («Tjenestekonti»). <strong>Rest:</strong> Netværket viser stadig testkontoen «Jonas Herlev · Topix.dk ApS» — eget kort: <a href="#a30-netvaerk-testkonto-gaest">a30-netvaerk-testkonto-gaest</a>. Update i Lovable for <code>src/</code>-delen er ikke bekræftet i bogføringen. OVERLEVERING DEL 2 «30. september» §2, §4.</p>
+      <div class="meta"><span class="tag loest">Lukket 30/9 — migration kørt, set i browseren 16:30</span><span class="tag ny">Ny 30/9</span><span class="tag size">Mellem</span></div>
+    </div>
+    <div class="card decision new" id="a30-netvaerk-testkonto-gaest" data-status="beslutning" data-spor="6" data-rammer="medlem">
+      <h3>Netværket viser testkontoen «Jonas Herlev · Topix.dk ApS» (<code>vis_i_netvaerk = true</code>) — rettelsen er feltet «Gæst» (<code>vis_i_netvaerk = false</code>); venter på Jonas' ja</h3>
+      <p>Målt 30/9 med claude@ i browseren (16:30): Netværket viser testkontoen som et medlem. Rettelsen er en UPDATE på en eksisterende række og kræver derfor Jonas' ja (regelsættets §3). Gæster (<code>vis_i_netvaerk = false</code>) er heller ikke medlemmer i Klaviyo-dommen (<a href="#a30-klaviyo-tb-medlem">a30-klaviyo-tb-medlem</a>). OVERLEVERING DEL 2 «30. september» §4, §8.</p>
+      <div class="meta"><span class="tag gold">Venter på Jonas' ja</span><span class="tag ny">Ny 30/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card decision new" data-status="beslutning" data-spor="senere" data-rammer="raadgiver">
       <h3>Boardroom-MCP fase 1 er bygget og frosset siden 4/8 — udvid den til rådgiver-MCP'en (medlemskontekst + søgning + draft_reply, aldrig auto-send), behold den som Jonas' talværktøj, eller pensionér den</h3>
