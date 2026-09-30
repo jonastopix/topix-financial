@@ -62,10 +62,10 @@ export const FORBUDTE = [
 export function hvidlisten(sql: string): string[] {
   const m = udenSqlKommentarer(sql).match(/tilladte\s+constant\s+text\[\]\s*:=\s*array\[([\s\S]*?)\]/);
   if (!m) return [];
-  return [...m[1].matchAll(/'([a-z_]+)'/g)].map((x) => x[1]);
+  return [...m[1].matchAll(/'([a-z0-9_]+)'/g)].map((x) => x[1]);
 }
 
-/** Argumentet til det første `.update(` efter hvert `.from("companies")`, til den matchende parentes. */
+/** Argumentet til det første `.update(`/`.upsert(` (upsert behandles som update) efter hvert `.from("companies")`, til den matchende parentes. */
 export function companiesUpdates(kilde: string): string[] {
   const k = udenKommentarer(kilde);
   const ud: string[] = [];
@@ -73,7 +73,7 @@ export function companiesUpdates(kilde: string): string[] {
     const efter = k.slice(m.index! + m[0].length, m.index! + m[0].length + 400);
     // Kun hvis kæden fortsætter direkte i en .update( — ikke en senere, anden from().
     const u = efter.match(/^[\s\S]*?\.(update|select|insert|upsert|delete)\(/);
-    if (!u || u[1] !== "update") continue;
+    if (!u || (u[1] !== "update" && u[1] !== "upsert")) continue;
     let i = u[0].length;
     let dybde = 1;
     const start = i;

@@ -104,14 +104,20 @@ select * from (
          (select 'kpi_benchmarks=' || count(*) from public.kpi_benchmarks r
            where r.company_id is distinct from public.user_company_id(r.user_id)
              and not public.has_role(r.user_id, 'advisor'::app_role))
+  union all
+  select '7_funktioner_der_skriver_companies',
+         (select coalesce(string_agg(p.proname || ' · definer=' || p.prosecdef, ', '), 'ingen')
+            from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'public' and p.prosrc ~* 'update\s+(public\.)?companies\M')
 ) samlet
 order by sektion;
 */
 -- Forventet FØR: 1 «ingen» (en række = prod har noget, repoet ikke kender → STOP og bogfør) ·
 --   2 «findes ikke» · 3 «Members can insert own notifications | roles=authenticated |
---   check=(member_id = auth.uid())» · 4 de to policies (Advisors … / Members …) · 5–6 tal.
+--   check=(member_id = auth.uid())» · 4 de to policies (Advisors … / Members …) · 5–6 tal ·
+--   7 «ingen» (Forventet FØR: ingen, ellers STOP og bogfør — en funktion, der skriver companies, kan blive ramt af værnet).
 -- Forventet EFTER: 1 «companies_medlem_kolonnevaern» · 2 «findes · security_definer=false ·
---   search_path=public» · 3 «ingen INSERT-policy» · 4, 5, 6 uændrede.
+--   search_path=public» · 3 «ingen INSERT-policy» · 4, 5, 6, 7 uændrede.
 --
 -- ═══ BEVIS-KØRSLEN (efter EFTER-SELECT; ændrer intet — hvert trin rulles tilbage) ═══
 -- Som testmedlemmet kontakt@topix.dk (Topix.dk ApS), som en rådgiver, som service_role og som
@@ -143,7 +149,7 @@ declare
   forventet text[] := array['afvist','afvist','afvist','afvist','1 række','afvist','1 række','1 række','1 række'];
   sqls text[] := array[
     'update public.companies set contract_end_date = coalesce(contract_end_date, current_date) + 1 where id = $1',
-    'update public.companies set is_legat = not is_legat where id = $1',
+    'update public.companies set is_legat = true where id = $1',
     'update public.companies set intro_session_used_at = case when intro_session_used_at is null then now() else null end where id = $1',
     'update public.companies set stripe_customer_id = ''cus_bevis'' where id = $1',
     'update public.companies set weekly_focus_enabled = not weekly_focus_enabled, description = coalesce(description, '''') || '' '' where id = $1',

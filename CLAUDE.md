@@ -87,6 +87,7 @@ Integrationer: Stripe, Slack, Circle (community), Monday.com webhook, pdfjs-dist
 **Immutability-triggers** (BEFORE UPDATE) blokerer ændring af identitets-/audit-felter, selv hvis RLS-policies skulle slække:
 - `protect_message_immutable_fields` på `messages`: `sender_id`, `conversation_id`, `created_at`.
 - `protect_handout_immutable_fields` på `handouts`: `user_id`, `company_id`, `created_at`.
+- `companies_medlem_kolonnevaern` på `companies` (BEFORE UPDATE): et medlem må kun ændre hvidlisten (12 kolonner i migration 20260930090000); en ny medlemsskrivbar kolonne kræver hvidlisten + `companiesKolonnevaern.guard` ajourført FØR Update.
 
 **Adgangsdomme** (målt 3/9): adgang og tier afgøres FEM steder, ikke tre — `computeMembershipTier` i `src/lib/membershipTier.ts` og `supabase/functions/_shared/membershipTier.ts`, plus SQL-funktionerne `is_membership_active` (fail-open, Netværk/events), `har_aktivt_medlemskab` (fail-closed, community/indhold/events/storage) og `har_aktivt_abonnement` (exit-abonnentens Podcast & Talks). Kun de to TypeScript-kopier er dækket af en paritetstest; de tre SQL-domme rettes i hånden med en migration. Læs `docs/adgangsdomme.md` FØR nogen ændring i tier- eller adgangslogik.
 
