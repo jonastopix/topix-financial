@@ -80,6 +80,7 @@ const Ansoegning = lazy(() => import("./pages/Ansoegning"));
 const Forside = lazy(() => import("./pages/Forside"));
 const Oekonomi = lazy(() => import("./pages/Oekonomi"));
 const Webinar = lazy(() => import("./pages/Webinar"));
+const Nyheder = lazy(() => import("./pages/Nyheder"));
 const DeltWebinar = lazy(() => import("./pages/DeltWebinar"));
 
 // Lazy — demo routes (no auth)
@@ -341,6 +342,8 @@ const App = () => (
               {/* Økonomioverblikket (Ø2, 18/9): kun partnere. Tom side indtil Ø3. */}
               <Route path="/oekonomi" element={<PartnerRoute><Oekonomi /></PartnerRoute>} />
               <Route path="/webinar" element={<AdvisorRoute><Webinar /></AdvisorRoute>} />
+              {/* Nyhedsagenten (30/9, skive 1): rådgiverens godkendelse af ugens nyhedsudkast — N1, intet publiceres uden klik her. Nås fra klokken. */}
+              <Route path="/nyheder" element={<AdvisorRoute><Nyheder /></AdvisorRoute>} />
               {/* Kontoen i Hjemmebane (9/9): navn, adgangskode, login, log ud — for alle roller. */}
               <Route path="/konto" element={<ProtectedRoute><Konto /></ProtectedRoute>} />
               {/* Delingskreativen (14/9, første skridt): én kreativ på skærmen. Intet menupunkt endnu. */}

@@ -110,6 +110,11 @@ const STRIKS: readonly string[] = [
   // Klokken «Dit certifikat er klar» (certifikat trin 2, 29/9): dry_run og nu,
   // alt andet afvises.
   "certifikat-klokke",
+
+  // Nyhedsagenten, skive 1 (30/9): dry_run, nu og uden_llm (cronen); handling,
+  // udkast_id, traad_id og grund (rådgiverens klik). Alt andet afvises.
+  "nyhed-agent-cron",
+  "nyhed-udkast-afgoer",
 ];
 
 /**
