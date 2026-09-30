@@ -8,6 +8,23 @@ Grundlaget er syv analyser i `docs/analyser-30-09/`. Hver af dem skelner mellem 
 
 ---
 
+---
+
+## 0. Rettet 30/9 efter Jonas' dom (29/9 kl. 23:27)
+
+Jonas: «Jeg er ikke tilfreds med dine recons … Du overestimere ekstremt meget altid … Ikke altid lyseslukker … Vi vil hæve barren, ikke sænke den.» Det, dokumentet nedenfor tog fejl af:
+
+| Spor | Hvad jeg skrev | Hvad der gælder nu |
+|---|---|---|
+| 1 Bogholderi | «Kun forslag, et menneske bogfører» | **Fuld automatik:** agenten indhenter bilag, afstemmer og bogfører selv i e-conomic inden for værn (tillidsscore, beløbslofter, dagligt afstemningsbevis, nødstop, modpostering). Jonas har ansvaret og godkender procedure, kontoplan og lofter ÉN gang. Bank: Nordea via Enable Banking. Design: `analyser-30-09/bogholderi-agent-design.md`. |
+| 3 Sunset | «Ikke klar» | Flowet er bygget. Afrundingen er få klik (`analyser-30-09/klaviyo-klik.md` §4). |
+| 4 Webinarmotor | «6–9 uger, byg efter 13/10, gevinsten er ikke pengene» | **Bygges nu** som husets primære lead-motor, med alle data in-house og egen branding. Skive 1 (motor) #1158 og skive 2 (seerens flade) #1161 er bygget 30/9 om natten. Den kører ikke 13/10; derefter parallelkørsel. Spec: `analyser-30-09/webinarmotor-spec.md`. |
+| 6 Gamification | En liste over, hvad vi ikke skal | **Idélisten** (Jonas: «Mange gode idéer»). Medlemmer: Boardroom Score 0–1000, niveauer låst op af rigtige resultater, tal-streak, anonyme kvartalsligaer, trofæskab, 30-dages udfordringer, forecast-duel, hjælper-karma, rejsekort, Boardroom Awards. Rådgivere: svartids-ur (bygget #1164), «Intet venter»-streak, kontaktdækning, én-klik-tommel, svartid live på medlemssiden, rådgiverens score = medlemmernes fremgang. |
+
+Rammen fra 13/8 («ingen rangeringer») er ikke en grænse for idéerne. Den er en beslutning, Jonas kan tage om igen.
+
+---
+
 ## 1. Ambitionen i én sætning
 
 **The Boardroom driver sig selv: marketing, webinarer, bogføring og drift kører på platformens egne motorer og data, så husets mennesker bruger deres tid på medlemmerne og intet andet.**
