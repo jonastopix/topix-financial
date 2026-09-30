@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { erVelkomstHash, fokusCtaHref, onboardingBoksMonteres, pillenTraekkerSig, VELKOMST_HASH, VELKOMST_INDLEDNING, velkomstTekst } from "../ankomst";
+import { ERFAREN_EFTER_DAGE, erErfarentMedlem, erVelkomstHash, fokusCtaHref, onboardingBoksMonteres, pillenTraekkerSig, tjeklistenStyrerForsiden, VELKOMST_HASH, VELKOMST_INDLEDNING, velkomstTekst } from "../ankomst";
 
 // Ankomstens to løse ender (docs/indgangen-overhaling.md §10, 3/9):
 // hashen der lader fokuskortet åbne velkomstvideoen, og dommen der lader
@@ -103,5 +103,79 @@ describe("onboardingBoksMonteres — ikke på chatten på mobil (den dækkede se
   it("er uafhængig af pillenTraekkerSig (forsiden trækker pillen, chatten monterer den slet ikke)", () => {
     expect(pillenTraekkerSig("chat", { faerdig: false })).toBe(false);
     expect(onboardingBoksMonteres("chat", true)).toBe(false);
+  });
+});
+
+/* ── 4. Erfarne medlemmer slippes (30/9): tjeklisten styrer kun forsiden
+      for et medlem, der er kommet ind for højst 30 døgn siden. ── */
+
+const NU = new Date("2026-10-01T09:00:00.000Z");
+const DOEGN = 86_400_000;
+const siden = (ms: number) => new Date(NU.getTime() - ms).toISOString();
+
+describe("erErfarentMedlem — mere end 30 døgn siden profiles.created_at", () => {
+  it("grænsen er 30 × 86 400 000 ms: præcis 30 døgn = ny, ét millisekund mere = erfaren", () => {
+    expect(ERFAREN_EFTER_DAGE).toBe(30);
+    expect(erErfarentMedlem(siden(30 * DOEGN), NU)).toBe(false);
+    expect(erErfarentMedlem(siden(30 * DOEGN + 1), NU)).toBe(true);
+  });
+
+  it("de målte tilfælde (prod 30/9): profil fra 4/3 og 13/8 er erfaren; 15/9, 28/9 og 29/9 er nye", () => {
+    expect(erErfarentMedlem("2026-03-04T10:00:00.000Z", NU)).toBe(true);
+    expect(erErfarentMedlem("2026-08-13T10:00:00.000Z", NU)).toBe(true);
+    expect(erErfarentMedlem("2026-09-15T10:00:00.000Z", NU)).toBe(false);
+    expect(erErfarentMedlem("2026-09-28T10:00:00.000Z", NU)).toBe(false);
+    expect(erErfarentMedlem("2026-09-29T10:00:00.000Z", NU)).toBe(false);
+  });
+
+  it("ukendt, tom eller ugyldig dato = NY (fail-soft: skjuler aldrig ankomsten for et nyt medlem)", () => {
+    expect(erErfarentMedlem(null, NU)).toBe(false);
+    expect(erErfarentMedlem(undefined, NU)).toBe(false);
+    expect(erErfarentMedlem("", NU)).toBe(false);
+    expect(erErfarentMedlem("ikke-en-dato", NU)).toBe(false);
+  });
+
+  it("en dato i fremtiden (ur-skævhed) = ny", () => {
+    expect(erErfarentMedlem(new Date(NU.getTime() + DOEGN).toISOString(), NU)).toBe(false);
+  });
+});
+
+describe("tjeklistenStyrerForsiden — ÉN dom for kortet, hilsenen og pillen", () => {
+  it("ny + uafsluttet → styrer; ny + færdig → styrer ikke; ingen tjekliste → styrer ikke", () => {
+    expect(tjeklistenStyrerForsiden({ faerdig: false }, siden(5 * DOEGN), NU)).toBe(true);
+    expect(tjeklistenStyrerForsiden({ faerdig: true }, siden(5 * DOEGN), NU)).toBe(false);
+    expect(tjeklistenStyrerForsiden(null, siden(5 * DOEGN), NU)).toBe(false);
+    expect(tjeklistenStyrerForsiden(undefined, null, NU)).toBe(false);
+  });
+
+  it("erfaren + uafsluttet → styrer IKKE (fokuskortet og hilsenen er fri)", () => {
+    expect(tjeklistenStyrerForsiden({ faerdig: false }, siden(240 * DOEGN), NU)).toBe(false);
+  });
+
+  it("ukendt medlem_siden + uafsluttet → styrer som før 30/9", () => {
+    expect(tjeklistenStyrerForsiden({ faerdig: false }, null, NU)).toBe(true);
+  });
+});
+
+describe("pillenTraekkerSig og erfarne medlemmer — pillen gemmer sig aldrig, mens kortet ikke viser listen", () => {
+  it("erfaren på forsiden med uafsluttet liste → pillen BLIVER (kortet viser tal, ikke listen)", () => {
+    expect(pillenTraekkerSig("boardroom", { faerdig: false }, siden(240 * DOEGN), NU)).toBe(false);
+  });
+
+  it("ny på forsiden med uafsluttet liste → pillen trækker sig som før", () => {
+    expect(pillenTraekkerSig("boardroom", { faerdig: false }, siden(5 * DOEGN), NU)).toBe(true);
+  });
+
+  it("pillen og kortet er altid enige på forsiden (samme dom)", () => {
+    for (const dage of [0, 5, 30, 31, 240]) {
+      for (const faerdig of [false, true]) {
+        const ms = siden(dage * DOEGN);
+        expect(pillenTraekkerSig("boardroom", { faerdig }, ms, NU)).toBe(tjeklistenStyrerForsiden({ faerdig }, ms, NU));
+      }
+    }
+  });
+
+  it("andre sider → bliver, også for et nyt medlem", () => {
+    expect(pillenTraekkerSig("rapportering", { faerdig: false }, siden(5 * DOEGN), NU)).toBe(false);
   });
 });

@@ -564,6 +564,72 @@ describe("overgangen — sidste tjeklistepunkt gjort", () => {
   });
 });
 
+describe("erfarne medlemmer (30/9) — tjeklisten slipper kortet efter 30 døgn", () => {
+  // Tjekliste med tom profil (hverken ask_me_about eller foto — som 0 af 8
+  // gamle og 16 af 17 nye i prod 30/9) og en uafsluttet tal-/beskedrække.
+  const uafsluttet = () =>
+    byggTjekliste(tjeklisteAltGjort({ ask_me_about: null, avatar_url: null, antal_godkendte: 0, last_member_message_at: null }));
+  // NOW = 10/8 2026 lokal tid. 8 måneder før ≈ 10/12 2025; 5 døgn før = 5/8.
+  const otteMaaneder = new Date(2025, 11, 10, 9).toISOString();
+  const femDage = new Date(NOW.getTime() - 5 * 86_400_000).toISOString();
+
+  it("8-måneders-medlem uden profil, juli uploadet men ikke godkendt → fokus = «Godkend dine juli-tal», ikke profilen", () => {
+    const tjekliste = uafsluttet();
+    expect(tjekliste.faerdig).toBe(false);
+    const items = deriveFocus(
+      base({ tjekliste, medlemSiden: otteMaaneder, committedPeriodKeys: new Set(), askMeAboutMissing: true, contractStartDate: "2025-12-01" }),
+    );
+    expect(items[0]).toMatchObject({ kind: "pending-approval", title: "Godkend dine juli-tal" });
+    expect(items.map((i) => i.kind)).not.toContain("tjekliste");
+    // Den tomme profil står stadig — som det laveste punkt (i), ikke som #1.
+    expect(items[items.length - 1].kind).toBe("empty-profile");
+  });
+
+  it("8-måneders-medlem uden profil og uden juli-tal → fokus = «Upload dine juli-tal»", () => {
+    const items = deriveFocus(
+      nulData({ tjekliste: uafsluttet(), medlemSiden: otteMaaneder, contractStartDate: "2025-12-01" }),
+    );
+    expect(items.map((i) => i.kind)).toEqual(["missing-report", "empty-profile"]);
+  });
+
+  it("8-måneders-medlem: beskeder og ugens fokus konkurrerer igen om kortet", () => {
+    const items = deriveFocus(
+      base({ tjekliste: uafsluttet(), medlemSiden: otteMaaneder, unreadUserMessages: 1, weeklyFocus: { headline: "X", seen: false } }),
+    );
+    expect(items.map((i) => i.kind)).toEqual(["unread-messages", "weekly-focus"]);
+  });
+
+  it("5-dages-medlem → UÆNDRET: tjeklisten er kortets eneste kilde", () => {
+    const tjekliste = uafsluttet();
+    const med = deriveFocus(nulData({ tjekliste, medlemSiden: femDage, unreadUserMessages: 2, contractStartDate: "2025-01-01" }));
+    const uden = deriveFocus(nulData({ tjekliste, unreadUserMessages: 2, contractStartDate: "2025-01-01" }));
+    expect(med).toEqual(uden);
+    expect(med.every((i) => i.kind === "tjekliste")).toBe(true);
+    expect(med.map((i) => i.sourceId)).toEqual(["profil", "rapport", "besked"]);
+  });
+
+  it("ukendt medlemSiden (null/udeladt) → som før 30/9: tjeklisten styrer", () => {
+    const tjekliste = uafsluttet();
+    expect(deriveFocus(base({ tjekliste, medlemSiden: null }))[0].kind).toBe("tjekliste");
+    expect(deriveFocus(base({ tjekliste }))[0].kind).toBe("tjekliste");
+  });
+
+  it("grænsen: præcis 30 døgn = ny (tjekliste); 30 døgn + 1 ms = erfaren (almindelig prioritering)", () => {
+    const tjekliste = uafsluttet();
+    const praecis = new Date(NOW.getTime() - 30 * 86_400_000).toISOString();
+    const lidtOver = new Date(NOW.getTime() - 30 * 86_400_000 - 1).toISOString();
+    expect(deriveFocus(base({ tjekliste, medlemSiden: praecis }))[0].kind).toBe("tjekliste");
+    expect(deriveFocus(base({ tjekliste, medlemSiden: lidtOver })).map((i) => i.kind)).not.toContain("tjekliste");
+  });
+
+  it("erfaren med FÆRDIG tjekliste → identisk med ny med færdig tjekliste (erfaringen ændrer kun den uafsluttede gren)", () => {
+    const efter = byggTjekliste(tjeklisteAltGjort());
+    expect(deriveFocus(base({ tjekliste: efter, medlemSiden: otteMaaneder, unreadUserMessages: 1 }))).toEqual(
+      deriveFocus(base({ tjekliste: efter, medlemSiden: femDage, unreadUserMessages: 1 })),
+    );
+  });
+});
+
 describe("deriveNextStep — wrapper-regressionsværn (de fire oprindelige kilder)", () => {
   const old = (overrides: Partial<NextStepInputs> = {}): NextStepInputs => ({
     now: NOW,

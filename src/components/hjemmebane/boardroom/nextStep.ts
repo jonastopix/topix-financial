@@ -1,6 +1,7 @@
 import { DANISH_MONTHS } from "@/lib/financialUtils";
 import { PROFIL_STI } from "@/lib/hjemmebane/profilUdfyldt";
 import type { Tjekliste } from "@/lib/onboardingTjekliste";
+import { tjeklistenStyrerForsiden } from "@/lib/hjemmebane/ankomst";
 
 /** FOKUS-MOTOREN (forside PR 1, hb-forside-recon §D/§G): ÉN samlet,
     testbar prioriteringsdom for forsidens lag 1 — nu som PRIORITERET
@@ -26,6 +27,10 @@ import type { Tjekliste } from "@/lib/onboardingTjekliste";
     rækkefølge (TJEKLISTE_RAEKKEFOELGE). Når alle punkter er gjort,
     gælder prioriteringen (a)-(i) nedenfor som hidtil. Uden tjekliste
     (kalderen sender ingen — rådgivere, legacy) gælder (a)-(i) direkte.
+    ERFARNE MEDLEMMER (30/9): er medlemmet kommet ind for mere end 30
+    døgn siden (medlemSiden), slipper tjeklisten kortet, og (a)-(i)
+    gælder — dommen og begrundelsen er tjeklistenStyrerForsiden i
+    src/lib/hjemmebane/ankomst.ts, den samme som overskrift og pille.
 
     PRIORITERINGSRÆKKEFØLGEN (arkitekt-beslutning, fast — aldrig
     tilfældig tie-break):
@@ -128,6 +133,11 @@ export interface FocusInputs extends NextStepInputs {
       udeladt/null = ingen tjekliste = (a)-(i) direkte. Trin 9 kobler
       useOnboardingTjekliste på. */
   tjekliste?: Tjekliste | null;
+  /** profiles.created_at (TjeklisteInput.medlem_siden) — personens dag 0.
+      Mere end 30 døgn før `now` = erfarent medlem = tjeklisten slipper
+      kortet (tjeklistenStyrerForsiden). Valgfri: udeladt/null = ny = som
+      før 30/9. */
+  medlemSiden?: string | null;
 }
 
 export type FocusKind =
@@ -211,8 +221,10 @@ export function deriveFocus(inputs: FocusInputs): FocusItem[] {
   // kommer med (første = #1). Titel/beskrivelse/sti genbruges som
   // title/description/ctaHref. Listen returneres HER: mens man er ved at
   // komme ind, konkurrerer intet andet om kortet (§5). Færdig tjekliste
-  // (eller ingen) → falder igennem til (a)-(i).
-  if (inputs.tjekliste && !inputs.tjekliste.faerdig) {
+  // (eller ingen) → falder igennem til (a)-(i). Et ERFARENT medlem (30/9,
+  // mere end 30 døgn siden medlemSiden) falder også igennem — samme dom som
+  // overskriften og pillen (tjeklistenStyrerForsiden, ankomst.ts).
+  if (inputs.tjekliste && tjeklistenStyrerForsiden(inputs.tjekliste, inputs.medlemSiden, now)) {
     for (const punkt of inputs.tjekliste.punkter) {
       if (punkt.gjort) continue;
       items.push({

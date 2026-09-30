@@ -18,8 +18,9 @@
  *    ud af boksen — hashen kræver ingen ny kobling mellem søskende.
  *
  * 2. PILLEN TRÆKKER SIG — KUN på forsiden, og KUN når fokuskortet FAKTISK
- *    viser tjeklisten. Dommen er den samme som motorens (nextStep.ts:221):
- *    `tjekliste && !tjekliste.faerdig`. Er tjeklisten færdig, viser kortet
+ *    viser tjeklisten. Dommen er den samme som motorens:
+ *    tjeklistenStyrerForsiden (afsnit 4). Er tjeklisten færdig — eller er
+ *    medlemmet erfarent (30/9) — viser kortet
  *    noget andet, og boksen opfører sig som i dag (lykønskningen). På alle
  *    andre sider bliver pillen stående: der er intet fokuskort dér, og
  *    pillen er det eneste der minder medlemmet om hvad der mangler. Kun
@@ -47,16 +48,87 @@ export function fokusCtaHref(item: { kind: string; ctaHref: string }): string {
 }
 
 /**
+ * 4. ERFARNE MEDLEMMER SLIPPES (30/9, værdivurderingen før live-sessionen
+ *    1/10): tjeklisten blev vist for ALLE medlemmer, og «Din profil» kræver
+ *    ask_me_about + foto, som 0 af 8 gamle og 1 af 17 nye havde (målt i prod
+ *    30/9). Så længe listen var ufærdig, var den fokuskortets ENESTE kilde, og
+ *    overskriften sagde «Velkommen» — et medlem, der har været med i 8
+ *    måneder, så «Din profil» som næste skridt og aldrig «Godkend dine
+ *    augusttal». Nu styrer tjeklisten KUN forsiden for et medlem, der er
+ *    kommet ind for højst ERFAREN_EFTER_DAGE døgn siden. For de erfarne
+ *    falder fokusmotoren igennem til (a)-(i), overskriften bruger
+ *    tidshilsenen, og tjeklisten står, hvor den står på alle andre sider:
+ *    pillen/boksen nederst og «Kom godt i gang» i menuen (pillen trækker
+ *    sig IKKE for dem — kortet viser ikke listen).
+ *
+ *    KILDEN er profiles.created_at (TjeklisteInput.medlem_siden, hentet af
+ *    useOnboardingTjekliste i samme opslag som velkomsten — ingen ny
+ *    forespørgsel, samme kilde som grænsen DELING_PUNKT_FRA). Den er
+ *    PERSONENS dag 0 (sat af handle_new_user; ingen kodevej skriver den
+ *    igen er kendt — ikke målt ud over de 30 rækker nedenfor). Fravalgt,
+ *    målt i prod 30/9 (30 medlemskonti):
+ *      - companies.contract_start_date: VIRKSOMHEDENS, ikke personens (en
+ *        kollega tilføjet 28/9 til en virksomhed med kontrakt 15/9 ville
+ *        dømmes efter virksomheden); null for 2 af 30; og den flytter sig —
+ *        Warburg står med 2026-06-26 og KJ Auto med 2026-05-20, men deres
+ *        profiler er fra 4/3 og 11/3.
+ *      - første login: auth.users.created_at er dag for dag lig
+ *        profiles.created_at i alle 30 rækker — ingen ny viden for en
+ *        ekstra forespørgsel.
+ *
+ *    NULL/UGYLDIG = NY (tjeklisten styrer som hidtil). Fejlen i den retning
+ *    er, at en erfaren ser listen som før 30/9 — kendt og synlig. Fejlen i
+ *    den anden retning ville skjule ankomsten for et nyt medlem, hvis dato
+ *    ikke kunne læses, uden at nogen opdagede det. Målt 30/9: alle 30 har
+ *    datoen.
+ *
+ *    GRÆNSEN: MERE end 30 døgn (30 × 86 400 000 ms) mellem medlem_siden og
+ *    nu. Kommet ind 30/9 kl. 10:00 → ny til og med 30/10 kl. 10:00:00,000,
+ *    erfaren fra ,001. En måned er én rapportrytme: efter den er
+ *    fokuskortets tal-punkter vigtigere end ankomsten. En dato i fremtiden
+ *    (ur-skævhed) giver en negativ forskel = ny.
+ */
+export const ERFAREN_EFTER_DAGE = 30;
+const DOEGN_MS = 86_400_000;
+
+export function erErfarentMedlem(medlemSiden: string | null | undefined, nu: Date): boolean {
+  if (!medlemSiden) return false;
+  const t = new Date(medlemSiden).getTime();
+  if (!Number.isFinite(t)) return false;
+  return nu.getTime() - t > ERFAREN_EFTER_DAGE * DOEGN_MS;
+}
+
+/**
+ * Styrer tjeklisten forsiden (fokuskortets eneste kilde + «Velkommen»)?
+ * Ja, præcis når der ER en tjekliste, den ikke er færdig, og medlemmet
+ * ikke er erfarent. ÉN dom, brugt af fokusmotoren (nextStep.ts),
+ * overskriften (BoardroomView) og pillen (pillenTraekkerSig) — så kortet,
+ * hilsenen og pillen aldrig er uenige.
+ */
+export function tjeklistenStyrerForsiden(
+  tjekliste: { faerdig: boolean } | null | undefined,
+  medlemSiden: string | null | undefined,
+  nu: Date,
+): boolean {
+  return Boolean(tjekliste) && !tjekliste!.faerdig && !erErfarentMedlem(medlemSiden, nu);
+}
+
+/**
  * Skal den sammenfoldede pille trække sig? Ja, præcis når (a) man står
  * på forsiden («boardroom» i HbMemberShells `active`), og (b) fokuskortet
- * viser tjeklisten — samme dom som nextStep.ts:221. `active` er skallens
- * eneste viden om ruten; boksen får dommen som prop.
+ * viser tjeklisten — tjeklistenStyrerForsiden, samme dom som motoren.
+ * For et erfarent medlem viser kortet ikke listen, så pillen bliver
+ * stående (ellers stod listen intetsteds på forsiden). `active` er
+ * skallens eneste viden om ruten; boksen får dommen som prop. medlemSiden
+ * udeladt/null = ny = som før 30/9.
  */
 export function pillenTraekkerSig(
   active: string,
   tjekliste: { faerdig: boolean } | null | undefined,
+  medlemSiden: string | null = null,
+  nu: Date = new Date(),
 ): boolean {
-  return active === "boardroom" && Boolean(tjekliste) && !tjekliste!.faerdig;
+  return active === "boardroom" && tjeklistenStyrerForsiden(tjekliste, medlemSiden, nu);
 }
 
 /**

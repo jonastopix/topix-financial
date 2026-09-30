@@ -115,10 +115,12 @@ export const HbMemberShell = ({
   const tjeklisteBundluft = tjeklisteUdfoldet && boksMonteres ? "pb-[72vh] lg:pb-[30rem]" : "";
   const tjeklisteFornavn = profile?.full_name?.trim().split(/\s+/)[0] || null;
   // Pillen trækker sig KUN på forsiden, og KUN når fokuskortet faktisk
-  // viser tjeklisten (samme dom som nextStep.ts:221). Skallen er den
+  // viser tjeklisten (tjeklistenStyrerForsiden — samme dom som motoren).
+  // Et erfarent medlem (30/9, > 30 døgn siden medlemSiden) får ikke listen
+  // i kortet, så pillen bliver stående dér. Skallen er den
   // eneste der kender ruten (`active`), så dommen falder her og gives til
   // boksen som prop (src/lib/hjemmebane/ankomst.ts, §10 3/9).
-  const tjeklistePilleTraekkerSig = pillenTraekkerSig(active, tjeklisteData.tjekliste);
+  const tjeklistePilleTraekkerSig = pillenTraekkerSig(active, tjeklisteData.tjekliste, tjeklisteData.medlemSiden, new Date());
   // Menupunktet vises kun for medlemmer, og kun når listen ikke er færdig
   // ELLER medlemmet selv har lukket den (så den kan hentes frem igen).
   const komGodtIGang =
