@@ -3,18 +3,29 @@ import {
   afgoerOvergang,
   byggDokument,
   dokumentTekst,
+  FEED_FRIST_MS,
+  FEED_MAKS_BYTES,
+  filtrerVaerter,
   FORAELDET_TAG_MS,
   JOB_TIMEOUT_MS,
   KILDER,
+  laesKropMedLoft,
+  LINK_MOENSTER,
+  linksIDokument,
   LLM_TIMEOUT_MS,
   MAKS_LLM_KALD,
   MAKS_PUNKTER,
   MARGIN_MS,
   maaStarteLlmKald,
   normaliserUrl,
+  paaVaertslisten,
   parseFeed,
   rensTekst,
+  talIkkeIKilden,
   talITekst,
+  traadFraForsoeget,
+  traadKanKnyttes,
+  type TraadSpor,
   udvaelgIVindue,
   ugeNoegle,
   vaelgTilUdkast,
@@ -88,6 +99,69 @@ describe("kilderne", () => {
       expect(k.maalt).toMatch(/WebFetch 30\/9-2026: gyldigt (RSS|Atom)/);
     }
     expect(new Set(KILDER.map((k) => k.noegle)).size).toBe(KILDER.length);
+  });
+  it("hver kilde har en ikke-tom værtsliste med små bogstaver (fund 3)", () => {
+    for (const k of KILDER) {
+      expect(k.vaerter.length).toBeGreaterThan(0);
+      for (const v of k.vaerter) expect(v).toBe(v.toLowerCase());
+    }
+  });
+});
+
+describe("værtslisten (fund 3)", () => {
+  it("præcis match på værtsnavnet; en anden vært, en undervært og et ugyldigt link er et nej", () => {
+    expect(paaVaertslisten("https://nemhandel.dk/nyheder/x", ["nemhandel.dk"])).toBe(true);
+    expect(paaVaertslisten("https://NEMHANDEL.dk/x", ["nemhandel.dk"])).toBe(true);
+    expect(paaVaertslisten("https://evil.dk/nemhandel.dk", ["nemhandel.dk"])).toBe(false);
+    expect(paaVaertslisten("https://nemhandel.dk.evil.dk/x", ["nemhandel.dk"])).toBe(false);
+    expect(paaVaertslisten("https://version2.dk/artikel/x", ["www.version2.dk"])).toBe(false);
+    expect(paaVaertslisten("ikke en url", ["nemhandel.dk"])).toBe(false);
+  });
+  it("filtrerVaerter kasserer emner med fremmed vært og tæller dem", () => {
+    const e = parseFeed(RSS, "nemhandel");
+    const fremmed = { ...e[0], url: "https://phishing.example/e-faktura" };
+    const d = filtrerVaerter([...e, fremmed], ["nemhandel.dk"]);
+    expect(d.godkendt).toHaveLength(e.length);
+    expect(d.kasseret).toBe(1);
+    expect(d.godkendt.some((x) => x.url.includes("phishing"))).toBe(false);
+  });
+});
+
+/** En strøm med de givne bidder (bytes). */
+const stroem = (bidder: Uint8Array[]) => new ReadableStream<Uint8Array>({
+  start(c) { for (const b of bidder) c.enqueue(b); c.close(); },
+});
+
+describe("feed-kroppen: loft og frist (fund 8)", () => {
+  it("loftet er 2 MB, og fristen er 2 × 10 000 + 500 ms", () => {
+    expect(FEED_MAKS_BYTES).toBe(2 * 1024 * 1024);
+    expect(FEED_FRIST_MS).toBe(20_500);
+  });
+  it("en krop under loftet læses hel (også æøå over bidgrænser)", async () => {
+    const b = new TextEncoder().encode("<rss>æøå</rss>");
+    const d = await laesKropMedLoft(stroem([b.slice(0, 6), b.slice(6)]), 1000, Date.now() + 10_000);
+    expect(d).toEqual({ ok: true, tekst: "<rss>æøå</rss>" });
+  });
+  it("én byte over loftet kasserer HELE kroppen", async () => {
+    const d = await laesKropMedLoft(stroem([new Uint8Array(600), new Uint8Array(401)]), 1000, Date.now() + 10_000);
+    expect(d).toEqual({ ok: false, fejl: "for_stor" });
+    const præcis = await laesKropMedLoft(stroem([new Uint8Array(600), new Uint8Array(400)]), 1000, Date.now() + 10_000);
+    expect(præcis.ok).toBe(true);
+  });
+  it("fristen passeret før læsningen → for_langsom", async () => {
+    const d = await laesKropMedLoft(stroem([new Uint8Array(1)]), 1000, 1000, () => 1001);
+    expect(d).toEqual({ ok: false, fejl: "for_langsom" });
+  });
+  it("tiden tjekkes igen EFTER læsningen: kroppen nåede ind, men fristen gik under sidste bid", async () => {
+    let t = 0;
+    const ur = () => { t += 400; return t; }; // 400, 800, 1200 … — fristen 1000 passeres efter sidste bid
+    const d = await laesKropMedLoft(stroem([new Uint8Array(1)]), 1000, 1000, ur);
+    expect(d).toEqual({ ok: false, fejl: "for_langsom" });
+  });
+  it("en strøm, der aldrig svarer, afbrydes ved fristen", async () => {
+    const haenger = new ReadableStream<Uint8Array>({ start() { /* intet */ } });
+    const d = await laesKropMedLoft(haenger, 1000, Date.now() + 50);
+    expect(d).toEqual({ ok: false, fejl: "for_langsom" });
   });
 });
 
@@ -165,6 +239,23 @@ describe("udkastet (skema-, kilde- og tal-dommen)", () => {
     expect(validerUdkast({ ...GODT, titel: "Uge 40: tre nyheder" }, VALGTE).ok).toBe(false);
     expect(validerUdkast({ ...GODT, afslutning: "Vi ses om 7 dage." }, VALGTE).ok).toBe(false);
   });
+  it("talværnet sammenligner HELE tal: «6» og «20» står ikke i «2026» (fund 1)", () => {
+    expect(talIkkeIKilden("Frist 6. juni", "Høringsfrist juni 2026")).toEqual(["6"]);
+    expect(talIkkeIKilden("20 virksomheder", "Høringsfrist 22. oktober 2026")).toEqual(["20"]);
+    expect(talIkkeIKilden("Frist 22. oktober 2026", "Høringsfrist 22. oktober 2026")).toEqual([]);
+    expect(talIkkeIKilden("1.000 kr.", "10.000 kr.")).toEqual(["1.000"]);
+    const d = validerUdkast({ ...GODT, punkter: [GODT.punkter[0], { ...GODT.punkter[1], tekst: "Høringsfristen er 20. oktober 2026." }, GODT.punkter[2]] }, VALGTE);
+    expect(d.ok).toBe(false);
+    expect(((d as { fejl?: string[] }).fejl ?? []).join(" ")).toMatch(/«20» står ikke i kilden/);
+    const seks = validerUdkast({ ...GODT, punkter: [GODT.punkter[0], { ...GODT.punkter[1], betydning: "Svar inden 6 uger — 2026 er året." }, GODT.punkter[2]] }, VALGTE);
+    expect(((seks as { fejl?: string[] }).fejl ?? []).join(" ")).toMatch(/«6» står ikke i kilden/);
+  });
+  it("LINK_MOENSTER fanger også @-adresser og domæner uden www (fund 5)", () => {
+    for (const t of ["skriv til info@skat.dk", "se skat.dk", "på virk.dk/regler", "læs Version2.dk", "europa.eu", "x@y"]) expect(LINK_MOENSTER.test(t)).toBe(true);
+    for (const t of ["Spørg dit regnskabsprogram, om det er klar.", "f.eks. EU-regler", "Høringsfristen er 22. oktober 2026."]) expect(LINK_MOENSTER.test(t)).toBe(false);
+    expect(validerUdkast({ ...GODT, punkter: [{ ...GODT.punkter[2], betydning: "Skriv til info@virk.dk" }, ...GODT.punkter.slice(0, 2)] }, VALGTE).ok).toBe(false);
+    expect(validerUdkast({ ...GODT, afslutning: "Se mere på skat.dk" }, VALGTE).ok).toBe(false);
+  });
   it("et link skrevet af modellen afvises — linket sætter vi selv", () => {
     expect(validerUdkast({ ...GODT, punkter: [{ ...GODT.punkter[2], betydning: "Læs mere på https://x.dk" }, ...GODT.punkter.slice(0, 2)] }, VALGTE).ok).toBe(false);
     expect(validerUdkast({ ...GODT, indledning: "Se www.skat.dk" }, VALGTE).ok).toBe(false);
@@ -217,9 +308,11 @@ describe("afgørelsen (tilstandsovergangene)", () => {
     expect(afgoerOvergang(taget, "tag", "morten", nu)).toMatchObject({ ok: false, http: 409 });
     expect(afgoerOvergang({ ...kladde, status: "godkendt" }, "afvis", "jonas", nu)).toMatchObject({ ok: false, http: 409 });
   });
-  it("publiceret kun af den, der tog udkastet", () => {
+  it("publiceret af den, der tog udkastet — en anden først efter 10 minutter («Markér som publiceret»)", () => {
     expect(afgoerOvergang(taget, "publiceret", "jonas", nu)).toEqual({ ok: true, til: "godkendt" });
     expect(afgoerOvergang(taget, "publiceret", "morten", nu)).toMatchObject({ ok: false, http: 403 });
+    const senere = new Date(new Date(taget.afgjort_at).getTime() + FORAELDET_TAG_MS);
+    expect(afgoerOvergang(taget, "publiceret", "morten", senere)).toEqual({ ok: true, til: "godkendt" });
     expect(afgoerOvergang(kladde, "publiceret", "jonas", nu)).toMatchObject({ ok: false, http: 409 });
   });
   it("slip: den, der tog det, altid — en anden først efter 10 minutter", () => {
@@ -227,5 +320,42 @@ describe("afgørelsen (tilstandsovergangene)", () => {
     expect(afgoerOvergang(taget, "slip", "morten", nu)).toMatchObject({ ok: false, http: 403 });
     const senere = new Date(new Date(taget.afgjort_at).getTime() + FORAELDET_TAG_MS);
     expect(afgoerOvergang(taget, "slip", "morten", senere)).toEqual({ ok: true, til: "kladde" });
+  });
+});
+
+describe("tråden fra publiceringsforsøget (fund 2 og 7)", () => {
+  const u = { id: "u1", titel: "Ugens nyt", afgjort_af: "jonas", afgjort_at: "2026-09-28T07:58:00Z", kildeUrls: ["https://nemhandel.dk/n1"] };
+  const doc = (href: string) => ({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Kilde", marks: [{ type: "link", attrs: { href } }] }] }] });
+  const traad = (o: Partial<TraadSpor>): TraadSpor => ({ id: "t1", forfatter_id: "jonas", titel: "Ugens nyt", created_at: "2026-09-28T07:59:00Z", indhold_json: doc("https://andet.dk"), ...o });
+  const ingen = new Set<string>();
+
+  it("samme forfatter, efter «tag», samme titel → trådens id", () => {
+    expect(traadFraForsoeget(u, [traad({})], ingen)).toBe("t1");
+    expect(traadFraForsoeget(u, [traad({ titel: "  Ugens nyt " })], ingen)).toBe("t1");
+  });
+  it("rettet titel, men udkastets eget kildelink → trådens id", () => {
+    expect(traadFraForsoeget(u, [traad({ titel: "Rettet", indhold_json: doc("https://nemhandel.dk/n1") })], ingen)).toBe("t1");
+    expect(traadFraForsoeget(u, [traad({ titel: "Rettet" })], ingen)).toBeNull();
+  });
+  it("en anden forfatter, en tråd FØR «tag» og en tråd, der er et andet udkasts, tæller ikke", () => {
+    expect(traadFraForsoeget(u, [traad({ forfatter_id: "morten" })], ingen)).toBeNull();
+    expect(traadFraForsoeget(u, [traad({ created_at: "2026-09-28T07:57:59Z" })], ingen)).toBeNull();
+    expect(traadFraForsoeget(u, [traad({})], new Set(["t1"]))).toBeNull();
+    expect(traadFraForsoeget({ ...u, afgjort_af: null }, [traad({})], ingen)).toBeNull();
+  });
+  it("flere → den nyeste", () => {
+    expect(traadFraForsoeget(u, [traad({ id: "a", created_at: "2026-09-28T07:59:00Z" }), traad({ id: "b", created_at: "2026-09-28T08:01:00Z" })], ingen)).toBe("b");
+  });
+  it("linksIDokument finder link-marks i dybden", () => {
+    expect(linksIDokument(doc("https://x.dk/1"))).toEqual(["https://x.dk/1"]);
+    expect(linksIDokument(null)).toEqual([]);
+  });
+  it("traadKanKnyttes: forfatteren = den, der tog; efter «tag»; ikke et andet udkasts", () => {
+    const uk = { afgjort_af: "jonas", afgjort_at: "2026-09-28T07:58:00Z" };
+    expect(traadKanKnyttes(uk, { forfatter_id: "jonas", created_at: "2026-09-28T07:58:00Z" }, false)).toBeNull();
+    expect(traadKanKnyttes(uk, { forfatter_id: "morten", created_at: "2026-09-28T07:59:00Z" }, false)).toMatchObject({ http: 403 });
+    expect(traadKanKnyttes(uk, { forfatter_id: "jonas", created_at: "2026-09-28T07:57:00Z" }, false)).toMatchObject({ http: 409 });
+    expect(traadKanKnyttes(uk, { forfatter_id: "jonas", created_at: "2026-09-28T07:59:00Z" }, true)).toMatchObject({ http: 409 });
+    expect(traadKanKnyttes({ afgjort_af: null, afgjort_at: null }, { forfatter_id: "jonas", created_at: "2026-09-28T07:59:00Z" }, false)).toMatchObject({ http: 403 });
   });
 });

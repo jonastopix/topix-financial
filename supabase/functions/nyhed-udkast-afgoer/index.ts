@@ -18,9 +18,16 @@
 //   tag         kladde → publiceres   FØR tråden oprettes (to rådgivere kan ikke
 //                                     publicere samme uge to gange)
 //   publiceret  publiceres → godkendt EFTER tråden er oprettet; tråden skal findes,
-//                                     og kalderen skal være dens forfatter
+//                                     være skrevet af den, der TOG udkastet, efter
+//                                     «tag», og ikke høre til et andet udkast
+//                                     (traadKanKnyttes). Efter 10 min må en anden
+//                                     rådgiver «markere som publiceret».
 //   slip        publiceres → kladde   hvis oprettelsen fejlede (eller fanen blev
-//                                     lukket — en anden kan slippe efter 10 min)
+//                                     lukket — en anden kan slippe efter 10 min).
+//                                     AFVISES med 409 + traad_id, hvis forsøget
+//                                     FIK oprettet en tråd (traadFraForsoeget) —
+//                                     ellers gav «Frigiv» + ny publicering en tråd
+//                                     til og notifikationer til alle igen.
 //   afvis       kladde → afvist
 // Hver skrivning er guardet på den nuværende status, så et kapløb rammer nul
 // rækker (409) i stedet for at overskrive.
@@ -30,7 +37,16 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { ukendteFelter, ukendteFelterBesked } from "../_shared/kendteFelter.ts";
-import { afgoerOvergang, dokumentTekst, HANDLINGER, type Handling, type Status } from "../_shared/nyhedAgent.ts";
+import {
+  afgoerOvergang,
+  dokumentTekst,
+  HANDLINGER,
+  type Handling,
+  type Status,
+  traadFraForsoeget,
+  traadKanKnyttes,
+  type TraadSpor,
+} from "../_shared/nyhedAgent.ts";
 
 /** De felter, body'en må have. Alt andet afvises med 400 (bodyFelter.guard: STRIKS). */
 export const KENDTE_FELTER = ["handling", "udkast_id", "traad_id", "grund"] as const;
@@ -71,12 +87,12 @@ Deno.serve(async (req) => {
   // ── 4. Udkastet med KALDERENS klient (RLS) ──
   const { data: udkast, error: udkastFejl } = await callerClient
     .from("nyhed_udkast")
-    .select("id, titel, indhold_json, status, afgjort_af, afgjort_at")
+    .select("id, titel, indhold_json, kilder, status, afgjort_af, afgjort_at")
     .eq("id", udkastId)
     .maybeSingle();
   if (udkastFejl) return json({ error: `nyhed_udkast: ${udkastFejl.message}` }, 500);
   if (!udkast) return json({ error: "Udkastet findes ikke" }, 404);
-  const u = udkast as { id: string; titel: string; indhold_json: unknown; status: Status; afgjort_af: string | null; afgjort_at: string | null };
+  const u = udkast as { id: string; titel: string; indhold_json: unknown; kilder: unknown; status: Status; afgjort_af: string | null; afgjort_at: string | null };
 
   const nu = new Date();
   const dom = afgoerOvergang(u, handling as Handling, callerId, nu);
@@ -88,22 +104,63 @@ Deno.serve(async (req) => {
     case "tag":
       patch = { status: dom.til, afgjort_af: callerId, afgjort_at: nu.toISOString() };
       break;
-    case "slip":
+    case "slip": {
+      // Fik forsøget oprettet en tråd? Så må udkastet ikke frigives (ny tråd + nye notifikationer).
+      if (u.afgjort_af && u.afgjort_at) {
+        const { data: traade, error: traadeFejl } = await callerClient
+          .from("community_traade")
+          .select("id, forfatter_id, titel, created_at, indhold_json")
+          .eq("forfatter_id", u.afgjort_af)
+          .gte("created_at", u.afgjort_at)
+          .order("created_at", { ascending: false })
+          .limit(20);
+        if (traadeFejl) return json({ error: `community_traade: ${traadeFejl.message}` }, 500);
+        const liste = (traade ?? []) as TraadSpor[];
+        let andre = new Set<string>();
+        if (liste.length > 0) {
+          const { data: knyttet, error: knyttetFejl } = await callerClient
+            .from("nyhed_udkast")
+            .select("id, traad_id")
+            .in("traad_id", liste.map((t) => t.id))
+            .neq("id", u.id);
+          if (knyttetFejl) return json({ error: `nyhed_udkast: ${knyttetFejl.message}` }, 500);
+          andre = new Set(((knyttet ?? []) as { traad_id: string }[]).map((x) => x.traad_id));
+        }
+        const kildeUrls = Array.isArray(u.kilder) ? (u.kilder as { url?: unknown }[]).map((k) => k?.url).filter((x): x is string => typeof x === "string") : [];
+        const fundet = traadFraForsoeget({ id: u.id, titel: u.titel, afgjort_af: u.afgjort_af, afgjort_at: u.afgjort_at, kildeUrls }, liste, andre);
+        if (fundet) {
+          return json({
+            error: "Tråden blev oprettet — udkastet kan ikke frigives. Markér det som publiceret.",
+            status: u.status,
+            traad_id: fundet,
+            kode: "traad_findes",
+          }, 409);
+        }
+      }
       patch = { status: dom.til, afgjort_af: null, afgjort_at: null };
       break;
+    }
     case "afvis":
       patch = { status: dom.til, afgjort_af: callerId, afgjort_at: nu.toISOString(), afvist_grund: grund };
       break;
     case "publiceret": {
       const { data: traad, error: traadFejl } = await callerClient
         .from("community_traade")
-        .select("id, forfatter_id, titel, indhold_json")
+        .select("id, forfatter_id, titel, created_at, indhold_json")
         .eq("id", traadId as string)
         .maybeSingle();
       if (traadFejl) return json({ error: `community_traade: ${traadFejl.message}` }, 500);
-      const t = traad as { id: string; forfatter_id: string; titel: string; indhold_json: unknown } | null;
+      const t = traad as TraadSpor | null;
       if (!t) return json({ error: "Tråden findes ikke" }, 404);
-      if (t.forfatter_id !== callerId) return json({ error: "Tråden er ikke skrevet af dig" }, 403);
+      const { data: andetUdkast, error: andetFejl } = await callerClient
+        .from("nyhed_udkast")
+        .select("id")
+        .eq("traad_id", t.id)
+        .neq("id", u.id)
+        .limit(1);
+      if (andetFejl) return json({ error: `nyhed_udkast: ${andetFejl.message}` }, 500);
+      const afvist = traadKanKnyttes(u, t, (andetUdkast ?? []).length > 0);
+      if (afvist) return json({ error: afvist.fejl }, afvist.http);
       // «Godkendt uændret» (arkitekturen §1.3 pkt. 1): samme titel og samme tekst i dokumentorden.
       const uaendret = t.titel.trim() === u.titel.trim() && dokumentTekst(t.indhold_json) === dokumentTekst(u.indhold_json);
       patch = { status: dom.til, traad_id: t.id, afgjort_at: nu.toISOString(), uaendret };
@@ -120,8 +177,8 @@ Deno.serve(async (req) => {
     .update({ ...patch, updated_at: nu.toISOString() })
     .eq("id", u.id)
     .eq("status", u.status);
-  // «publiceret» kun for den, der TOG udkastet — også hvis det er sluppet og taget af en anden imellem læsning og skrivning.
-  if (handling === "publiceret") opdatering = opdatering.eq("afgjort_af", callerId);
+  // «publiceret» og «slip» kun på det tag, dommen så — også hvis det er sluppet og taget af en anden imellem læsning og skrivning.
+  if (handling === "publiceret" || handling === "slip") opdatering = opdatering.eq("afgjort_af", u.afgjort_af as string);
   const { data: skrevet, error: skrivFejl } = await opdatering.select("id, status, traad_id, uaendret");
   if (skrivFejl) return json({ error: `nyhed_udkast: ${skrivFejl.message}` }, 500);
   if (!skrevet || skrevet.length === 0) return json({ error: "Udkastet blev ændret af en anden imens — hent siden igen" }, 409);

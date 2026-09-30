@@ -29,6 +29,17 @@ import { NYHED_AGENT_SKIVE, TYPE_NYHED_UDKAST_KLAR } from "../../../supabase/fun
  *   8. MIGRATIONERNE: første linje præcis husets; cron-filens første linje
  *      «KØRES FØRST EFTER UDRULNING OG TØRKØRSEL.»; timeout = JOB_TIMEOUT_MS.
  *   9. KLOKKEN har plads i MORGEN-listen og fører til /nyheder.
+ *  10. INGEN DOBBELT TRÅD (det tekniske råd 30/9, fund 2 og 7): «slip» spørger
+ *      traadFraForsoeget FØR udkastet frigives og svarer 409 «traad_findes» +
+ *      traad_id; «publiceret» dømmer tråden med traadKanKnyttes; fladen kaster
+ *      TraadFindesFejl videre fra et afvist slip.
+ *  11. INGEN MAIL SOM STANDARD (fund 4): NYHED_OPSLAG_MAIL = false; nyheds-
+ *      opslaget kalder notificerNytOpslag med udenMail: !NYHED_OPSLAG_MAIL;
+ *      notify-community-opslag giver «info» KUN for udenMail === true; alle
+ *      andre opslag (CommunityView) sender body'en som før.
+ *  12. FEEDET (fund 3 og 8): kroppen læses KUN gennem laesKropMedLoft (loft
+ *      2 MB, frist, tiden tjekket igen efter læsningen), og emnerne går
+ *      gennem filtrerVaerter med kildens egne vaerter, før de bruges.
  */
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -43,6 +54,9 @@ const MIG = "supabase/migrations/20260930170000_nyhedsagent.sql";
 const MIG_CRON = "supabase/migrations/20260930171000_nyhedsagent_cron.sql";
 const KLOKKE = "src/lib/hjemmebane/klokke.ts";
 const MOTOR = "supabase/functions/_shared/nyhedAgent.ts";
+const OPSLAG = "supabase/functions/notify-community-opslag/index.ts";
+const COMMUNITY_API = "src/lib/hjemmebane/communityApi.ts";
+const COMMUNITY_VIEW = "src/components/hjemmebane/community/CommunityView.tsx";
 
 // ── 1 ──
 const TILLADTE_SKRIVEMAAL = ["nyhed_emne", "nyhed_udkast", "nyhed_agent_koersel"];
@@ -57,9 +71,12 @@ export function klikketErEnesteVej(api: string): boolean {
   const tag = k.indexOf('await afgoer({ handling: "tag"');
   const opret = k.indexOf("traadId = await opretTraad(");
   const publiceret = k.indexOf('await afgoer({ handling: "publiceret"');
-  const naevn = k.indexOf("await notificerNaevnelser({ traadId });");
-  const opslag = k.indexOf("await notificerNytOpslag(traadId);");
-  return tag !== -1 && tag < opret && opret < publiceret && publiceret < naevn && naevn < opslag && (k.match(/opretTraad\(/g) ?? []).length === 1;
+  const notificer = k.indexOf("await notificerNyhedsopslag(traadId);");
+  const fn = k.indexOf("async function notificerNyhedsopslag(");
+  const naevnIFn = k.indexOf("await notificerNaevnelser({ traadId });", fn);
+  const opslag = k.indexOf("await notificerNytOpslag(traadId, { udenMail: !NYHED_OPSLAG_MAIL });", fn);
+  return tag !== -1 && tag < opret && opret < publiceret && publiceret < notificer && notificer < fn &&
+    fn !== -1 && fn < naevnIFn && naevnIFn < opslag && (k.match(/opretTraad\(/g) ?? []).length === 1;
 }
 
 // ── 2 ──
@@ -117,8 +134,10 @@ export function bucketAKlik(afgoer: string): boolean {
   const laes = i('await callerClient\n    .from("nyhed_udkast")');
   const admin = i("createClient(");
   return auth !== -1 && auth < rolle && rolle < laes && laes < admin &&
-    k.includes('.eq("status", u.status);') && k.includes('if (handling === "publiceret") opdatering = opdatering.eq("afgjort_af", callerId);') &&
-    k.includes("if (t.forfatter_id !== callerId)") && !/afgjort_af: body|afgjort_af: \(body/.test(k) &&
+    k.includes('.eq("status", u.status);') &&
+    k.includes('if (handling === "publiceret" || handling === "slip") opdatering = opdatering.eq("afgjort_af", u.afgjort_af as string);') &&
+    k.includes("const afvist = traadKanKnyttes(u, t, ") && k.includes("if (afvist) return json({ error: afvist.fejl }, afvist.http);") &&
+    !/afgjort_af: body|afgjort_af: \(body/.test(k) &&
     !/opret_community_traad|\.insert\(/.test(k);
 }
 
@@ -127,11 +146,59 @@ export const migrationerneErRigtige = (mig: string, cron: string, motor: string)
   const timeout = motor.match(/export const JOB_TIMEOUT_MS = ([\d_]+);/)?.[1]?.replace(/_/g, "");
   return mig.split("\n")[0] === "-- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik)." &&
     cron.split("\n")[0] === "-- KØRES FØRST EFTER UDRULNING OG TØRKØRSEL." &&
+    // Fund 6: linje 2 må ikke bære husets markør — den, der scanner efter «IKKE KØRT», må ikke køre cron-jobbet med de andre.
+    !cron.split("\n").slice(1).some((l) => l.includes("IKKE KØRT")) &&
     !!timeout && cron.includes(`    ${timeout},`) && cron.includes("'40 4 * * 1'") && cron.includes("'nyhed-agent-cron'") &&
     !/drop\s+(table|policy|function)\s/i.test(mig.split("\n").filter((l) => !/^\s*--/.test(l)).join("\n")) &&
     /for select to authenticated using \(public\.has_role\(auth\.uid\(\), 'advisor'\)\)/.test(mig) &&
     !/for (insert|update|delete|all)/i.test(mig);
 };
+
+// ── 10 ──
+export function ingenDobbeltTraad(afgoer: string, api: string): boolean {
+  const k = udenKommentarer(afgoer);
+  const slip = k.slice(k.indexOf('case "slip": {'), k.indexOf('case "afvis":'));
+  const spurgt = slip.indexOf("const fundet = traadFraForsoeget(");
+  const afvist = slip.indexOf("if (fundet) {");
+  const frigiv = slip.indexOf("patch = { status: dom.til, afgjort_af: null, afgjort_at: null };");
+  const svar = slip.slice(afvist, frigiv);
+  const a = udenKommentarer(api);
+  return spurgt !== -1 && spurgt < afvist && afvist < frigiv &&
+    svar.includes('kode: "traad_findes"') && svar.includes("traad_id: fundet") && /\}, 409\);/.test(svar) &&
+    k.includes('.eq("forfatter_id", u.afgjort_af)') && k.includes('.gte("created_at", u.afgjort_at)') &&
+    a.includes("if (slipFejl instanceof TraadFindesFejl) throw slipFejl;") &&
+    a.includes('if (krop?.kode === "traad_findes" && typeof krop?.traad_id === "string") traadFindes = krop.traad_id;');
+}
+
+// ── 11 ──
+export function ingenMailSomStandard(api: string, opslag: string, communityApi: string, communityView: string): boolean {
+  const a = udenKommentarer(api);
+  const o = udenKommentarer(opslag);
+  const c = udenKommentarer(communityApi);
+  const v = udenKommentarer(communityView);
+  return a.includes("export const NYHED_OPSLAG_MAIL: boolean = false;") &&
+    (a.match(/notificerNytOpslag\(/g) ?? []).length === 1 &&
+    a.includes("await notificerNytOpslag(traadId, { udenMail: !NYHED_OPSLAG_MAIL });") &&
+    o.includes('priority: udenMail === true ? "info" : "important",') &&
+    (o.match(/priority:/g) ?? []).length === 1 &&
+    c.includes("body: valg?.udenMail === true ? { traadId, udenMail: true } : { traadId },") &&
+    v.includes("await notificerNytOpslag(nytId);") && !/udenMail/.test(v);
+}
+
+// ── 12 ──
+export function feedetMedLoftOgVaerter(cron: string, motor: string): boolean {
+  const k = udenKommentarer(cron);
+  const fn = k.slice(k.indexOf("async function hentKilde("), k.indexOf("}\n", k.indexOf("  } catch (err) {", k.indexOf("async function hentKilde("))));
+  const laes = fn.indexOf("const krop = await laesKropMedLoft(res.body, FEED_MAKS_BYTES, start + FEED_FRIST_MS);");
+  const efter = fn.indexOf("if (Date.now() - start > FEED_FRIST_MS)");
+  const vaert = fn.indexOf("filtrerVaerter(parseFeed(krop.tekst, k.noegle), k.vaerter)");
+  const m = udenKommentarer(motor);
+  const kilder = m.slice(m.indexOf("export const KILDER"), m.indexOf("];", m.indexOf("export const KILDER")));
+  const antalKilder = (kilder.match(/\bnoegle: "/g) ?? []).length;
+  return laes !== -1 && laes < efter && efter < vaert && !/\.text\(\)|\.json\(\)|\.arrayBuffer\(\)/.test(fn) &&
+    m.includes("export const FEED_MAKS_BYTES = 2 * 1024 * 1024;") &&
+    antalKilder > 0 && (kilder.match(/\bvaerter: \["[a-z0-9.-]+"/g) ?? []).length === antalKilder;
+}
 
 describe("nyhedsagenten — kildeværn", () => {
   const cron = laes(CRON), afgoer = laes(AFGOER), api = laes(API), agent = laes(AGENT);
@@ -145,7 +212,8 @@ describe("nyhedsagenten — kildeværn", () => {
     expect(cronenPublicererIkke(cron + '\nawait admin.from("community_traade").insert({});\n')).toBe(false);
     expect(cronenPublicererIkke(cron + '\nawait admin.from("notifications").insert({});\n')).toBe(false);
     expect(klikketErEnesteVej(api.replace('await afgoer({ handling: "tag", udkast_id: udkastId });', ""))).toBe(false);
-    expect(klikketErEnesteVej(api.replace("await notificerNytOpslag(traadId);", ""))).toBe(false);
+    expect(klikketErEnesteVej(api.replace("  await notificerNyhedsopslag(traadId);\n  return traadId;\n}\n\n/** Samme", "  return traadId;\n}\n\n/** Samme"))).toBe(false);
+    expect(klikketErEnesteVej(api.replace("await notificerNytOpslag(traadId, { udenMail: !NYHED_OPSLAG_MAIL });", ""))).toBe(false);
   });
 
   it("2. Bucket B, tørkørsel som standard, og intet skrives uden dry_run: false OG låsen", () => {
@@ -184,6 +252,8 @@ describe("nyhedsagenten — kildeværn", () => {
     expect(bucketAKlik(afgoer.split('callerClient.rpc("has_role"').join('callerClient.rpc("noget_andet"'))).toBe(false);
     expect(bucketAKlik(afgoer.replace('.eq("status", u.status);', ";"))).toBe(false);
     expect(bucketAKlik(afgoer + '\nawait adminClient.rpc("opret_community_traad", {});\n')).toBe(false);
+    expect(bucketAKlik(afgoer.replace('if (handling === "publiceret" || handling === "slip") opdatering', 'if (handling === "publiceret") opdatering'))).toBe(false);
+    expect(bucketAKlik(afgoer.replace("if (afvist) return json({ error: afvist.fejl }, afvist.http);", ""))).toBe(false);
   });
 
   it("8. migrationerne: første linjer, kun SELECT-politikker, ingen DROP, cron-timeout = JOB_TIMEOUT_MS", () => {
@@ -191,6 +261,7 @@ describe("nyhedsagenten — kildeværn", () => {
     expect(migrationerneErRigtige(mig, mc, motor)).toBe(true);
     expect(migrationerneErRigtige(mig.replace(/^[^\n]*\n/, "-- Nyhedsagenten.\n"), mc, motor)).toBe(false);
     expect(migrationerneErRigtige(mig, mc.replace(/^[^\n]*\n/, "-- IKKE KØRT.\n"), motor)).toBe(false);
+    expect(migrationerneErRigtige(mig, mc.replace("\n-- Venter. ", "\n-- IKKE KØRT. "), motor)).toBe(false);
     expect(migrationerneErRigtige(mig, mc, motor.replace("export const JOB_TIMEOUT_MS = 140_000;", "export const JOB_TIMEOUT_MS = 120_000;"))).toBe(false);
     expect(migrationerneErRigtige(mig + "\ncreate policy x on public.nyhed_udkast for update to authenticated using (true);\n", mc, motor)).toBe(false);
   });
@@ -198,5 +269,34 @@ describe("nyhedsagenten — kildeværn", () => {
   it("9. klokken er MORGEN og fører til /nyheder", () => {
     expect(klassificer(TYPE_NYHED_UDKAST_KLAR)).toBe("morgen");
     expect(laes(KLOKKE)).toMatch(/case "nyhed_udkast":\s*\n\s*return "\/nyheder";/);
+  });
+
+  it("10. ingen dobbelt tråd: «slip» afvises med 409 traad_findes, når forsøget fik oprettet en tråd", () => {
+    const afgoer = laes(AFGOER), api = laes(API);
+    expect(ingenDobbeltTraad(afgoer, api)).toBe(true);
+    expect(ingenDobbeltTraad(afgoer.replace("if (fundet) {", "if (false) {"), api)).toBe(false);
+    expect(ingenDobbeltTraad(afgoer.replace("    }, 409);", "    }, 200);"), api)).toBe(false);
+    expect(ingenDobbeltTraad(afgoer.replace('.gte("created_at", u.afgjort_at)', '.gte("created_at", "1970-01-01")'), api)).toBe(false);
+    expect(ingenDobbeltTraad(afgoer, api.replace("if (slipFejl instanceof TraadFindesFejl) throw slipFejl;", ""))).toBe(false);
+  });
+
+  it("11. nyhedsopslaget mailer ikke som standard; andre opslag er uændrede", () => {
+    const api = laes(API), opslag = laes(OPSLAG), capi = laes(COMMUNITY_API), view = laes(COMMUNITY_VIEW);
+    expect(ingenMailSomStandard(api, opslag, capi, view)).toBe(true);
+    expect(ingenMailSomStandard(api.replace("NYHED_OPSLAG_MAIL: boolean = false;", "NYHED_OPSLAG_MAIL: boolean = true;"), opslag, capi, view)).toBe(false);
+    expect(ingenMailSomStandard(api.replace("{ udenMail: !NYHED_OPSLAG_MAIL }", "{ udenMail: false }"), opslag, capi, view)).toBe(false);
+    expect(ingenMailSomStandard(api, opslag.replace('priority: udenMail === true ? "info" : "important",', 'priority: "important",'), capi, view)).toBe(false);
+    expect(ingenMailSomStandard(api, opslag.replace('priority: udenMail === true ? "info" : "important",', 'priority: udenMail ? "info" : "important",'), capi, view)).toBe(false);
+    expect(ingenMailSomStandard(api, opslag, capi, view.replace("await notificerNytOpslag(nytId);", "await notificerNytOpslag(nytId, { udenMail: true });"))).toBe(false);
+  });
+
+  it("12. feedet: kroppen med loft og frist, emnerne gennem kildens værtsliste", () => {
+    const cron = laes(CRON), motor = laes(MOTOR);
+    expect(feedetMedLoftOgVaerter(cron, motor)).toBe(true);
+    expect(feedetMedLoftOgVaerter(cron.replace("const krop = await laesKropMedLoft(res.body, FEED_MAKS_BYTES, start + FEED_FRIST_MS);", "const krop = { ok: true as const, tekst: await res.text() };"), motor)).toBe(false);
+    expect(feedetMedLoftOgVaerter(cron.replace("filtrerVaerter(parseFeed(krop.tekst, k.noegle), k.vaerter)", "filtrerVaerter(parseFeed(krop.tekst, k.noegle), [])"), motor)).toBe(false);
+    expect(feedetMedLoftOgVaerter(cron.replace("if (Date.now() - start > FEED_FRIST_MS)", "if (false)"), motor)).toBe(false);
+    expect(feedetMedLoftOgVaerter(cron, motor.replace("export const FEED_MAKS_BYTES = 2 * 1024 * 1024;", "export const FEED_MAKS_BYTES = 200 * 1024 * 1024;"))).toBe(false);
+    expect(feedetMedLoftOgVaerter(cron, motor.replace('    vaerter: ["nemhandel.dk"],\n', ""))).toBe(false);
   });
 });

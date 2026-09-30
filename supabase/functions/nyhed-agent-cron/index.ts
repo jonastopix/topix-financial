@@ -39,14 +39,18 @@ import { aiGatewayFetch } from "../_shared/aiGatewayFetch.ts";
 import { skrivRaadgiverBesked } from "../_shared/raadgiverBesked.ts";
 import {
   byggDokument,
+  FEED_FRIST_MS,
+  FEED_MAKS_BYTES,
   FEED_TIMEOUT_MS,
   type FeedEmne,
+  filtrerVaerter,
   type Kandidat,
   KILDER,
   KLOKKE_REFERENCE_TYPE,
   KLOKKE_TITEL,
   klokkeTekst,
   LAAS_NOEGLE,
+  laesKropMedLoft,
   LLM_TIMEOUT_MS,
   type LlmEmne,
   maaStarteLlmKald,
@@ -85,7 +89,7 @@ export const KENDTE_FELTER = ["dry_run", "nu", "uden_llm"] as const;
 const UA = "TheBoardroom-nyhedsagent/1 (+https://app.theboardroom.dk)";
 const LIVE_STATUSSER = ["kladde", "publiceres", "godkendt"];
 
-interface KildeStatus { kilde: string; http: number | null; emner: number; fejl: string | null }
+interface KildeStatus { kilde: string; http: number | null; emner: number; kasseret_vaert: number; fejl: string | null }
 interface LlmSpor { kald: number; afvist_svar: number; input_tokens: number; output_tokens: number; fejl: string[] }
 
 export interface NyhedResultat {
@@ -126,14 +130,22 @@ function dele<T>(xs: readonly T[], n: number): T[][] {
 }
 
 async function hentKilde(k: (typeof KILDER)[number]): Promise<{ status: KildeStatus; emner: FeedEmne[] }> {
+  const start = Date.now();
+  const fejlet = (http: number | null, fejl: string) => ({ status: { kilde: k.noegle, http, emner: 0, kasseret_vaert: 0, fejl }, emner: [] });
   try {
     const res = await aiGatewayFetch(k.url, { headers: { "User-Agent": UA, Accept: "application/rss+xml, application/atom+xml, application/xml;q=0.9, */*;q=0.1" } }, { timeoutMs: FEED_TIMEOUT_MS, retries: 1 });
-    const xml = await res.text();
-    if (!res.ok) return { status: { kilde: k.noegle, http: res.status, emner: 0, fejl: `HTTP ${res.status}` }, emner: [] };
-    const emner = parseFeed(xml, k.noegle);
-    return { status: { kilde: k.noegle, http: res.status, emner: emner.length, fejl: emner.length === 0 ? "ingen emner i feedet" : null }, emner };
+    if (!res.ok) {
+      try { await res.body?.cancel(); } catch { /* ligegyldigt */ }
+      return fejlet(res.status, `HTTP ${res.status}`);
+    }
+    // Kroppen med loft (FEED_MAKS_BYTES) og frist (FEED_FRIST_MS fra første forsøg) — og tiden målt igen efter læsningen.
+    const krop = await laesKropMedLoft(res.body, FEED_MAKS_BYTES, start + FEED_FRIST_MS);
+    if (!krop.ok) return fejlet(res.status, krop.fejl === "for_stor" ? `kroppen er over ${FEED_MAKS_BYTES} bytes` : `ikke læst inden ${FEED_FRIST_MS} ms`);
+    if (Date.now() - start > FEED_FRIST_MS) return fejlet(res.status, `ikke læst inden ${FEED_FRIST_MS} ms`);
+    const { godkendt, kasseret } = filtrerVaerter(parseFeed(krop.tekst, k.noegle), k.vaerter);
+    return { status: { kilde: k.noegle, http: res.status, emner: godkendt.length, kasseret_vaert: kasseret, fejl: godkendt.length === 0 ? (kasseret > 0 ? "alle emner kasseret: link uden for kildens værter" : "ingen emner i feedet") : null }, emner: godkendt };
   } catch (err) {
-    return { status: { kilde: k.noegle, http: null, emner: 0, fejl: err instanceof Error ? err.message : String(err) }, emner: [] };
+    return fejlet(null, err instanceof Error ? err.message : String(err));
   }
 }
 

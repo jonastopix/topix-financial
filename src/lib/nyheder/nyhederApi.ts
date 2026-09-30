@@ -12,6 +12,10 @@
  *   «slip» hvis oprettelsen fejlede (udkastet står som kladde igen).
  * Cronen kender ikke denne vej — intet publiceres uden rådgiverens klik
  * (nyhedAgent.guard).
+ *
+ * «slip» afvises (409, kode «traad_findes»), hvis forsøget FIK oprettet en tråd
+ * — så kaster afgoer en TraadFindesFejl med trådens id, og fladen tilbyder
+ * «Markér som publiceret» (markerSomPubliceret) i stedet for en ny publicering.
  */
 import { supabase } from "@/integrations/supabase/client";
 import { notificerNaevnelser, notificerNytOpslag, opretTraad } from "@/lib/hjemmebane/communityApi";
@@ -46,6 +50,24 @@ export interface NyhedUdkast {
 
 export const NYHEDER_QUERY_KEY = ["nyheder", "udkast"] as const;
 
+/**
+ * STANDARD: NYHEDSOPSLAGET UDLØSER INGEN MAIL (besluttet 30/9-2026 efter det
+ * tekniske råd, fund 4: Jonas har været meget tydelig om, at vi ikke må
+ * overmaile — klagen over dubletter 22/9). Opslaget vises i community og som
+ * almindelig in-app-notifikation (priority «info» i notify-community-opslag,
+ * som send-notification-email aldrig mailer); ingen «important», ingen mail.
+ * Jonas kan vælge andet: sæt denne til true.
+ */
+export const NYHED_OPSLAG_MAIL: boolean = false;
+
+/** «slip» blev afvist, fordi forsøget fik oprettet en tråd — fladen tilbyder «Markér som publiceret». */
+export class TraadFindesFejl extends Error {
+  constructor(besked: string, readonly traadId: string) {
+    super(besked);
+    this.name = "TraadFindesFejl";
+  }
+}
+
 /** De seneste udkast, nyeste først. RLS: kun rådgivere kan læse tabellen. */
 export async function hentNyhedsudkast(antal = 12): Promise<NyhedUdkast[]> {
   const { data, error } = await (supabase as any)
@@ -62,13 +84,16 @@ async function afgoer(body: { handling: "tag" | "slip" | "publiceret" | "afvis";
   if (error) {
     // functions.invoke lægger serverens fejltekst i context — vis den, ikke «non-2xx».
     let besked = error.message;
+    let traadFindes: string | null = null;
     try {
       const ctx = (error as { context?: Response }).context;
       const krop = ctx ? await ctx.json() : null;
       if (krop?.error) besked = String(krop.error);
+      if (krop?.kode === "traad_findes" && typeof krop?.traad_id === "string") traadFindes = krop.traad_id;
     } catch {
       /* behold error.message */
     }
+    if (traadFindes) throw new TraadFindesFejl(besked, traadFindes);
     throw new Error(besked);
   }
   if (!(data as { ok?: boolean } | null)?.ok) throw new Error("Afgørelsen blev ikke gemt");
@@ -88,14 +113,32 @@ export async function publicerNyhedsudkast(udkastId: string, titel: string, indh
     try {
       await afgoer({ handling: "slip", udkast_id: udkastId });
     } catch (slipFejl) {
+      // Serveren nåede at oprette tråden (fx et tabt svar): marker den, publicér ikke igen.
+      if (slipFejl instanceof TraadFindesFejl) throw slipFejl;
       console.error("publicerNyhedsudkast: slip fejlede efter en fejlet oprettelse:", slipFejl);
     }
     throw fejl;
   }
   await afgoer({ handling: "publiceret", udkast_id: udkastId, traad_id: traadId });
-  // Samme to bivirkninger og samme garanti som CommunityView — de kaster aldrig.
+  await notificerNyhedsopslag(traadId);
+  return traadId;
+}
+
+/** Samme to bivirkninger og samme garanti som CommunityView — de kaster aldrig. Uden mail som standard (NYHED_OPSLAG_MAIL). */
+async function notificerNyhedsopslag(traadId: string): Promise<void> {
   await notificerNaevnelser({ traadId });
-  await notificerNytOpslag(traadId);
+  await notificerNytOpslag(traadId, { udenMail: !NYHED_OPSLAG_MAIL });
+}
+
+/**
+ * «Markér som publiceret» — efter et afvist «slip» (TraadFindesFejl): knytter
+ * den allerede oprettede tråd til udkastet. Serveren dømmer tråden
+ * (traadKanKnyttes). Notifikationerne sendes derefter — idempotente
+ * (dedup_key pr. tråd), så et forsøg, der nåede dem før, giver ingen dubletter.
+ */
+export async function markerSomPubliceret(udkastId: string, traadId: string): Promise<string> {
+  await afgoer({ handling: "publiceret", udkast_id: udkastId, traad_id: traadId });
+  await notificerNyhedsopslag(traadId);
   return traadId;
 }
 

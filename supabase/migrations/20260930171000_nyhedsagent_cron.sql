@@ -1,5 +1,5 @@
 -- KØRES FØRST EFTER UDRULNING OG TØRKØRSEL.
--- IKKE KØRT. Manuelt i Lovable → SQL editor, EFTER 20260930170000_nyhedsagent.sql, den eksplicitte deploy af nyhed-agent-cron og en læst tørkørsel.
+-- Venter. Manuelt i Lovable → SQL editor, EFTER 20260930170000_nyhedsagent.sql, den eksplicitte deploy af nyhed-agent-cron og en læst tørkørsel. (Linjen bærer bevidst ikke husets «kør efter merge»-markør: den, der scanner mappen efter den, må ikke køre denne sammen med de andre.)
 --
 -- RÆKKEFØLGEN (CLAUDE.md «Deployment af edge functions»): merge → 20260930170000 i SQL
 -- editor → EKSPLICIT deploy af nyhed-agent-cron og nyhed-udkast-afgoer fra build-chat (bed

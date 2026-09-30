@@ -10,10 +10,12 @@ import { CommunityComposer } from "../community/CommunityComposer";
 import {
   afvisNyhedsudkast,
   hentNyhedsudkast,
+  markerSomPubliceret,
   NYHEDER_QUERY_KEY,
   publicerNyhedsudkast,
   slipNyhedsudkast,
   STATUS_TEKST,
+  TraadFindesFejl,
   type NyhedUdkast,
 } from "@/lib/nyheder/nyhederApi";
 
@@ -30,6 +32,8 @@ export function NyhederView() {
   const queryClient = useQueryClient();
   const [titel, setTitel] = useState<string | null>(null);
   const [afvisGrund, setAfvisGrund] = useState("");
+  /** Tråden fra et publiceringsforsøg, som serveren fandt, da «slip» blev afvist (409 traad_findes). */
+  const [fundetTraad, setFundetTraad] = useState<string | null>(null);
 
   const udkastQuery = useQuery({ queryKey: NYHEDER_QUERY_KEY, queryFn: () => hentNyhedsudkast() });
 
@@ -46,7 +50,23 @@ export function NyhederView() {
     },
     onError: (fejl: Error) => {
       opfrisk();
+      if (fejl instanceof TraadFindesFejl) setFundetTraad(fejl.traadId);
       toast.error("Udkastet blev ikke publiceret", { description: fejl.message });
+    },
+  });
+
+  const markerMutation = useMutation({
+    mutationFn: (a: { udkastId: string; traadId: string }) => markerSomPubliceret(a.udkastId, a.traadId),
+    onSuccess: (traadId) => {
+      setFundetTraad(null);
+      opfrisk();
+      queryClient.invalidateQueries({ queryKey: ["community", "feed"] });
+      toast.success("Markeret som publiceret");
+      navigate(`/community/${traadId}`);
+    },
+    onError: (fejl: Error) => {
+      opfrisk();
+      toast.error("Udkastet kunne ikke markeres som publiceret", { description: fejl.message });
     },
   });
 
@@ -63,13 +83,19 @@ export function NyhederView() {
   const slipMutation = useMutation({
     mutationFn: (udkastId: string) => slipNyhedsudkast(udkastId),
     onSuccess: () => opfrisk(),
-    onError: (fejl: Error) => toast.error("Udkastet kunne ikke frigives", { description: fejl.message }),
+    onError: (fejl: Error) => {
+      if (fejl instanceof TraadFindesFejl) {
+        setFundetTraad(fejl.traadId);
+        return;
+      }
+      toast.error("Udkastet kunne ikke frigives", { description: fejl.message });
+    },
   });
 
   const alle = udkastQuery.data ?? [];
   const aktivt = alle.find((u) => u.status === "kladde" || u.status === "publiceres") ?? null;
   const tidligere = alle.filter((u) => u.id !== aktivt?.id);
-  const optaget = publicerMutation.isPending || afvisMutation.isPending || slipMutation.isPending;
+  const optaget = publicerMutation.isPending || afvisMutation.isPending || slipMutation.isPending || markerMutation.isPending;
 
   return (
     <div className="space-y-10">
@@ -102,6 +128,27 @@ export function NyhederView() {
               </HbButton>
             )}
           </div>
+
+          {fundetTraad && aktivt.status === "publiceres" && (
+            <HbCard>
+              <div className="space-y-3 px-5 py-4 text-sm text-hb-ink">
+                <p>
+                  Opslaget blev oprettet i community, men blev ikke markeret som publiceret. Det må ikke publiceres igen —
+                  så får alle en tråd til.{" "}
+                  <a href={`/community/${fundetTraad}`} className="text-hb-evergreen underline underline-offset-2">
+                    Se tråden
+                  </a>
+                </p>
+                <HbButton
+                  type="button"
+                  disabled={optaget}
+                  onClick={() => markerMutation.mutate({ udkastId: aktivt.id, traadId: fundetTraad })}
+                >
+                  Markér som publiceret
+                </HbButton>
+              </div>
+            </HbCard>
+          )}
 
           <CommunityComposer
             key={aktivt.id}
