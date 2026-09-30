@@ -6,9 +6,23 @@ import { boardroomScore } from "@/lib/boardroomScore/score";
 import { naesteMaaned } from "@/lib/boardroomScore/streak";
 import { loefterMitTal } from "@/lib/boardroomScore/loefter";
 import type { ScoreGrundlag, ScoreMaaned } from "@/lib/boardroomScore/typer";
-import { EFFEKT_FOERSTE_SCORE, LOEFTER_MAAL_MAERKE, SCORE_AFVENTER_OVERSKRIFT, SCORE_FEJL_TEKST, SCORE_FORBEHOLD } from "@/lib/hjemmebane/scoreKort";
+import {
+  EFFEKT_FOERSTE_SCORE,
+  LOEFTER_MAAL_MAERKE,
+  ringBue,
+  SCORE_AFVENTER_OVERSKRIFT,
+  SCORE_DETALJER_KNAP,
+  SCORE_DETALJER_KNAP_LUK,
+  SCORE_FEJL_TEKST,
+  SCORE_FORBEHOLD,
+  SCORE_INGEN_TAL,
+} from "@/lib/hjemmebane/scoreKort";
 
-/* Kortet tegner dommen — de fire tilstande og at handlingerne er motorens. */
+/* Kortet tegner dommen — de fire tilstande og at handlingerne er motorens.
+   Kompakt (Jonas 30/9 20:43): ringen, fire små barer, streaken på én linje,
+   KUN den øverste løfter synlig; resten bag «Se hvad der tæller». */
+
+const aabnDetaljer = () => fireEvent.click(screen.getByRole("button", { name: SCORE_DETALJER_KNAP }));
 
 const NU = new Date("2026-09-30T10:00:00Z");
 const sund = (key: string, over: Record<string, number | null> = {}): ScoreMaaned => ({
@@ -78,7 +92,11 @@ describe("ScoreKort", () => {
     expect(container.querySelectorAll("[data-soejle]")).toHaveLength(4);
     expect(container.querySelector(`[data-score-streak="${dom.streak.status}"]`)).not.toBeNull();
     const handlinger = loefterMitTal(dom);
-    expect(handlinger.length).toBeGreaterThan(0);
+    expect(handlinger.length).toBeGreaterThan(1);
+    // I hvile: KUN den øverste (= motorens loefterMest).
+    expect(container.querySelectorAll("[data-loefter-soejle]")).toHaveLength(1);
+    expect(container.querySelector("[data-loefter-soejle]")!.getAttribute("data-loefter-soejle")).toBe(dom.loefterMest!.soejle);
+    aabnDetaljer();
     const rækker = container.querySelectorAll("[data-loefter-soejle]");
     expect(rækker).toHaveLength(handlinger.length);
     handlinger.forEach((h, i) => {
@@ -94,8 +112,13 @@ describe("ScoreKort", () => {
     const dom = boardroomScore(grundlag([], { kontraktStart: "2026-01-01" }), NU);
     expect(dom.score).toBeNull();
     const { container } = tegn({ dom });
-    expect(screen.getByText("Ikke nok tal endnu")).toBeTruthy();
+    expect(screen.getByText(SCORE_INGEN_TAL)).toBeTruthy();
     expect(container.querySelector("[data-score-streak]")).not.toBeNull();
+    // Kompakt: samme ramme — tom ring (kun sporet), fire barer, ingen skærmlæsertekst om et tal, der ikke findes.
+    expect(container.querySelector("[data-score-ring]")).not.toBeNull();
+    expect(container.querySelector("[data-score-bue]")).toBeNull();
+    expect(container.querySelectorAll("[data-soejle]")).toHaveLength(4);
+    expect(container.textContent).not.toMatch(/Din Boardroom Score er/);
   });
 
   it("rådets fund 1+2: nyt medlem (start 20/8, august uploadet) — streaken er ikke «brudt», og ingen «+N point» under «Ikke nok tal endnu»", () => {
@@ -134,8 +157,9 @@ describe("ScoreKort", () => {
   it("rådets fund 6: en løfter-linje uden link mærkes som mål; en med link gør ikke", () => {
     const dom = boardroomScore(grundlag(keys("2025-06", 15).map((k) => sund(k))), NU);
     const { container } = tegn({ dom });
+    aabnDetaljer();
     const rækker = [...container.querySelectorAll("[data-loefter-soejle]")];
-    expect(rækker.length).toBeGreaterThan(0);
+    expect(rækker.length).toBeGreaterThan(1);
     for (const r of rækker) {
       const harLink = r.querySelector("a") !== null;
       expect(r.getAttribute("data-loefter-art")).toBe(harLink ? "handling" : "maal");
@@ -143,16 +167,54 @@ describe("ScoreKort", () => {
     }
   });
 
-  it("rådets fund 7: ingen «Din score» under sektionens eyebrow; søjlernes detaljer først fra sm", () => {
+  it("rådets fund 7: ingen «Din score» under sektionens eyebrow", () => {
     const dom = boardroomScore(grundlag(keys("2025-06", 15).map((k) => sund(k))), NU);
     const { container } = tegn({ dom });
     expect(container.textContent).not.toContain("Din score");
-    const detaljer = container.querySelectorAll("[data-soejle-detalje]");
-    expect(detaljer).toHaveLength(4);
-    for (const d of detaljer) {
-      expect(d.className).toMatch(/(^|\s)hidden(\s|$)/);
-      expect(d.className).toMatch(/sm:block/);
-    }
+  });
+
+  it("«Se hvad der tæller»: lukket som standard, aria-expanded/aria-controls, åbner søjlernes tal i ord og lukker igen", () => {
+    const dom = boardroomScore(grundlag(keys("2025-06", 15).map((k) => sund(k))), NU);
+    const { container } = tegn({ dom });
+    const knap = screen.getByRole("button", { name: SCORE_DETALJER_KNAP });
+    expect(knap.getAttribute("aria-expanded")).toBe("false");
+    const panel = document.getElementById(knap.getAttribute("aria-controls")!)!;
+    expect(panel).not.toBeNull();
+    expect(panel.hasAttribute("hidden")).toBe(true);
+    expect(container.querySelectorAll("[data-soejle-detalje]")).toHaveLength(0);
+    fireEvent.click(knap);
+    expect(knap.getAttribute("aria-expanded")).toBe("true");
+    expect(knap.textContent).toContain(SCORE_DETALJER_KNAP_LUK);
+    expect(panel.hasAttribute("hidden")).toBe(false);
+    expect(container.querySelectorAll("[data-soejle-detalje]")).toHaveLength(4);
+    expect(container.querySelector("[data-score-streak-status]")).not.toBeNull();
+    fireEvent.click(knap);
+    expect(knap.getAttribute("aria-expanded")).toBe("false");
+    expect(container.querySelectorAll("[data-soejle-detalje]")).toHaveLength(0);
+  });
+
+  it("ringen: buen er i skala (samme længde som ringBue for scoren), og skærmlæserteksten står inde i ringens relative boks", () => {
+    // prefers-reduced-motion: reduce → tallet og buen står straks på det endelige tal.
+    vi.stubGlobal("matchMedia", (q: string) => ({ matches: true, media: q, addEventListener: () => {}, removeEventListener: () => {} }));
+    const dom = boardroomScore(grundlag(keys("2025-06", 15).map((k) => sund(k))), NU);
+    const { container } = tegn({ dom });
+    const bue = container.querySelector("[data-score-bue]")!;
+    const { laengde, omkreds } = ringBue(dom.score);
+    expect(bue.getAttribute("stroke-dasharray")).toBe(`${laengde} ${omkreds}`);
+    const sr = screen.getByText(`Din Boardroom Score er ${dom.score} ud af 1.000`);
+    expect(sr.className).toContain("sr-only");
+    const ring = sr.closest("[data-score-ring]")!;
+    expect(ring).not.toBeNull();
+    expect(ring.className).toMatch(/(^|\s)relative(\s|$)/);
+  });
+
+  it("streaken er ÉN linje: flammen, «N måneder i træk» og fristen den 20.", () => {
+    const dom = boardroomScore(grundlag(keys("2025-06", 15).map((k) => sund(k))), NU);
+    const { container } = tegn({ dom });
+    const linje = container.querySelector("[data-score-streak]")!;
+    expect(linje.tagName).toBe("P");
+    expect(linje.textContent).toContain("15 måneder i træk");
+    expect(linje.textContent).toContain("Næste frist: september senest 20/10");
   });
 
   it("ingen procent i kortets tekst (husets «Din måned»-mønster)", () => {

@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, Flame } from "lucide-react";
+import { ArrowRight, ChevronDown, Flame } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { krTekst } from "@/lib/boardroomScore/score";
 import type { ScoreDom } from "@/lib/boardroomScore/typer";
@@ -10,41 +10,65 @@ import {
   LOEFTER_MAAL_MAERKE,
   loefterLinjer,
   retningTekst,
+  RING_RADIUS,
+  ringBue,
   SCORE_AFVENTER_OVERSKRIFT,
   SCORE_AFVENTER_TEKST,
+  SCORE_DETALJER_KNAP,
+  SCORE_DETALJER_KNAP_LUK,
   SCORE_FEJL_TEKST,
   SCORE_FORBEHOLD,
+  SCORE_INGEN_TAL,
   SCORE_LOEFTER_OVERSKRIFT,
+  SCORE_OEVRIGE_OVERSKRIFT,
+  SCORE_SOEJLER_OVERSKRIFT,
   soejleLinjer,
+  streakKortLinje,
   streakLinjer,
   TAEL_OP_MS,
   taelOpVaerdi,
+  type LoefterLinje,
 } from "@/lib/hjemmebane/scoreKort";
 import { HbCard } from "../HbCard";
 
 /** Boardroom Score-kortet på medlemmets forside (30/9-2026 — Jonas D3
     «Boardroom Score (0–1000) plus tal-streak først»; designet i
     docs/boardroom-score.md §7). TEGNER KUN: tallet, streaken, de fire søjler
-    som hairline-barer og «Hvad løfter dit tal» (1–3 handlinger) kommer
-    færdige fra motoren (lib/boardroomScore) gennem ordene i
-    lib/hjemmebane/scoreKort — kortet regner intet og hårdkoder ingen
-    handling. Data: ÉN hook (useBoardroomScore), kaldt i BoardroomViews
-    topblok og givet ind her.
+    og «Hvad løfter dit tal» kommer færdige fra motoren (lib/boardroomScore)
+    gennem ordene i lib/hjemmebane/scoreKort — kortet regner intet og
+    hårdkoder ingen handling. Data: ÉN hook (useBoardroomScore), kaldt i
+    BoardroomViews topblok og givet ind her.
 
-    FIRE TILSTANDE: henter (skelet i reserveret højde) · fejl (rust linje +
+    KOMPAKT (Jonas 30/9 20:43: «meget stor på forsiden … mere kompakt, og
+    måske også lidt mere interessant at kigge på»; målt 669–760 px høj på
+    1440 px bredde): ÉN række — til venstre scoren i en tynd RING (SVG-bue i
+    skala 0–1000, ringBue), til højre de fire søjler som små barer (navn +
+    point/250), streaken som én linje med flammen og KUN den øverste løfter.
+    Resten (de øvrige løftere, søjlernes tal i ord, streakens status og
+    bedste) ligger bag «Se hvad der tæller» (lukket som standard,
+    aria-expanded + aria-controls; fokus bliver på knappen, synlig ring).
+    Regnet højde på desktop i hvile ≈ 260 px:
+      p-6 (24 + 24) + ringkolonnen (ring 128 + to linjer à 16 + mellemrum 8 ≈ 168)
+      + bunden (mt-4 16 + pt-3 12 + knaplinje 20 ≈ 48) ≈ 264 px.
+    Højre kolonne (barer ≈ 26 + streak 20 + løfter ≈ 52 + 2 × 16 mellemrum ≈ 130)
+    er lavere end ringen og bestemmer ikke højden.
+
+    FIRE TILSTANDE: henter (skelet i samme højde) · fejl (rust linje +
     «Prøv igen» — en fejl er ikke «ingen tal») · afventer migration (roligt
     «på vej», migration 20260930130000 ikke kørt — bliver rigtigt af sig
-    selv) · dommen (med eller uden score).
+    selv) · dommen (med eller uden score; uden score står ringen tom med
+    «Ikke nok tal endnu» — samme ramme, samme højde).
 
-    Animation: kun tallet tæller op (ease-out, TAEL_OP_MS), fra det sidst viste
-    — samme tal ved genhentning/uret tæller ikke igen. prefers-reduced-motion
-    → tallet står straks. Ingen konfetti, ingen farve for op/ned. Før den
-    første ramme vises 0 (ikke det endelige tal), så tallet ikke blinker
-    endeligt → 0 → optælling (rådets fund 4).
+    Animation: tallet OG buen tæller op sammen (ease-out, TAEL_OP_MS) fra det
+    sidst viste — samme tal ved genhentning/uret tæller ikke igen.
+    prefers-reduced-motion → tallet og buen står straks. Ingen konfetti,
+    ingen farve for op/ned. Før den første ramme vises 0 (ikke det endelige
+    tal), så tallet ikke blinker endeligt → 0 → optælling (rådets fund 4).
+    Skærmlæserteksten (sr-only = position:absolute) står INDE i ringens
+    `relative`-boks, så den aldrig positioneres mod en fjern forfader.
 
     Overskriften er sektionens eyebrow «Boardroom Score» (BoardroomView) —
-    kortet har ingen egen «Din score» over tallet (rådets fund 7). Søjlernes
-    detaljetekst vises først fra `sm`, så kortet fylder mindre på 375 px. */
+    kortet har ingen egen «Din score» over tallet (rådets fund 7). */
 
 type Props = {
   dom: ScoreDom | null;
@@ -102,20 +126,50 @@ function useTaelOp(til: number | null, bevaegelse: boolean): number | null {
 }
 
 const mikro = "text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft";
+const fokus = "rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hb-evergreen focus-visible:ring-offset-2";
+
+/** Én løfter-linje — samme form øverst og i detaljerne. Teksten og effekten er motorens (loefterLinjer). */
+function LoefterRaekke({ h }: { h: LoefterLinje }) {
+  const indhold = (
+    <>
+      <span className="min-w-0 flex-1 text-sm font-medium leading-snug text-hb-ink">
+        {h.art === "maal" && <span className={cn(mikro, "mr-2")} data-loefter-maal>{LOEFTER_MAAL_MAERKE}</span>}
+        {h.tekst}
+      </span>
+      <span className="shrink-0 whitespace-nowrap text-xs text-hb-ink-soft">{h.effekt}</span>
+      {h.sti && <ArrowRight className="h-4 w-4 shrink-0 self-center text-hb-evergreen" aria-hidden />}
+    </>
+  );
+  return (
+    <li className="border-t border-hb-line" data-loefter-soejle={h.soejle} data-loefter-art={h.art}>
+      {h.sti ? (
+        <Link to={h.sti} className={cn("flex items-baseline gap-3 py-2 hover:bg-hb-sage/20", fokus)}>
+          {indhold}
+        </Link>
+      ) : (
+        <div className="flex items-baseline gap-3 py-2">{indhold}</div>
+      )}
+    </li>
+  );
+}
 
 export const ScoreKort = ({ dom, afventerMigration, isLoading, isError, onProevIgen }: Props) => {
   // Hooks i TOPBLOKKEN, før enhver betinget return (React #310).
   const bevaegelse = useFaarBevaegelse();
   const vist = useTaelOp(dom?.score ?? null, bevaegelse);
+  const [aaben, setAaben] = useState(false);
+  const detaljerId = useId();
 
   if (isLoading) {
     return (
-      <HbCard className="p-6 md:p-8" data-score="henter" aria-busy="true">
-        <div className="min-h-[320px] animate-pulse space-y-4">
-          <div className="h-3 w-24 rounded bg-hb-line" />
-          <div className="h-14 w-40 rounded bg-hb-line" />
-          <div className="h-3 w-full rounded bg-hb-line/70" />
-          <div className="h-3 w-5/6 rounded bg-hb-line/70" />
+      <HbCard className="p-5 md:p-6" data-score="henter" aria-busy="true">
+        <div className="flex min-h-[200px] animate-pulse flex-col gap-5 sm:flex-row sm:items-center sm:gap-8">
+          <div className="h-24 w-24 shrink-0 rounded-full border-[5px] border-hb-line sm:h-32 sm:w-32" />
+          <div className="flex-1 space-y-3">
+            <div className="h-3 w-full rounded bg-hb-line/70" />
+            <div className="h-3 w-5/6 rounded bg-hb-line/70" />
+            <div className="h-3 w-2/3 rounded bg-hb-line/70" />
+          </div>
         </div>
       </HbCard>
     );
@@ -124,10 +178,10 @@ export const ScoreKort = ({ dom, afventerMigration, isLoading, isError, onProevI
   // En fejlet GENHENTNING med en dom i hånden viser stadig dommen (react-query bevarer data).
   if (isError && !dom && !afventerMigration) {
     return (
-      <HbCard className="p-6" data-score="fejl">
+      <HbCard className="p-5" data-score="fejl">
         <p className="text-sm text-hb-rust">
           {SCORE_FEJL_TEKST}{" "}
-          <button type="button" onClick={onProevIgen} className="underline-offset-4 hover:underline">Prøv igen</button>
+          <button type="button" onClick={onProevIgen} className={cn("underline-offset-4 hover:underline", fokus)}>Prøv igen</button>
         </p>
       </HbCard>
     );
@@ -135,9 +189,9 @@ export const ScoreKort = ({ dom, afventerMigration, isLoading, isError, onProevI
 
   if (afventerMigration || !dom) {
     return (
-      <HbCard className="p-6" data-score="afventer">
-        <h3 className="font-editorial text-2xl font-medium leading-tight text-hb-ink">{SCORE_AFVENTER_OVERSKRIFT}</h3>
-        <p className="mt-2 text-sm leading-relaxed text-hb-ink-soft">{SCORE_AFVENTER_TEKST}</p>
+      <HbCard className="p-5" data-score="afventer">
+        <h3 className="font-editorial text-xl font-medium leading-tight text-hb-ink">{SCORE_AFVENTER_OVERSKRIFT}</h3>
+        <p className="mt-1.5 text-sm leading-relaxed text-hb-ink-soft">{SCORE_AFVENTER_TEKST}</p>
       </HbCard>
     );
   }
@@ -146,109 +200,155 @@ export const ScoreKort = ({ dom, afventerMigration, isLoading, isError, onProevI
   const daekning = daekningTekst(dom);
   const mangler = ikkeNokDataTekst(dom);
   const streak = streakLinjer(dom.streak);
+  const streakKort = streakKortLinje(dom.streak);
   const soejler = soejleLinjer(dom);
   const loefter = loefterLinjer(dom);
+  const [oeverst, ...oevrige] = loefter;
+  // Før første ramme: 0 med bevægelse (optællingen starter derfra), ellers tallet selv — aldrig det endelige tal i én frame.
+  const tallet = dom.score === null ? null : vist ?? (bevaegelse ? 0 : dom.score);
+  // Buen følger det VISTE tal, så den vokser med optællingen (og står straks uden bevægelse).
+  const bue = ringBue(tallet);
 
   return (
-    <HbCard className="p-6 md:p-8" data-score={dom.score ?? "ingen"} data-score-daekning={dom.daekning}>
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:gap-8">
-        {/* Tallet */}
-        <div className="min-w-0" data-score-tal>
-          {dom.score !== null ? (
-            <>
-              <p className="flex items-baseline gap-2">
-                <span className="font-editorial text-6xl font-medium leading-none tabular-nums text-hb-ink" aria-hidden>
-                  {/* Før første ramme: 0 med bevægelse (optællingen starter derfra), ellers tallet selv — aldrig det endelige tal i én frame. */}
-                  {krTekst(vist ?? (bevaegelse ? 0 : dom.score))}
-                </span>
-                <span className="text-sm text-hb-ink-soft" aria-hidden>/ 1.000</span>
-                <span className="sr-only">{`Din Boardroom Score er ${dom.score} ud af 1.000`}</span>
-              </p>
-              {retning && <p className="mt-3 text-sm text-hb-ink-soft" data-score-retning>{retning}</p>}
-              {daekning && <p className="mt-1 text-xs text-hb-ink-soft" data-score-daekning-tekst>{daekning}</p>}
-            </>
-          ) : (
-            <>
-              <p className="font-editorial text-2xl font-medium leading-tight text-hb-ink">Ikke nok tal endnu</p>
-              {mangler && <p className="mt-2 text-sm leading-relaxed text-hb-ink-soft" data-score-mangler>{mangler}</p>}
-            </>
-          )}
+    <HbCard className="p-5 md:p-6" data-score={dom.score ?? "ingen"} data-score-daekning={dom.daekning}>
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-8">
+        {/* Ringen med tallet */}
+        <div className="flex shrink-0 items-center gap-4 sm:w-36 sm:flex-col sm:gap-2" data-score-tal>
+          <div className="relative h-24 w-24 shrink-0 sm:h-32 sm:w-32" data-score-ring>
+            <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90" aria-hidden focusable="false">
+              <circle cx="60" cy="60" r={RING_RADIUS} fill="none" stroke="currentColor" strokeWidth="5" className="text-hb-line" />
+              {bue.laengde > 0 && (
+                <circle
+                  cx="60"
+                  cy="60"
+                  r={RING_RADIUS}
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="5"
+                  strokeLinecap="round"
+                  strokeDasharray={`${bue.laengde} ${bue.omkreds}`}
+                  className="text-hb-evergreen"
+                  data-score-bue
+                />
+              )}
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              {tallet !== null ? (
+                <>
+                  <span className="font-editorial text-3xl font-medium leading-none tabular-nums text-hb-ink sm:text-4xl" aria-hidden>
+                    {krTekst(tallet)}
+                  </span>
+                  <span className="mt-1 text-[11px] text-hb-ink-soft" aria-hidden>/ 1.000</span>
+                </>
+              ) : (
+                <span className="font-editorial text-3xl leading-none text-hb-ink-soft" aria-hidden>—</span>
+              )}
+            </div>
+            {dom.score !== null && <span className="sr-only">{`Din Boardroom Score er ${dom.score} ud af 1.000`}</span>}
+          </div>
+          <div className="min-w-0 sm:text-center">
+            {dom.score !== null ? (
+              <>
+                {retning && <p className="text-xs text-hb-ink-soft" data-score-retning>{retning}</p>}
+                {daekning && <p className="text-xs text-hb-ink-soft" data-score-daekning-tekst>{daekning}</p>}
+              </>
+            ) : (
+              <p className="font-editorial text-lg font-medium leading-tight text-hb-ink">{SCORE_INGEN_TAL}</p>
+            )}
+          </div>
         </div>
 
-        {/* Streaken */}
-        <div className="min-w-0 border-t border-hb-line pt-6 sm:border-l sm:border-t-0 sm:pl-8 sm:pt-0" data-score-streak={dom.streak.status}>
-          <p className={mikro}>Tal-streak</p>
-          <p className="mt-2 flex items-baseline gap-2">
-            <Flame className={cn("h-6 w-6 shrink-0 self-center", dom.streak.status === "aktiv" ? "text-hb-evergreen" : "text-hb-ink-soft/60")} aria-hidden />
-            <span className="font-editorial text-4xl font-medium leading-none tabular-nums text-hb-ink">{streak.laengde}</span>
-            <span className="text-sm text-hb-ink-soft">{streak.enhed}</span>
+        {/* Søjlerne, streaken og den øverste løfter */}
+        <div className="min-w-0 flex-1 space-y-4">
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-3 lg:grid-cols-4" data-score-soejler>
+            {soejler.map((s) => (
+              <div key={s.navn} className="min-w-0" data-soejle={s.navn} data-soejle-point={s.point ?? "ingen"}>
+                <div className="flex items-baseline justify-between gap-2">
+                  <dt className={cn(mikro, "truncate")}>{s.label}</dt>
+                  <dd className="shrink-0 text-xs tabular-nums text-hb-ink">
+                    {s.point !== null ? (
+                      <>
+                        {s.point}<span className="text-hb-ink-soft">/{s.max}</span>
+                      </>
+                    ) : (
+                      <span className="text-hb-ink-soft">—</span>
+                    )}
+                  </dd>
+                </div>
+                <div className="mt-1 h-1 overflow-hidden rounded-full bg-hb-line" aria-hidden>
+                  <div
+                    className="h-full rounded-full bg-hb-evergreen/70 transition-[width] duration-700 ease-out motion-reduce:transition-none"
+                    style={{ width: `${Math.round(s.andel * 1000) / 10}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </dl>
+
+          <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm" data-score-streak={dom.streak.status}>
+            <Flame className={cn("h-4 w-4 shrink-0 self-center", dom.streak.status === "aktiv" ? "text-hb-evergreen" : "text-hb-ink-soft/60")} aria-hidden />
+            <span className="font-medium tabular-nums text-hb-ink">{streakKort.tal}</span>
+            <span className="text-hb-ink-soft" data-score-frist>{streakKort.frist}</span>
           </p>
-          <p className="mt-3 text-sm text-hb-ink">{streak.status}</p>
-          <p className="mt-1 text-sm text-hb-ink-soft" data-score-frist>{streak.frist}</p>
-          {streak.bedste && <p className="mt-1 text-xs text-hb-ink-soft">{streak.bedste}</p>}
+
+          {mangler && <p className="text-sm leading-relaxed text-hb-ink-soft" data-score-mangler>{mangler}</p>}
+
+          {oeverst && (
+            <div data-score-loefter={loefter.length}>
+              <p className={mikro}>{SCORE_LOEFTER_OVERSKRIFT}</p>
+              <ul className="mt-1">
+                <LoefterRaekke h={oeverst} />
+              </ul>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* De fire søjler som hairline-barer */}
-      <dl className="mt-7 space-y-4" data-score-soejler>
-        {soejler.map((s) => (
-          <div key={s.navn} data-soejle={s.navn} data-soejle-point={s.point ?? "ingen"}>
-            <div className="flex items-baseline justify-between gap-4">
-              <dt className={mikro}>{s.label}</dt>
-              <dd className="text-sm tabular-nums text-hb-ink">
-                {s.point !== null ? (
-                  <>
-                    {s.point} <span className="text-hb-ink-soft">/ {s.max}</span>
-                  </>
-                ) : (
-                  <span className="text-hb-ink-soft">—</span>
-                )}
-              </dd>
+      {/* Bunden: knappen til detaljerne og forbeholdet */}
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-hb-line pt-3">
+        <button
+          type="button"
+          onClick={() => setAaben((v) => !v)}
+          aria-expanded={aaben}
+          aria-controls={detaljerId}
+          className={cn("inline-flex items-center gap-1 text-sm font-medium text-hb-evergreen underline-offset-4 hover:underline", fokus)}
+          data-score-detaljer-knap
+        >
+          {aaben ? SCORE_DETALJER_KNAP_LUK : SCORE_DETALJER_KNAP}
+          <ChevronDown className={cn("h-4 w-4 transition-transform motion-reduce:transition-none", aaben && "rotate-180")} aria-hidden />
+        </button>
+        <p className="text-xs text-hb-ink-soft">{SCORE_FORBEHOLD}</p>
+      </div>
+
+      <div id={detaljerId} hidden={!aaben} data-score-detaljer>
+        {aaben && (
+          <div className="mt-4 grid gap-6 md:grid-cols-2">
+            <div className="min-w-0 space-y-3">
+              <p className={mikro}>{SCORE_SOEJLER_OVERSKRIFT}</p>
+              <ul className="space-y-2">
+                {soejler.map((s) => (
+                  <li key={s.navn} className="text-sm leading-relaxed">
+                    <span className="font-medium text-hb-ink">{s.label}</span>
+                    {s.detalje && <span className="text-hb-ink-soft" data-soejle-detalje> — {s.detalje}</span>}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-sm text-hb-ink" data-score-streak-status>{streak.status}</p>
+              {streak.bedste && <p className="text-xs text-hb-ink-soft">{streak.bedste}</p>}
             </div>
-            <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-hb-line" aria-hidden>
-              <div
-                className="h-full rounded-full bg-hb-evergreen/70 transition-[width] duration-700 ease-out motion-reduce:transition-none"
-                style={{ width: `${Math.round(s.andel * 1000) / 10}%` }}
-              />
-            </div>
-            {s.detalje && <p className="mt-1.5 hidden text-xs leading-relaxed text-hb-ink-soft sm:block" data-soejle-detalje>{s.detalje}</p>}
+            {oevrige.length > 0 && (
+              <div className="min-w-0">
+                <p className={mikro}>{SCORE_OEVRIGE_OVERSKRIFT}</p>
+                <ul className="mt-1 [&>li:last-child]:border-b [&>li:last-child]:border-hb-line">
+                  {oevrige.map((h) => (
+                    <LoefterRaekke key={`${h.soejle}:${h.tekst}`} h={h} />
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
-        ))}
-      </dl>
-
-      {/* Hvad løfter dit tal — 1–3 handlinger fra motoren (loefterMitTal) */}
-      {loefter.length > 0 && (
-        <div className="mt-7" data-score-loefter={loefter.length}>
-          <p className={mikro}>{SCORE_LOEFTER_OVERSKRIFT}</p>
-          <ul className="mt-2">
-            {loefter.map((h) => {
-              const indhold = (
-                <>
-                  <span className="min-w-0 flex-1 text-[15px] font-medium leading-snug text-hb-ink">
-                    {h.art === "maal" && <span className={cn(mikro, "mr-2")} data-loefter-maal>{LOEFTER_MAAL_MAERKE}</span>}
-                    {h.tekst}
-                  </span>
-                  <span className="shrink-0 whitespace-nowrap text-sm text-hb-ink-soft">{h.effekt}</span>
-                  {h.sti && <ArrowRight className="h-4 w-4 shrink-0 self-center text-hb-evergreen" aria-hidden />}
-                </>
-              );
-              return (
-                <li key={`${h.soejle}:${h.tekst}`} className="border-t border-hb-line last:border-b" data-loefter-soejle={h.soejle} data-loefter-art={h.art}>
-                  {h.sti ? (
-                    <Link to={h.sti} className="flex items-baseline gap-3 py-3 hover:bg-hb-sage/20">
-                      {indhold}
-                    </Link>
-                  ) : (
-                    <div className="flex items-baseline gap-3 py-3">{indhold}</div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
-
-      <p className="mt-6 text-xs text-hb-ink-soft">{SCORE_FORBEHOLD}</p>
+        )}
+      </div>
     </HbCard>
   );
 };

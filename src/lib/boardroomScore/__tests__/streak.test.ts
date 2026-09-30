@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  STREAK_FRIST_DAG,
   aabenMaaned,
   erGodkendtTilTiden,
   flytMaaned,
@@ -17,8 +18,9 @@ import { erHelligdag, paaskedag } from "@/lib/hverdage";
 
 /* Tal-streaken (docs/boardroom-score.md §4): målt række + første godkendelse
    (hukommelsen maaned_foerste_godkendelse, ellers created_at — den tidligste)
-   ≤ udgangen af den 10. i måneden efter — rykket til næste hverdag, når den
-   10. ikke er en. Baglæns fra seneste passerede frist; den åbne måned lægger
+   ≤ udgangen af den 20. i måneden efter — rykket til næste hverdag, når den
+   20. ikke er en (Jonas 30/9-2026: samme frist som påmindelserne,
+   send-report-reminder REMINDER_DAYS [7, 15, 20]). Baglæns fra seneste passerede frist; den åbne måned lægger
    til, bryder aldrig; den første tællende måned fryser bagud. */
 
 const m = (key: string, godkendt: string | null, basis: "measured" | "estimated" = "measured"): ScoreMaaned => ({
@@ -43,54 +45,73 @@ describe("månedsregning", () => {
   });
 });
 
-describe("frist — udgangen af den 10. i måneden efter, dansk tid, rykket til hverdag", () => {
-  it("10/9-2026 er en torsdag: frist(2026-08) = 10/9 23:59:59,999 CEST", () => {
-    expect(fristDato("2026-08")).toBe("2026-09-10");
-    expect(frist("2026-08").toISOString()).toBe("2026-09-10T21:59:59.999Z");
+describe("frist — udgangen af den 20. i måneden efter, dansk tid, rykket til hverdag", () => {
+  it("fristen er den 20. — samme dag som send-report-reminders sidste påmindelse (REMINDER_DAYS [7, 15, 20])", () => {
+    expect(STREAK_FRIST_DAG).toBe(20);
   });
-  it("10/10-2026 er en lørdag → mandag 12/10", () => {
-    expect(fristDato("2026-09")).toBe("2026-10-12");
-    expect(frist("2026-09").toISOString()).toBe("2026-10-12T21:59:59.999Z");
+  it("september 2026: 20/10-2026 er en TIRSDAG → fristen står: 20/10 23:59:59,999 CEST", () => {
+    expect(new Date("2026-10-20T12:00:00Z").getUTCDay()).toBe(2); // tirsdag
+    expect(fristDato("2026-09")).toBe("2026-10-20");
+    // kbhTilUtc("2026-10-21", 00:00) − 1 ms; CEST (UTC+2) gælder til 25/10.
+    expect(frist("2026-09").toISOString()).toBe("2026-10-20T21:59:59.999Z");
   });
-  it("10/1-2026 er en lørdag → mandag 12/1 (vintertid, CET)", () => {
-    expect(fristDato("2025-12")).toBe("2026-01-12");
-    expect(frist("2025-12").toISOString()).toBe("2026-01-12T22:59:59.999Z");
+  it("august 2026: 20/9-2026 er en SØNDAG → mandag 21/9", () => {
+    expect(new Date("2026-09-20T12:00:00Z").getUTCDay()).toBe(0); // søndag
+    expect(fristDato("2026-08")).toBe("2026-09-21");
+    expect(frist("2026-08").toISOString()).toBe("2026-09-21T21:59:59.999Z");
   });
-  it("en helligdag rykker også: 10/4-2023 er 2. påskedag → tirsdag 11/4", () => {
-    expect(paaskedag(2023)).toBe("2023-04-09");
-    expect(erHelligdag("2023-04-10")).toBe(true);
-    expect(fristDato("2023-03")).toBe("2023-04-11");
+  it("maj 2026: 20/6-2026 er en LØRDAG → mandag 22/6 (hele weekenden springes over)", () => {
+    expect(new Date("2026-06-20T12:00:00Z").getUTCDay()).toBe(6); // lørdag
+    expect(fristDato("2026-05")).toBe("2026-06-22");
   });
-  it("rykker aldrig den anden vej — en hverdag den 10. står", () => {
-    expect(fristDato("2026-10")).toBe("2026-11-10"); // tirsdag
+  it("vintertid: december 2025 → 20/1-2026 er en tirsdag → 20/1 23:59:59,999 CET", () => {
+    expect(fristDato("2025-12")).toBe("2026-01-20");
+    expect(frist("2025-12").toISOString()).toBe("2026-01-20T22:59:59.999Z");
+  });
+  it("en helligdag rykker også: 20/4-2025 er påskedag, 21/4 2. påskedag → tirsdag 22/4", () => {
+    expect(paaskedag(2025)).toBe("2025-04-20");
+    expect(erHelligdag("2025-04-21")).toBe(true);
+    expect(fristDato("2025-03")).toBe("2025-04-22");
+  });
+  it("rykker aldrig den anden vej — en hverdag den 20. står", () => {
+    expect(fristDato("2026-10")).toBe("2026-11-20"); // fredag
   });
 });
 
 describe("seneste passerede frist og den åbne måned", () => {
-  it("30/9: august er passeret (10/9), september er åben", () => {
+  it("30/9: august er passeret (21/9), september er åben", () => {
     expect(senesteMaanedMedPasseretFrist(NU)).toBe("2026-08");
     expect(aabenMaaned(NU)).toBe("2026-09");
   });
-  it("5/10: september er stadig åben (frist 12/10) — august er seneste passerede", () => {
-    const nu = new Date("2026-10-05T10:00:00Z");
+  it("15/10: september er stadig åben (frist 20/10) — august er seneste passerede", () => {
+    const nu = new Date("2026-10-15T10:00:00Z");
     expect(senesteMaanedMedPasseretFrist(nu)).toBe("2026-08");
     expect(aabenMaaned(nu)).toBe("2026-09");
   });
-  it("13/10 kl. 00:00 dansk: september er passeret, oktober åben", () => {
-    const nu = new Date("2026-10-12T22:00:00Z");
+  it("15/9: august er endnu ikke passeret (frist mandag 21/9) — juli er seneste passerede, august åben", () => {
+    const nu = new Date("2026-09-15T10:00:00Z");
+    expect(senesteMaanedMedPasseretFrist(nu)).toBe("2026-07");
+    expect(aabenMaaned(nu)).toBe("2026-08");
+  });
+  it("21/10 kl. 00:00 dansk: september er passeret, oktober åben", () => {
+    const nu = new Date("2026-10-20T22:00:00Z");
     expect(senesteMaanedMedPasseretFrist(nu)).toBe("2026-09");
     expect(aabenMaaned(nu)).toBe("2026-10");
   });
   it("præcis på fristens sidste millisekund er den IKKE passeret", () => {
-    expect(senesteMaanedMedPasseretFrist(new Date("2026-10-12T21:59:59.999Z"))).toBe("2026-08");
-    expect(senesteMaanedMedPasseretFrist(new Date("2026-10-12T22:00:00.000Z"))).toBe("2026-09");
+    expect(senesteMaanedMedPasseretFrist(new Date("2026-10-20T21:59:59.999Z"))).toBe("2026-08");
+    expect(senesteMaanedMedPasseretFrist(new Date("2026-10-20T22:00:00.000Z"))).toBe("2026-09");
   });
 });
 
 describe("erGodkendtTilTiden", () => {
-  it("målt og created_at ≤ frist", () => {
-    expect(erGodkendtTilTiden(m("2026-08", "2026-09-10T21:59:59.999Z"))).toBe(true);
-    expect(erGodkendtTilTiden(m("2026-08", "2026-09-10T22:00:00.000Z"))).toBe(false);
+  it("målt og created_at ≤ frist (august: mandag 21/9 23:59:59,999 dansk)", () => {
+    expect(erGodkendtTilTiden(m("2026-08", "2026-09-21T21:59:59.999Z"))).toBe(true);
+    expect(erGodkendtTilTiden(m("2026-08", "2026-09-21T22:00:00.000Z"))).toBe(false);
+  });
+  it("mellem den 10. og den 20. er NU til tiden (var for sent med den gamle frist)", () => {
+    expect(erGodkendtTilTiden(m("2026-08", "2026-09-15T09:00:00Z"))).toBe(true);
+    expect(erGodkendtTilTiden(m("2026-09", "2026-10-20T14:00:00Z"))).toBe(true);
   });
   it("et estimat tæller aldrig, heller ikke med tidlig dato", () => {
     expect(erGodkendtTilTiden(m("2026-08", "2026-09-01T00:00:00Z", "estimated"))).toBe(false);
@@ -113,16 +134,16 @@ describe("tidligsteGodkendelse — hukommelsen mod rækkens created_at (rådets 
     expect(tidligsteGodkendelse(null, null)).toBeNull();
     expect(tidligsteGodkendelse("ikke en dato", null)).toBeNull();
   });
-  it("ERSTATTET EFTER FRISTEN: august godkendt 5/9 (hukommelsen), rapporten erstattet 20/9 (ny række, created_at = now) → stadig rettidig", () => {
-    const foerste = tidligsteGodkendelse("2026-09-05T09:00:00Z", "2026-09-20T14:00:00Z");
+  it("ERSTATTET EFTER FRISTEN: august godkendt 5/9 (hukommelsen), rapporten erstattet 28/9 (ny række, created_at = now) → stadig rettidig", () => {
+    const foerste = tidligsteGodkendelse("2026-09-05T09:00:00Z", "2026-09-28T14:00:00Z");
     expect(erGodkendtTilTiden(m("2026-08", foerste))).toBe(true);
     // Uden hukommelsen ville den samme række være for sen — det var fejlen.
-    expect(erGodkendtTilTiden(m("2026-08", "2026-09-20T14:00:00Z"))).toBe(false);
+    expect(erGodkendtTilTiden(m("2026-08", "2026-09-28T14:00:00Z"))).toBe(false);
     // Og streaken holder.
     expect(streakDom([m("2026-07", "2026-08-05T09:00:00Z"), m("2026-08", foerste)], "2026-07-01", NU).laengde).toBe(2);
   });
   it("en måned, der første gang blev målt FOR SENT og siden erstattet, er stadig for sen — hukommelsen giver ingen nåde", () => {
-    const foerste = tidligsteGodkendelse("2026-09-15T09:00:00Z", "2026-09-25T09:00:00Z");
+    const foerste = tidligsteGodkendelse("2026-09-24T09:00:00Z", "2026-09-29T09:00:00Z");
     expect(erGodkendtTilTiden(m("2026-08", foerste))).toBe(false);
   });
 });
@@ -151,8 +172,8 @@ describe("foersteTaellendeMaaned — den første HELE måned som medlem", () => 
 });
 
 describe("hverdageTil", () => {
-  it("fra onsdag 30/9 til mandag 12/10: 1, 2, 5, 6, 7, 8, 9, 12 = 8 hverdage", () => {
-    expect(hverdageTil("2026-10-12", NU)).toBe(8);
+  it("fra onsdag 30/9 til tirsdag 20/10: 1–2, 5–9, 12–16, 19–20 = 2 + 5 + 5 + 2 = 14 hverdage", () => {
+    expect(hverdageTil("2026-10-20", NU)).toBe(14);
   });
   it("0 når fristen er i dag eller passeret", () => {
     expect(hverdageTil("2026-09-30", NU)).toBe(0);
@@ -165,13 +186,13 @@ describe("streakDom", () => {
   /** Kontraktstart langt tilbage, så testene her måler streaken, ikke den første tællende måned. */
   const START = "2025-01-01";
 
-  it("fire måneder i træk til tiden → 4, aktiv, næste frist er septembers 12/10 om 8 hverdage", () => {
+  it("fire måneder i træk til tiden → 4, aktiv, næste frist er septembers 20/10 om 14 hverdage", () => {
     const d = streakDom(["2026-05", "2026-06", "2026-07", "2026-08"].map(tilTiden), START, NU);
     expect(d.laengde).toBe(4);
     expect(d.status).toBe("aktiv");
     expect(d.bedste).toBe(4);
     expect(d.aabenMaanedGodkendt).toBe(false);
-    expect(d.naesteFrist).toEqual({ key: "2026-09", tidspunkt: frist("2026-09"), hverdageTil: 8 });
+    expect(d.naesteFrist).toEqual({ key: "2026-09", tidspunkt: frist("2026-09"), hverdageTil: 14 });
   });
 
   it("den åbne måned lægger til, når den allerede er godkendt — og næste frist bliver oktobers", () => {
@@ -187,8 +208,8 @@ describe("streakDom", () => {
     expect(d.laengde).toBe(2);
   });
 
-  it("august godkendt for sent (15/9) → flammen er ude, bedste husker de tre før", () => {
-    const d = streakDom([...["2026-05", "2026-06", "2026-07"].map(tilTiden), m("2026-08", "2026-09-15T09:00:00Z")], START, NU);
+  it("august godkendt for sent (tirsdag 22/9, dagen efter fristen 21/9) → flammen er ude, bedste husker de tre før", () => {
+    const d = streakDom([...["2026-05", "2026-06", "2026-07"].map(tilTiden), m("2026-08", "2026-09-22T09:00:00Z")], START, NU);
     expect(d.laengde).toBe(0);
     expect(d.status).toBe("brudt");
     expect(d.bedste).toBe(3);
@@ -215,9 +236,9 @@ describe("streakDom", () => {
   });
 
   it("uden kontraktstart fryser den tidligste godkendelse bagud: første måned godkendt for sent tæller ikke imod", () => {
-    // Medlem uden kontraktstart: juni godkendt først 20/7 (for sen — men det var den første godkendelse, så
-    // første tællende måned er AUGUST, måneden efter godkendelsen). Juni bryder ikke; juli tæller ikke.
-    const d = streakDom([m("2026-06", "2026-07-20T09:00:00Z"), tilTiden("2026-07"), tilTiden("2026-08")], null, NU);
+    // Medlem uden kontraktstart: juni godkendt først 24/7 (for sen — fristen var mandag 20/7 — men det var den
+    // første godkendelse, så første tællende måned er AUGUST, måneden efter godkendelsen). Juni bryder ikke; juli tæller ikke.
+    const d = streakDom([m("2026-06", "2026-07-24T09:00:00Z"), tilTiden("2026-07"), tilTiden("2026-08")], null, NU);
     expect(d.laengde).toBe(1);
     expect(d.status).toBe("aktiv");
     // Godkendes juni i stedet 30/6 (før måneden er omme), er juli første tællende måned → 2.
@@ -231,18 +252,18 @@ describe("streakDom", () => {
   });
 
   it("nyt medlem (start 20/8, august uploadet → første tællende måned september): «ingen», ikke «brudt» (rådets fund 1)", () => {
-    // August ligger FØR medlemskabet (starten er ikke den 1.) og er frosset; septembers frist (12/10) er
+    // August ligger FØR medlemskabet (starten er ikke den 1.) og er frosset; septembers frist (20/10) er
     // ikke passeret 30/9. Der findes ingen tællende måned med passeret frist → der er intet at bryde.
     const d = streakDom([m("2026-08", "2026-09-03T09:00:00Z")], "2026-08-20", NU);
     expect(foersteTaellendeMaaned("2026-08-20")).toBe("2026-09");
     expect(d).toMatchObject({ laengde: 0, status: "ingen", bedste: 0, aabenMaanedGodkendt: false });
     expect(d.naesteFrist.key).toBe("2026-09");
-    // Samme medlem 13/10 uden september godkendt: nu ER der en tællende måned med passeret frist — men
+    // Samme medlem 21/10 uden september godkendt: nu ER der en tællende måned med passeret frist — men
     // den er ikke målt, så der har aldrig været en flamme: stadig «ingen».
-    const efterFristen = new Date("2026-10-13T10:00:00Z");
+    const efterFristen = new Date("2026-10-21T10:00:00Z");
     expect(streakDom([m("2026-08", "2026-09-03T09:00:00Z")], "2026-08-20", efterFristen).status).toBe("ingen");
-    // Godkendt september for sent (14/10): en tællende, målt måned med passeret frist → «brudt».
-    expect(streakDom([m("2026-08", "2026-09-03T09:00:00Z"), m("2026-09", "2026-10-14T09:00:00Z")], "2026-08-20", new Date("2026-11-13T10:00:00Z")).status).toBe("brudt");
+    // Godkendt september for sent (22/10): en tællende, målt måned med passeret frist → «brudt».
+    expect(streakDom([m("2026-08", "2026-09-03T09:00:00Z"), m("2026-09", "2026-10-22T09:00:00Z")], "2026-08-20", new Date("2026-11-13T10:00:00Z")).status).toBe("brudt");
   });
 
   it("estimater (årsregnskabet /12) tæller hverken med eller imod", () => {

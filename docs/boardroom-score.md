@@ -8,6 +8,11 @@ valgt af Jonas ud fra idélisten (`docs/analyser-30-09/gamification-analyse.md`)
 > altid med hvad der løfter scoren mest lige nu» og «Tal-streak: godkendte
 > månedstal før den 10. i måneden, en flammetæller, der ikke må gå ud.»
 
+**Fristen er flyttet til den 20. (Jonas 30/9-2026 20:43):** «påmindelserne
+med rapportering [kører] med deadline d. 20. i måneden efter. Mere hvis
+Boardroom Score skal passe til det.» Scoren følger nu samme frist som
+`send-report-reminder` (`REMINDER_DAYS = [7, 15, 20]`). Se §4.
+
 Jonas' ramme: «Folk er konkurrencemennesker … noget at jagte … visuelt
 overskueligt og spændende.» B2B-tone, aldrig barnlig. **Ingen rangliste
 mellem navngivne virksomheder** (BACKLOG 13/8 står ved magt: scoren er
@@ -258,16 +263,43 @@ som §2.5.
 2. månedens FØRSTE godkendelse (§4a: hukommelsen, ellers rækkens
    `created_at` — den tidligste) er ≤ `frist(P)`.
 
-**Fristen** `frist(P)` = udgangen (23:59:59,999 dansk tid) af den 10. i
-måneden efter `P` — «senest den 10.» (Jonas' ord «før den 10.» tolkes
-inklusivt; en frist kl. 00:00 den 10. ville ingen forstå). Falder den 10.
-på en lørdag, søndag, dansk helligdag eller en af husets lukkedage
+**Fristen** `frist(P)` = udgangen (23:59:59,999 dansk tid) af den **20.** i
+måneden efter `P` — «senest den 20.», inklusiv. Falder den 20. på en lørdag,
+søndag, dansk helligdag eller en af husets lukkedage
 (`hverdage.ts:erHverdagDato`), rykkes fristen til udgangen af den næste
-hverdag — aldrig den anden vej. Konstanterne: `STREAK_FRIST_DAG = 10`.
+hverdag — aldrig den anden vej. Konstanten: `STREAK_FRIST_DAG = 20`
+(`streak.ts`) — ÉN konstant bærer streaken, disciplin-søjlens rettidighed
+(§2.4: `erGodkendtTilTiden` → `frist`), friskheden (§2.0:
+`aeldsteFriskeMaaned` → `senesteMaanedMedPasseretFrist`) og løfterens
+«Godkend <måned> senest <dato>» (§3: `fristDato`).
 
-Regnestykke: `frist(2026-09)` = 10/10-2026 er en lørdag → næste hverdag er
-mandag 12/10 → fristen er 12/10-2026 kl. 23:59:59,999 dansk tid =
-`kbhTilUtc("2026-10-13", 0, 0) − 1 ms`.
+**Hvorfor den 20. (rettet 30/9-2026 aften):** skiven valgte først den 10.
+(Jonas' idéliste: «før den 10.»). Men platformens påmindelser
+(`send-report-reminder`, `REMINDER_DAYS = [7, 15, 20]`: venlig den 7.,
+presserende den 15., kritisk den 20.) har altid sagt den 20. — to frister
+for samme handling er én for mange. Jonas 30/9 20:43: «deadline d. 20. i
+måneden efter. Mere hvis Boardroom Score skal passe til det.» Ændres
+påmindelsesdagene, ændres `STREAK_FRIST_DAG` i samme PR.
+
+**Målt i prod 30/9-2026** (SELECT; målte måneder med passeret frist i
+ikke-demo-kundevirksomheder; første godkendelse = tidligste af hukommelsen
+og `created_at`; fristen rykket over weekend, IKKE over helligdage i
+målingen): af **178** måneder i 19 virksomheder var **13 (7,3 %)** rettidige
+med den 10. og **33 (18,5 %)** med den 20. Kun de **tællende** måneder
+(efter måneden efter virksomhedens første godkendelse — historik uploadet
+ved start tæller ikke, §2.4): **27** måneder i 7 virksomheder, **9 (33 %)**
+med den 10., **17 (63 %)** med den 20.; median 15 dage efter periodens
+udløb. De 178 er domineret af bagudfyldt historik, som aldrig kunne være
+rettidig.
+
+Regnestykker (2026):
+- `frist(2026-09)`: 20/10-2026 er en **tirsdag** → fristen står: 20/10 kl.
+  23:59:59,999 dansk tid (CEST) = `kbhTilUtc("2026-10-21", 0, 0) − 1 ms` =
+  `2026-10-20T21:59:59.999Z`.
+- `frist(2026-08)`: 20/9-2026 er en **søndag** → mandag 21/9 →
+  `2026-09-21T21:59:59.999Z`.
+- `frist(2026-05)`: 20/6-2026 er en **lørdag** → mandag 22/6.
+- `frist(2025-03)`: 20/4-2025 er påskedag, 21/4 2. påskedag → tirsdag 22/4.
 
 **Streaken** tælles baglæns fra den seneste måned, hvis frist er passeret:
 
@@ -463,7 +495,7 @@ andet regnes.
 åbne måned, friskhed). Grundlaget genhentes hvert 5. minut
 (`refetchInterval`), og `nu` er en `useState`, der tikker hvert minut og
 står i `useMemo`-afhængighederne — så status skifter hen over en frist
-(12/10 kl. 00:00) uden genindlæsning.
+(21/10 kl. 00:00) uden genindlæsning.
 
 Alle regnestykker står som kommentarer ved koden (husets regel: «regnestykker
 skrives ud»).
@@ -501,10 +533,32 @@ større under «Hvad løfter dit tal»); (7) kortets egen «Din score» er fjern
 først fra `sm`. `udaekket`-linjen og klokken før fristen
 er stadig åbne (herunder).
 
+**Kompakt kort (30/9-2026 aften, grenen `feat/score-kompakt`; Jonas 20:43:
+«Boardroom Score sektionen er meget stor på forsiden. Måske en smule mere
+kompakt, og måske også lidt mere interessant at kigge på»; målt 669–760 px
+høj på 1440 px):** ét kort i én række. Til venstre scoren som tal i en
+tynd RING — en SVG-bue i skala 0–1000 (`scoreKort.ts:ringBue`: omkreds =
+2π × 54, bue = omkreds × score/1000), som tæller op sammen med tallet og står
+straks under `prefers-reduced-motion`; retning og dækning i små linjer under.
+Til højre de fire søjler som små vandrette barer (navn + point/250, 2 × 2 på
+mobil, 4 i række fra `lg`), streaken som ÉN linje med flammen («7 måneder i
+træk · Næste frist: september senest 20/10 (14 hverdage)») og KUN den
+øverste løfter (= `loefterMest`) som én linje med link. Resten — løfter nr.
+2–3, søjlernes tal i ord, streakens status og bedste — ligger bag «Se hvad
+der tæller» (lukket som standard, `aria-expanded` + `aria-controls`,
+synlig fokusring). Forbeholdet står ved knappen. Uden score står ringen tom
+(kun sporet) med «Ikke nok tal endnu» i samme ramme. Regnet højde på
+desktop i hvile ≈ 260 px (p-6 48 + ringkolonnen ≈ 168 + bunden ≈ 48; den
+højre kolonne ≈ 130 er lavere end ringen). Rådets krav fra #1178 står:
+ingen «+N point» uden score, «Mål»-mærket, skærmlæserteksten — og den står
+INDE i ringens `relative`-boks. Kildeværn `boardroomScoreFlade.guard` dom 7
+(kun øverste løfter i hvile, knappen) og dom 8 (sr-only i positioneret
+forfader, buen af `ringBue`).
+
 - Et kort på medlemmets forside (mellem «Din måned» og planen): tallet,
   fire søjler som hairline-barer med point, `daekning`-linjen,
   «Løfter mest nu»-sætningen som handling (link til /reports, /budget,
-  /kpis), streaken som tal med «næste frist: 12/10» — og retning mod
+  /kpis), streaken som tal med «næste frist: 20/10» — og retning mod
   `forrige` i ord (husets «Din måned»-mønster: ingen procent, ingen
   farve-skam).
 - `udaekket`-linjen ved scoren, når seneste rapports kontrolsum er stor.
@@ -519,6 +573,6 @@ er stadig åbne (herunder).
   `cash` i målte rækker (likviditetssøjlens dækning), og fordelingen af
   streak-længder — SQL i `docs/analyser-30-09/gamification-analyse.md`
   sektion 6 giver rytmen; `cash` skal måles særskilt.
-- Beslutninger til Jonas: vægtene (lige nu 250 × 4), fristen inklusiv den
-  10., ingen nåde i streaken, negativ bank = 0, friskhed 6 måneder (§2.0),
+- Beslutninger til Jonas: vægtene (lige nu 250 × 4), ~~fristen inklusiv den
+  10.~~ **løst 30/9 20:43: den 20., som påmindelserne (§4)**, ingen nåde i streaken, negativ bank = 0, friskhed 6 måneder (§2.0),
   afskrivninger ude af runway (§2.1).

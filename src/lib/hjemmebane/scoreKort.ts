@@ -11,7 +11,7 @@
  * (§5 pkt. 2) står på kortet.
  */
 import { krTekst } from "@/lib/boardroomScore/score";
-import { flytMaaned, fristDato } from "@/lib/boardroomScore/streak";
+import { flytMaaned, fristDato, STREAK_FRIST_DAG } from "@/lib/boardroomScore/streak";
 import { loefterMitTal } from "@/lib/boardroomScore/loefter";
 import type { Handling, ScoreDom, Soejler, SoejleNavn, StreakDom } from "@/lib/boardroomScore/typer";
 import { maanedsnavn } from "@/lib/maanedsnoegle";
@@ -22,6 +22,13 @@ export const SCORE_AFVENTER_OVERSKRIFT = "Din Boardroom Score er på vej";
 export const SCORE_AFVENTER_TEKST = "Vi gør din score og din tal-streak klar. Den dukker op her af sig selv — du skal ikke gøre noget.";
 export const SCORE_FEJL_TEKST = "Din score kunne ikke hentes.";
 export const SCORE_LOEFTER_OVERSKRIFT = "Hvad løfter dit tal";
+/** Knappen, der folder resten ud (de øvrige løftere, søjlernes tal i ord, streakens status) — lukket som standard. */
+export const SCORE_DETALJER_KNAP = "Se hvad der tæller";
+export const SCORE_DETALJER_KNAP_LUK = "Skjul detaljer";
+export const SCORE_INGEN_TAL = "Ikke nok tal endnu";
+export const SCORE_SOEJLER_OVERSKRIFT = "Søjlerne";
+/** Overskriften over løfter nr. 2–3 i detaljerne — den øverste står altid synlig under SCORE_LOEFTER_OVERSKRIFT. */
+export const SCORE_OEVRIGE_OVERSKRIFT = "Også værd at gøre";
 /** Mærket på en løfter-linje uden link (motorens «mere i banken/margin/omsætning»): et mål, ikke en knap (rådets fund 6, 30/9). */
 export const LOEFTER_MAAL_MAERKE = "Mål";
 /** Effekten, når scoren endnu er null: et tal ville stå over for «Ikke nok tal endnu» (rådets fund 2). */
@@ -120,7 +127,7 @@ export interface StreakLinjer {
   laengde: number;
   enhed: string;
   status: string;
-  /** «Næste frist: september senest 12/10 (8 hverdage)» — eller «… er i hus». */
+  /** «Næste frist: september senest 20/10 (14 hverdage)» — eller «… er i hus». */
   frist: string;
   bedste: string | null;
 }
@@ -132,7 +139,7 @@ export function streakLinjer(streak: StreakDom): StreakLinjer {
       ? "Dine tal er godkendt til tiden"
       : streak.status === "brudt"
         ? "Streaken er brudt — næste frist starter en ny"
-        : "Godkend dine tal senest den 10. og start din streak";
+        : `Godkend dine tal senest den ${STREAK_FRIST_DAG}. og start din streak`;
   const n = streak.naesteFrist;
   const hverdage = n.hverdageTil === 0 ? "i dag" : n.hverdageTil === 1 ? "1 hverdag" : `${n.hverdageTil} hverdage`;
   const fristLinje = `Næste frist: ${maaned(n.key)} senest ${datoKort(fristDato(n.key))} (${hverdage})`;
@@ -207,4 +214,28 @@ export function taelOpVaerdi(fra: number, til: number, t: number, varighed: numb
   const p = t / varighed;
   const e = 1 - Math.pow(1 - p, 3);
   return Math.round(fra + (til - fra) * e);
+}
+
+// ── Ringen ──────────────────────────────────────────────────────────────────
+/** Ringens radius i SVG-enheder (viewBox 0 0 120 120, streg 5 → 60 − 5/2 − luft). */
+export const RING_RADIUS = 54;
+
+/**
+ * Buen for et tal på skalaen 0–max (i skala, ingen pynt):
+ *   omkreds = 2π × radius
+ *   laengde = omkreds × clamp(vaerdi / max, 0, 1)
+ * Eksempel: 733 af 1000 med r = 54 → omkreds 339,29 → buen 248,70.
+ * null/NaN/max ≤ 0 → laengde 0 (kun sporet tegnes).
+ */
+export function ringBue(vaerdi: number | null, max: number = 1000, radius: number = RING_RADIUS): { omkreds: number; laengde: number } {
+  const omkreds = 2 * Math.PI * radius;
+  if (vaerdi === null || !Number.isFinite(vaerdi) || !(max > 0)) return { omkreds, laengde: 0 };
+  const andel = Math.min(1, Math.max(0, vaerdi / max));
+  return { omkreds, laengde: omkreds * andel };
+}
+
+/** Streaken som ÉN linje ved siden af flammen: «7 måneder i træk» + fristen. */
+export function streakKortLinje(streak: StreakDom): { tal: string; frist: string } {
+  const l = streakLinjer(streak);
+  return { tal: `${l.laengde} ${l.enhed}`, frist: l.frist };
 }

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-// Kildeværn for Boardroom Score-fladen (30/9-2026, Jonas D3). Seks domme:
+// Kildeværn for Boardroom Score-fladen (30/9-2026, Jonas D3). Otte domme:
 //   1. HOOKS I TOPBLOKKEN (React #310): BoardroomView kalder useBoardroomScore()
 //      FØR sin første betingede return; ScoreKort kalder sine hooks før sin første.
 //   2. PLACERINGEN (docs/boardroom-score.md §7 «mellem Din måned og planen"):
@@ -14,6 +14,10 @@ import { resolve } from "node:path";
 //      er erManglendeTabel på hukommelsens tabel.
 //   5. prefers-reduced-motion respekteres (tallet og barerne).
 //   6. Ingen emojis i fladen eller ordene.
+//   7. KOMPAKT (Jonas 30/9 20:43): kun den ØVERSTE løfter i hvile; resten bag en
+//      knap med aria-expanded + aria-controls, lukket som standard.
+//   8. Skærmlæserteksten (sr-only, position:absolute) står inde i ringens
+//      `relative`-boks (positioneret forfader), og buen er regnet af ringBue.
 // Hver dom prøves også på en ødelagt kopi (selvbevis — forsideTop.guard-mønstret).
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -84,6 +88,27 @@ export const kendteKilder = (hook: string): boolean => {
 export const bevaegelseRespekteres = (kort: string): boolean =>
   /prefers-reduced-motion: reduce/.test(kort) && /motion-reduce:transition-none/.test(kort) && /if \(!bevaegelse \|\|/.test(kort);
 
+/** Dom 7: én synlig løfter, resten bag en tilgængelig knap, lukket som standard. */
+export const kompaktLoefter = (kort: string): boolean => {
+  const k = udenKommentarer(kort);
+  return /const \[oeverst, \.\.\.oevrige\] = loefter;/.test(k) &&
+    /<LoefterRaekke h=\{oeverst\} \/>/.test(k) &&
+    !/loefter\.map\(/.test(k) &&
+    /useState\(false\)/.test(k) &&
+    /aria-expanded=\{aaben\}/.test(k) &&
+    /aria-controls=\{detaljerId\}/.test(k) &&
+    /id=\{detaljerId\} hidden=\{!aaben\}/.test(k);
+};
+
+/** Dom 8: sr-only i ringens relative boks; buen af ringBue. */
+export const srIRelativRing = (kort: string): boolean => {
+  const k = udenKommentarer(kort);
+  const ring = k.indexOf('className="relative h-24 w-24');
+  const sr = k.indexOf('className="sr-only"');
+  const ringSlut = ring === -1 ? -1 : k.indexOf("\n          </div>\n", ring);
+  return ring > -1 && sr > ring && ringSlut > sr && /ringBue\(tallet\)/.test(k);
+};
+
 /** Dom 6. */
 export const ingenEmoji = (...filer: string[]): boolean => filer.every((f) => !/\p{Extended_Pictographic}/u.test(f));
 
@@ -123,7 +148,19 @@ describe("Boardroom Score-fladen — kildeværn", () => {
 
   it("dom 5: prefers-reduced-motion respekteres", () => {
     expect(bevaegelseRespekteres(kort)).toBe(true);
-    expect(bevaegelseRespekteres(kort.replace("motion-reduce:transition-none", ""))).toBe(false);
+    expect(bevaegelseRespekteres(kort.split("motion-reduce:transition-none").join(""))).toBe(false);
+  });
+
+  it("dom 7: kun den øverste løfter i hvile; resten bag «Se hvad der tæller» (aria-expanded, lukket som standard)", () => {
+    expect(kompaktLoefter(kort)).toBe(true);
+    expect(kompaktLoefter(kort.replace("<LoefterRaekke h={oeverst} />", "{loefter.map((h) => <LoefterRaekke h={h} />)}"))).toBe(false);
+    expect(kompaktLoefter(kort.replace("useState(false)", "useState(true)"))).toBe(false);
+    expect(kompaktLoefter(kort.replace("aria-expanded={aaben}", ""))).toBe(false);
+  });
+
+  it("dom 8: skærmlæserteksten står inde i ringens relative boks", () => {
+    expect(srIRelativRing(kort)).toBe(true);
+    expect(srIRelativRing(kort.replace('className="relative h-24 w-24', 'className="h-24 w-24'))).toBe(false);
   });
 
   it("dom 6: ingen emojis i fladen eller ordene", () => {

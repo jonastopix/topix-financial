@@ -1,6 +1,16 @@
 /**
  * src/lib/boardroomScore/streak.ts — tal-streaken: «godkendte månedstal
- * senest den 10. i måneden efter» (docs/boardroom-score.md §4).
+ * senest den 20. i måneden efter» (docs/boardroom-score.md §4).
+ *
+ * FRISTEN ER DEN 20. (Jonas 30/9-2026 20:43: «påmindelserne med rapportering
+ * [kører] med deadline d. 20. i måneden efter. Mere hvis Boardroom Score skal
+ * passe til det.») — samme frist som send-report-reminder (REMINDER_DAYS
+ * = [7, 15, 20]: påmindelse den 7., den 15. og på fristdagen den 20.). Den
+ * 10. var en frist, ingen mail nævnte, og kun 7 % af månederne holdt den.
+ * Én konstant (STREAK_FRIST_DAG) bærer både streaken og disciplin-søjlens
+ * rettidighed (soejler.ts:disciplin → erGodkendtTilTiden → frist), friskheden
+ * (aeldsteFriskeMaaned → senesteMaanedMedPasseretFrist) og løfterens
+ * «Godkend <måned> senest <dato>» (score.ts → fristDato).
  *
  * REGLEN, kort:
  *   - En måned P tæller som «godkendt til tiden», når den har en MÅLT række
@@ -11,7 +21,7 @@
  *     sletning, som begge sletter facts-rækken), ellers rækkens created_at;
  *     den tidligste af de to (tidligsteGodkendelse). committed_at læses
  *     aldrig (overskrives ved gen-godkendelse).
- *   - frist(P) = udgangen af den 10. i måneden efter P, dansk tid. Er den 10.
+ *   - frist(P) = udgangen af den 20. i måneden efter P, dansk tid. Er den 20.
  *     ikke en hverdag (weekend, helligdag, lukkedag — hverdage.ts), rykkes
  *     fristen til udgangen af NÆSTE hverdag. Aldrig den anden vej.
  *   - Streaken tælles baglæns fra den seneste måned, hvis frist er passeret;
@@ -28,8 +38,12 @@ import { erHverdagDato, kbhDato, kbhTilUtc, laegDageTilDato, naesteHverdagFra } 
 import { maanedsNoegleKbh } from "@/lib/maanedsnoegle";
 import type { ScoreMaaned, StreakDom } from "./typer";
 
-/** Fristens dag i måneden EFTER perioden — «senest den 10.» (inklusiv). */
-export const STREAK_FRIST_DAG = 10;
+/**
+ * Fristens dag i måneden EFTER perioden — «senest den 20.» (inklusiv).
+ * Samme dag som send-report-reminders sidste påmindelse (REMINDER_DAYS [7, 15, 20]).
+ * Ændres den ene, ændres den anden i samme PR.
+ */
+export const STREAK_FRIST_DAG = 20;
 
 const MS = 1;
 
@@ -72,7 +86,14 @@ export function flytMaaned(key: string, antal: number): string {
   return `${nyAar}-${String(nyMd + 1).padStart(2, "0")}`;
 }
 
-/** Fristens DATO («YYYY-MM-DD»): den 10. i måneden efter P, rykket frem til en hverdag. */
+/**
+ * Fristens DATO («YYYY-MM-DD»): den 20. i måneden efter P, rykket frem til en hverdag.
+ *   fristDato(P) = naesteHverdagFra(<måneden efter P>-20), hvis den 20. ikke er en hverdag
+ * Eksempler (2026): september → 20/10 er en tirsdag → 20/10.
+ *                   august    → 20/9 er en søndag  → mandag 21/9.
+ *                   maj       → 20/6 er en lørdag  → mandag 22/6.
+ *   (2025) marts → 20/4 er påskedag, 21/4 2. påskedag → tirsdag 22/4.
+ */
 export function fristDato(key: string): string {
   const raa = `${naesteMaaned(key)}-${String(STREAK_FRIST_DAG).padStart(2, "0")}`;
   return erHverdagDato(raa) ? raa : naesteHverdagFra(raa, false);
@@ -81,7 +102,9 @@ export function fristDato(key: string): string {
 /**
  * Fristens TIDSPUNKT: udgangen af fristdatoen i dansk tid.
  *   frist = kbhTilUtc(dagen efter fristdatoen, 00:00) − 1 ms
- * Eksempel: frist("2026-09") → 10/10-2026 er lørdag → mandag 12/10 → 12/10-2026 23:59:59,999 dansk tid.
+ * Eksempel: frist("2026-09") → 20/10-2026 er en tirsdag → 20/10-2026 23:59:59,999 dansk tid (CEST)
+ *          = kbhTilUtc("2026-10-21", 00:00) − 1 ms = 2026-10-20T21:59:59.999Z.
+ *          frist("2026-08") → 20/9-2026 er søndag → mandag 21/9 → 2026-09-21T21:59:59.999Z.
  */
 export function frist(key: string): Date {
   const dagenEfter = laegDageTilDato(fristDato(key), 1);
@@ -92,7 +115,7 @@ export function fristPasseret(key: string, nu: Date): boolean {
   return nu.getTime() > frist(key).getTime();
 }
 
-/** Måneden med den seneste passerede frist set fra `nu` — normalt måneden før forrige måned indtil den 10. */
+/** Måneden med den seneste passerede frist set fra `nu` — måneden før forrige måned indtil fristen (den 20., rykket til hverdag), derefter forrige måned. */
 export function senesteMaanedMedPasseretFrist(nu: Date): string {
   let p = flytMaaned(maanedsNoegleKbh(nu), -1);
   // Højst to skridt tilbage: fristen ligger altid i måneden efter P.
