@@ -172,6 +172,12 @@ const AUTH_PREDICATES: Predicate[] = [
   // Afmeldingslinket i før-webinar-mailene (22/9-2026): HMAC over mailen,
   // sammenlignet i konstant tid FØR service role — _shared/webinarAfmeldToken.ts.
   { name: "laesAfmeldToken()",            pattern: /\blaesAfmeldToken\s*\(/ },
+  // Klikket på Mortens hilsen i «dagen før»-mailen (udkast 30/9-2026): id'et i
+  // URL'en er en webinar_mails-række (uuid, 122 tilfældige bit) — samme klasse
+  // som verifyAftaletoken. Formen dømmes FØR opslaget, og kun en sendt en_dag-række
+  // logges; viderestillingens mål bygges af app_config, aldrig af URL'en.
+  // Se _shared/webinarVideo.ts.
+  { name: "verifyVideoKlik()",            pattern: /\bverifyVideoKlik\s*\(/ },
 
   // Shape-based: `Bearer ${...}` template compared against a request
   // header (=== or !==). Excludes outbound fetch-header assignments

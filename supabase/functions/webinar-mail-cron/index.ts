@@ -90,6 +90,15 @@
 // SELVMAILENDE_REFERENCER, så klokke-mail-cron ikke mailer den én gang til.
 // Kaster aldrig: fejl skubbes til r.fejl.
 //
+// MORTENS HILSEN (udkast 30/9-2026, _shared/webinarVideo.ts): «en_dag» kan bære
+// en videoblok (stillbillede + knap), når app_config.webinar_en_dag_video er sat
+// og gyldig. Rækken læses ÉN gang pr. kørsel, fail-closed (en læsefejl eller en
+// ugyldig konfiguration = mailen uden video). aktiv false = KUN prøven til én
+// adresse får videoen; aktiv true = alle. Linket bærer mail-rækkens id — cronen
+// trækker det (crypto.randomUUID) FØR mailen bygges og skriver sporet med SAMME
+// id, så webinar-video kan logge klikket pr. række uden en adresse i URL'en.
+// Beviset i svaret: `video` (status · grund · med_video).
+//
 // BODY (STRIKS, bodyFelter.guard): dry_run · email · art · nu.
 //
 // KASTER ALDRIG mod én mail: fejler én, tælles den, og de andre sendes.
@@ -109,6 +118,7 @@ import { skrivRaadgiverBesked } from "../_shared/raadgiverBesked.ts";
 import { sendManagedEmail } from "../_shared/managedEmail.ts";
 import { driftModtager } from "../_shared/driftModtager.ts";
 import { indgangsMailHtml } from "../_shared/indgangsMail.ts";
+import { type KonfigDom, laesVideoKonfig, mailVideo, VIDEO_ART, VIDEO_KONFIG_NOEGLE, type VideoKonfig, type VideoStatus, videoIKoerslen } from "../_shared/webinarVideo.ts";
 
 const LOG = "[webinar-mail-cron]";
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -189,6 +199,27 @@ export interface MailResultat {
   alarm_mail: string;
   /** Klokken: «ingen» · «skrevet» · «fandtes» (dedup på titlen) · «fejlet: …». */
   alarm_klokke: string;
+  /**
+   * Mortens hilsen i «en_dag» (webinarVideo.ts): status for DENNE kørsel —
+   * ikke_sat · ugyldig · laesefejl · slukket · proeve · taendt — grunden ved
+   * ugyldig/laesefejl, og antal en_dag-mails sendt OK med videoen.
+   */
+  video: { status: VideoStatus; grund: string | null; med_video: number };
+}
+
+/**
+ * Konfigurationen til Mortens hilsen — ÉN læsning pr. kørsel. FAIL-CLOSED: kan
+ * rækken ikke læses, er svaret «laesefejl», og ingen mail får videoen.
+ */
+async function laesVideoRaekke(admin: SupabaseClient): Promise<KonfigDom | "laesefejl"> {
+  try {
+    const { data, error } = await admin.from("app_config").select("config_value").eq("config_key", VIDEO_KONFIG_NOEGLE).maybeSingle();
+    if (error) throw new Error(error.message);
+    return laesVideoKonfig((data as { config_value?: unknown } | null)?.config_value ?? null);
+  } catch (e) {
+    console.error(`${LOG} kunne ikke læse ${VIDEO_KONFIG_NOEGLE} — fail-closed, ingen video:`, e);
+    return "laesefejl";
+  }
 }
 
 /** Hent alle rækker i sider — aldrig et tavst loft. */
@@ -223,9 +254,10 @@ const tomt = (a: { toer: boolean; laas: boolean; email: string | null; art: stri
   indhentet: 0, sendt: 0, fejlede: 0, udsat: 0, budget: tomtBudgetBevis(), dublet: 0, med_invitation: 0, uden_invitation: 0,
   loft: { forsoeg_60_min: 0, ok_60_min: 0, maks: MAILGUN_LOFT_PR_TIME, pause: null, stoppet_ved: null }, over_loft: 0, ventende: [],
   eksempler: [], fejl: [], alarm_mail: "ingen", alarm_klokke: "ingen",
+  video: { status: "ikke_sat", grund: null, med_video: 0 },
 });
 
-async function koer(a: { admin: SupabaseClient; toerKoersel: boolean; laas: boolean; email: string | null; art: MailArt | null; nu: Date; startMs: number; basis: string }): Promise<MailResultat> {
+async function koer(a: { admin: SupabaseClient; toerKoersel: boolean; laas: boolean; email: string | null; art: MailArt | null; nu: Date; startMs: number; basis: string; klikBasis: string }): Promise<MailResultat> {
   // RIGTIG AFSENDELSE: dry_run: false OG (låsen ELLER én navngiven adresse).
   const senderRigtigt = !a.toerKoersel && (a.laas || a.email !== null);
   const r = tomt({ toer: a.toerKoersel, laas: a.laas, email: a.email, art: a.art, nu: a.nu, senderRigtigt });
@@ -305,6 +337,15 @@ async function koer(a: { admin: SupabaseClient; toerKoersel: boolean; laas: bool
   r.ventende = (loft.pause ? sendinger : sendinger.slice(loft.maks)).map((s) => ({ art: s.art, session_tid: s.sessionTid }));
   if (loft.pause) console.error(`${LOG} PAUSE: ${loft.pause.grund} — ${sendinger.length} mails venter til ${loft.pause.til.toISOString()}`);
 
+  // 4c. MORTENS HILSEN (30/9) — læst FØR tørkørslens return, så en tørkørsel
+  //     viser status og grund. Prøven = kørslen er begrænset til én adresse.
+  const videoDom = await laesVideoRaekke(a.admin);
+  const videoValg = videoDom === "laesefejl"
+    ? { status: "laesefejl" as const, konfig: null, grund: `${VIDEO_KONFIG_NOEGLE} kunne ikke læses` }
+    : videoIKoerslen(videoDom, a.email !== null);
+  const videoKonfig: VideoKonfig | null = videoValg.konfig;
+  r.video = { status: videoValg.status, grund: videoValg.grund, med_video: 0 };
+
   if (!senderRigtigt) return r;
 
   // 5. Afsendelsen — én ad gangen, inden for budgettet.
@@ -355,6 +396,9 @@ async function koer(a: { admin: SupabaseClient; toerKoersel: boolean; laas: bool
       if (inv.udfald === "hentet") r.med_invitation++; else r.uden_invitation++;
       if (inv.udfald !== "hentet") console.error(`${LOG} invitationen kunne ikke hentes (${inv.udfald}): ${inv.grund ?? ""}`);
     }
+    // Mail-rækkens id trækkes HER, så klik-linket og sporet bærer det samme.
+    const mailId = crypto.randomUUID();
+    const video = s.art === VIDEO_ART && videoKonfig !== null ? mailVideo(videoKonfig, a.klikBasis, mailId) : null;
     const mail = bygWebinarMail({
       art: s.art,
       sessionTid: s.sessionTid,
@@ -363,6 +407,7 @@ async function koer(a: { admin: SupabaseClient; toerKoersel: boolean; laas: bool
       kalenderLink: s.kalenderLink,
       afmeldUrl: link,
       invitationVedhaeftet: ics !== null,
+      video,
     });
     // Mailguns `/messages` kan ikke sætte Content-Type pr. vedhæftning (se
     // _shared/mimeInvitation.ts). Derfor bygges MIME'en selv og sendes til
@@ -382,6 +427,7 @@ async function koer(a: { admin: SupabaseClient; toerKoersel: boolean; laas: bool
         svarTil: SVAR_TIL, afmeldUrl: link,
       });
     }
+    if (spor.udfald === "ok" && video !== null) r.video.med_video++;
     if (spor.udfald === "ok") r.sendt++; else { r.fejlede++; r.fejl.push(`${s.art}: ${spor.udfald}${spor.grund ? ` — ${spor.grund}` : ""}`); }
     const eks = r.eksempler.find((e) => e.email === s.email && e.art === s.art);
     if (eks) eks.udfald = spor.udfald;
@@ -389,6 +435,7 @@ async function koer(a: { admin: SupabaseClient; toerKoersel: boolean; laas: bool
     // 6. Sporet — EFTER afsendelsen. Et 23505 betyder, at en anden kørsel nåede
     //    det først; mailen er så sendt to gange, og DET skal kunne ses.
     const { error } = await a.admin.from("webinar_mails").insert({
+      id: mailId,
       email: s.email, session_tid: s.sessionTid, art: s.art, udfald: spor.udfald,
       status: spor.status, varighed_ms: spor.varighed_ms, mailgun_id: spor.mailgun_id,
       emne: mail.subject, svar: spor.svar, grund: spor.grund, ewebinar_id: s.ewebinarId,
@@ -522,16 +569,18 @@ Deno.serve(async (req) => {
   const laas = await laasErAktiv(admin);
   // Afmeldingslinkets base: functionens søsterendepunkt i samme projekt.
   const basis = `${supabaseUrl.replace(/\/+$/, "")}/functions/v1/webinar-afmeld`;
+  // Klik-linket i Mortens hilsen: søsterendepunktet webinar-video (offentligt, verify_jwt = false).
+  const klikBasis = `${supabaseUrl.replace(/\/+$/, "")}/functions/v1/webinar-video`;
 
   try {
-    const r = await koer({ admin, toerKoersel, laas, email, art: artRaa as MailArt | null, nu, startMs, basis });
+    const r = await koer({ admin, toerKoersel, laas, email, art: artRaa as MailArt | null, nu, startMs, basis, klikBasis });
     // ALARMEN — kun efter en RIGTIG kørsel (også prøven til én adresse, med vilje),
     // og kun når dommen (doemAlarm) siger, at et menneske skal gøre noget — eller
     // dagens ene loft-mail. Tiden er RIGTIG tid: body'ens `nu` flytter dommens ur.
     const alarmNu = new Date();
     const alarm = r.sender_rigtigt ? doemAlarm(r, alarmNu) : null;
     if (r.sender_rigtigt && alarm !== null) await skrivAlarm(admin, r, alarm, alarmNu);
-    console.log(`${LOG} ${r.dry_run ? "TØRKØRSEL" : r.sender_rigtigt ? "SENDER" : "LÅST"} — skal_sendes ${r.skal_sendes} (indhentet ${r.indhentet}), senere_session ${r.sprunget_senere_session}, ukendt_ikke_indhentet ${r.ukendt_ikke_indhentet}, sendt ${r.sendt}, fejlede ${r.fejlede}, udsat ${r.udsat}${r.budget.stoppet_af_budget ? ` (budget stop ved ${r.budget.forloebet_ved_stop_ms} ms)` : ""}, over_loft ${r.over_loft} (maks ${r.loft.maks}${r.loft.pause ? ", PAUSE" : ""}), alarm ${r.alarm_mail}/${r.alarm_klokke}`);
+    console.log(`${LOG} ${r.dry_run ? "TØRKØRSEL" : r.sender_rigtigt ? "SENDER" : "LÅST"} — skal_sendes ${r.skal_sendes} (indhentet ${r.indhentet}), senere_session ${r.sprunget_senere_session}, ukendt_ikke_indhentet ${r.ukendt_ikke_indhentet}, sendt ${r.sendt}, fejlede ${r.fejlede}, udsat ${r.udsat}${r.budget.stoppet_af_budget ? ` (budget stop ved ${r.budget.forloebet_ved_stop_ms} ms)` : ""}, over_loft ${r.over_loft} (maks ${r.loft.maks}${r.loft.pause ? ", PAUSE" : ""}), alarm ${r.alarm_mail}/${r.alarm_klokke}, video ${r.video.status} (${r.video.med_video})`);
     return json(r);
   } catch (err) {
     const grund = err instanceof Error ? err.message : String(err);

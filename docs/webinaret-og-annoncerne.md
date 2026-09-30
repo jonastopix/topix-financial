@@ -377,6 +377,80 @@ holdes.
 - **Kilden «nyhedsbrev»:** migration `20260928140000` kørt 13:18 — CHECK'en har seks kilder; fordeling målt: webinar 6 · andet 5 · direkte 3. **theboardroom.dk #5 (13:19):** en medsendt `?kilde=` følger uændret videre til `/ansoeg`, hvis den er et af platformens seks ord — det rettede også `?kilde=webinar`, som til 28/9 blev til «direkte» på sitet. Målt, ikke rettet: `index.html`s to præ-renderede links har `?kilde=direkte` hårdkodet, indtil React monterer.
 - **Nyhedsbrevet i drift på topix.dk** (footeren og `/webinar/tak` → Klaviyo `client/subscriptions`, Hovedlisten `RZtwMb`, revision 2026-07-15; bevist 14:13). Velkomstserien `TGxxUc` er en kladde — en ny abonnent får i dag intet. `docs/marketingmotoren.md` §9.3.
 
+## 7g. Mortens hilsen i «dagen før» — udkast 30/9, TÆNDES med én række
+
+**Ønsket (Jonas 30/9):** Morten optager en kort, personlig håndholdt video, der skal
+ind i mailen «dagen før» (`en_dag`). Den er ikke optaget endnu — så mailen skal
+kunne tændes, når videoen ligger på Bunny, **uden ny kode og uden deploy**.
+
+**Konfigurationen** er `app_config.webinar_en_dag_video` (jsonb; migration
+`20260930180000` indsætter `null`). Formen dømmes STRIKS af `laesVideoKonfig` i
+`supabase/functions/_shared/webinarVideo.ts`:
+
+```json
+{ "library_id": "123456", "video_id": "<GUID>", "pull_zone": "vz-<…>.b-cdn.net",
+  "titel": "Mortens hilsen før webinaret", "varighed_min": 2, "aktiv": false }
+```
+
+| værdi | virkning | `video.status` i svaret |
+|---|---|---|
+| `null` (standard) | mailen PRÆCIS som i dag — også i prøven | `ikke_sat` |
+| ugyldig / delvis / ukendt nøgle | FAIL-CLOSED: uden video | `ugyldig` + grund |
+| rækken kan ikke læses | FAIL-CLOSED: uden video | `laesefejl` |
+| gyldig, `aktiv: false` | KUN prøven til én adresse får videoen | `slukket` / `proeve` |
+| gyldig, `aktiv: true` | alle `en_dag`-mails | `taendt` |
+
+**Mailen med video:** efter «Det er forskellen på at lære noget og at bruge noget.»
+står husets sætning «Jeg har lavet en kort video til dig inden i morgen.», Bunnys
+stillbillede (hele billedet er et link) og en lysegrøn knap «Se Mortens hilsen
+(N min)»; derefter mailen som før, med «Gå til webinaret» som den mørke, primære
+knap. Tekstudgaven får linjen «Se Mortens hilsen (N min): <link>». Ingen afspiller
+— mailklienter kan ikke. **Uden video** er `en_dag` tegn for tegn som før, og de
+andre arter er uændrede, også når en video gives ind (prøvet på alle arter).
+Ordet «optagelse» står stadig ingen steder; titlen afvises, hvis den nævner det.
+
+**Klikmålingen.** Huset målte ikke klik i webinarmails (Mailguns sporing er slået
+fra, `mailgunAfsendelse.ts`). Nu: cronen trækker mail-rækkens id FØR mailen bygges
+og skriver sporet med samme id; linket er `…/functions/v1/webinar-video?m=<id>`.
+`webinar-video` (offentlig, `verify_jwt = false`) dømmer formen før noget opslag,
+slår en sendt `en_dag`-række op (`verifyVideoKlik`) og skriver ét anonymt klik i
+`webinar_video_klik` (`mail_id` + `klikket_at`; migration `20260930181000`), før den
+viderestiller til `https://iframe.mediadelivery.net/play/<library>/<video>` —
+bygget af konfigurationen, aldrig af URL'en. Tallet:
+
+```sql
+select count(*) as klik, count(distinct k.mail_id) as unikke_mails,
+       (select count(*) from public.webinar_mails where art = 'en_dag' and udfald = 'ok'
+          and session_tid = '<session>') as sendt
+  from public.webinar_video_klik k join public.webinar_mails m on m.id = k.mail_id
+ where m.session_tid = '<session>';
+```
+
+Forbehold: mailsikkerhed (Safe Links o.l.) kan «klikke» før mennesket — unikke
+mails er det bedste tal, ikke et bevis for, at videoen blev set.
+
+**UMÅLT — skal måles, før der tændes** (begge uden Referer-header):
+1. `curl -sI https://<pull_zone>/<video_id>/thumbnail.jpg` → 200 `image/jpeg`.
+   Hjemmebanes pull zone svarer 403 uden referrer (`bunnyMedia.ts`, målt 9/8); i
+   en mail er der ingen referrer, så billedet ville stå tomt (alt-teksten og
+   knappen bærer stadig ærindet).
+2. `curl -sI https://iframe.mediadelivery.net/play/<library>/<video_id>` → 200. Et
+   bibliotek med «embed view token authentication» (chattens 765771 har det)
+   afviser det usignerede link.
+
+**Tændingen, ét skridt ad gangen:**
+1. Merge.
+2. KØR `20260930180000_webinar_en_dag_video.sql` og `20260930181000_webinar_video_klik.sql` (FØR/EFTER-SQL i filhovederne).
+3. Eksplicit deploy fra build-chat af `webinar-mail-cron` og `webinar-video`. Beviset: tørkørslen svarer `video: {"status": "ikke_sat", …}`.
+4. Mål de to URL'er ovenfor.
+5. Jonas sætter konfigurationen med `"aktiv": false` (guarded UPDATE `WHERE config_value = 'null'::jsonb`). Tørkørslen svarer `slukket` — eller `ugyldig` med grunden.
+6. **Prøve til `lh@greensolar.dk`**: `{"dry_run": false, "email": "lh@greensolar.dk", "art": "en_dag", "nu": "<dagen før sessionen, 08:00–10:00 dansk>"}` (tørkørsel med samme body først) → `video.status "proeve"`, `med_video 1`; mailen læses, billedet står, knappen afspiller, og ét klik står i `webinar_video_klik`. Adressen skal være tilmeldt en kommende session. Slet prøverækken i `webinar_mails` bagefter (klikket følger med).
+7. Jonas **tænder**: `UPDATE public.app_config SET config_value = jsonb_set(config_value, '{aktiv}', 'true'::jsonb), updated_at = now() WHERE config_key = 'webinar_en_dag_video' AND config_value->>'aktiv' = 'false';` → UPDATE 1; næste kørsel `taendt`.
+
+Rækkefølgen afviger bevidst fra «prøve → sæt konfigurationen»: prøven skal vise
+den række, der går i luften — ikke en kopi i en body, der kan være stavet
+anderledes. Værn: `webinarMail.guard` dom 19 og `webinarVideo.test.ts`.
+
 ---
 
 ## 8. 20. september — sporet lukkes fra klik til ansøgning, og fem felter viste sig at være observationer

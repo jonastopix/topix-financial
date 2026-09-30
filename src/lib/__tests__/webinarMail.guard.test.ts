@@ -90,6 +90,18 @@ import { resolve } from "node:path";
  *      og intet andet await står mellem Mailguns svar og sporet. Uden det kunne
  *      det sidste forsøg ende ved 45 + 8 + 10 = 63 s mod en timeout på 60 s:
  *      pg_net afbryder, mailen er sendt, sporet er ikke — og næste slot sender igen.
+ *  18. INDHENTNINGENS LOFT (30/9) — se dommen nedenfor.
+ *  19. MORTENS HILSEN (udkast 30/9, _shared/webinarVideo.ts): KUN «en_dag» kan
+ *      bære videoen — i cronen (s.art === VIDEO_ART) OG i byggeren (a.art ===
+ *      VIDEO_ART); `video` er KRÆVET på MailArgs; konfigurationen læses fail-closed
+ *      FØR tørkørslens return og dømmes af videoIKoerslen med prøven = én adresse;
+ *      mail-rækkens id trækkes FØR byggeren og skrives i sporet (klik-linket og
+ *      rækken bærer det samme id — aldrig en adresse); ingen afspiller i mailen.
+ *      Klik-functionen webinar-video: formen FØR createClient, verifyVideoKlik FØR
+ *      klikket skrives, kun mail_id i rækken (ingen ip/user agent), målet KUN fra
+ *      bunnyAfspilUrl (fast vært) — ingen åben viderestilling; verify_jwt = false
+ *      med begrundelse; prædikatet står i CI-værnet; klik-tabellen har ingen
+ *      persondata og følger mail-rækken (cascade); konfig-migrationen er ÉN insert.
  */
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -365,7 +377,7 @@ export const tekstenFoelgerInvitationen = (cron: string, tekster: string): boole
     // Feltet er KRÆVET, flaget når dommen, og dommen har begge grene.
     t.includes("invitationVedhaeftet: boolean;") &&
     !/invitationVedhaeftet\?:/.test(t) &&
-    t.includes("const i = indhold(a.art, tid, a.invitationVedhaeftet);") &&
+    t.includes("const i = indhold(a.art, tid, a.invitationVedhaeftet, video);") &&
     t.includes("const inv = invitationsTekst(medInvitation);") &&
     t.includes("export function invitationsTekst(medInvitation: boolean)") &&
     /if \(medInvitation\) \{/.test(t)
@@ -627,6 +639,80 @@ export const alarmenKunIRigtigKoersel = (cron: string, alarm: string): boolean =
   );
 };
 
+// ── 19 ─────────────────────────────────────────────────────────────────────
+const VIDEO = "supabase/functions/_shared/webinarVideo.ts";
+const KLIK = "supabase/functions/webinar-video/index.ts";
+const CI = "scripts/check-edge-function-auth.ts";
+const MIG_VIDEO = "supabase/migrations/20260930180000_webinar_en_dag_video.sql";
+const MIG_KLIK = "supabase/migrations/20260930181000_webinar_video_klik.sql";
+export const videoKunEnDag = (a: { cron: string; tekster: string; video: string; klik: string; config: string; ci: string; migVideo: string; migKlik: string }): boolean => {
+  const c = udenKommentarer(a.cron), t = udenKommentarer(a.tekster), v = udenBlokke(a.video), k = udenBlokke(a.klik);
+  const LOEKKE = "for (let i = 0; i < sendinger.length; i++) {";
+  const start = c.indexOf(LOEKKE), slut = c.indexOf("async function skrivAlarm(");
+  if (start === -1 || slut === -1 || start > slut) return false;
+  const loekke = c.slice(start, slut);
+  const koer = c.slice(c.indexOf("async function koer("), start);
+  const laesFn = c.slice(c.indexOf("async function laesVideoRaekke("), c.indexOf("async function alleSider<"));
+  const serve = k.slice(k.indexOf("Deno.serve("));
+  const blok = a.config.slice(a.config.indexOf("[functions.webinar-video]"), a.config.indexOf("[functions.webinar-video]") + 60);
+  const klikTabel = udenSql(a.migKlik);
+  const videoSql = udenSql(a.migVideo).trim();
+  return (
+    // ── Cronen ──
+    c.includes('from "../_shared/webinarVideo.ts";') &&
+    // Konfigurationen læses fail-closed: en fejl er «laesefejl», aldrig en video.
+    laesFn.includes('.eq("config_key", VIDEO_KONFIG_NOEGLE).maybeSingle();') &&
+    laesFn.includes('return "laesefejl";') &&
+    laesFn.includes("return laesVideoKonfig(") &&
+    // ... FØR tørkørslens return, så tørkørslen viser status — og prøven er ÉN adresse.
+    foer(koer, "const videoDom = await laesVideoRaekke(a.admin);", "if (!senderRigtigt) return r;") &&
+    koer.includes("videoIKoerslen(videoDom, a.email !== null)") &&
+    koer.includes("r.video = { status: videoValg.status, grund: videoValg.grund, med_video: 0 };") &&
+    // KUN en_dag, og id'et trækkes FØR byggeren og bæres til sporet.
+    loekke.includes("const mailId = crypto.randomUUID();") &&
+    loekke.includes("const video = s.art === VIDEO_ART && videoKonfig !== null ? mailVideo(videoKonfig, a.klikBasis, mailId) : null;") &&
+    foer(loekke, "const mailId = crypto.randomUUID();", "const mail = bygWebinarMail({") &&
+    /bygWebinarMail\(\{[\s\S]{0,400}?\n\s*video,\n/.test(loekke) &&
+    /from\("webinar_mails"\)\.insert\(\{\s*id: mailId,/.test(loekke) &&
+    c.includes("video: { status: VideoStatus; grund: string | null; med_video: number };") &&
+    // ── Byggeren ──
+    t.includes("video: MailVideo | null;") && !/video\?:/.test(t) &&
+    t.includes("const video = a.art === VIDEO_ART ? a.video : null;") &&
+    t.includes("const i = indhold(a.art, tid, a.invitationVedhaeftet, video);") &&
+    !/<iframe|<video/i.test(t) &&
+    // ── Motoren ──
+    v.includes('export const VIDEO_ART: MailArt = "en_dag";') &&
+    v.includes('export const VIDEO_KONFIG_NOEGLE = "webinar_en_dag_video";') &&
+    v.includes('export const BUNNY_AFSPIL_VAERT = "iframe.mediadelivery.net";') &&
+    v.includes("return u.host === BUNNY_AFSPIL_VAERT && u.protocol === \"https:\" ? u.toString() : null;") &&
+    v.includes('if (raa === null || raa === undefined) return { status: "ikke_sat" };') &&
+    v.includes('if (dom.konfig.aktiv) return { status: "taendt", konfig: dom.konfig, grund: null };') &&
+    v.includes('if (proeve) return { status: "proeve", konfig: dom.konfig, grund: null };') &&
+    v.includes('.eq("id", id).eq("art", VIDEO_ART).eq("udfald", "ok").maybeSingle();') &&
+    // ── Klik-functionen ──
+    foer(serve, "laesKlikId(raaId)", "createClient(") &&
+    foer(serve, "await verifyVideoKlik(admin, raaId)", 'from("webinar_video_klik").insert(') &&
+    serve.includes('.insert({ mail_id: dom.mailId });') &&
+    serve.includes('if (k.status === "gyldig") maal = bunnyAfspilUrl(k.konfig);') &&
+    (serve.match(/maal = /g) ?? []).length === 1 &&
+    serve.includes("Location: maal,") &&
+    // Kun «m» læses af URL'en, og ingen header om personen.
+    (serve.match(/searchParams\.get\(/g) ?? []).length === 1 && serve.includes('searchParams.get("m")') &&
+    !/req\.headers|user-agent|x-forwarded-for|cf-connecting-ip/i.test(serve) &&
+    /verify_jwt = false/.test(blok) &&
+    /\{ name: "verifyVideoKlik\(\)",\s*pattern: \/\\bverifyVideoKlik\\s\*\\\(\/ \}/.test(a.ci) &&
+    // ── Migrationerne ──
+    /^-- IKKE KØRT\. DEPLOY: manuelt i Lovable/.test(a.migVideo) &&
+    /^-- IKKE KØRT\. DEPLOY: manuelt i Lovable/.test(a.migKlik) &&
+    // Konfig-migrationen er ÉN insert med null og ON CONFLICT DO NOTHING — intet andet.
+    /^insert into public\.app_config \(config_key, config_value, description\)\s+values \('webinar_en_dag_video', 'null'::jsonb, '[^']*'\)\s+on conflict \(config_key\) do nothing;$/.test(videoSql) &&
+    // Klik-tabellen: fremmednøgle med cascade, og ingen persondata.
+    /mail_id\s+uuid not null references public\.webinar_mails \(id\) on delete cascade/.test(klikTabel) &&
+    !/\b(ip|user_agent|email)\b/.test(klikTabel.slice(klikTabel.indexOf("create table"), klikTabel.indexOf(");") + 2)) &&
+    klikTabel.includes("enable row level security")
+  );
+};
+
 describe("webinarMail.guard — platformens før-webinar-mails", () => {
   it("1. Bucket B, tørkørsel som standard, og låsen fail-closed", () => expect(bucketBOgLaas(laes(CRON), laes(CONFIG))).toBe(true));
   it("2. Mailgun EU, ingen sporing, nøglen ét sted", () => expect(euOgIngenSporing(laes(SEND), laes(CRON))).toBe(true));
@@ -651,6 +737,72 @@ describe("webinarMail.guard — platformens før-webinar-mails", () => {
   });
   it("18. indhentningens loft følger teksten (8 · 4 · 1 dage før), fail-closed, i begge spejle, og alarmens frist læser samme funktion", () =>
     expect(indhentningFoelgerTeksten(laes(DOM), laes(DOM_SPEJL), laes(ALARM))).toBe(true));
+  it("19. Mortens hilsen: kun en_dag, fail-closed, id'et fra sporet i linket, og klikket anonymt uden åben viderestilling", () =>
+    expect(videoKunEnDag(videoFiler())).toBe(true));
+});
+
+const videoFiler = () => ({
+  cron: laes(CRON), tekster: laes(TEKSTER), video: laes(VIDEO), klik: laes(KLIK), config: laes(CONFIG), ci: laes(CI), migVideo: laes(MIG_VIDEO), migKlik: laes(MIG_KLIK),
+});
+
+describe("webinarMail.guard dom 19 — fanger fejlen på en kopi", () => {
+  const f = videoFiler();
+  const med = (felt: keyof ReturnType<typeof videoFiler>, fra: string, til: string) => {
+    expect(f[felt], `${felt}: «${fra}»`).toContain(fra);
+    return videoKunEnDag({ ...f, [felt]: f[felt].split(fra).join(til) });
+  };
+
+  it("originalen holder", () => expect(videoKunEnDag(f)).toBe(true));
+
+  it("video til alle arter i cronen eller byggeren fælder dom 19", () => {
+    expect(med("cron", "const video = s.art === VIDEO_ART && videoKonfig !== null ?", "const video = videoKonfig !== null ?")).toBe(false);
+    expect(med("tekster", "const video = a.art === VIDEO_ART ? a.video : null;", "const video = a.video;")).toBe(false);
+  });
+
+  it("et valgfrit felt, en afspiller i mailen, eller et flag der ikke når indholdet, fælder dom 19", () => {
+    expect(med("tekster", "video: MailVideo | null;", "video?: MailVideo | null;")).toBe(false);
+    expect(med("tekster", "const i = indhold(a.art, tid, a.invitationVedhaeftet, video);", "const i = indhold(a.art, tid, a.invitationVedhaeftet, a.video);")).toBe(false);
+    expect(videoKunEnDag({ ...f, tekster: `${f.tekster}\nconst X = "<iframe src=x>";` })).toBe(false);
+  });
+
+  it("konfigurationen fail-open, læst EFTER tørkørslens return, eller prøven løsnet, fælder dom 19", () => {
+    expect(med("cron", 'return "laesefejl";', "return laesVideoKonfig(null);")).toBe(false);
+    const flyttet = f.cron.split("  const videoDom = await laesVideoRaekke(a.admin);\n").join("").replace("  if (!senderRigtigt) return r;\n", "  if (!senderRigtigt) return r;\n  const videoDom = await laesVideoRaekke(a.admin);\n");
+    expect(flyttet).not.toBe(f.cron);
+    expect(videoKunEnDag({ ...f, cron: flyttet })).toBe(false);
+    expect(med("cron", "videoIKoerslen(videoDom, a.email !== null)", "videoIKoerslen(videoDom, true)")).toBe(false);
+    expect(med("video", 'if (proeve) return { status: "proeve", konfig: dom.konfig, grund: null };', 'return { status: "proeve", konfig: dom.konfig, grund: null };')).toBe(false);
+  });
+
+  it("id'et trukket efter byggeren, ikke skrevet i sporet, eller en adresse i linket, fælder dom 19", () => {
+    expect(med("cron", "      id: mailId,\n", "")).toBe(false);
+    expect(med("cron", "mailVideo(videoKonfig, a.klikBasis, mailId)", "mailVideo(videoKonfig, a.klikBasis, s.email)")).toBe(false);
+    const sent = f.cron.split("    const mailId = crypto.randomUUID();\n").join("").replace("    if (spor.udfald === \"ok\" && video !== null)", "    const mailId = crypto.randomUUID();\n    if (spor.udfald === \"ok\" && video !== null)");
+    expect(sent).not.toBe(f.cron);
+    expect(videoKunEnDag({ ...f, cron: sent })).toBe(false);
+  });
+
+  it("klik-functionen: service role før formen, klik før verifikationen, persondata i rækken, et mål fra URL'en, eller en anden vært, fælder dom 19", () => {
+    const tidlig = f.klik.replace("  const raaId = new URL(req.url).searchParams.get(\"m\");\n  const formOk = laesKlikId(raaId) !== null;\n", "").replace("  if (req.method === \"GET\" && formOk) {", "  const raaId = new URL(req.url).searchParams.get(\"m\");\n  const formOk = laesKlikId(raaId) !== null;\n  if (req.method === \"GET\" && formOk) {");
+    expect(tidlig).not.toBe(f.klik);
+    expect(videoKunEnDag({ ...f, klik: tidlig })).toBe(false);
+    expect(med("klik", "const dom = await verifyVideoKlik(admin, raaId);", "const dom = { kendt: true as const, mailId: String(raaId) };")).toBe(false);
+    expect(med("klik", ".insert({ mail_id: dom.mailId });", ".insert({ mail_id: dom.mailId, ip: req.headers.get(\"x-forwarded-for\") });")).toBe(false);
+    expect(med("klik", 'if (k.status === "gyldig") maal = bunnyAfspilUrl(k.konfig);', 'if (k.status === "gyldig") maal = new URL(req.url).searchParams.get("til");')).toBe(false);
+    expect(med("video", 'export const BUNNY_AFSPIL_VAERT = "iframe.mediadelivery.net";', 'export const BUNNY_AFSPIL_VAERT = "evil.example.com";')).toBe(false);
+    expect(med("video", "return u.host === BUNNY_AFSPIL_VAERT && u.protocol === \"https:\" ? u.toString() : null;", "return u.toString();")).toBe(false);
+    expect(med("video", '.eq("id", id).eq("art", VIDEO_ART).eq("udfald", "ok").maybeSingle();', '.eq("id", id).maybeSingle();')).toBe(false);
+  });
+
+  it("verify_jwt, prædikatet i CI-værnet, eller migrationerne ude af form, fælder dom 19", () => {
+    expect(videoKunEnDag({ ...f, config: f.config.replace("[functions.webinar-video]\n    verify_jwt = false", "[functions.webinar-video]\n    verify_jwt = true") })).toBe(false);
+    expect(med("ci", '{ name: "verifyVideoKlik()",', '{ name: "andet()",')).toBe(false);
+    expect(med("migVideo", "-- IKKE KØRT. DEPLOY:", "-- DEPLOY:")).toBe(false);
+    expect(med("migVideo", "on conflict (config_key) do nothing;", "on conflict (config_key) do update set config_value = excluded.config_value;")).toBe(false);
+    expect(videoKunEnDag({ ...f, migVideo: `${f.migVideo}\nupdate public.app_config set config_value = 'true'::jsonb where config_key = 'webinar_mail_aktiv';\n` })).toBe(false);
+    expect(med("migKlik", "on delete cascade", "on delete set null")).toBe(false);
+    expect(med("migKlik", "  klikket_at  timestamptz not null default now()\n", "  klikket_at  timestamptz not null default now(),\n  ip text\n")).toBe(false);
+  });
 });
 
 describe("webinarMail.guard — dommene fanger fejlen på en kopi", () => {
@@ -973,7 +1125,7 @@ describe("webinarMail.guard — dommene fanger fejlen på en kopi", () => {
     // Feltet gjort valgfrit — en glemt værdi ville blive «false» i stilhed, eller «true» hos en kalder med default.
     expect(tekstenFoelgerInvitationen(cron, tekster.split("invitationVedhaeftet: boolean;").join("invitationVedhaeftet?: boolean;"))).toBe(false);
     // Dommen ignorerer flaget.
-    expect(tekstenFoelgerInvitationen(cron, tekster.split("const i = indhold(a.art, tid, a.invitationVedhaeftet);").join("const i = indhold(a.art, tid, true);"))).toBe(false);
+    expect(tekstenFoelgerInvitationen(cron, tekster.split("const i = indhold(a.art, tid, a.invitationVedhaeftet, video);").join("const i = indhold(a.art, tid, true, video);"))).toBe(false);
     expect(tekstenFoelgerInvitationen(cron, tekster.split("const inv = invitationsTekst(medInvitation);").join("const inv = invitationsTekst(true);"))).toBe(false);
   });
 });

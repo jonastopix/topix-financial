@@ -75,11 +75,23 @@
  * uden løftet, og en sætning, der peger på kalenderrækken herunder. Ordet
  * «vedhæftet» står ALDRIG i en mail, der sendes uden (prøvet, HTML og tekst).
  *
+ * MORTENS HILSEN SOM VIDEO (udkast 30/9-2026, _shared/webinarVideo.ts). KUN
+ * «en_dag» kan bære den, og kun når cronen giver en `video` (konfigurationen
+ * app_config.webinar_en_dag_video er sat, gyldig og tændt — eller det er prøven).
+ * `video` er KRÆVET på MailArgs (null = uden), som `invitationVedhaeftet`: en
+ * glemt værdi må ikke kunne blive til en blok. Blokken er et afsnit, Bunnys
+ * stillbillede (link-wrapped) og en knap «Se Mortens hilsen (N min)» — ingen
+ * afspiller, mailklienter kan ikke. Begge links går til husets klik-function.
+ * Afsnittet over billedet er HUSETS tekst, ikke Mortens, og undgår med vilje
+ * ordet «optage» i alle bøjninger (regel 6). Uden `video` er «en_dag» tegn for
+ * tegn som før (prøvet).
+ *
  * Layoutet er ordret Mortens: Parkinsans/Manrope, #FAF8F5, 600 px, TOPIX-
  * ordmærke, eyebrow i #A3D9C4, portrættet, hårlinjerne, den grønne boks.
  */
 import { webinarTekst } from "./klaviyoDato.ts";
 import { googleKalenderUrl, outlookKalenderUrl, type MailArt } from "./webinarMailDom.ts";
+import { knapTekst, type MailVideo, VIDEO_ART } from "./webinarVideo.ts";
 
 /** Afsenderen, som Jonas satte den 22/9. Adressen er domænet webinar.topix.dk. */
 export const AFSENDER = "Morten Larsen <morten@webinar.topix.dk>";
@@ -136,6 +148,25 @@ const KALENDER = (google: string | null, ics: string | null, outlook: string | n
   return `<tr><td class="px" style="padding:16px 56px 0 56px;font-family:'Manrope',Helvetica,Arial,sans-serif;font-size:14px;line-height:24px;color:#5C6B66;">Læg i kalender: ${dele.join(" &middot; ")}</td></tr>`;
 };
 
+/**
+ * VIDEOBLOKKEN (30/9). Stillbilledet er link-wrapped (hele billedet er et link),
+ * 488 px = 600 − 2 × 56 (kolonnens indre bredde). Knappen er bulletproof som
+ * KNAP, men i den lyse grønne (#A3D9C4) — «Gå til webinaret» forbliver den mørke,
+ * primære handling. Alt-teksten er konfigurationens titel: står billedet tomt
+ * (en klient, der blokerer billeder — eller pull zonens referrer-værn), bærer
+ * alt-teksten og knappen stadig ærindet.
+ */
+/** Husets tekst (ikke Mortens). Samme sætning i HTML og tekst; varigheden står på knappen. */
+const VIDEO_INTRO = "Jeg har lavet en kort video til dig inden i morgen.";
+const VIDEOBLOK = (v: MailVideo): string =>
+  P(VIDEO_INTRO) +
+  `<tr><td class="px" style="padding:20px 56px 0 56px;"><a href="${esc(v.klikUrl)}" style="text-decoration:none;"><img alt="${esc(v.titel)}" src="${esc(v.stillbilledeUrl)}" width="488" style="display:block;width:100%;max-width:488px;height:auto;border:0;border-radius:6px;"/></a></td></tr>
+<tr><td class="px" style="padding:18px 56px 0 56px;">
+<table cellpadding="0" cellspacing="0" role="presentation"><tr><td align="center" style="background-color:#A3D9C4;border-radius:6px;">
+<!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="${esc(v.klikUrl)}" style="height:48px;v-text-anchor:middle;width:260px;" arcsize="13%" fillcolor="#A3D9C4" stroke="f"><w:anchorlock/><center style="color:#152825;font-family:Helvetica,Arial,sans-serif;font-size:16px;font-weight:bold;"><![endif]-->
+<a href="${esc(v.klikUrl)}" style="display:inline-block;padding:15px 30px;font-family:'Manrope',Helvetica,Arial,sans-serif;font-size:16px;font-weight:700;color:#152825;text-decoration:none;border-radius:6px;">${esc(knapTekst(v.varighedMin))}</a>
+<!--[if mso]></center></v:roundrect><![endif]--></td></tr></table></td></tr>`;
+
 const BUND = (afmeldUrl: string): string =>
   `<tr><td style="padding:40px 56px 0 56px;"><table cellpadding="0" cellspacing="0" role="presentation" width="100%"><tr><td style="border-top:1px solid #D8D4CC;font-size:0;line-height:0;">&nbsp;</td></tr></table></td></tr>
 <tr><td class="px" style="padding:22px 56px 40px 56px;font-family:'Manrope',Helvetica,Arial,sans-serif;font-size:11px;line-height:18px;color:#5C6B66;">Du får denne mail, fordi du har tilmeldt dig webinaret. Du kan <a href="${esc(afmeldUrl)}" style="color:#5C6B66;text-decoration:underline;">afmelde dig her</a>.</td></tr>`;
@@ -157,6 +188,11 @@ export interface MailArgs {
   joinLink: string | null;
   kalenderLink: string | null;
   afmeldUrl: string;
+  /**
+   * Mortens hilsen (30/9) — KRÆVET, null = uden. Kun «en_dag» tegner den;
+   * alle andre arter ignorerer den (prøvet på alle aktive arter).
+   */
+  video: MailVideo | null;
   /**
    * Kom eWebinars invite.ics FAKTISK med i denne mail? KRÆVET, ikke valgfrit:
    * en glemt værdi må ikke kunne blive til et løfte. Cronen sætter den til
@@ -209,7 +245,7 @@ export const EMNER: Record<MailArt, string> = {
   en_time: "Vi starter om en time — her er dit link",
 };
 
-function indhold(art: MailArt, tid: string, medInvitation: boolean): MailIndhold {
+function indhold(art: MailArt, tid: string, medInvitation: boolean, video: MailVideo | null): MailIndhold {
   const inv = invitationsTekst(medInvitation);
   switch (art) {
     case "bekraeftelse":
@@ -298,6 +334,7 @@ function indhold(art: MailArt, tid: string, medInvitation: boolean): MailIndhold
           FOERSTE(`Vi ses ${esc(tid)}. Én ting, du kan gøre i aften, så du får mere ud af timen:`) +
           BOKS("Tænk på den beslutning, du har skubbet længst foran dig. Den du ved, du skal tage, men bliver ved med at udskyde — ansættelsen, prisen, kunden der fylder for meget, eller samtalen med investoren.<br/><br/>Hold den i baghovedet i morgen. Alt hvad jeg gennemgår, skal kunne bruges på lige netop den.") +
           P("Det er forskellen på at lære noget og at bruge noget.") +
+          (video ? VIDEOBLOK(video) : "") +
           P("Dit personlige link står herunder og i din kalenderinvitation — gem det, så er du klar i morgen.") +
           P("Kan du ikke alligevel? Så meld dig til en anden dag — jeg holder webinaret igen.", true),
         kropTekst:
@@ -305,6 +342,7 @@ function indhold(art: MailArt, tid: string, medInvitation: boolean): MailIndhold
           "Tænk på den beslutning, du har skubbet længst foran dig. Den du ved, du skal tage, men bliver ved med at udskyde — ansættelsen, prisen, kunden der fylder for meget, eller samtalen med investoren.\n\n" +
           "Hold den i baghovedet i morgen. Alt hvad jeg gennemgår, skal kunne bruges på lige netop den.\n\n" +
           "Det er forskellen på at lære noget og at bruge noget.\n\n" +
+          (video ? `${VIDEO_INTRO}\n\n${knapTekst(video.varighedMin)}: ${video.klikUrl}\n\n` : "") +
           "Dit personlige link står herunder og i din kalenderinvitation — gem det, så er du klar i morgen.\n\n" +
           "Kan du ikke alligevel? Så meld dig til en anden dag — jeg holder webinaret igen.",
       };
@@ -353,7 +391,9 @@ function indhold(art: MailArt, tid: string, medInvitation: boolean): MailIndhold
 export function bygWebinarMail(a: MailArgs): Mail {
   const tid = webinarTekst(new Date(a.sessionTid));
   const titel = (a.webinarTitel ?? "").trim() || WEBINAR_TITEL_STANDARD;
-  const i = indhold(a.art, tid, a.invitationVedhaeftet);
+  // Kun VIDEO_ART kan bære videoen — også hvis en kalder giver den til en anden art.
+  const video = a.art === VIDEO_ART ? a.video : null;
+  const i = indhold(a.art, tid, a.invitationVedhaeftet, video);
   const google = googleKalenderUrl({ titel, sessionTid: a.sessionTid, joinLink: a.joinLink });
   const outlook = outlookKalenderUrl({ titel, sessionTid: a.sessionTid, joinLink: a.joinLink });
 

@@ -1,0 +1,71 @@
+-- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+--
+-- MORTENS HILSEN I MAILEN «DAGEN FØR» — konfigurationen (udkast 30/9-2026; Jonas 30/9).
+-- Morten optager en kort video til mailen `en_dag`. Den er ikke optaget endnu, så
+-- mailen skal kunne TÆNDES uden ny kode og uden deploy: én række i app_config,
+-- `webinar_en_dag_video` (jsonb). Dommen over indholdet bor i
+-- supabase/functions/_shared/webinarVideo.ts (laesVideoKonfig) — formen står dér.
+--
+-- KUN ÉN INSERT, ON CONFLICT DO NOTHING: en allerede sat konfiguration overskrives
+-- aldrig. Værdien er jsonb `null` = mailen er PRÆCIS som i dag (også i prøven).
+-- Ingen tabel, ingen kolonne, ingen politik røres. (Klik-tabellen er sin egen
+-- migration: 20260930181000_webinar_video_klik.sql.)
+--
+-- Læses af webinar-mail-cron (én gang pr. kørsel, fail-closed) og webinar-video
+-- (viderestillingens mål) — begge med service role. app_config's SELECT-politik
+-- lader alle authenticated læse rækken (20260224095552); der står intet hemmeligt
+-- i den: bibliotek-id, video-id og pull zone står i enhver afspillet Bunny-URL.
+--
+-- RÆKKEFØLGEN (ét skridt ad gangen) — hele tændingen står i CLAUDE.md
+-- «Platformens webinarmails» og docs/webinaret-og-annoncerne.md §7g:
+--   1. Merge.
+--   2. KØR denne migration og 20260930181000 (FØR-SQL først; gem CSV).
+--   3. Eksplicit deploy fra build-chat af webinar-mail-cron OG webinar-video (bed den
+--      KØRE værktøjet og vise resultatet). Beviset: tørkørslen svarer med feltet
+--      `video` = {"status": "ikke_sat", ...} — kun den nye kode svarer det.
+--   4. Videoen ligger på Bunny → MÅL uden Referer (stillbilledet og afspilningssiden
+--      skal begge give 200 — se webinarVideo.ts' filhoved).
+--   5. Jonas sætter konfigurationen SLUKKET (aktiv false) med én guarded UPDATE:
+--        UPDATE public.app_config
+--           SET config_value = '{"library_id": "<bibliotek>", "video_id": "<guid>", "pull_zone": "vz-<…>.b-cdn.net", "titel": "Mortens hilsen før webinaret", "varighed_min": 2, "aktiv": false}'::jsonb,
+--               updated_at = now()
+--         WHERE config_key = 'webinar_en_dag_video' AND config_value = 'null'::jsonb;
+--      Forventet: UPDATE 1. Tørkørslen svarer derefter video.status = "slukket"
+--      (en ugyldig værdi svarer "ugyldig" med grunden — ret og kør igen).
+--   6. PRØVEN til én adresse (virker kun med aktiv false, fordi den ER prøven):
+--        kald_edge('webinar-mail-cron') med {"dry_run": false, "email": "lh@greensolar.dk", "art": "en_dag", "nu": "<dagen før sessionen, 08:00–10:00 dansk, som UTC>"}
+--      FORUDSÆTNING (umålt herfra): adressen er tilmeldt en kommende session i
+--      webinar_tilmeldinger — prøven læser KUN den adresses tilmeldinger, og `nu`
+--      skal ligge inden for en_dags nåde (planlagt 08:00 dansk + 2 timer). Kør den
+--      som tørkørsel først (samme body med "dry_run": true → skal_sendes 1).
+--      → video.status "proeve", video.med_video 1; mailen ses i indbakken, billedet
+--      står, knappen fører til videoen, og én række står i webinar_video_klik.
+--      Prøven skriver en ok-række i webinar_mails for (adressen, sessionen, en_dag) —
+--      den rigtige en_dag til adressen sendes så ikke. Slet prøverækken bagefter, som
+--      ved fjorten_dage-prøven 28/9 (klikkene går med, on delete cascade).
+--   7. TÆND for alle — én guarded UPDATE af ét felt:
+--        UPDATE public.app_config
+--           SET config_value = jsonb_set(config_value, '{aktiv}', 'true'::jsonb), updated_at = now()
+--         WHERE config_key = 'webinar_en_dag_video' AND config_value->>'aktiv' = 'false';
+--      Forventet: UPDATE 1; næste kørsel svarer video.status "taendt".
+--   SLUK: samme form med 'false' og ->>'aktiv' = 'true' — eller hele rækken tilbage
+--   til 'null'::jsonb (så viser et klik på en allerede sendt mail en høflig side
+--   i stedet for videoen).
+--
+-- FØR-SQL (ét resultatsæt — gem CSV):
+--   select '1 raekke' as sektion, config_key as noegle, config_value::text as vaerdi
+--     from public.app_config where config_key = 'webinar_en_dag_video'
+--   union all
+--   select '2 antal', 'app_config', count(*)::text from public.app_config
+--   order by 1, 2;
+--   FACIT FØR: sektion 1 TOM; sektion 2 = antallet i dag (skriv det ned).
+--
+-- EFTER-SQL: samme forespørgsel.
+--   FACIT EFTER: sektion 1 = webinar_en_dag_video | null; sektion 2 = FØR + 1.
+--
+-- ROLLBACK (kun hvis intet endnu læser nøglen):
+--   delete from public.app_config where config_key = 'webinar_en_dag_video' and config_value = 'null'::jsonb;
+
+insert into public.app_config (config_key, config_value, description)
+values ('webinar_en_dag_video', 'null'::jsonb, 'Mortens hilsen som video i webinarmailen «dagen før» (en_dag), 30/9-2026. null = ingen video (standard). Et objekt {library_id, video_id, pull_zone, titel, varighed_min, aktiv} tænder den: aktiv false = kun prøven til én adresse, aktiv true = alle. Ugyldigt = ingen video (fail-closed). Dommen: supabase/functions/_shared/webinarVideo.ts.')
+on conflict (config_key) do nothing;
