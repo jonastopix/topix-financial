@@ -34,6 +34,7 @@ const SERVER_FEJL: Record<string, string> = {
   aflyst: "Den session er aflyst — vælg et andet tidspunkt.",
   ikke_sat_op: "Tilmeldingen er ikke åbnet endnu.",
   ukendt_session: "Den session findes ikke længere — vælg et andet tidspunkt.",
+  intern: "Den session er en intern prøve — kun husets egne adresser kan tilmelde sig.",
 };
 
 export function WebinarTilmelding({ slug, onGaaTilRummet }: { slug: string; onGaaTilRummet: (token: string) => void }) {
@@ -57,10 +58,12 @@ export function WebinarTilmelding({ slug, onGaaTilRummet }: { slug: string; onGa
     }),
   );
   const id = useId();
+  // Rådgiverens prøvelink til en INTERN session (skive 3): /w/<slug>/tilmeld?session=<id>.
+  const bestemtSession = searchParams.get("session");
 
   useEffect(() => {
     let aktiv = true;
-    hentSessioner(slug)
+    hentSessioner(slug, bestemtSession)
       .then((d) => {
         if (!aktiv) return;
         setData(d);
@@ -72,7 +75,7 @@ export function WebinarTilmelding({ slug, onGaaTilRummet }: { slug: string; onGa
     return () => {
       aktiv = false;
     };
-  }, [slug]);
+  }, [slug, bestemtSession]);
 
   if (hentFejl === "ukendt") {
     return (
@@ -184,6 +187,7 @@ export function WebinarTilmelding({ slug, onGaaTilRummet }: { slug: string; onGa
                   >
                     <input type="radio" name="session" value={s.id} checked={er} onChange={() => setValgt(s.id)} className="h-5 w-5 accent-[hsl(170_46%_14%)]" />
                     <span className="first-letter:uppercase">{sessionTekst(s.starter_at)}</span>
+                    {s.intern === true && <span className="ml-auto text-xs uppercase tracking-[0.1em] text-hb-ink-soft">Intern prøve</span>}
                   </label>
                 );
               })}

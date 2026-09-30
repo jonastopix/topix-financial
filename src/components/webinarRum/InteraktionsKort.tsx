@@ -21,7 +21,7 @@ import { FELT } from "./stil";
 const KILDE_TEKST: Record<string, string> = {
   session_slut: "Rummet lukker om",
   naeste_session: "Næste session starter om",
-  optag_frist: "Optaget lukker om",
+  optag_frist: "Ansøgningsfristen lukker om",
 };
 
 export interface KortProps {

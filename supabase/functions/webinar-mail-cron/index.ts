@@ -90,6 +90,20 @@
 // SELVMAILENDE_REFERENCER, så klokke-mail-cron ikke mailer den én gang til.
 // Kaster aldrig: fejl skubbes til r.fejl.
 //
+// WEBINARMOTORENS TILMELDINGER (skive 3, 30/9-2026 — docs/webinarmotor.md §7):
+// dommen er URØRT (PLANEN, dubletværnet, nåden, loftet, budgettet). EFTER dommen
+// afgør webinarMotor/mail.ts:mailVejDom LINKENE pr. sending: en række med
+// ewebinar_id «P-<uuid>» og kilde_system 'platform' får rum-linket
+// /w/<slug>?t=<HMAC-token>, kalenderlinket /w/<slug>/kalender?t=… og husets
+// EGEN .ics (bygIcs, bygget i processen — aldrig hentet), alt samlet i
+// _shared/webinarMotorMail.ts. eWebinars rækker går PRÆCIS som før: join_link,
+// kalender_link og hentInvitation. En motor-række, hvis link ikke kan bygges
+// (ingen secret, ingen session, aflyst), forsøges IKKE — ingen række i sporet,
+// så den tages igen næste kørsel, indtil dommens nåde lukker den. Svaret bærer
+// `motor_mail` (vej_motor · uden_link pr. grund) — beviset for den nye kode.
+// Sporets `invitation` = «hentet» for motorens .ics betyder «filen var i hånden»
+// (CHECK'en webinar_mails_invitation_check er urørt); rækken kendes på «P-».
+//
 // BODY (STRIKS, bodyFelter.guard): dry_run · email · art · nu.
 //
 // KASTER ALDRIG mod én mail: fejler én, tælles den, og de andre sendes.
@@ -109,6 +123,9 @@ import { skrivRaadgiverBesked } from "../_shared/raadgiverBesked.ts";
 import { sendManagedEmail } from "../_shared/managedEmail.ts";
 import { driftModtager } from "../_shared/driftModtager.ts";
 import { indgangsMailHtml } from "../_shared/indgangsMail.ts";
+import { joinSecret } from "../_shared/webinarDeltagerAuth.ts";
+import { erMotorId, type MailVej, mailVejDom, type MotorMailTal, type MotorOpslag, tomtMotorMailTal } from "../_shared/webinarMotor/mail.ts";
+import { hentMotorOpslag, motorMailDele } from "../_shared/webinarMotorMail.ts";
 
 const LOG = "[webinar-mail-cron]";
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -189,6 +206,8 @@ export interface MailResultat {
   alarm_mail: string;
   /** Klokken: «ingen» · «skrevet» · «fandtes» (dedup på titlen) · «fejlet: …». */
   alarm_klokke: string;
+  /** Webinarmotorens tilmeldinger (skive 3): sendinger på motorens vej, og dem, der ikke blev forsøgt, fordi linket ikke kunne bygges. */
+  motor_mail: MotorMailTal;
 }
 
 /** Hent alle rækker i sider — aldrig et tavst loft. */
@@ -222,7 +241,7 @@ const tomt = (a: { toer: boolean; laas: boolean; email: string | null; art: stri
   sprunget_senere_session: 0, ukendt_ikke_indhentet: 0,
   indhentet: 0, sendt: 0, fejlede: 0, udsat: 0, budget: tomtBudgetBevis(), dublet: 0, med_invitation: 0, uden_invitation: 0,
   loft: { forsoeg_60_min: 0, ok_60_min: 0, maks: MAILGUN_LOFT_PR_TIME, pause: null, stoppet_ved: null }, over_loft: 0, ventende: [],
-  eksempler: [], fejl: [], alarm_mail: "ingen", alarm_klokke: "ingen",
+  eksempler: [], fejl: [], alarm_mail: "ingen", alarm_klokke: "ingen", motor_mail: tomtMotorMailTal(),
 });
 
 async function koer(a: { admin: SupabaseClient; toerKoersel: boolean; laas: boolean; email: string | null; art: MailArt | null; nu: Date; startMs: number; basis: string }): Promise<MailResultat> {
@@ -275,7 +294,24 @@ async function koer(a: { admin: SupabaseClient; toerKoersel: boolean; laas: bool
   r.sprunget = plan.sprunget;
   r.sprunget_senere_session = plan.sprunget.senere_session;
   r.ukendt_ikke_indhentet = plan.sprunget.levering_ukendt;
-  const sendinger = a.art ? plan.sendinger.filter((s) => s.art === a.art) : plan.sendinger;
+  const planlagte = a.art ? plan.sendinger.filter((s) => s.art === a.art) : plan.sendinger;
+
+  // 4a. WEBINARMOTORENS RÆKKER (skive 3). Kun «P-»-rækkerne slås op — uden dem
+  //     ingen forespørgsel, og eWebinars rækker får vejen «ewebinar» (uændret).
+  //     En motor-række uden link tages ud HER, før loft og budget: den forsøges
+  //     ikke, koster intet forsøg og står ikke som over_loft.
+  const motorIds = planlagte.map((s) => s.ewebinarId).filter(erMotorId);
+  const motorOpslag = motorIds.length > 0 ? await hentMotorOpslag(a.admin, motorIds, r.fejl) : new Map<string, MotorOpslag>();
+  const motorSecret = motorIds.length > 0 ? joinSecret() : null;
+  const veje = new Map<Sending, MailVej>();
+  const sendinger: Sending[] = [];
+  for (const s of planlagte) {
+    const vej = mailVejDom(s.ewebinarId, motorOpslag.get(s.ewebinarId), motorSecret !== null);
+    if (vej.vej === "motor_uden_link") { r.motor_mail.uden_link[vej.grund]++; continue; }
+    if (vej.vej === "motor") r.motor_mail.vej_motor++;
+    veje.set(s, vej);
+    sendinger.push(s);
+  }
   r.skal_sendes = sendinger.length;
   r.indhentet = sendinger.filter((s) => s.indhentning === true).length;
   for (const s of sendinger.slice(0, EKSEMPLER_MAKS)) {
@@ -346,21 +382,41 @@ async function koer(a: { admin: SupabaseClient; toerKoersel: boolean; laas: bool
     // med (Jonas 28/9): «invitationen er vedhæftet» må kun stå i en mail, der
     // faktisk bærer den. FAIL-SOFT: kan filen ikke hentes, går mailen alligevel
     // — uden filen, og med en tekst, der peger på kalenderrækken i stedet.
+    //
+    // MOTORENS RÆKKER (skive 3): link og .ics bygges her, i processen — aldrig
+    // hentet. eWebinars rækker: præcis som før.
+    const vej = veje.get(s) ?? { vej: "ewebinar" as const };
+    let joinLink = s.joinLink;
+    let kalenderLink = s.kalenderLink;
+    let motorIcs: string | null = null;
+    if (vej.vej === "motor") {
+      const dele = await motorMailDele(vej.opslag, motorSecret as string, Date.now());
+      joinLink = dele.joinLink;
+      kalenderLink = dele.kalenderLink;
+      motorIcs = dele.ics;
+    }
     let invitation: InvitationUdfald | null = null;
     let ics: string | null = null;
     if (baererInvitation(s.art)) {
-      const inv = await hentInvitation(s.kalenderLink);
-      invitation = inv.udfald;
-      ics = inv.ics;
-      if (inv.udfald === "hentet") r.med_invitation++; else r.uden_invitation++;
-      if (inv.udfald !== "hentet") console.error(`${LOG} invitationen kunne ikke hentes (${inv.udfald}): ${inv.grund ?? ""}`);
+      if (vej.vej === "motor") {
+        // Husets egen fil er altid i hånden — «hentet» i sporets ord (CHECK'en er urørt).
+        invitation = "hentet";
+        ics = motorIcs;
+        r.med_invitation++;
+      } else {
+        const inv = await hentInvitation(s.kalenderLink);
+        invitation = inv.udfald;
+        ics = inv.ics;
+        if (inv.udfald === "hentet") r.med_invitation++; else r.uden_invitation++;
+        if (inv.udfald !== "hentet") console.error(`${LOG} invitationen kunne ikke hentes (${inv.udfald}): ${inv.grund ?? ""}`);
+      }
     }
     const mail = bygWebinarMail({
       art: s.art,
       sessionTid: s.sessionTid,
       webinarTitel: s.webinarTitel,
-      joinLink: s.joinLink,
-      kalenderLink: s.kalenderLink,
+      joinLink,
+      kalenderLink,
       afmeldUrl: link,
       invitationVedhaeftet: ics !== null,
     });
@@ -531,7 +587,7 @@ Deno.serve(async (req) => {
     const alarmNu = new Date();
     const alarm = r.sender_rigtigt ? doemAlarm(r, alarmNu) : null;
     if (r.sender_rigtigt && alarm !== null) await skrivAlarm(admin, r, alarm, alarmNu);
-    console.log(`${LOG} ${r.dry_run ? "TØRKØRSEL" : r.sender_rigtigt ? "SENDER" : "LÅST"} — skal_sendes ${r.skal_sendes} (indhentet ${r.indhentet}), senere_session ${r.sprunget_senere_session}, ukendt_ikke_indhentet ${r.ukendt_ikke_indhentet}, sendt ${r.sendt}, fejlede ${r.fejlede}, udsat ${r.udsat}${r.budget.stoppet_af_budget ? ` (budget stop ved ${r.budget.forloebet_ved_stop_ms} ms)` : ""}, over_loft ${r.over_loft} (maks ${r.loft.maks}${r.loft.pause ? ", PAUSE" : ""}), alarm ${r.alarm_mail}/${r.alarm_klokke}`);
+    console.log(`${LOG} ${r.dry_run ? "TØRKØRSEL" : r.sender_rigtigt ? "SENDER" : "LÅST"} — skal_sendes ${r.skal_sendes} (indhentet ${r.indhentet}), senere_session ${r.sprunget_senere_session}, ukendt_ikke_indhentet ${r.ukendt_ikke_indhentet}, sendt ${r.sendt}, fejlede ${r.fejlede}, udsat ${r.udsat}${r.budget.stoppet_af_budget ? ` (budget stop ved ${r.budget.forloebet_ved_stop_ms} ms)` : ""}, over_loft ${r.over_loft} (maks ${r.loft.maks}${r.loft.pause ? ", PAUSE" : ""}), alarm ${r.alarm_mail}/${r.alarm_klokke}, motor ${r.motor_mail.vej_motor}`);
     return json(r);
   } catch (err) {
     const grund = err instanceof Error ? err.message : String(err);

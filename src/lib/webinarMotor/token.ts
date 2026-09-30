@@ -118,3 +118,30 @@ export async function laesDeltagertoken(secret: string | null | undefined, forri
 export function rumSti(slug: string, token: string): string {
   return `/w/${encodeURIComponent(slug)}?t=${encodeURIComponent(token)}`;
 }
+
+/**
+ * Appens adresse (skive 3). Seerens sider bor her, og mailenes links peger
+ * hertil — webinar-mail-cron bygger join- og kalenderlinket for motorens
+ * tilmeldinger som APP_URL + sti. Ét sted, så mail og rum aldrig er uenige.
+ */
+export const APP_URL = "https://app.theboardroom.dk";
+
+/**
+ * Kalenderlinket til mails (skive 3): siden /w/<slug>/kalender sender videre
+ * til webinar-rum GET handling=ics — husets egen .ics (Apple/Outlook desktop).
+ * Samme token som rummet.
+ */
+export function kalenderSti(slug: string, token: string): string {
+  return `/w/${encodeURIComponent(slug)}/kalender?t=${encodeURIComponent(token)}`;
+}
+
+/**
+ * Reserveformularen med ÉN bestemt session valgt (skive 3) — rådgiverens
+ * prøvelink til en INTERN session. Den interne session står aldrig i de
+ * offentlige lister (naesteSessioner); linket er vejen ind, og webinar-tilmeld
+ * tager kun imod husets egne adresser til den (tilmelding.ts:internDom).
+ * Session-id'et er ingen hemmelighed og ingen legitimation.
+ */
+export function tilmeldSti(slug: string, sessionId: string): string {
+  return `/w/${encodeURIComponent(slug)}/tilmeld?session=${encodeURIComponent(sessionId)}`;
+}

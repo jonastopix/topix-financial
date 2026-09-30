@@ -50,11 +50,19 @@ async function kald<T>(fn: "webinar-tilmeld" | "webinar-rum" | "webinar-puls", b
 export interface SessionerSvar {
   motor: string;
   webinar: { slug: string; titel: string; beskrivelse: string | null; vaert_navn: string | null; vaert_billede: string | null; varighed_sek: number; intro_sek?: number };
-  sessioner: Array<{ id: string; starter_at: string; type: string }>;
+  /** `intern` kun på en intern prøvesession, hentet med sit id (skive 3). */
+  sessioner: Array<{ id: string; starter_at: string; type: string; intern?: boolean }>;
 }
 
-export async function hentSessioner(slug: string): Promise<SessionerSvar> {
-  return (await kald<SessionerSvar>("webinar-tilmeld", { handling: "sessioner", slug })).data;
+/**
+ * Sessionerne. Med `sessionId` (fra `?session=` — rådgiverens prøvelink,
+ * webinarMotor/token.ts:tilmeldSti) spørges der om netop den ene; en INTERN
+ * session står aldrig i den offentlige liste (skive 3, D2.7).
+ */
+export async function hentSessioner(slug: string, sessionId: string | null = null): Promise<SessionerSvar> {
+  const krop: Record<string, unknown> = { handling: "sessioner", slug };
+  if (sessionId) krop.session_id = sessionId;
+  return (await kald<SessionerSvar>("webinar-tilmeld", krop)).data;
 }
 
 export interface TilmeldSvar {

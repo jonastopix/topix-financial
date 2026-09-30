@@ -8,7 +8,7 @@
  *      ikke kan trækkes (pause er tilladt; spoling er ikke — beslutning G4)
  *   2. spoleDom (webinarMotor/spolning.ts) ved hver timeupdate, som fanger
  *      tastatur og alt andet, der alligevel flytter positionen
- *   3. «Tilbage til live» på pause, «Tryk for lyd», når browseren kun ville
+ *   3. «Tilbage til webinaret» på pause, «Tryk for lyd», når browseren kun ville
  *      afspille uden lyd (iPhone: lyd kræver et tryk — WebKit)
  */
 import { aktiveInteraktioner, type Interaktion, type InteraktionArt, type Kontekst } from "@/lib/webinarMotor/interaktioner";
@@ -25,9 +25,9 @@ export interface OverlayInd {
 }
 
 export interface OverlayDom {
-  /** Dæk kontrolbjælken (søgebjælken) — altid i live. */
+  /** Dæk kontrolbjælken (søgebjælken) — altid i visningen «live» (et kodeord, ingen påstand). */
   daekKontroller: boolean;
-  /** «Webinaret kører videre live. Tilbage til live.» */
+  /** «Webinaret kører videre. Tilbage til webinaret.» */
   visTilbageTilLive: boolean;
   /** Stor «Tryk for lyd»-knap. */
   visTrykForLyd: boolean;

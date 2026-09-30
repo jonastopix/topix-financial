@@ -10,9 +10,11 @@
  * svar fra motorens functions bærer `motor: MOTOR_VERSION`. Kun den nye kode
  * kan svare med det. Skifter ved hver skive, der ændrer et svar: «boardroom-2»
  * (skive 2) bærer rummets `tidslinje`, `hilsen` og handlingerne `gen_tilmeld`
- * og `forudfyld`.
+ * og `forudfyld`. «boardroom-3» (skive 3): «sessioner» kender den INTERNE
+ * session (`session_id` i kroppen → `intern: true` i svaret), og
+ * webinar-motor-cron svarer med samme markør.
  */
-export const MOTOR_VERSION = "boardroom-2";
+export const MOTOR_VERSION = "boardroom-3";
 
 /**
  * Nøgler, der ALDRIG må stå i et svar fra webinar-tilmeld, webinar-rum eller

@@ -117,6 +117,8 @@ const STRIKS: readonly string[] = [
   "webinar-tilmeld",
   "webinar-rum",
   "webinar-puls",
+  // Webinarmotorens efterarbejde (skive 3, 30/9): dry_run, session_id og nu.
+  "webinar-motor-cron",
 ];
 
 /**

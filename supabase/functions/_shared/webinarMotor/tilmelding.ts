@@ -137,3 +137,32 @@ export function tilmeldDom(sessionId: string, eksisterende: readonly Eksisterend
 
 /** eWebinars registrant-id for en platform-række (beslutning G7): «P-» + rækkens uuid. */
 export const platformEwebinarId = (id: string): string => `P-${id}`;
+
+// ── Den interne prøvesession (skive 3, beslutning D2.7) ──────────────────────
+
+/**
+ * Husets egne domæner. KUN adresser på præcis disse (ikke underdomæner) kan
+ * tilmelde sig en INTERN session — prøvesessionen, der kører før nogen
+ * offentlig session (Jonas 30/9: «ingen offentlig parallelkørsel»).
+ */
+export const INTERNE_DOMAENER = ["topix.dk", "theboardroom.dk"] as const;
+
+/** Er mailen en af husets egne? Domænet efter det SIDSTE @, med små bogstaver, præcis lig. */
+export function erInternAdresse(email: string): boolean {
+  const e = email.trim().toLowerCase();
+  const at = e.lastIndexOf("@");
+  if (at < 1 || at === e.length - 1) return false;
+  return (INTERNE_DOMAENER as readonly string[]).includes(e.slice(at + 1));
+}
+
+export type Interndom = { ok: true } | { ok: false; grund: "intern" };
+
+/**
+ * Må denne mail tilmelde sig denne session? En offentlig session: alle. En
+ * intern: kun husets egne adresser. Dømt FØR tilmeldDom, så en fremmed
+ * adresse aldrig når dubletdommen (og aldrig kan flyttes ind i en intern session).
+ */
+export function internDom(sessionIntern: boolean, email: string): Interndom {
+  if (!sessionIntern) return { ok: true };
+  return erInternAdresse(email) ? { ok: true } : { ok: false, grund: "intern" };
+}

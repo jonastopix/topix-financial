@@ -30,7 +30,7 @@ export const tomtSpejl = (): AfspillerSpejl => ({ posSek: 0, sidsteHaendelse: nu
  *     tolerance 3 s, højst én korrektion pr. 8 s, aldrig under buffering.
  *     Et gennemsigtigt lag dækker kontrolbjælken, så søgebjælken ikke kan
  *     trækkes; vores egne knapper (pause, lyd, fuld skærm) står under videoen.
- *   PAUSE er tilladt: «Webinaret kører videre live · Tilbage til live».
+ *   PAUSE er tilladt: «Webinaret kører videre · Tilbage til webinaret».
  *   IPHONE (plan A): iframen indlæses efter seerens tryk med autoplay og lyd;
  *     står den stadig på pause efter 1,5 s, nægtede browseren lyd — så spilles
  *     der uden, og «Tryk for lyd» vises (autoplayDom). playsinline står i
@@ -191,13 +191,13 @@ export function Afspiller({
         )}
         {o.visTilbageTilLive && (
           <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-black/60 px-6 text-center text-white" role="status">
-            <p className="text-base">Webinaret kører videre live.</p>
+            <p className="text-base">Webinaret kører videre.</p>
             <button
               type="button"
               onClick={tilbageTilLive}
               className="inline-flex h-12 items-center gap-2 rounded-full bg-white px-7 text-base font-medium text-hb-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
             >
-              <Radio className="h-5 w-5 text-hb-evergreen" aria-hidden="true" /> Tilbage til live
+              <Radio className="h-5 w-5 text-hb-evergreen" aria-hidden="true" /> Tilbage til webinaret
             </button>
           </div>
         )}
@@ -206,7 +206,7 @@ export function Afspiller({
         <div className="flex items-center gap-1">
           {haendelse === "pause" ? (
             <button type="button" className={kontrol} onClick={tilbageTilLive} disabled={!klar}>
-              <Radio className="h-4 w-4 text-hb-evergreen" aria-hidden="true" /> Tilbage til live
+              <Radio className="h-4 w-4 text-hb-evergreen" aria-hidden="true" /> Tilbage til webinaret
             </button>
           ) : (
             <button type="button" className={kontrol} onClick={() => playerRef.current?.pause()} disabled={!klar}>

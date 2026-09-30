@@ -37,7 +37,14 @@
 // tabel og venter på Jonas (spec §A1; claude-regelsaet §3). Loggen bærer
 // `afmeldt: true`; webinar-mail-cron springer stadig mailen over.
 //
-// BEVISET I SVARET: `motor: "boardroom-2"` (MOTOR_VERSION) — kun den nye kode
+// DEN INTERNE PRØVESESSION (skive 3, 30/9-2026 — Jonas' D2.7: ingen offentlig
+// parallelkørsel): en session med webinar_sessioner.intern = true står ALDRIG
+// i «sessioner»-listen. Med `session_id` i kroppen svares med netop den ene
+// (rådgiverens prøvelink /w/<slug>/tilmeld?session=<id>, markeret intern: true),
+// og «tilmeld» til den kræver en adresse på topix.dk/theboardroom.dk
+// (internDom, FØR dubletdommen; ellers 403 «intern»). Rækken får raa.intern.
+//
+// BEVISET I SVARET: `motor: "boardroom-3"` (MOTOR_VERSION) — kun den nye kode
 // kan svare med det.
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
@@ -46,9 +53,11 @@ import { ukendteFelter, ukendteFelterBesked } from "../_shared/kendteFelter.ts";
 import { tilladtOrigin, verifyOffentligTilmelding } from "../_shared/webinarTilmeldVaern.ts";
 import { joinSecret } from "../_shared/webinarDeltagerAuth.ts";
 import {
+  internDom,
   laesTilmeldInput,
   platformEwebinarId,
   SLUG_FORM,
+  UUID_FORM,
   TILMELD_HANDLINGER,
   TILMELD_KENDTE_FELTER,
   type EksisterendeTilmelding,
@@ -148,27 +157,33 @@ Deno.serve(async (req) => {
       const webinar = await hentAktivtWebinar(admin, slug);
       if (webinar === "fejl") return svar(req, { fejl: "opslag" }, 500);
       if (!webinar) return svar(req, { fejl: "ukendt_webinar" }, 404);
-      const { data, error } = await admin
+      // SKIVE 3: med `session_id` spørges der om ÉN bestemt session — rådgiverens
+      // prøvelink til en INTERN session (tilmeldSti). Uden: de offentlige.
+      const bestemt = typeof body?.session_id === "string" ? body.session_id.trim().toLowerCase() : null;
+      if (bestemt !== null && !UUID_FORM.test(bestemt)) return svar(req, { fejl: "session_id" }, 400);
+      let q = admin
         .from("webinar_sessioner")
-        .select("id, starter_at, type, status, kapacitet")
+        .select("id, starter_at, type, status, kapacitet, intern")
         .eq("webinar_id", webinar.id)
         .in("status", ["planlagt", "aaben"])
-        .gt("starter_at", new Date(nuMs).toISOString())
-        .order("starter_at", { ascending: true })
-        .limit(20);
+        .gt("starter_at", new Date(nuMs).toISOString());
+      if (bestemt !== null) q = q.eq("id", bestemt);
+      const { data, error } = await q.order("starter_at", { ascending: true }).limit(20);
       if (error) return svar(req, { fejl: "opslag" }, 500);
       const valg: SessionValg[] = [];
       for (const s of data ?? []) {
         const kapacitet = (s.kapacitet as number | null) ?? null;
-        valg.push({ id: s.id, starterMs: Date.parse(s.starter_at), status: s.status, type: s.type, kapacitet, tilmeldte: kapacitet === null ? null : await tilmeldteI(admin, s.id) });
+        valg.push({ id: s.id, starterMs: Date.parse(s.starter_at), status: s.status, type: s.type, kapacitet, tilmeldte: kapacitet === null ? null : await tilmeldteI(admin, s.id), intern: s.intern === true });
       }
-      const naeste = naesteSessioner(valg, nuMs);
+      // En INTERN session står aldrig i den offentlige liste (D2.7). Den bestemte
+      // vises — også intern — men tilmeldingen til den dømmes af internDom.
+      const naeste = naesteSessioner(valg, nuMs, bestemt !== null ? 1 : undefined, bestemt !== null);
       return svar(req, {
         webinar: {
           slug: webinar.slug, titel: webinar.titel, beskrivelse: webinar.beskrivelse, vaert_navn: webinar.vaert_navn,
           vaert_billede: webinar.vaert_billede, varighed_sek: webinar.varighed_sek, intro_sek: webinar.intro_sek,
         },
-        sessioner: naeste.map((s) => ({ id: s.id, starter_at: new Date(s.starterMs).toISOString(), type: s.type })),
+        sessioner: naeste.map((s) => ({ id: s.id, starter_at: new Date(s.starterMs).toISOString(), type: s.type, ...(s.intern === true ? { intern: true } : {}) })),
       });
     }
 
@@ -192,12 +207,17 @@ Deno.serve(async (req) => {
 
     const { data: session, error: sFejl } = await admin
       .from("webinar_sessioner")
-      .select("id, webinar_id, starter_at, type, status, kapacitet")
+      .select("id, webinar_id, starter_at, type, status, kapacitet, intern")
       .eq("id", ind.sessionId)
       .eq("webinar_id", webinar.id)
       .maybeSingle();
     if (sFejl) return svar(req, { fejl: "opslag" }, 500);
     if (!session) return svar(req, { fejl: "ukendt_session" }, 404);
+    // DEN INTERNE PRØVESESSION (skive 3, D2.7): kun husets egne adresser — dømt
+    // FØR dubletdommen, så en fremmed adresse aldrig oprettes, flyttes eller slås op.
+    const sessionIntern = session.intern === true;
+    const intern = internDom(sessionIntern, ind.email);
+    if (!intern.ok) return svar(req, { fejl: intern.grund }, 403);
     const starterMs = Date.parse(session.starter_at);
     const tider = sessionTider({ starterMs, varighedSek: webinar.varighed_sek, introSek: webinar.intro_sek, lobbyMin: webinar.lobby_min, exitrumMin: webinar.exitrum_min });
 
@@ -272,7 +292,8 @@ Deno.serve(async (req) => {
       user_agent: userAgent,
       ip_dagshash: vaern.ipHash,
       token_version: 1,
-      raa: { kilde: "platform", motor: MOTOR_VERSION },
+      // `intern` kun på en prøvesessions rækker — så de kan filtreres fra i tal senere.
+      raa: { kilde: "platform", motor: MOTOR_VERSION, ...(sessionIntern ? { intern: true } : {}) },
     });
     if (iFejl) {
       if (iFejl.code === "23505") {
