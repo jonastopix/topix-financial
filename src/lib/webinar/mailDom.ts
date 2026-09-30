@@ -121,8 +121,8 @@ export const PLANEN: readonly Plan[] = [
 ];
 
 /**
- * FÆRRE PÅMINDELSER (udkast 30/9-2026, mail-worstcase §4 P1-8 — Jonas' ja
- * mangler). «tre_dage» (kl. 08:00 tre kalenderdage før) og «dagen» (kl. 07:30 på
+ * FÆRRE PÅMINDELSER (besluttet af Jonas 30/9 kl. 06:06 (morgenlistens D1: "Ja det skal de. Drop de to"),
+ * mail-worstcase §4 P1-8). «tre_dage» (kl. 08:00 tre kalenderdage før) og «dagen» (kl. 07:30 på
  * dagen) er taget ud af PLANEN. En deltager får nu: bekræftelse · 14 dage ·
  * 7 dage · 1 dag · 1 time — plus eWebinars egen 10-minutters-mail. −2 pr. session.
  *

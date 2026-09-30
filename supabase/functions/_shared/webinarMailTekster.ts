@@ -1,7 +1,8 @@
 /**
  * webinarMailTekster — de syv før-webinar-mails (22/9-2026; den syvende 28/9).
  *
- * UDGÅET 30/9 (udkast, mail-worstcase §4 P1-8): «tre_dage» og «dagen» er taget
+ * UDGÅET 30/9 (besluttet af Jonas 30/9 kl. 06:06 (morgenlistens D1: "Ja det skal de. Drop de to"),
+ * mail-worstcase §4 P1-8): «tre_dage» og «dagen» er taget
  * ud af dommens PLANEN og SENDES IKKE (webinarMailDom.UDGAAEDE_ARTER). Teksterne
  * står her stadig, ubrugte, af tre grunde: EMNER er et Record<MailArt>, og
  * MailArt kender dem (CHECK'en og sporet har ordene); kildeværnet dom 5 læser

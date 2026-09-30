@@ -322,7 +322,7 @@ Platformen dømmer pr. (mail, session) og sender derfor **to hele serier** [kode
    - Forslag: fjern `tre_dage` og `dagen`.
    - Tilbage bliver: bekræftelse · 14 dage (bærer invitationen til de ~217 fra før 22/9) · 7 dage · 1 dag · 1 time, plus eWebinars 10 min.
    - `webinar_mails_art_check` må gerne beholde ordene (historik), så der kræves ingen migration for at FJERNE.
-   - Effekt: −2 pr. session (O3). Beslutningen er Jonas' (hvilke to).
+   - Effekt: −2 pr. session (O3). Beslutningen er Jonas' (hvilke to). **BESLUTTET:** besluttet af Jonas 30/9 kl. 06:06 (morgenlistens D1: "Ja det skal de. Drop de to") — tre_dage og dagen droppes.
 9. **Kun nærmeste session får påmindelser** (`planlaegKoersel` `:421-470`, begge spejle + test).
    - Har én mail flere kommende sessioner, får kun den nærmeste påmindelserne. Bekræftelsen går stadig pr. session (den bærer sessionens invite.ics).
    - Er sessionen passeret, overtager den næste. Arter, der er gået tabt, er `for_sent`, som i dag.
