@@ -27,6 +27,8 @@ Workflow ved nye migrationer:
 
 Migrationsfilen i repoet er kanonisk historik — Lovable's SQL editor er den faktiske eksekverings-kanal.
 
+**Lovable-forbindelsen (MCP, fra 30/9-2026 16:40):** Claude når prod gennem Lovables officielle MCP-server — `query_database` (samme database som SQL editoren, som `postgres`), `send_message` til build-chatten (deploy af edge functions) og `deploy_project` (= Update). Projektet er «Boardroom Compass», `0bcda7a6-4154-4a81-9f82-fcdf623eb7ea`. Reglerne for brugen står i `docs/claude-regelsaet.md` §6a; forbindelsen flytter hænderne, ikke beslutningerne.
+
 ## Deployment af edge functions
 
 Merge udruller IKKE en edge function. Målt 20/9-2026 aften på fem functions i samme aften: `meta-annoncer-cron` (#1045), `ansoegning-rykker-cron`, `ansoegning-handling` og `calendly-webhook` (#1046) og `stille-klokker-cron` (#1048, en helt ny function) skulle alle udrulles eksplicit fra Lovables build-chat, før den nye kode kørte. Canary-eksperimentet fra 2026-05-11 (PR #15/16), der viste kilden i «View code» efter merge, målte kilden — ikke driften.
