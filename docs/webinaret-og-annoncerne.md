@@ -151,6 +151,13 @@ Lovable build-chat; den regner med de spejlede domme og trækker
 (`dashboard.spor.kilder[0].maaling` — kun den nye kode har feltet). DEREFTER
 Update for fladen. Ingen migration.
 
+**Status 30/9 aften (#1184 merget `2deb10bb` 22:10):** rådets «ret først» er
+rettet (Fable: to høje — fail-soft uden `maaling`, og «skiller sig ud» krævede
+kun 5 personer; nu ≥ 5 succeser og ≥ 5 ikke-succeser i begge grupper, så 22/9's
+7 af 8 er «kan ikke afgøres»). `webinar-delt` er udrullet («Successfully
+deployed edge functions: webinar-delt»). **Beviset (`maaling` i et delt-svar)
+udestår** — det kræver et delingslink; Update for fladen er ikke klikket.
+
 ---
 
 ## 3. Meta — annoncerne, forbruget og tokenet (#1018, #1022, #1023, #1025, #1027)
@@ -528,6 +535,25 @@ mails er det bedste tal, ikke et bevis for, at videoen blev set.
 Rækkefølgen afviger bevidst fra «prøve → sæt konfigurationen»: prøven skal vise
 den række, der går i luften — ikke en kopi i en body, der kan være stavet
 anderledes. Værn: `webinarMail.guard` dom 19 og `webinarVideo.test.ts`.
+
+## 7h. 30. september aften — /webinar viser, at annoncerne ikke giver medlemmer (observation, ikke målt årsag)
+
+**Hvad der er læst:** siden `/webinar`s egne tal, 30/9 aften. Intet er målt ud
+over det, siden selv viser; ingen årsag er undersøgt.
+
+- Kampagnen **«VSL | Adv+ | OM»: 9.450 kr. brugt, 0 tilmeldte.**
+- **45 annoncer** har forbrug og **0 tilmeldinger**.
+- **17/8–29/9 samlet: 34.905 kr. → 795 tilmeldte → 186 deltagere → 7 ansøgninger → 0 medlemmer.**
+
+**Hvad det IKKE er:** en dom. Tallene siger ikke, *hvorfor* kampagnen og de 45
+annoncer ikke giver tilmeldinger (målingen af klik, landingsside og
+tilmeldingsflow er ikke gennemgået), og et ledtal uden medlemmer er ikke det
+samme som, at annoncerne ikke virker: betalingen (Purchase) sker 30–60 dage
+efter ansøgningen (CLAUDE.md «Metas Conversions API»), så medlemmer kan ligge
+efter vinduets slutning. Med 7 ansøgninger når ingen andel
+Wilsons grænse («for få» erstatter procenten, §2a). Samme observation står i
+OVERLEVERING DEL 2 «30. september» §7h; genvurderingen af marketinganalytikeren
+er sat til efter 13/10 (`docs/marketingmotoren.md` §4).
 
 ---
 
