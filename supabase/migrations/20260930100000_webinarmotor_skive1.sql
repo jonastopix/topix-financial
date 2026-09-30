@@ -103,7 +103,7 @@ create trigger webinarer_updated_at before update on public.webinarer
   for each row execute function public.update_updated_at_column();
 
 comment on table public.webinarer is
-  'Webinarmotoren (skive 1, 30/9-2026): ét webinar = én video + tidslinje. varighed_sek/intro_sek læses fra Bunnys video-info. Kun service role skriver (webinar-admin, skive 6); rådgivere læser.';
+  'Webinarmotoren (skive 1, 30/9-2026): ét webinar = én video + tidslinje. varighed_sek og intro_sek TASTES af rådgiveren på /webinar/motor (skive 3) — ikke læst fra Bunny; et tastet tal er en observation og skal være videoens præcise længde. Service role skriver; rådgivere læser (og skriver gennem RLS fra skive 3, migration 20260930160000).';
 
 -- ── 2. Sessioner og gentagelser ─────────────────────────────────────────────
 create table if not exists public.webinar_gentagelser (
@@ -506,7 +506,7 @@ begin
   -- Tilmeldingen (eWebinars kolonner) kun når procenten krydser et helt tal —
   -- én skrivning pr. procentpoint, ikke pr. puls. Går aldrig ned.
   update public.webinar_tilmeldinger t
-     set set_procent = v_pct, set_procent_kilde = 'boardroom-1'
+     set set_procent = v_pct, set_procent_kilde = 'boardroom-bitmap'
    where t.id = p_tilmelding_id
      and (t.set_procent is null or floor(t.set_procent) < floor(v_pct));
 

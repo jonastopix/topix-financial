@@ -57,8 +57,10 @@ export const KENDTE_FELTER = ["t", "valg"] as const;
 // — og aldrig som hele `raa`: den rå payload bærer alt, eWebinar ved om personen.
 // Teksten forlader ALDRIG serveren; dommen (webinarDashboard.bedoemmelse) svarer
 // kun med tal og andele, og findForbudteNoegler går svaret igennem som før.
+// Prøvemærket (rådets fund 30/9) hentes på samme måde — `intern:raa->>intern` —
+// så dommen kan holde webinarmotorens interne prøvesession ude af de delte tal.
 export const GRUND_KOLONNER =
-  "ewebinar_id, email, navn, webinar_id, webinar_titel, session_tid, session_type, registreret_at, state, sidste_action, attended, subscribed, set_procent, set_procent_kilde, interactions:raa->>interactionsSummary";
+  "ewebinar_id, email, navn, webinar_id, webinar_titel, session_tid, session_type, registreret_at, state, sidste_action, attended, subscribed, set_procent, set_procent_kilde, interactions:raa->>interactionsSummary, intern:raa->>intern";
 export const ANNONCESPOR_KOLONNER = [
   "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term",
   "fbclid", "origin", "first_origin", "referrer", "first_referrer", "widget_source",

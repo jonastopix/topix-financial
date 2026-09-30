@@ -14,13 +14,26 @@
 //       varighed, intro — skive 2). Ingen persondata ind eller ud.
 //   { handling: "tilmeld", slug, session_id, fornavn, email, samtykke_nyhedsbrev?,
 //     utm_*?, fbclid?, landing?, referrer?, fbp?, fbc?, ga_client_id?, hjemmeside? }
-//       Dubletdommen (webinarMotor/tilmelding.ts:tilmeldDom):
-//         samme mail + samme session → SAMME række (idempotent; intet token i svaret)
-//         samme mail + en anden, ikke-begyndt session af samme webinar → FLYTTES
-//         ellers → NY række, og svaret bærer tokenet ÉN gang.
+//       Dubletdommen (webinarMotor/tilmelding.ts:offentligTilmeldDom — rådets
+//       fund 30/9, HØJ + MELLEM):
+//         sessionens afvisninger FØRST (aflyst · forbi · fuld), for alle
+//         samme mail + samme session → «kendt»: rækken røres ikke
+//         alt andet → NY række — også når mailen står på en anden session.
+//         Der FLYTTES ALDRIG her: kalderen har intet bevist, og en flytning
+//         uden legitimation lod enhver med en andens mail flytte vedkommendes
+//         tilmelding. Flyt kræver tokenet (webinar-rum «gen_tilmeld»).
+//       ÉT ENSARTET SVAR for alt andet end en ny række (og for honningfeltet):
+//         { ok: true, session, token: null, link_paa_mail: true } — intet
+//         `dublet`-felt, der fortæller, om mailen stod på listen.
+//       En NY række svarer { ok: true, session, token, rum_sti } — tokenet ÉN gang.
 //       «Én pr. (mail, session)» er også databasens dom (delindekset
 //       webinar_tilmeldinger_platform_email_session_uidx) — et kapløb giver 23505,
-//       og så svares der som «samme».
+//       og så svares der ensartet.
+//
+// LÅSEN (rådets fund 30/9, MELLEM): app_config.webinarmotor_offentlig_aktiv
+// (fraværende = false). Lukket: «sessioner» viser ingen offentlig session
+// (bagLaasen), og «tilmeld» til en offentlig session svarer 403 «ikke_aaben» —
+// dømt FØR dubletdommen, for alle, så svaret ikke afslører en kendt mail.
 //
 // PARITET (spec §C5): rækken skrives i webinar_tilmeldinger med eWebinars ord —
 // ewebinar_id 'P-<id>', state/sidste_action «Registered», session_tid =
@@ -29,8 +42,11 @@
 // meta-send-cron (webinarens fbclid) og /webinar læser den UÆNDRET.
 // join_link/kalender_link skrives ALDRIG: de udledes af tokenet (skive 2).
 //
-// TOKENET kun til den, der netop skabte rækken. En «samme» eller «flyt» svarer
-// uden token — ellers kunne enhver hente en andens rum-link ved at taste mailen.
+// TOKENET kun til den, der netop skabte rækken. En «kendt» svarer uden token —
+// ellers kunne enhver hente en andens rum-link ved at taste mailen. REST-RISIKO
+// (bevidst, rådets dom): «ny» (token) og «kendt» (intet token) kan skelnes —
+// men at prøve en fremmed mail, der ikke står på listen, OPRETTER en
+// tilmelding og sender personen en bekræftelse. Det er støjende og synligt.
 //
 // AFMELDINGER: en mail i webinar_afmeldinger tilmeldes stadig (et udtrykkeligt
 // valg), men afmeldingen OPHÆVES IKKE her — det er en sletning i en eksisterende
@@ -52,19 +68,21 @@ import { corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { ukendteFelter, ukendteFelterBesked } from "../_shared/kendteFelter.ts";
 import { tilladtOrigin, verifyOffentligTilmelding } from "../_shared/webinarTilmeldVaern.ts";
 import { joinSecret } from "../_shared/webinarDeltagerAuth.ts";
+import { hentOffentligLaas } from "../_shared/webinarMotorHent.ts";
 import {
   internDom,
+  laasDom,
   laesTilmeldInput,
+  offentligTilmeldDom,
   platformEwebinarId,
   SLUG_FORM,
   UUID_FORM,
   TILMELD_HANDLINGER,
   TILMELD_KENDTE_FELTER,
   type EksisterendeTilmelding,
-  tilmeldDom,
   type TilmeldHandling,
 } from "../_shared/webinarMotor/tilmelding.ts";
-import { naesteSessioner, type SessionValg } from "../_shared/webinarMotor/sessionplan.ts";
+import { bagLaasen, naesteSessioner, type SessionValg } from "../_shared/webinarMotor/sessionplan.ts";
 import { sessionTider } from "../_shared/webinarMotor/ur.ts";
 import { byggDeltagertoken, rumSti } from "../_shared/webinarMotor/token.ts";
 import { findMotorForbudte, MOTOR_VERSION } from "../_shared/webinarMotor/svar.ts";
@@ -123,6 +141,15 @@ async function tilmeldteI(admin: SupabaseClient, sessionId: string): Promise<num
   return error ? null : count ?? 0;
 }
 
+/**
+ * DET ENSARTEDE SVAR (rådets fund 30/9, MELLEM «enumeration»): alt, der ikke
+ * er en ny række — en kendt mail, et kapløb, honningfeltet — svarer ens.
+ * `session` er kun ekkoet af det, kalderen selv valgte.
+ */
+function ensartet(req: Request, session: { id: string; starter_at: string } | null): Response {
+  return svar(req, { ok: true, session, token: null, link_paa_mail: true });
+}
+
 async function logHaendelse(admin: SupabaseClient, raekke: Record<string, unknown>): Promise<void> {
   const { error } = await admin.from("webinar_motor_log").insert({ kilde: "server", ...raekke });
   if (error) console.error(`${LOG} loggen kunne ikke skrives (${String(raekke.art)}): ${error.message}`);
@@ -177,7 +204,9 @@ Deno.serve(async (req) => {
       }
       // En INTERN session står aldrig i den offentlige liste (D2.7). Den bestemte
       // vises — også intern — men tilmeldingen til den dømmes af internDom.
-      const naeste = naesteSessioner(valg, nuMs, bestemt !== null ? 1 : undefined, bestemt !== null);
+      // LÅSEN: lukket → ingen offentlig session, heller ikke den bestemte.
+      const offentligAaben = await hentOffentligLaas(admin);
+      const naeste = naesteSessioner(bagLaasen(valg, offentligAaben), nuMs, bestemt !== null ? 1 : undefined, bestemt !== null);
       return svar(req, {
         webinar: {
           slug: webinar.slug, titel: webinar.titel, beskrivelse: webinar.beskrivelse, vaert_navn: webinar.vaert_navn,
@@ -189,7 +218,7 @@ Deno.serve(async (req) => {
 
     // ── TILMELD ──────────────────────────────────────────────────────────
     // Honningfeltet: svar som om alt gik godt, skriv intet, lær botten intet.
-    if (vaern.honning) return svar(req, { ok: true, dublet: "ny", token: null });
+    if (vaern.honning) return ensartet(req, null);
 
     const dom = laesTilmeldInput(body as Record<string, unknown>);
     if (!dom.ok) return svar(req, { fejl: "ugyldig", felter: dom.fejl }, 400);
@@ -214,10 +243,13 @@ Deno.serve(async (req) => {
     if (sFejl) return svar(req, { fejl: "opslag" }, 500);
     if (!session) return svar(req, { fejl: "ukendt_session" }, 404);
     // DEN INTERNE PRØVESESSION (skive 3, D2.7): kun husets egne adresser — dømt
-    // FØR dubletdommen, så en fremmed adresse aldrig oprettes, flyttes eller slås op.
+    // FØR dubletdommen, så en fremmed adresse aldrig oprettes eller slås op.
     const sessionIntern = session.intern === true;
     const intern = internDom(sessionIntern, ind.email);
     if (!intern.ok) return svar(req, { fejl: intern.grund }, 403);
+    // LÅSEN foran enhver tilmelding til en OFFENTLIG session — før dubletdommen.
+    const laas = laasDom(sessionIntern, sessionIntern ? false : await hentOffentligLaas(admin));
+    if (!laas.ok) return svar(req, { fejl: laas.grund }, 403);
     const starterMs = Date.parse(session.starter_at);
     const tider = sessionTider({ starterMs, varighedSek: webinar.varighed_sek, introSek: webinar.intro_sek, lobbyMin: webinar.lobby_min, exitrumMin: webinar.exitrum_min });
 
@@ -242,29 +274,15 @@ Deno.serve(async (req) => {
     const { data: afm } = await admin.from("webinar_afmeldinger").select("email").eq("email", ind.email).maybeSingle();
     const afmeldt = !!afm;
 
-    const valg = tilmeldDom(session.id, eksisterende, { id: session.id, status: session.status, starterMs, slutMs: tider.exitrumSlutMs, kapacitet, tilmeldte }, nuMs);
+    const valg = offentligTilmeldDom(session.id, eksisterende, { id: session.id, status: session.status, starterMs, slutMs: tider.exitrumSlutMs, kapacitet, tilmeldte }, nuMs);
     const sessionUd = { id: session.id, starter_at: session.starter_at };
 
     if (valg.art === "afvis") return svar(req, { fejl: valg.grund }, 409);
 
-    if (valg.art === "samme") {
-      await logHaendelse(admin, { art: "tilmeldt", tilmelding_id: valg.id, session_id: session.id, data: { dublet: "samme", kilde_system: "platform" } });
-      return svar(req, { ok: true, dublet: "samme", session: sessionUd, token: null, link_paa_mail: true });
-    }
-
-    if (valg.art === "flyt") {
-      const { data: flyttet, error: fFejl } = await admin
-        .from("webinar_tilmeldinger")
-        .update({ session_id: session.id, session_tid: session.starter_at, session_type: session.type, flyttet_fra_session_id: valg.fraSessionId, sidste_haendelse_at: new Date(nuMs).toISOString() })
-        .eq("id", valg.id)
-        .eq("session_id", valg.fraSessionId)
-        .select("id");
-      if (fFejl || !flyttet || flyttet.length !== 1) {
-        console.error(`${LOG} flytningen af ${valg.id} ramte ${flyttet?.length ?? 0} rækker: ${fFejl?.message ?? "ingen fejl"}`);
-        return svar(req, { fejl: "flyt" }, 500);
-      }
-      await logHaendelse(admin, { art: "flyttet", tilmelding_id: valg.id, session_id: session.id, data: { fra_session_id: valg.fraSessionId, til_session_id: session.id, afmeldt } });
-      return svar(req, { ok: true, dublet: "flyttet", session: sessionUd, token: null, link_paa_mail: true });
+    if (valg.art === "kendt") {
+      // Rækken røres IKKE. Loggen (service-role-only) bærer, hvad der skete.
+      await logHaendelse(admin, { art: "tilmeldt", tilmelding_id: valg.id, session_id: session.id, data: { dublet: "kendt", kilde_system: "platform" } });
+      return ensartet(req, sessionUd);
     }
 
     // ── NY ─────────────────────────────────────────────────────────────
@@ -297,8 +315,8 @@ Deno.serve(async (req) => {
     });
     if (iFejl) {
       if (iFejl.code === "23505") {
-        // Kapløb: en anden anmodning med samme mail og session vandt. Det er «samme».
-        return svar(req, { ok: true, dublet: "samme", session: sessionUd, token: null, link_paa_mail: true });
+        // Kapløb: en anden anmodning med samme mail og session vandt. Det er «kendt».
+        return ensartet(req, sessionUd);
       }
       console.error(`${LOG} insert fejlede: ${iFejl.message}`);
       return svar(req, { fejl: "gem" }, 500);
@@ -308,11 +326,11 @@ Deno.serve(async (req) => {
       art: "tilmeldt",
       tilmelding_id: id,
       session_id: session.id,
-      data: { dublet: "ny", kilde_system: "platform", har_fbclid: ind.spor.fbclid !== null, samtykke_nyhedsbrev: ind.samtykkeNyhedsbrev, afmeldt },
+      data: { dublet: "ny", kilde_system: "platform", har_fbclid: ind.spor.fbclid !== null, samtykke_nyhedsbrev: ind.samtykkeNyhedsbrev, afmeldt, andre_sessioner: eksisterende.length },
     });
 
     const token = await byggDeltagertoken(secret, id, 1);
-    return svar(req, { ok: true, dublet: "ny", session: sessionUd, token, rum_sti: rumSti(webinar.slug, token) });
+    return svar(req, { ok: true, session: sessionUd, token, rum_sti: rumSti(webinar.slug, token) });
   } catch (err) {
     console.error(`${LOG} uventet fejl:`, err);
     return svar(req, { fejl: "uventet" }, 500);

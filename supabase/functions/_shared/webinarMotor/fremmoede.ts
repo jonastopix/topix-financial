@@ -11,6 +11,17 @@
  * læser motorens rækker UÆNDRET (spec §C5).
  */
 
+/**
+ * `webinar_tilmeldinger.set_procent_kilde` for motorens rækker — ÉT navn
+ * (rådets fund 30/9, LAV): kolonnen siger, HVORFRA procenten kom (for eWebinar
+ * et felt i payloaden), og for motoren er det altid bitmappen — hvad enten
+ * webinar_puls_skriv (SQL, under sessionen) eller webinar-motor-cron (efter)
+ * skriver den. Før stod der «boardroom-1» i SQL'en og MOTOR_VERSION
+ * («boardroom-3») i cronen: to navne for samme kilde, og det ene skiftede
+ * med hver skive. SQL'en bærer strengen ORDRET (webinarMotorRaad.guard).
+ */
+export const SET_PROCENT_KILDE_MOTOR = "boardroom-bitmap";
+
 /** eWebinars tilstande, i den rækkefølge en tilmelding kan gå frem. En dom går aldrig baglæns. */
 export const STATE_RANG: Readonly<Record<string, number>> = { Registered: 0, NotJoined: 0, Missed: 1, Joined: 2, Watched: 3 };
 

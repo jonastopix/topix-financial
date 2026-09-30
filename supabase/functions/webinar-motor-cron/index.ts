@@ -58,6 +58,7 @@ import {
   SENESTE_START_MS,
   sessionForGammel,
   sessionKlarTilDom,
+  SET_PROCENT_KILDE_MOTOR,
 } from "../_shared/webinarMotor/fremmoede.ts";
 import { MOTOR_VERSION } from "../_shared/webinarMotor/svar.ts";
 import { doemSetGrad, SET_GRAENSE_PROCENT, type SetGrad } from "../_shared/webinarDom.ts";
@@ -242,7 +243,7 @@ async function doemSession(a: {
     // 1. Rækken — vagtet på den state, vi læste: en anden skriver vinder, og vi tager den næste kørsel.
     if (ret) {
       const saet: Record<string, unknown> = { ...ret, sidste_haendelse_at: nuIso };
-      if (ret.set_procent !== undefined) saet.set_procent_kilde = MOTOR_VERSION;
+      if (ret.set_procent !== undefined) saet.set_procent_kilde = SET_PROCENT_KILDE_MOTOR;
       let q = admin.from("webinar_tilmeldinger").update(saet).eq("id", t.id);
       q = t.state === null ? q.is("state", null) : q.eq("state", t.state);
       const { data: rk, error } = await q.select("id");

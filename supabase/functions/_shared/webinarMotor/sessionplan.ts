@@ -43,6 +43,17 @@ export const erFuld = (s: SessionValg): boolean => s.kapacitet !== null && s.til
  * webinar-rum's «Tag næste session» for en af husets egne adresser
  * (tilmelding.ts:erInternAdresse). Tilmeldingssidens liste siger det aldrig.
  */
+/**
+ * LÅSEN FORAN DE OFFENTLIGE (rådets fund 30/9, MELLEM): en offentlig session
+ * (intern ≠ true) er kun synlig, når app_config.webinarmotor_offentlig_aktiv
+ * er åben (tilmelding.ts:offentligLaasAaben). De interne står altid her —
+ * naesteSessioner afgør stadig, hvem der må se dem. Enhver liste, en side
+ * udenfor viser, går gennem denne FØR naesteSessioner (webinarMotorRaad.guard).
+ */
+export function bagLaasen(sessioner: readonly SessionValg[], offentligAaben: boolean): SessionValg[] {
+  return sessioner.filter((s) => s.intern === true || offentligAaben);
+}
+
 export function naesteSessioner(sessioner: readonly SessionValg[], nuMs: number, antal = VIS_SESSIONER, medInterne = false): SessionValg[] {
   return sessioner
     .filter((s) => medInterne || s.intern !== true)

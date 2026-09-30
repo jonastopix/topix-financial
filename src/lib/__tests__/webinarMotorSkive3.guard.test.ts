@@ -20,7 +20,7 @@ import { resolve } from "node:path";
  *      standard, låsen (eller en intern session), Klaviyo ad den EKSISTERENDE
  *      vej (byggFremmoede → sendHvisMail, ingen egen fetch), loggen EFTER
  *      afsendelsen, opbevaringen kun i den globale kørsel med låsen.
- *   4. DEN INTERNE SESSION: internDom står FØR tilmeldDom i webinar-tilmeld;
+ *   4. DEN INTERNE SESSION: internDom står FØR offentligTilmeldDom i webinar-tilmeld;
  *      «sessioner» viser kun den interne, når der spørges efter den; rummet
  *      tilbyder den kun husets adresser.
  *   5. MIGRATIONERNE: første linje, kun tilføjende, kun rådgivere (ingen anon,
@@ -201,16 +201,16 @@ describe("webinarMotorSkive3.guard 3 — webinar-motor-cron", () => {
 
 export function internErRigtig(tilmeld: string, rum: string): boolean {
   const t = udenKommentarer(tilmeld), r = udenKommentarer(rum);
-  if (!foer(t, "internDom(sessionIntern, ind.email)", "tilmeldDom(")) return false;
+  if (!foer(t, "internDom(sessionIntern, ind.email)", "offentligTilmeldDom(")) return false;
   if (!t.includes("if (!intern.ok) return svar(req, { fejl: intern.grund }, 403);")) return false;
-  if (!t.includes("naesteSessioner(valg, nuMs, bestemt !== null ? 1 : undefined, bestemt !== null)")) return false;
+  if (!t.includes("naesteSessioner(bagLaasen(valg, offentligAaben), nuMs, bestemt !== null ? 1 : undefined, bestemt !== null)")) return false;
   const rumKald = [...r.matchAll(/naesteSessioner\(([\s\S]*?)\)\[0\]/g)].map((m) => m[1]);
   return rumKald.length === 2 && rumKald.every((a) => a.includes("erInternAdresse(d.email)"));
 }
 
 describe("webinarMotorSkive3.guard 4 — den interne prøvesession", () => {
   it("tilmeld og rum dømmer den", () => expect(internErRigtig(laes(TILMELD), laes(RUM))).toBe(true));
-  it("MUTATION: internDom efter tilmeldDom fanges", () => {
+  it("MUTATION: internDom efter offentligTilmeldDom fanges", () => {
     const t = laes(TILMELD).replace("const intern = internDom(sessionIntern, ind.email);", "const intern = { ok: true } as const;");
     expect(internErRigtig(t, laes(RUM))).toBe(false);
   });
@@ -220,7 +220,7 @@ describe("webinarMotorSkive3.guard 4 — den interne prøvesession", () => {
     expect(internErRigtig(t, laes(RUM))).toBe(false);
   });
   it("MUTATION: rummet, der tilbyder interne til alle, fanges", () => {
-    const r = laes(RUM).replace("naesteSessioner(kommende, nuMs, 1, erInternAdresse(d.email))", "naesteSessioner(kommende, nuMs, 1, true)");
+    const r = laes(RUM).replace("await hentOffentligLaas(admin)), nuMs, 1, erInternAdresse(d.email))", "await hentOffentligLaas(admin)), nuMs, 1, true)");
     expect(r).not.toBe(laes(RUM));
     expect(internErRigtig(laes(TILMELD), r)).toBe(false);
   });

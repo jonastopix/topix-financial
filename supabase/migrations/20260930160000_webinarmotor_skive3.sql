@@ -33,9 +33,18 @@
 --      DROP POLICY IF EXISTS står KUN foran politikker, denne fil selv opretter
 --      (husets idempotente form — en genkørsel af filen må ikke fejle).
 --
+--   4. ÉN NY app_config-række (rådets fund 30/9, MELLEM): låsen
+--      webinarmotor_offentlig_aktiv = false (ON CONFLICT DO NOTHING — en
+--      genkørsel eller en række, Jonas allerede har sat, røres ikke). Lukket:
+--      webinar-tilmeld viser ingen offentlig session og afviser «tilmeld» til
+--      en (403 «ikke_aaben»); webinar-rum tilbyder ingen. Kun den INTERNE
+--      prøvesession virker. Rækken skrives, så låsen kan SES i app_config —
+--      koden er fail-closed også uden den (tilmelding.ts:offentligLaasAaben).
+--
 -- INGEN ændring i eksisterende tabeller uden for motoren; ingen række ændres;
--- ingen app_config-række (låsene webinar_motor_aktiv og webinarmotor_meta_aktiv
--- er FRAVÆRENDE = false, fail-closed, som webinar_mail_aktiv).
+-- én række TILFØJES i app_config (punkt 4). Låsene webinar_motor_aktiv og
+-- webinarmotor_meta_aktiv har ingen række: FRAVÆRENDE = false, fail-closed,
+-- som webinar_mail_aktiv.
 --
 -- FØR-SQL (ét resultatsæt — gem CSV):
 --   select '1 kolonne' as sektion, concat(table_name, '.', column_name) as noegle, data_type as vaerdi
@@ -48,14 +57,17 @@
 --    where schemaname = 'public' and tablename in ('webinarer', 'webinar_sessioner', 'webinar_interaktioner')
 --   union all
 --   select '4 raekker', 'webinar_sessioner', count(*)::text from public.webinar_sessioner
+--   union all
+--   select '5 laas', config_key, config_value::text from public.app_config where config_key = 'webinarmotor_offentlig_aktiv'
 --   order by 1, 2;
 --   FACIT FØR: sektion 1 og 2 TOMME; sektion 3 = to politikker pr. tabel (Service role … ALL,
---   Advisors can view … SELECT); sektion 4 = antallet af sessioner (notér det — 0, hvis intet er oprettet).
+--   Advisors can view … SELECT); sektion 4 = antallet af sessioner (notér det — 0, hvis intet er oprettet);
+--   sektion 5 TOM.
 --
 -- EFTER-SQL: filens sidste SELECT. FACIT EFTER: sektion 1 = webinar_sessioner.intern boolean;
 --   sektion 2 = to triggere; sektion 3 = de to gamle + webinarer INSERT/UPDATE, webinar_sessioner
 --   INSERT/UPDATE, webinar_interaktioner INSERT/UPDATE/DELETE (alle {authenticated});
---   sektion 4 uændret, og «intern true» = 0.
+--   sektion 4 uændret, og «intern true» = 0; sektion 5 = webinarmotor_offentlig_aktiv | false.
 -- Og udefra, FØR udrulning: GET /rest/v1/webinar_sessioner?select=intern&limit=0 → 200.
 --
 -- ROLLBACK:
@@ -70,6 +82,7 @@
 --   drop trigger if exists webinar_tidslinje_frem on public.webinarer;
 --   drop function if exists public.webinar_session_laast(); drop function if exists public.webinar_tidslinje_frem();
 --   alter table public.webinar_sessioner drop column if exists intern;
+--   delete from public.app_config where config_key = 'webinarmotor_offentlig_aktiv';
 
 -- ── 1. Den interne session ──────────────────────────────────────────────────
 alter table public.webinar_sessioner
@@ -161,6 +174,11 @@ create policy "Advisors can delete kladde webinar_interaktioner" on public.webin
     and version > (select w.tidslinje_version from public.webinarer w where w.id = webinar_id)
   );
 
+-- ── 4. Låsen foran de offentlige sessioner (rådets fund 30/9) ───────────────
+insert into public.app_config (config_key, config_value, description)
+values ('webinarmotor_offentlig_aktiv', 'false'::jsonb, 'Webinarmotoren: må OFFENTLIGE sessioner vises og tilmeldes? false = kun den interne prøvesession (D2.7, standard). true sættes med én SQL, når Jonas åbner motoren for offentligheden (30/9-2026).')
+on conflict (config_key) do nothing;
+
 -- ── EFTER-tjek (ét resultatsæt — kør og gem CSV) ────────────────────────────
 select '1 kolonne' as sektion, concat(table_name, '.', column_name) as noegle, data_type as vaerdi
   from information_schema.columns where table_schema = 'public' and table_name = 'webinar_sessioner' and column_name = 'intern'
@@ -174,4 +192,6 @@ union all
 select '4 raekker', 'webinar_sessioner', count(*)::text from public.webinar_sessioner
 union all
 select '4 raekker', concat('intern ', intern::text), count(*)::text from public.webinar_sessioner group by intern
+union all
+select '5 laas', config_key, config_value::text from public.app_config where config_key = 'webinarmotor_offentlig_aktiv'
 order by 1, 2;

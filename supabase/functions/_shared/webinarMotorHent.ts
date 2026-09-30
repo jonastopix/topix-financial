@@ -14,6 +14,7 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import type { SessionUr } from "./webinarMotor/ur.ts";
 import { laesTidslinje, type Tidslinje } from "./webinarMotor/interaktioner.ts";
+import { OFFENTLIG_LAAS_NOEGLE, offentligLaasAaben } from "./webinarMotor/tilmelding.ts";
 
 export const CACHE_MS = 10_000;
 
@@ -131,4 +132,20 @@ export async function antalIRummet(admin: SupabaseClient, sessionId: string, nuM
   const antal = count ?? 0;
   iRummetCache.set(sessionId, { udloeberMs: nuMs + CACHE_MS, antal });
   return antal;
+}
+
+/**
+ * Låsen foran de OFFENTLIGE sessioner (rådets fund 30/9, MELLEM):
+ * app_config[OFFENTLIG_LAAS_NOEGLE]. FAIL-CLOSED: fraværende række, en fejl
+ * eller en anden værdi end true/"true" = lukket. Ingen cache — den læses kun
+ * ved «sessioner», «tilmeld», rummets «tilstand» og «gen_tilmeld», aldrig pr. puls.
+ */
+export async function hentOffentligLaas(admin: SupabaseClient): Promise<boolean> {
+  try {
+    const { data, error } = await admin.from("app_config").select("config_value").eq("config_key", OFFENTLIG_LAAS_NOEGLE).maybeSingle();
+    if (error) return false;
+    return offentligLaasAaben((data as { config_value?: unknown } | null)?.config_value);
+  } catch {
+    return false;
+  }
 }

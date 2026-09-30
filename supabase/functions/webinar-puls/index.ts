@@ -16,6 +16,10 @@
 //   2. HANDLINGER (højst 10): svar på en interaktion (også CTA-klik og
 //      feedback), et spørgsmål til værten, en reaktion. Idempotent på klient_id
 //      (webinar_motor_log_klient_uidx) og for svar også på (deltagelse, interaktion).
+//      LOFT pr. (tilmelding, time) på spørgsmål (10) og reaktioner (120) —
+//      rådets fund 30/9; tallene og regnestykket i puls.ts:HANDLING_LOFT_PR_TIME.
+//      Talt i webinar_motor_log FØR indsættelsen; over loftet: «over_loft»,
+//      intet skrevet (en gentagelse af et allerede modtaget klient_id: «dublet»).
 //   3. SVARET: serverens ur, rummet, set_procent, værtens svar på seerens
 //      spørgsmål (leveret «live» i samme øjeblik), «i rummet» (kun fra 10, aldrig
 //      pustet op) og tidslinjens version.
@@ -35,7 +39,10 @@ import { antalIRummet, hentRumData } from "../_shared/webinarMotorHent.ts";
 import { positionDom } from "../_shared/webinarMotor/ur.ts";
 import {
   antalStykker,
+  HANDLING_LOFT_VINDUE_MS,
   type HandlingRaa,
+  handlingUnderLoft,
+  type LoftArt,
   I_RUMMET_SEK,
   laesPulsKrop,
   PULS_KENDTE_FELTER,
@@ -154,11 +161,22 @@ async function skrivEnhed(
   return { udfald: r.ud_dublet ? "dublet" : "skrevet", setProcent: Number(r.ud_set_procent) };
 }
 
+/** Loggede handlinger af én art for én tilmelding i den seneste time (null = kunne ikke tælles). */
+async function antalIVinduet(admin: SupabaseClient, tilmeldingId: string, art: LoftArt, nuMs: number): Promise<number | null> {
+  const { count, error } = await admin
+    .from("webinar_motor_log")
+    .select("id", { count: "exact", head: true })
+    .eq("tilmelding_id", tilmeldingId)
+    .eq("art", art)
+    .gte("tid", new Date(nuMs - HANDLING_LOFT_VINDUE_MS).toISOString());
+  return error ? null : count ?? 0;
+}
+
 /** Én handling. Loggen (klient_id unik pr. tilmelding) er idempotensen. */
 async function udfoerHandling(
   admin: SupabaseClient,
   h: HandlingRaa,
-  a: { tilmeldingId: string; sessionId: string; deltagelseId: string; rum: string; posSek: number; tidslinje: Tidslinje | null },
+  a: { tilmeldingId: string; sessionId: string; deltagelseId: string; rum: string; posSek: number; tidslinje: Tidslinje | null; nuMs: number; talt: Map<LoftArt, number> },
 ): Promise<string> {
   const interaktion = h.interaktion_id && a.tidslinje ? a.tidslinje.interaktioner.find((i) => i.id === h.interaktion_id) ?? null : null;
   const logArt = h.art === "svar" ? (interaktion?.art === "cta" ? "cta_klik" : interaktion?.art === "feedback" ? "feedback" : "svar") : h.art;
@@ -181,6 +199,22 @@ async function udfoerHandling(
     return ind && ind.length === 1 ? "ok" : "dublet";
   }
 
+  // LOFTET — talt FØR indsættelsen. Én tælling pr. art pr. kald; resten af
+  // kaldet lægger sine egne skrivninger til i hukommelsen (`talt`).
+  const loftArt: LoftArt = h.art;
+  let talt = a.talt.get(loftArt);
+  if (talt === undefined) {
+    const n = await antalIVinduet(admin, a.tilmeldingId, loftArt, a.nuMs);
+    if (n === null) { noterFejl("loft"); return "fejl"; } // fail-closed: kan vi ikke tælle, skriver vi ikke
+    talt = n;
+    a.talt.set(loftArt, talt);
+  }
+  if (!handlingUnderLoft(loftArt, talt)) {
+    // En gentagelse af et klient_id, der ALLEREDE er modtaget, er stadig «dublet» — ikke afvist.
+    const { data: kendt } = await admin.from("webinar_motor_log").select("id").eq("tilmelding_id", a.tilmeldingId).eq("klient_id", h.klient_id).maybeSingle();
+    return kendt ? "dublet" : "over_loft";
+  }
+
   // Spørgsmål og reaktion: loggen FØRST — den er idempotensen (klient_id).
   const { data: logget, error: logFejl } = await admin.from("webinar_motor_log").upsert(
     { kilde: "klient", art: logArt, tilmelding_id: a.tilmeldingId, session_id: a.sessionId, klient_id: h.klient_id, data: h.art === "reaktion" ? { emoji: h.emoji, stykke: Math.floor(a.posSek / STYKKE_SEK) } : {} },
@@ -188,6 +222,7 @@ async function udfoerHandling(
   ).select("id");
   if (logFejl) { noterFejl("log"); return "fejl"; }
   if (!logget || logget.length === 0) return "dublet";
+  a.talt.set(loftArt, talt + 1);
 
   if (h.art === "spoergsmaal") {
     const { error } = await admin.from("webinar_spoergsmaal").insert({
@@ -251,9 +286,10 @@ Deno.serve(async (req) => {
         else pulsUd.ignoreret[r.udfald] = (pulsUd.ignoreret[r.udfald] ?? 0) + pulser.length;
         if (r.setProcent !== null) setProcent = Math.max(setProcent ?? 0, r.setProcent);
       }
-      // 2. Handlingerne.
+      // 2. Handlingerne — loftet tælles én gang pr. art pr. kald.
+      const talt = new Map<LoftArt, number>();
       for (const h of krop.handlinger) {
-        const udfald = await udfoerHandling(admin, h, { tilmeldingId: d.id, sessionId: d.session_id, deltagelseId: deltagelse.id, rum: pos.rum, posSek: pos.forventetPosSek, tidslinje: rd.tidslinje });
+        const udfald = await udfoerHandling(admin, h, { tilmeldingId: d.id, sessionId: d.session_id, deltagelseId: deltagelse.id, rum: pos.rum, posSek: pos.forventetPosSek, tidslinje: rd.tidslinje, nuMs, talt });
         handlingerUd.push({ klient_id: h.klient_id, udfald });
       }
     } else {
