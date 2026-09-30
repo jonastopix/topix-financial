@@ -19,11 +19,15 @@ export const VaerterFelt = ({
   vaerter,
   onChange,
   raadgivere,
+  vaelgbare,
 }: {
   eventId: string;
   vaerter: readonly VaertUdkast[];
   onChange: (naeste: VaertUdkast[]) => void;
+  /** Alle rådgivere — OPSLAG af navn/foto på de værter, der allerede står. */
   raadgivere: RaadgiverOpslag;
+  /** Dem, vælgeren må tilbyde (uden tjenestekonti, 30/9 — filtreret i EventEditor). */
+  vaelgbare: RaadgiverOpslag;
 }) => {
   const [valgtRaadgiver, setValgtRaadgiver] = useState("");
   const [gaestAaben, setGaestAaben] = useState(false);
@@ -34,7 +38,7 @@ export const VaerterFelt = ({
   const [fotoFejl, setFotoFejl] = useState<string | null>(null);
   const filRef = useRef<HTMLInputElement>(null);
 
-  const ledige = [...raadgivere.values()].filter((r) => !vaerter.some((v) => v.user_id === r.user_id));
+  const ledige = [...vaelgbare.values()].filter((r) => !vaerter.some((v) => v.user_id === r.user_id));
 
   const tilfoejRaadgiver = () => {
     if (!valgtRaadgiver) return;

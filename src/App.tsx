@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { logMutationFejl, logQueryFejl } from "@/lib/fejllogning";
+import { brugTjenestekontiKlient } from "@/hooks/tjenestekonti";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { sikkerReturSti } from "@/lib/sikkerReturUrl";
@@ -118,6 +119,8 @@ const queryClient = new QueryClient({
     onError: (error, _variables, _context, mutation) => logMutationFejl(error, mutation.options.mutationKey),
   }),
 });
+// Tjenestekonti (30/9): de imperative opslag deler cache med useTjenestekonti.
+brugTjenestekontiKlient(queryClient);
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading, isAdvisor, membershipTier } = useAuth();

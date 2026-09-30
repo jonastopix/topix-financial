@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { hentTjenestekonti } from "@/hooks/tjenestekonti";
+import { synligeRaadgivere } from "@/lib/tjenestekonto";
 import {
   createItem,
   deleteItem,
@@ -108,7 +110,8 @@ const PushEditor = forwardRef<
         .select("user_id, full_name, avatar_url")
         .in("user_id", uniqueIds);
       if (profErr) throw profErr;
-      return (profiles || []) as { user_id: string; full_name: string; avatar_url: string | null }[];
+      // Tjenestekonti (claude@topix.dk) er ingen afsender — de er ingen person.
+      return synligeRaadgivere((profiles || []) as { user_id: string; full_name: string; avatar_url: string | null }[], await hentTjenestekonti());
     },
     staleTime: 10 * 60 * 1000,
   });

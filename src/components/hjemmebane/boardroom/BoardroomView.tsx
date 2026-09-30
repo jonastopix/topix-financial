@@ -1421,7 +1421,7 @@ const FejringRaekke = ({ fejring }: { fejring: Fejring }) => (
 );
 
 export const BoardroomView = () => {
-  const { user, profile, companyId, isAdvisor } = useAuth();
+  const { user, profile, companyId, isAdvisor, laeseMarkeringTilladt } = useAuth();
   const akademi = useAkademiData();
   // Forside PR 5: velkomstvideoens GUID (app_config — «Anyone authenticated can read config») til Bunny-coveret; dommen om AT vise den er velkomstHovedhistorie.
   const { velkomstvideoGuid } = useAppConfig();
@@ -2011,12 +2011,14 @@ export const BoardroomView = () => {
   const weeklyDisplayed = focus.slice(0, 4).some((i) => i.kind === "weekly-focus");
   useEffect(() => {
     const row = weeklyFocusQuery.data;
-    if (weeklyDisplayed && row && !row.seen_at && !seenMarked.current) {
+    // En tjenestekonto KIGGER (30/9, tjenestekonto.guard dom 6): medlemmets
+    // ugefokus må ikke stå som set, fordi Claude åbnede virksomheden.
+    if (weeklyDisplayed && row && !row.seen_at && !seenMarked.current && laeseMarkeringTilladt) {
       seenMarked.current = true;
       markSeen.mutate(row.id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [weeklyDisplayed, weeklyFocusQuery.data]);
+  }, [weeklyDisplayed, weeklyFocusQuery.data, laeseMarkeringTilladt]);
 
   // ── Opgave-modellens skrivevej (B1/B6/B7/B11) ───────────────────────────
   // Fladen kalder de tre edge functions og gentager INGEN regler —

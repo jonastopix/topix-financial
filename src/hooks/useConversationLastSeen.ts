@@ -1,5 +1,6 @@
 import { useEffect, useCallback, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 interface LastSeenEntry {
   conversation_id: string;
@@ -21,6 +22,9 @@ export function useConversationLastSeen(
   const [lastSeenMessageId, setLastSeenMessageId] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const initialFetchDone = useRef(false);
+  // En tjenestekonto KIGGER (30/9, tjenestekonto.guard dom 6): «Nye beskeder»-
+  // skillet vises stadig, men stemplet flyttes ikke.
+  const { laeseMarkeringTilladt } = useAuth();
 
   // Fetch last_seen on conversation open
   useEffect(() => {
@@ -54,7 +58,7 @@ export function useConversationLastSeen(
 
   // Update last_seen when leaving or on latest message change
   const markSeen = useCallback(async () => {
-    if (!conversationId || !currentUserId || !latestMessageId) return;
+    if (!conversationId || !currentUserId || !latestMessageId || !laeseMarkeringTilladt) return;
 
     await supabase
       .from("conversation_last_seen" as any)
@@ -68,7 +72,7 @@ export function useConversationLastSeen(
         } as any,
         { onConflict: "user_id,conversation_id,conversation_type" }
       );
-  }, [conversationId, conversationType, currentUserId, latestMessageId]);
+  }, [conversationId, conversationType, currentUserId, latestMessageId, laeseMarkeringTilladt]);
 
   // Auto-mark as seen after a short delay when conversation is open
   useEffect(() => {

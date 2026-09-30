@@ -11,7 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import type { RaadgiverNotifikation } from "@/lib/hjemmebane/klokke";
 
 export function useAdvisorNotifications() {
-  const { user, isAdvisor } = useAuth();
+  const { user, isAdvisor, laeseMarkeringTilladt } = useAuth();
   const [notifications, setNotifications] = useState<RaadgiverNotifikation[]>([]);
   const [loading, setLoading] = useState(true);
   /* Hentefejl (16/9, «Tavse queryFn'er»): en fejl gav en tom liste og
@@ -42,17 +42,22 @@ export function useAdvisorNotifications() {
     return () => { supabase.removeChannel(channel); };
   }, [user, isAdvisor, load]);
 
+  // En tjenestekonto KIGGER (30/9, tjenestekonto.guard dom 6): klokkerne
+  // markeres ikke læst — heller ikke de fælles rækker uden advisor_id, som
+  // ville forsvinde som ulæste for alle rådgivere.
   const markAsRead = useCallback(async (id: string) => {
+    if (!laeseMarkeringTilladt) return;
     await supabase.from("advisor_notifications").update({ read_at: new Date().toISOString() }).eq("id", id);
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read_at: n.read_at || new Date().toISOString() } : n)));
-  }, []);
+  }, [laeseMarkeringTilladt]);
 
   const markAllRead = useCallback(async () => {
+    if (!laeseMarkeringTilladt) return;
     const unreadIds = notifications.filter((n) => !n.read_at).map((n) => n.id);
     if (unreadIds.length === 0) return;
     await supabase.from("advisor_notifications").update({ read_at: new Date().toISOString() }).in("id", unreadIds);
     setNotifications((prev) => prev.map((n) => ({ ...n, read_at: n.read_at || new Date().toISOString() })));
-  }, [notifications]);
+  }, [notifications, laeseMarkeringTilladt]);
 
   return { notifications, loading, hentefejl, markAsRead, markAllRead };
 }

@@ -17,6 +17,7 @@ import MessageEditDialog from "@/components/MessageEditDialog";
 import MobileMessageActionDrawer from "@/components/MobileMessageActionDrawer";
 import { computeMembershipTier } from "@/lib/membershipTier";
 import { useQuery } from "@tanstack/react-query";
+import { hentSynligeRaadgiverProfiler, type RaadgiverRaekke } from "@/hooks/tjenestekonti";
 import DOMPurify from "dompurify";
 import {
   Send, MessageCircle, CheckCheck, FileText, Target, Quote,
@@ -72,7 +73,7 @@ const ForfatterAvatar = ({ navn, avatarUrl, className = "h-9 w-9" }: { navn: str
   );
 
 const MemberChatPane = () => {
-  const { user, companyId, companyName } = useAuth();
+  const { user, companyId, companyName, laeseMarkeringTilladt } = useAuth();
   const isMobile = useIsMobile();
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
@@ -110,10 +111,13 @@ const MemberChatPane = () => {
   // Fetch all advisors for member header (independent of conversation participation)
   const { data: allAdvisors } = useQuery({
     queryKey: ["all-advisor-profiles"],
+    // Tjenestekonti (claude@topix.dk) står aldrig i «Dine rådgivere» — hentSynligeRaadgiverProfiler.
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_all_advisor_profiles" as any);
-      if (error) { console.error("Failed to fetch advisor profiles:", error); return []; }
-      return (data as any[] || []).map((r: any) => ({
+      let data: RaadgiverRaekke[];
+      try {
+        data = await hentSynligeRaadgiverProfiler();
+      } catch (error) { console.error("Failed to fetch advisor profiles:", error); return []; }
+      return data.map((r) => ({
         user_id: r.user_id as string,
         full_name: r.full_name as string,
         avatar_url: r.avatar_url as string | null,
@@ -304,7 +308,9 @@ const MemberChatPane = () => {
       setMessages((data || []).reverse());
       setSvarPaa(null);
 
-      if (user) {
+      // En tjenestekonto KIGGER (30/9, tjenestekonto.guard dom 6): ingen «læst»
+      // til medlemmet, ingen nulstillede ulæst-tællere hos rådgiverne.
+      if (user && laeseMarkeringTilladt) {
         await supabase.rpc("mark_messages_read", { p_conversation_id: activeConvId });
       }
     };
@@ -334,7 +340,7 @@ const MemberChatPane = () => {
             });
           }
 
-          if (newMsg.sender_id !== user?.id && user) {
+          if (newMsg.sender_id !== user?.id && user && laeseMarkeringTilladt) {
             await supabase.rpc("mark_messages_read", { p_conversation_id: activeConvId });
           }
         }
@@ -370,7 +376,7 @@ const MemberChatPane = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activeConvId, user]);
+  }, [activeConvId, user, laeseMarkeringTilladt]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });

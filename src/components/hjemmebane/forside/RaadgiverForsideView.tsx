@@ -458,6 +458,8 @@ const DomLinje = ({ l, onLuk, lukker }: { l: Linje; onLuk: (linje: LukbarLinje, 
 
 export const RaadgiverForsideView = () => {
   const { user, profile, isAdvisor } = useAuth();
+  // Tjenestekonti (30/9): stemplet «siden sidst» — se sidenSidstQuery.
+  const { laeseMarkeringTilladt } = useAuth();
   const queryClient = useQueryClient();
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ADVISOR_DASHBOARD_QUERY_KEY(user?.id),
@@ -477,8 +479,10 @@ export const RaadgiverForsideView = () => {
   // adskilt fra forsidens datalag, så en fejl her ikke vælter dommen.
   // Hook i topblokken, før nogen betinget return (React #310).
   const sidenSidstQuery = useQuery({
-    queryKey: SIDEN_SIDST_KEY(user?.id),
-    queryFn: () => hentSidenSidst(user!.id),
+    // Flaget i nøglen (30/9, tjenestekonto.guard dom 6): en tjenestekonto
+    // flytter aldrig stemplet; for alle andre sættes det, når svaret er kommet.
+    queryKey: [...SIDEN_SIDST_KEY(user?.id), laeseMarkeringTilladt],
+    queryFn: () => hentSidenSidst(user!.id, new Date(), laeseMarkeringTilladt),
     enabled: !!user,
     staleTime: 5 * 60_000,
   });

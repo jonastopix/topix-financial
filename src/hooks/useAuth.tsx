@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, createContext, useContext, useCallback } f
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 import { useInactivityLogout } from "./useInactivityLogout";
+import { erTjenestekonto } from "./tjenestekonti";
+import { inaktivitetsLogudAktiv, laeseMarkeringTilladt } from "@/lib/tjenestekonto";
 import { InactivityWarningDialog } from "@/components/InactivityWarningDialog";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -52,6 +54,14 @@ interface AuthContext {
   /** Se CompanyResolution. Index læser "failed" og viser en menneskelig
       flade i stedet for skelettet. */
   companyResolution: CompanyResolution;
+  /** TJENESTEKONTI (30/9-2026, src/lib/tjenestekonto.ts): true når et ja står
+      (også efter en fejlet genhentning); false når svaret er nej, henter
+      eller fejlede uden et tidligere ja. Samme query som logud-reglen. */
+  erTjenestekonto: boolean;
+  /** Må det at SE skrive et spor (læst, set, visning)? laeseMarkeringTilladt-
+      dommen: nej for en tjenestekonto og mens opslaget henter. Stederne står
+      i kildeværnet tjenestekonto.guard dom 6. */
+  laeseMarkeringTilladt: boolean;
   setCompanyOverride: (id: string, name: string) => void;
   clearCompanyOverride: () => void;
   refreshProfile: () => Promise<void>;
@@ -74,6 +84,8 @@ const AuthContext = createContext<AuthContext>({
   isCompanyOverride: false,
   membershipTier: null,
   companyResolution: "pending",
+  erTjenestekonto: false,
+  laeseMarkeringTilladt: false,
   setCompanyOverride: () => {},
   clearCompanyOverride: () => {},
   refreshProfile: async () => {},
@@ -455,10 +467,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           const skalHente = skalHenteBrugerdata(hentningRef.current, nyBrugerId);
           if (forrigeBrugerId === null && skalHente) setLoading(true);
           // Log login event
+          // En tjenestekonto logger intet login (30/9-2026): user_login_log
+          // læses af rådgiverforsidens kohorte. Opslaget fejler → den normale
+          // regel (logges), som laeseMarkeringTilladt.
           if (skalLoggeLogin(_event, forrigeBrugerId, nyBrugerId)) {
-            supabase.rpc("log_user_login" as any).then(({ error }) => {
-              if (error) console.error("Failed to log login:", error);
-            });
+            void erTjenestekonto(nyBrugerId)
+              .catch(() => false)
+              .then((tjeneste) => {
+                if (tjeneste) return;
+                return supabase.rpc("log_user_login" as any).then(({ error }) => {
+                  if (error) console.error("Failed to log login:", error);
+                });
+              });
           }
           if (!skalHente) return;
           hentningRef.current = { ...hentningRef.current, igangFor: nyBrugerId };
@@ -514,7 +534,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Inactivity auto-logout (reads session_timeout_minutes from app_config)
   const sessionTimeoutMinutes = useSessionTimeout();
-  const { showWarning, secondsLeft, extendSession } = useInactivityLogout(!!user, sessionTimeoutMinutes);
+  // TJENESTEKONTI (30/9-2026, src/lib/tjenestekonto.ts): claude@topix.dk logges
+  // ikke ud efter inaktivitet — alle andre som før. Fejl → den normale regel;
+  // mens opslaget henter, venter reglen (et gammelt stempel ville ellers logge
+  // tjenestekontoen ud i samme øjeblik, reglen slås til).
+  const tjenestekontoQuery = useQuery({
+    queryKey: ["tjenestekonto", user?.id ?? null],
+    queryFn: () => erTjenestekonto(user!.id),
+    enabled: !!user,
+    retry: false,
+    staleTime: 10 * 60 * 1000,
+  });
+  const logudAktiv = inaktivitetsLogudAktiv(!!user, tjenestekontoQuery.status, tjenestekontoQuery.data);
+  const { showWarning, secondsLeft, extendSession } = useInactivityLogout(logudAktiv, sessionTimeoutMinutes);
+  const erTjenestekontoNu = tjenestekontoQuery.data === true;
+  const maaMarkereLaest = laeseMarkeringTilladt(!!user, tjenestekontoQuery.status, tjenestekontoQuery.data);
 
   return (
     <AuthContext.Provider value={{
@@ -523,6 +557,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       ownCompanyId, ownCompanyName,
       isCompanyOverride,
       membershipTier, companyResolution,
+      erTjenestekonto: erTjenestekontoNu, laeseMarkeringTilladt: maaMarkereLaest,
       setCompanyOverride, clearCompanyOverride,
       refreshProfile, signOut,
     }}>
