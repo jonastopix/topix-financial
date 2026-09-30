@@ -77,6 +77,31 @@ Før en opgave bygges, skriver Claude en VÆRDIVURDERING. Det er ikke en byggepl
 
 Fejlen, der gav reglen (29/9 aften): «Spørg din rådgiver» (#1144) og «systembeskeder ud af chatten» (#1145) blev valgt, fordi de stod som «gør det» og «Lille». Ingen målte først, om medlemmerne bruger Nøgletal eller skriver i chatten, eller hvad chatten faktisk fyldes med. #1145 skjulte til sidst kun én type og blev lukket.
 
+## 4b. Det tekniske råd — ingen merge uden uafhængigt gennemsyn (Jonas 30/9 08:05)
+
+Jonas: «Lav et teknisk råd: Lav en CTO og en der kigger på UX og design på platformen. De skal kigge på fejl inden noget rulles ud.»
+
+- **CTO:** en agent, der IKKE har set arbejdet blive lavet, læser hver kode-PR før merge. Den følger dataflowet på tværs af filer, sikkerheden, driften og deploy-rækkefølgen, og den tjekker, at værnene faktisk fælder. Dommen er **MERGE / RET FØRST / STOP**.
+  - Instruksen står i en fast skabelon, så alle gennemsyn stiller de samme spørgsmål.
+  - Den største model (Fable) bruges, når PR'en rører penge, mails til rigtige mennesker, adgang eller offentlige endpoints. Ellers bruges Opus.
+- **UX og design:** gennemgår alt, hvad medlemmer og rådgivere ser: designsprog, mobil, tekster og tilgængelighed. Den ser helst den udrullede side i Claude-browseren (tjenestekontoen claude@topix.dk).
+- **RET FØRST** rettes af en anden agent end den, der byggede. Høje fund rettes altid før merge. Lave fund rettes eller bogføres som åbne.
+- **Ren dokumentation** går ikke gennem rådet.
+- **Første dag (30/9) fandt rådet reelle fejl i alle PR'er**, bl.a.:
+  - en Klaviyo-skrivning til alle medlemsprofiler uden lås
+  - en streak, der straffede rettelser
+  - en tjenestekonto, der ville markere medlemmers beskeder som læst
+  - en offentlig tilmelding, der kunne flytte andres tilmelding
+  - en rettighed, der gav skriveadgang til cron
+
+## 4c. Lærestreger 30/9
+
+- **(y) Et afbrudt agentkald kan køre videre i baggrunden og dø halvvejs.** Før en opgave startes igen, tjekkes `git worktree list` for en halvfærdig udgave. Udkastet gemmes, og der arbejdes videre derfra. Der må aldrig køre to agenter på samme gren.
+- **(z) Migrationernes tidsstempler kolliderede tre gange på én dag** (20260930090000, 100000 og 120000), fordi parallelle grene valgte «næste rigtige tid». Før en migration får et navn, tjekkes alle åbne PR'er: `git ls-remote` + `git show origin/<gren>:supabase/migrations`.
+- **(æ) Bed aldrig Jonas teste noget, før forudsætningerne er læst.** Testen af «Online nu» med kontakt@topix.dk kunne aldrig vise noget, fordi testvirksomheden er sorteret fra med vilje. Det stod i bogføringen fra 16/9.
+- **(ø) At se er ikke altid at læse.** Når en side åbnes, kan den skrive, fx `read_at`, `last_seen` og `log_user_login`. En konto, der kun skal se, skal springe de skrivninger over.
+- **(å) `gh` findes ikke i skyen.** PR-nummeret gives eksplicit til merge.sh.
+
 ## 5. Modelvalg
 
 Den største model bruges kun, hvor den gør forskel.
@@ -86,7 +111,8 @@ Den største model bruges kun, hvor den gør forskel.
 | Bogføring, recon med KUN fund, målinger, opsummeringer | lille (haiku) |
 | Almindelig kode, tests, værn, mindre flader | mellem (sonnet) |
 | Svær eller detaljeret kode: motorer, penge, adgang, migrationer med data, spejl og paritet | stor (opus/fable) |
-| Gennemsyn af diffs før merge | mellem eller stor efter risiko |
+| Gennemsyn af diffs før merge | det tekniske råd (§4b): Opus, Fable ved penge/mails/adgang/offentlige endpoints |
+| Det sværeste, hvor en fejl koster penge eller data (bogføringsmotor, score-arkitektur) | største (fable) |
 
 Morgenrapporten nævner, hvilken model der fik hvad.
 
