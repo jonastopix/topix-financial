@@ -18,6 +18,8 @@ import { HentningsFejl } from "@/lib/kraevRaekker";
 //      gennem onlineIds, og status fejl ved CHANNEL_ERROR/TIMED_OUT/CLOSED.
 //   4. Fladen: fejlgrenen står FØR tom-teksten; kilden realtime_presence;
 //      dommen er onlineMedlemmer; billederne er HbAvatar med onlineTitel.
+//      (Rettet 30/9, redesign af højre kolonne: «tom» er feltets tal 0, og
+//      billederne står i feltet «Online nu» — se dom 4's egen note.)
 //   5. De otte eksisterende postgres_changes-kanaler er urørte (ingen private).
 //   6. Hooks i topblokken: skallen tracker på useAuth's rå isAdvisor (ikke
 //      viewingAsMember); forsidens hook står før den første betingede return.
@@ -83,23 +85,41 @@ export const raadgiverenLytterKun = (k: string): boolean =>
     «Måneden»; Online følges af Ubesvarede opslag i «I dag». */
 export function onlineBlok(flade: string): string {
   const start = flade.indexOf('if (online.status === "fejl") {');
-  const slut = flade.indexOf("{KORT_OVERSKRIFT}", start);
+  // 30/9 (redesign af højre kolonne, «I dag» som felter): kæden er flyttet
+  // ud af JSX'en og står i udledningen før iDag — den slutter, hvor opslagene
+  // begynder. Før: «til {KORT_OVERSKRIFT}» i JSX'en.
+  const slut = flade.indexOf("const opslagDom =", start);
   if (start === -1 || slut === -1) return "";
   return flade.slice(start, slut);
 }
 
-/** Dom 4: fladen — fejl før tom, husets kilde, dommen og billederne. */
+/** Feltet «Online nu» i gitteret med profilbillederne (30/9). */
+export function onlineFelt(flade: string): string {
+  const start = flade.indexOf('<TalFelt slags="online"');
+  const slut = flade.indexOf("</TalFelt>", start);
+  if (start === -1 || slut === -1) return "";
+  return flade.slice(start, slut);
+}
+
+/** Dom 4: fladen — fejl før tom, husets kilde, dommen og billederne.
+    RETTET 30/9 (redesign): «tom» er ikke længere INGEN_ONLINE_TEKST i
+    JSX'en, men feltets tal (`{ art: "tal", antal: onlineListe.length }`),
+    der tegnes som «0 · Ingen lige nu» (lib/hjemmebane/hoejreKolonne). Dommen
+    er den samme: kanalfejl og opslagsfejl (med husets tekst) kommer FØR
+    tallet, så en fejl aldrig ligner «ingen online». Billederne står i
+    feltet, højst ONLINE_FELT_LOFT (fem i et halvt gitter) + «+N». */
 export const fladenSigerFejlFoerTom = (flade: string): boolean => {
   const blok = onlineBlok(flade);
+  const felt = onlineFelt(flade);
   const fejl = blok.indexOf('new HentningsFejl("realtime_presence"');
   const opslagsfejl = blok.indexOf('raadgiverHentefejlTekst(onlineQuery.error, "forsiden")');
-  const tom = blok.indexOf("{INGEN_ONLINE_TEKST}");
-  return blok !== "" && fejl !== -1 && opslagsfejl !== -1 && tom !== -1 && fejl < tom && opslagsfejl < tom &&
+  const tom = blok.indexOf('onlineFelt = { art: "tal", antal: onlineListe.length };');
+  return blok !== "" && felt !== "" && fejl !== -1 && opslagsfejl !== -1 && tom !== -1 && fejl < tom && opslagsfejl < tom &&
     blok.includes("onlineMedlemmer({ ids: online.ids, ...onlineQuery.data })") &&
-    blok.includes("<HbAvatar navn={m.navn} avatarUrl={m.avatar_url}") &&
-    blok.includes("title={onlineTitel(m)}") &&
-    blok.includes("onlineUdsnit(liste)") &&
-    !/\.filter\(/.test(blok);
+    felt.includes("<HbAvatar navn={m.navn} avatarUrl={m.avatar_url}") &&
+    felt.includes("title={onlineTitel(m)}") &&
+    felt.includes("onlineUdsnit(iDag.online.liste, ONLINE_FELT_LOFT)") &&
+    !/\.filter\(/.test(blok) && !/\.filter\(/.test(felt);
 };
 
 /** Dom 5: de otte kanaler er urørte. */
