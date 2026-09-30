@@ -25,6 +25,12 @@ import {
   resolveAutoYear,
   writeTemplateMarker,
 } from "@/lib/budgetEngine";
+import {
+  BUDGET_FINDES_TEKST,
+  BUDGET_HENTEFEJL_TEKST,
+  budgetVisning,
+  domFoerTomSkrivning,
+} from "@/lib/hjemmebane/budgetIndlaesning";
 import { catToRow, MONTHS, SCENARIOS, type BudgetRow, type ScenarioKey } from "@/components/budget/types";
 import { HbAdvisorCompanyPrompt } from "../HbAdvisorCompanyPrompt";
 import { HbButton } from "../HbButton";
@@ -71,6 +77,12 @@ export const BudgetteringView = () => {
   const [reloadNonce, setReloadNonce] = useState(0);
   const [fravalgte, setFravalgte] = useState<{ key: string; label: string }[]>([]);
   const [importGitterAabent, setImportGitterAabent] = useState(false);
+  /** En fejlet hentning er IKKE et tomt budget (budgetIndlaesning.ts). */
+  const [hentefejl, setHentefejl] = useState(false);
+  /** Tjekket før tom-tilstandens første skrivning kører. */
+  const [tjekkerTom, setTjekkerTom] = useState(false);
+  /** Tjekket fandt et budget: den vej medlemmet valgte, til eksplicit bekræftelse. */
+  const [budgetFundet, setBudgetFundet] = useState<Exclude<EmptyFlow, "choice"> | null>(null);
   const autoYearAdjustedFor = useRef<string | null>(null);
 
   // Load — samme forløb som Budget.tsx' effekt, over motoren.
@@ -83,6 +95,12 @@ export const BudgetteringView = () => {
       setScenarioData(null);
       setLabelOverrides({});
       setDbLoaded(false);
+      setHentefejl(false);
+      setBudgetFundet(null);
+      // Et hop til et andet år er ikke en afsluttet indlæsning: den næste
+      // kørsel (for det nye år) afgør. Uden dette blinkede «Byg dit budget»
+      // i én render mellem de to kørsler.
+      let hopper = false;
 
       try {
         const result = await loadBudget(companyId, year);
@@ -91,6 +109,7 @@ export const BudgetteringView = () => {
         const jumpYear = resolveAutoYear(result.availableYears, year);
         if (jumpYear && autoYearAdjustedFor.current !== companyId) {
           autoYearAdjustedFor.current = companyId;
+          hopper = true;
           setYear(jumpYear);
           return;
         }
@@ -102,8 +121,9 @@ export const BudgetteringView = () => {
         setFravalgte(result.decoded.fravalgte);
       } catch (e) {
         console.error("[Budgettering] loadBudget failed:", e);
+        setHentefejl(true);
       } finally {
-        setDbLoaded(true);
+        if (!hopper) setDbLoaded(true);
       }
     };
 
@@ -192,8 +212,33 @@ export const BudgetteringView = () => {
     else setReloadNonce((n) => n + 1);
   };
 
-  const isEmptyState = dbLoaded && !selectedTemplate && !scenarioData;
-  const isLoading = !isEmptyState && !scenarioData;
+  /** Værnet før tom-tilstandens første skrivning (budgetIndlaesning.ts):
+      de tre veje (skabelon, Excel, regnskab) åbnes kun her, og alle tre
+      skriver i budget_targets. Budgettet hentes frisk; findes der rækker,
+      skal medlemmet bekræfte eksplicit. En fejl ved tjekket er en fejl. */
+  const vaelgTomVej = async (vej: Exclude<EmptyFlow, "choice">) => {
+    if (!companyId || tjekkerTom) return;
+    setTjekkerTom(true);
+    try {
+      const frisk = await loadBudget(companyId, year);
+      if (domFoerTomSkrivning(frisk) === "tom") setEmptyFlow(vej);
+      else setBudgetFundet(vej);
+    } catch (e) {
+      console.error("[Budgettering] tjek før skrivning fejlede:", e);
+      setHentefejl(true);
+    } finally {
+      setTjekkerTom(false);
+    }
+  };
+
+  const visning = budgetVisning({
+    dbLoaded,
+    hentefejl,
+    harScenarieData: !!scenarioData,
+    harSkabelon: !!selectedTemplate,
+  });
+  const isEmptyState = visning === "tom";
+  const isLoading = visning === "henter";
 
   const templateLine = !scenarioData
     ? null
@@ -278,9 +323,47 @@ export const BudgetteringView = () => {
         </HbSection>
       )}
 
+      {/* ── Fejlet hentning: aldrig tom-tilstanden, ingen byg-knap ── */}
+      {visning === "fejlet" && (
+        <HbCard className="mt-10 flex flex-wrap items-center justify-between gap-3 p-5" role="alert">
+          <p className="text-sm text-hb-ink">{BUDGET_HENTEFEJL_TEKST}</p>
+          <HbButton
+            variant="secondary"
+            className="h-9 px-5 text-sm"
+            onClick={() => setReloadNonce((n) => n + 1)}
+          >
+            Prøv igen
+          </HbButton>
+        </HbCard>
+      )}
+
       {/* ── Tom-tilstanden: invitation + tre valg ── */}
       {isEmptyState && (
         <HbSection eyebrow="Kom i gang" title={`Byg dit budget for ${year}`} className="mt-10">
+          {emptyFlow === "choice" && budgetFundet && (
+            <HbCard className="mb-5 flex flex-wrap items-center justify-between gap-3 p-4" role="alert">
+              <p className="max-w-xl text-sm text-hb-ink">{BUDGET_FINDES_TEKST}</p>
+              <div className="flex items-center gap-3">
+                <HbButton
+                  variant="secondary"
+                  className="h-9 px-5 text-sm"
+                  onClick={() => setReloadNonce((n) => n + 1)}
+                >
+                  Vis mit budget
+                </HbButton>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmptyFlow(budgetFundet);
+                    setBudgetFundet(null);
+                  }}
+                  className="text-sm text-hb-ink-soft underline-offset-4 hover:underline"
+                >
+                  Fortsæt og overskriv
+                </button>
+              </div>
+            </HbCard>
+          )}
           {emptyFlow === "choice" && (
             <>
               <p className="max-w-xl text-sm text-hb-ink-soft">
@@ -309,8 +392,9 @@ export const BudgetteringView = () => {
                   <button
                     key={card.key}
                     type="button"
-                    onClick={() => setEmptyFlow(card.key)}
-                    className="rounded-hb border border-hb-line bg-hb-surface p-5 text-left transition-colors hover:border-hb-evergreen/50 hover:bg-hb-sage/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hb-evergreen/60"
+                    disabled={tjekkerTom}
+                    onClick={() => void vaelgTomVej(card.key)}
+                    className="rounded-hb disabled:opacity-60 border border-hb-line bg-hb-surface p-5 text-left transition-colors hover:border-hb-evergreen/50 hover:bg-hb-sage/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hb-evergreen/60"
                   >
                     <p className="font-editorial text-lg font-medium text-hb-ink">{card.title}</p>
                     <p className="mt-1 text-sm text-hb-ink-soft">{card.text}</p>
