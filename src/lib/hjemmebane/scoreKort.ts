@@ -234,8 +234,17 @@ export function ringBue(vaerdi: number | null, max: number = 1000, radius: numbe
   return { omkreds, laengde: omkreds * andel };
 }
 
-/** Streaken som ÉN linje ved siden af flammen: «7 måneder i træk» + fristen. */
-export function streakKortLinje(streak: StreakDom): { tal: string; frist: string } {
+/**
+ * Streaken som ÉN linje ved siden af flammen: «7 måneder i træk» + fristen.
+ * Uden streak (længde 0 — nyt medlem eller brudt) er «0 måneder i træk» en
+ * anklage, ikke en opmuntring (rådets gennemsyn af #1189): linjen bærer da
+ * statussen selv («Godkend dine tal senest den 20. og start din streak» /
+ * «Streaken er brudt — næste frist starter en ny»), stadig med næste frist.
+ * `erStatus` fortæller kortet, at statussen allerede står i linjen, så den
+ * ikke gentages i detaljerne.
+ */
+export function streakKortLinje(streak: StreakDom): { tal: string; frist: string; erStatus: boolean } {
   const l = streakLinjer(streak);
-  return { tal: `${l.laengde} ${l.enhed}`, frist: l.frist };
+  if (l.laengde === 0) return { tal: l.status, frist: l.frist, erStatus: true };
+  return { tal: `${l.laengde} ${l.enhed}`, frist: l.frist, erStatus: false };
 }

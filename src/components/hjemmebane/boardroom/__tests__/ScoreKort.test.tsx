@@ -61,6 +61,18 @@ describe("ScoreKort", () => {
     expect(container.querySelector('[data-score="henter"]')).not.toBeNull();
   });
 
+  it("henter: skelettet har kortets opbygning — ringkolonne, fire barer, streaklinje, løfter og bundlinje (siden hopper ikke)", () => {
+    const { container } = tegn({ isLoading: true });
+    expect(container.querySelector("[data-skelet-ring]")).not.toBeNull();
+    expect(container.querySelector("[data-skelet-soejler]")!.children).toHaveLength(4);
+    expect(container.querySelector("[data-skelet-streak]")).not.toBeNull();
+    expect(container.querySelector("[data-skelet-loefter]")).not.toBeNull();
+    expect(container.querySelector("[data-skelet-bund]")).not.toBeNull();
+    // Ingen fast minimumshøjde — højden kommer af opbygningen, som på kortet.
+    expect(container.innerHTML).not.toMatch(/min-h-\[/);
+    expect(container.textContent).toBe("");
+  });
+
   it("fejl: rust linje + Prøv igen kalder genhentningen", () => {
     const proev = vi.fn();
     tegn({ isError: true, onProevIgen: proev });
@@ -132,6 +144,15 @@ describe("ScoreKort", () => {
     expect(container.textContent).not.toMatch(/brudt/);
     expect(container.textContent).not.toMatch(/\+\d+ point/);
     expect(container.textContent).toContain(EFFEKT_FOERSTE_SCORE);
+    // Rådets gennemsyn af #1189: linjen er den opmuntrende status, ikke «0 måneder i træk», og fristen står stadig.
+    const linje = container.querySelector("[data-score-streak]")!;
+    expect(linje.textContent).not.toMatch(/0 måneder i træk/);
+    expect(linje.querySelector('[data-score-streak-tal="status"]')!.textContent).toBe("Godkend dine tal senest den 20. og start din streak");
+    expect(linje.querySelector("[data-score-frist]")!.textContent).toMatch(/^Næste frist: /);
+    // Statussen gentages ikke i detaljerne.
+    aabnDetaljer();
+    expect(container.querySelector("[data-score-streak-status]")).toBeNull();
+    expect(container.textContent!.split("start din streak")).toHaveLength(2);
   });
 
   it("rådets fund 4: med bevægelse viser første frame 0, ikke det endelige tal", () => {

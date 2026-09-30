@@ -141,8 +141,25 @@ describe("streakLinjer", () => {
     expect(streakLinjer({ ...base, laengde: 0, status: "ingen" }).status).toBe("Godkend dine tal senest den 20. og start din streak");
   });
   it("streakKortLinje: tallet med enhed og fristen på én linje", () => {
-    expect(streakKortLinje(base)).toEqual({ tal: "7 måneder i træk", frist: "Næste frist: september senest 20/10 (14 hverdage)" });
+    expect(streakKortLinje(base)).toEqual({ tal: "7 måneder i træk", frist: "Næste frist: september senest 20/10 (14 hverdage)", erStatus: false });
     expect(streakKortLinje({ ...base, laengde: 1 }).tal).toBe("1 måned i træk");
+  });
+  it("streakKortLinje uden streak (status «ingen»): statussen er linjen — aldrig «0 måneder i træk» — og fristen står stadig", () => {
+    const l = streakKortLinje({ ...base, laengde: 0, bedste: 0, status: "ingen" });
+    expect(l).toEqual({
+      tal: "Godkend dine tal senest den 20. og start din streak",
+      frist: "Næste frist: september senest 20/10 (14 hverdage)",
+      erStatus: true,
+    });
+    expect(l.tal).not.toMatch(/0 måneder/);
+  });
+  it("streakKortLinje med brudt streak: «Streaken er brudt — næste frist starter en ny» + fristen", () => {
+    const l = streakKortLinje({ ...base, laengde: 0, status: "brudt" });
+    expect(l).toEqual({
+      tal: "Streaken er brudt — næste frist starter en ny",
+      frist: "Næste frist: september senest 20/10 (14 hverdage)",
+      erStatus: true,
+    });
   });
 });
 

@@ -161,14 +161,44 @@ export const ScoreKort = ({ dom, afventerMigration, isLoading, isError, onProevI
   const detaljerId = useId();
 
   if (isLoading) {
+    // Skelettet har KORTETS opbygning (rådets gennemsyn af #1189) — samme klasser for ramme, ringkolonne,
+    // barernes grid, streaklinjen, løfteren og bundlinjen — så siden ikke hopper, når dommen lander.
+    // Linjehøjderne: text-xs = 16 px (h-4), text-sm = 20 px (h-5), mikro 11 px ≈ h-3, løfterrækken py-2 + 20 = 36 px (h-9).
+    const blok = "rounded bg-hb-line/70";
     return (
       <HbCard className="p-5 md:p-6" data-score="henter" aria-busy="true">
-        <div className="flex min-h-[200px] animate-pulse flex-col gap-5 sm:flex-row sm:items-center sm:gap-8">
-          <div className="h-24 w-24 shrink-0 rounded-full border-[5px] border-hb-line sm:h-32 sm:w-32" />
-          <div className="flex-1 space-y-3">
-            <div className="h-3 w-full rounded bg-hb-line/70" />
-            <div className="h-3 w-5/6 rounded bg-hb-line/70" />
-            <div className="h-3 w-2/3 rounded bg-hb-line/70" />
+        <div className="animate-pulse">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-8">
+            <div className="flex shrink-0 items-center gap-4 sm:w-36 sm:flex-col sm:gap-2" data-skelet-ring>
+              <div className="h-24 w-24 shrink-0 rounded-full border-[5px] border-hb-line sm:h-32 sm:w-32" />
+              {/* Retning + dækning: to text-xs-linjer (16 px hver), centreret under ringen på sm+. */}
+              <div className="flex min-w-0 flex-col sm:items-center">
+                <div className={cn(blok, "my-0.5 h-3 w-32")} />
+                <div className={cn(blok, "my-0.5 h-3 w-24")} />
+              </div>
+            </div>
+            <div className="min-w-0 flex-1 space-y-4">
+              <div className="grid grid-cols-2 gap-x-6 gap-y-3 lg:grid-cols-4" data-skelet-soejler>
+                {[0, 1, 2, 3].map((i) => (
+                  <div key={i} className="min-w-0">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <div className={cn(blok, "h-4 w-16")} />
+                      <div className={cn(blok, "h-4 w-10")} />
+                    </div>
+                    <div className="mt-1 h-1 rounded-full bg-hb-line" />
+                  </div>
+                ))}
+              </div>
+              <div className={cn(blok, "h-5 w-4/5")} data-skelet-streak />
+              <div data-skelet-loefter>
+                <div className={cn(blok, "h-3 w-28")} />
+                <div className={cn(blok, "mt-1 h-9 w-full")} />
+              </div>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-hb-line pt-3" data-skelet-bund>
+            <div className={cn(blok, "h-5 w-32")} />
+            <div className={cn(blok, "h-4 w-56")} />
           </div>
         </div>
       </HbCard>
@@ -287,7 +317,8 @@ export const ScoreKort = ({ dom, afventerMigration, isLoading, isError, onProevI
 
           <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm" data-score-streak={dom.streak.status}>
             <Flame className={cn("h-4 w-4 shrink-0 self-center", dom.streak.status === "aktiv" ? "text-hb-evergreen" : "text-hb-ink-soft/60")} aria-hidden />
-            <span className="font-medium tabular-nums text-hb-ink">{streakKort.tal}</span>
+            {/* Uden streak (længde 0) er linjen statussen selv — aldrig «0 måneder i træk» (streakKortLinje). */}
+            <span className="font-medium tabular-nums text-hb-ink" data-score-streak-tal={streakKort.erStatus ? "status" : "laengde"}>{streakKort.tal}</span>
             <span className="text-hb-ink-soft" data-score-frist>{streakKort.frist}</span>
           </p>
 
@@ -333,7 +364,7 @@ export const ScoreKort = ({ dom, afventerMigration, isLoading, isError, onProevI
                   </li>
                 ))}
               </ul>
-              <p className="text-sm text-hb-ink" data-score-streak-status>{streak.status}</p>
+              {!streakKort.erStatus && <p className="text-sm text-hb-ink" data-score-streak-status>{streak.status}</p>}
               {streak.bedste && <p className="text-xs text-hb-ink-soft">{streak.bedste}</p>}
             </div>
             {oevrige.length > 0 && (

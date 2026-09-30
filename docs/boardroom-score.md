@@ -276,10 +276,33 @@ hverdag — aldrig den anden vej. Konstanten: `STREAK_FRIST_DAG = 20`
 **Hvorfor den 20. (rettet 30/9-2026 aften):** skiven valgte først den 10.
 (Jonas' idéliste: «før den 10.»). Men platformens påmindelser
 (`send-report-reminder`, `REMINDER_DAYS = [7, 15, 20]`: venlig den 7.,
-presserende den 15., kritisk den 20.) har altid sagt den 20. — to frister
-for samme handling er én for mange. Jonas 30/9 20:43: «deadline d. 20. i
-måneden efter. Mere hvis Boardroom Score skal passe til det.» Ændres
-påmindelsesdagene, ændres `STREAK_FRIST_DAG` i samme PR.
+presserende den 15., kritisk den 20.) slutter den 20. — to frister for samme
+handling er én for mange. Jonas 30/9 20:43: «deadline d. 20. i måneden
+efter. Mere hvis Boardroom Score skal passe til det.» Ændres
+påmindelsesdagene, ændres `STREAK_FRIST_DAG` i samme PR — kildeværnet
+`boardroomScoreFlade.guard` dom 9 fælder, hvis det SIDSTE element i
+`REMINDER_DAYS` ikke er lig `STREAK_FRIST_DAG`.
+
+**Rettet (rådets gennemsyn af #1189):** en tidligere version af afsnittet
+ovenfor påstod, at påmindelserne «har altid sagt den 20.». Det er forkert.
+Målt i koden (`send-report-reminder/index.ts`, 30/9-2026): ingen af mailene
+nævner en dato. Den 20. er blot den DAG, den sidste mail går, og den mail
+kalder dagen **forsinket**: emne «Vigtigt: {{period}}-rapport er nu
+forsinket», overskrift «Vigtigt: rapporten er forsinket», intro «vi mangler
+fortsat din rapport for {{period}}. Upload den hurtigst muligt.»
+(`urgencyLevel = "critical"` for `dayOfMonth >= 20`). Er DB-skabelonen
+«Rapport-påmindelse (kritisk)» slået til, bruges dens emne og krop i stedet
+— den tekst har jeg ikke målt. (Godkend- og manuel-varianten har ingen
+forsinket-tekst; de bruger ikke DB-skabelonerne.)
+
+**ÅBENT punkt til Jonas (30/9-2026):** mailen den 20. kalder dagen
+«forsinket», mens kortet samme dag siger «senest i dag» («Næste frist:
+september senest 20/10 (i dag)» — fristen er inklusiv, `hverdageTil = 0`). Et medlem, der godkender den 20.,
+har holdt streaken — og har samme morgen fået at vide, at rapporten er
+forsinket. Mailteksten er IKKE ændret i #1189; det kræver en beslutning:
+(a) den kritiske mail siger «sidste frist i dag» den 20. og «forsinket» først
+efter, eller (b) den sidste påmindelse flyttes, og `STREAK_FRIST_DAG` følger
+med (dom 9). Den kritiske DB-skabelons tekst skal måles i prod før (a).
 
 **Målt i prod 30/9-2026** (SELECT; målte måneder med passeret frist i
 ikke-demo-kundevirksomheder; første godkendelse = tidligste af hukommelsen
@@ -575,4 +598,16 @@ forfader, buen af `ringBue`).
   sektion 6 giver rytmen; `cash` skal måles særskilt.
 - Beslutninger til Jonas: vægtene (lige nu 250 × 4), ~~fristen inklusiv den
   10.~~ **løst 30/9 20:43: den 20., som påmindelserne (§4)**, ingen nåde i streaken, negativ bank = 0, friskhed 6 måneder (§2.0),
-  afskrivninger ude af runway (§2.1).
+  afskrivninger ude af runway (§2.1). **ÅBENT:** den kritiske påmindelse den
+  20. siger «forsinket», mens kortet siger «senest i dag» (§4, «ÅBENT punkt
+  til Jonas»).
+
+**Rådets gennemsyn af #1189 (rettet i samme PR):** (1) uden streak (længde 0
+— nyt medlem eller brudt) er streaklinjen statussen selv («Godkend dine tal
+senest den 20. og start din streak» / «Streaken er brudt — næste frist
+starter en ny») med næste frist, aldrig «0 måneder i træk» med grå flamme;
+statussen gentages da ikke i detaljerne (`streakKortLinje` → `erStatus`).
+(2) Kildeværnet dom 9: sidste `REMINDER_DAYS` = `STREAK_FRIST_DAG`.
+(3) Skelettet har kortets opbygning (ringkolonne, fire barer, streaklinje,
+løfter, bundlinje) i stedet for en fast `min-h-[200px]`. (4) §4's påstand om
+påmindelsernes dato er rettet til det målte.
