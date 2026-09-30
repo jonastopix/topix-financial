@@ -132,6 +132,32 @@ export function pillenTraekkerSig(
 }
 
 /**
+ * 5. VELKOMSTEN SPRINGER KUN AUTOMATISK OP FOR NYE (30/9, rådets gennemsyn
+ *    af PR #1192): overlejringen viste sig automatisk ved første Hb-side i
+ *    HVER session, så længe velkomstvideo_set_at var null — og 18 af 26
+ *    erfarne medlemmer har aldrig set videoen (målt i prod 30/9). Et medlem
+ *    på 8 måneder ville altså få «Velkommen i The Boardroom» over skærmen
+ *    ved hvert besøg, også under live-sessionen 1/10. Nu kræver den
+ *    AUTOMATISKE visning, at medlemmet IKKE er erfarent — samme dom
+ *    (erErfarentMedlem, afsnit 4) som fokuskortet, hilsenen og pillen.
+ *    Den EKSPLICITTE åbning (punktet i listen, #velkomst fra kortet) er
+ *    uændret: den går uden om denne dom (videoAaben i boksen), så en
+ *    erfaren kan stadig se videoen, når hun selv beder om den.
+ *
+ *    De tre gamle betingelser står uændret: der ER en video (vi viser ikke
+ *    tomt indhold), stemplet er null (aldrig trykket «Kom i gang»), og
+ *    «Se senere» er ikke trykket i denne session.
+ */
+export function velkomstVisesAutomatisk(a: {
+  harVelkomstvideo: boolean;
+  velkomstvideoSetAt: string | null;
+  udsatISessionen: boolean;
+  erfarentMedlem: boolean;
+}): boolean {
+  return a.harVelkomstvideo && a.velkomstvideoSetAt === null && !a.udsatISessionen && !a.erfarentMedlem;
+}
+
+/**
  * Skal onboarding-boksen MONTERES overhovedet? Nej, når man står i chatten
  * på mobil. Sammenfoldet er boksen en fixed bjælke i bunden (`fixed inset-x-0
  * bottom-0 z-40`, ca. 46 px) og lå oven på de nederste 46 af sendefeltets 99 px

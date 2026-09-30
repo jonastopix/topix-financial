@@ -7,6 +7,10 @@ import { byggTjekliste, TJEKLISTE_RAEKKEFOELGE, type TjeklisteInput } from "@/li
     10. august 2026 → forrige måned = juli 2026 ("2026-07") — samme anker
     som nextStep.test.ts. */
 const NOW = new Date(2026, 7, 10);
+/** Forrige-forrige måned (juni 2026) er I ORDEN i alle fixtures (30/9):
+    slot (a)/(b) dømmer de to seneste afsluttede måneder, ældste først, så
+    en fixture, der kun vil vise JULIS tilstand, skal have juni med. */
+const JUNI = "2026-06";
 
 /** Deadline som ABSOLUT tidsstempel præcis N dage efter NOW —
     tidszone-uafhængigt: motorens ceil-aritmetik regner på epoch-
@@ -17,8 +21,8 @@ const daysFromNow = (days: number) => new Date(NOW.getTime() + days * 86400000).
 
 const base = (overrides: Partial<FocusInputs> = {}): FocusInputs => ({
   now: NOW,
-  processedPeriodKeys: new Set(["2026-07"]),
-  committedPeriodKeys: new Set(["2026-07"]),
+  processedPeriodKeys: new Set([JUNI, "2026-07"]),
+  committedPeriodKeys: new Set([JUNI, "2026-07"]),
   hasPulseThisMonth: true,
   unreadUserMessages: 0,
   unreadAgentMessages: 0,
@@ -31,7 +35,7 @@ const base = (overrides: Partial<FocusInputs> = {}): FocusInputs => ({
 
 describe("deriveFocus — hver kilde for sig", () => {
   it("(a) manglende rapport", () => {
-    const items = deriveFocus(base({ processedPeriodKeys: new Set(), committedPeriodKeys: new Set() }));
+    const items = deriveFocus(base({ processedPeriodKeys: new Set([JUNI]), committedPeriodKeys: new Set([JUNI]) }));
     expect(items).toHaveLength(1);
     expect(items[0]).toMatchObject({
       kind: "missing-report",
@@ -42,7 +46,7 @@ describe("deriveFocus — hver kilde for sig", () => {
   });
 
   it("(b) uploadet men ikke godkendt — udelukker (a)", () => {
-    const items = deriveFocus(base({ committedPeriodKeys: new Set() }));
+    const items = deriveFocus(base({ committedPeriodKeys: new Set([JUNI]) }));
     expect(items.map((i) => i.kind)).toEqual(["pending-approval"]);
     expect(items[0].priority).toBe(2);
   });
@@ -237,7 +241,7 @@ describe("deriveFocus — hver kilde for sig", () => {
   });
 
   it("(g) pulse-nudgen er GATED bag committed rapport (ActionCenter:166-176)", () => {
-    const gated = deriveFocus(base({ committedPeriodKeys: new Set(), hasPulseThisMonth: false }));
+    const gated = deriveFocus(base({ committedPeriodKeys: new Set([JUNI]), hasPulseThisMonth: false }));
     expect(gated.map((i) => i.kind)).toEqual(["pending-approval"]); // ingen pulse før godkendt
     const open = deriveFocus(base({ hasPulseThisMonth: false }));
     expect(open.map((i) => i.kind)).toEqual(["pulse"]);
@@ -275,7 +279,7 @@ describe("deriveFocus — hver kilde for sig", () => {
 
   it("(i) står ALDRIG øverst når en anden kilde er aktiv", () => {
     const withReport = deriveFocus(
-      base({ processedPeriodKeys: new Set(), committedPeriodKeys: new Set(), askMeAboutMissing: true }),
+      base({ processedPeriodKeys: new Set([JUNI]), committedPeriodKeys: new Set([JUNI]), askMeAboutMissing: true }),
     );
     expect(withReport.map((i) => i.kind)).toEqual(["missing-report", "empty-profile"]);
 
@@ -294,8 +298,8 @@ describe("deriveFocus — rækkefølge og tom-tilstand", () => {
   it("alle slots samtidig → fast (a)-(i)-rækkefølge (uden (e), fase 3)", () => {
     const items = deriveFocus({
       now: NOW,
-      processedPeriodKeys: new Set(), // (a) — og pulse-gaten lukker (g)
-      committedPeriodKeys: new Set(),
+      processedPeriodKeys: new Set([JUNI]), // (a) — og pulse-gaten lukker (g)
+      committedPeriodKeys: new Set([JUNI]),
       hasPulseThisMonth: false,
       unreadUserMessages: 2,
       unreadAgentMessages: 1,
@@ -366,8 +370,8 @@ const tjeklisteAltGjort = (overrides: Partial<TjeklisteInput> = {}): TjeklisteIn
     fokuskortet hidtil mødte med "Upload dine juli-tal". */
 const nulData = (overrides: Partial<FocusInputs> = {}): FocusInputs =>
   base({
-    processedPeriodKeys: new Set(),
-    committedPeriodKeys: new Set(),
+    processedPeriodKeys: new Set([JUNI]),
+    committedPeriodKeys: new Set([JUNI]),
     hasPulseThisMonth: false,
     askMeAboutMissing: true,
     ...overrides,
@@ -428,7 +432,7 @@ describe("slot (a) og kontraktstarten", () => {
 
   it("værnet gælder KUN (a): findes der uploadede tal for perioden, fyrer (b) uanset kontraktstart", () => {
     const items = deriveFocus(
-      base({ committedPeriodKeys: new Set(), contractStartDate: "2026-08-03" }),
+      base({ committedPeriodKeys: new Set([JUNI]), contractStartDate: "2026-08-03" }),
     );
     expect(items.map((i) => i.kind)).toEqual(["pending-approval"]);
   });
@@ -441,8 +445,8 @@ describe("slot (a) og kontraktstarten", () => {
   it("wrapperen deriveNextStep kender ingen kontraktstart og svarer som før", () => {
     const step = deriveNextStep({
       now: NOW,
-      processedPeriodKeys: new Set(),
-      committedPeriodKeys: new Set(),
+      processedPeriodKeys: new Set([JUNI]),
+      committedPeriodKeys: new Set([JUNI]),
       hasPulseThisMonth: true,
     });
     expect(step?.id).toBe("missing-report");
@@ -514,8 +518,8 @@ describe("slot (0) — tjeklisten som fokuskortets kilde", () => {
     const items = deriveFocus(
       base({
         tjekliste,
-        processedPeriodKeys: new Set(),
-        committedPeriodKeys: new Set(),
+        processedPeriodKeys: new Set([JUNI]),
+        committedPeriodKeys: new Set([JUNI]),
         unreadUserMessages: 2,
         weeklyFocus: { headline: "X", seen: false },
         openActions: [{ id: "a1", title: "Handling", priority: "high" }],
@@ -577,7 +581,7 @@ describe("erfarne medlemmer (30/9) — tjeklisten slipper kortet efter 30 døgn"
     const tjekliste = uafsluttet();
     expect(tjekliste.faerdig).toBe(false);
     const items = deriveFocus(
-      base({ tjekliste, medlemSiden: otteMaaneder, committedPeriodKeys: new Set(), askMeAboutMissing: true, contractStartDate: "2025-12-01" }),
+      base({ tjekliste, medlemSiden: otteMaaneder, committedPeriodKeys: new Set([JUNI]), askMeAboutMissing: true, contractStartDate: "2025-12-01" }),
     );
     expect(items[0]).toMatchObject({ kind: "pending-approval", title: "Godkend dine juli-tal" });
     expect(items.map((i) => i.kind)).not.toContain("tjekliste");
@@ -633,14 +637,14 @@ describe("erfarne medlemmer (30/9) — tjeklisten slipper kortet efter 30 døgn"
 describe("deriveNextStep — wrapper-regressionsværn (de fire oprindelige kilder)", () => {
   const old = (overrides: Partial<NextStepInputs> = {}): NextStepInputs => ({
     now: NOW,
-    processedPeriodKeys: new Set(["2026-07"]),
-    committedPeriodKeys: new Set(["2026-07"]),
+    processedPeriodKeys: new Set([JUNI, "2026-07"]),
+    committedPeriodKeys: new Set([JUNI, "2026-07"]),
     hasPulseThisMonth: true,
     ...overrides,
   });
 
   it("missing-report — ordret som før", () => {
-    const step = deriveNextStep(old({ processedPeriodKeys: new Set(), committedPeriodKeys: new Set() }));
+    const step = deriveNextStep(old({ processedPeriodKeys: new Set([JUNI]), committedPeriodKeys: new Set([JUNI]) }));
     expect(step).toEqual({
       id: "missing-report",
       title: "Upload dine juli-tal",
@@ -651,7 +655,7 @@ describe("deriveNextStep — wrapper-regressionsværn (de fire oprindelige kilde
   });
 
   it("pending-approval — ordret som før", () => {
-    const step = deriveNextStep(old({ committedPeriodKeys: new Set() }));
+    const step = deriveNextStep(old({ committedPeriodKeys: new Set([JUNI]) }));
     expect(step).toEqual({
       id: "pending-approval",
       title: "Godkend dine juli-tal",
@@ -671,5 +675,84 @@ describe("deriveNextStep — wrapper-regressionsværn (de fire oprindelige kilde
       link: "/pulse",
     });
     expect(deriveNextStep(old())).toBeNull();
+  });
+});
+
+/* ── (a)/(b) over de to seneste afsluttede måneder, ældste først (30/9,
+      rådets gennemsyn af PR #1192). Fristen er den 20. i måneden efter;
+      den 1/10 er augusts frist passeret, og september er lige begyndt at
+      løbe. EKSEMPEL: now = 1/10-2026 → forrige-forrige = "2026-08"
+      (august), forrige = "2026-09" (september). ── */
+describe("slot (a)/(b) — de to seneste afsluttede måneder, ældste først", () => {
+  const FOERSTE_OKT = new Date(2026, 9, 1, 9);
+  const midtSep = new Date(2026, 8, 15, 9);
+
+  it("1/10: august uploadet men ikke godkendt, september mangler → «Godkend dine august-tal»", () => {
+    const items = deriveFocus(
+      base({ now: FOERSTE_OKT, processedPeriodKeys: new Set(["2026-08"]), committedPeriodKeys: new Set() }),
+    );
+    const rapport = items.filter((i) => i.kind === "missing-report" || i.kind === "pending-approval");
+    expect(rapport).toHaveLength(1); // ét rapportpunkt, som før
+    expect(items[0]).toMatchObject({
+      kind: "pending-approval",
+      priority: 2,
+      title: "Godkend dine august-tal",
+      description: "Tallene for august 2026 er uploadet, men ikke godkendt endnu — godkend dem, så de kommer i drift.",
+    });
+  });
+
+  it("1/10: august godkendt, september mangler → «Upload dine september-tal»", () => {
+    const items = deriveFocus(
+      base({ now: FOERSTE_OKT, processedPeriodKeys: new Set(["2026-08"]), committedPeriodKeys: new Set(["2026-08"]) }),
+    );
+    expect(items[0]).toMatchObject({
+      kind: "missing-report",
+      priority: 1,
+      title: "Upload dine september-tal",
+      description: "Så er september 2026 med, og din rådgiver kan se fremad med dig.",
+    });
+  });
+
+  it("1/10: august mangler helt → «Upload dine august-tal» (ældste først), ikke september", () => {
+    const items = deriveFocus(base({ now: FOERSTE_OKT, processedPeriodKeys: new Set(), committedPeriodKeys: new Set() }));
+    expect(items[0]).toMatchObject({ kind: "missing-report", title: "Upload dine august-tal" });
+    expect(items.some((i) => i.title.includes("september"))).toBe(false);
+  });
+
+  it("1/10: begge i orden → intet rapportpunkt", () => {
+    const begge = new Set(["2026-08", "2026-09"]);
+    const items = deriveFocus(base({ now: FOERSTE_OKT, processedPeriodKeys: begge, committedPeriodKeys: begge }));
+    expect(items.some((i) => i.kind === "missing-report" || i.kind === "pending-approval")).toBe(false);
+  });
+
+  it("KUN de to seneste: et hul i juli er ikke med den 1/10", () => {
+    const aug_sep = new Set(["2026-08", "2026-09"]);
+    const items = deriveFocus(base({ now: FOERSTE_OKT, processedPeriodKeys: aug_sep, committedPeriodKeys: aug_sep }));
+    expect(items.some((i) => i.title.includes("juli"))).toBe(false);
+  });
+
+  it("kontraktværnet gælder hver måned for sig: kontrakt 1/9 → august tier, september bedes om", () => {
+    const items = deriveFocus(
+      base({ now: FOERSTE_OKT, processedPeriodKeys: new Set(), committedPeriodKeys: new Set(), contractStartDate: "2026-09-01" }),
+    );
+    expect(items[0]).toMatchObject({ kind: "missing-report", title: "Upload dine september-tal" });
+  });
+
+  it("15/9 som i dag: juli i orden, august mangler → «Upload dine august-tal»; august uploadet → «Godkend dine august-tal»", () => {
+    const juli = new Set(["2026-07"]);
+    expect(deriveFocus(base({ now: midtSep, processedPeriodKeys: juli, committedPeriodKeys: juli }))[0]).toMatchObject({
+      kind: "missing-report",
+      title: "Upload dine august-tal",
+    });
+    expect(
+      deriveFocus(base({ now: midtSep, processedPeriodKeys: new Set(["2026-07", "2026-08"]), committedPeriodKeys: juli }))[0],
+    ).toMatchObject({ kind: "pending-approval", title: "Godkend dine august-tal" });
+  });
+
+  it("årsskiftet: 5/1-2027 → forrige-forrige = november 2026", () => {
+    const items = deriveFocus(
+      base({ now: new Date(2027, 0, 5), processedPeriodKeys: new Set(["2026-12"]), committedPeriodKeys: new Set(["2026-12"]) }),
+    );
+    expect(items[0]).toMatchObject({ kind: "missing-report", title: "Upload dine november-tal" });
   });
 });

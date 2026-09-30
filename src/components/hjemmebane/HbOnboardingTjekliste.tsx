@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { erVelkomstHash, velkomstTekst } from "@/lib/hjemmebane/ankomst";
+import { erVelkomstHash, velkomstTekst, velkomstVisesAutomatisk } from "@/lib/hjemmebane/ankomst";
 import { Check, ChevronDown, ChevronRight, ChevronUp, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Tjekliste, TjeklistePunkt } from "@/lib/onboardingTjekliste";
@@ -176,6 +176,14 @@ export interface HbOnboardingTjeklisteProps {
    * (genaabnTick) og lykønskningen påvirkes ikke; overlejringen heller ikke.
    */
   pilleTraekkerSig?: boolean;
+  /**
+   * Erfarent medlem (30/9): erErfarentMedlem(medlemSiden, nu) i
+   * src/lib/hjemmebane/ankomst.ts, regnet i skallen — samme dom som
+   * fokuskortet og pillen. Sand = velkomsten springer ALDRIG automatisk op;
+   * den eksplicitte åbning (listen, #velkomst) virker som før. Udeladt =
+   * ny = som før 30/9.
+   */
+  erfarentMedlem?: boolean;
 }
 
 export const HbOnboardingTjekliste = ({
@@ -189,6 +197,7 @@ export const HbOnboardingTjekliste = ({
   markerVelkomstSet,
   onUdfoldetChange,
   pilleTraekkerSig = false,
+  erfarentMedlem = false,
 }: HbOnboardingTjeklisteProps) => {
   const navigate = useNavigate();
   const { hash, pathname, search } = useLocation();
@@ -237,8 +246,15 @@ export const HbOnboardingTjekliste = ({
 
   // Velkomsten popper op FØRSTE gang: der ER en video (ellers aldrig —
   // vi viser ikke tomt indhold), stemplet er null, boksen er ikke lukket,
-  // og «Se senere» er ikke trykket i denne session.
-  const visVelkomstAutomatisk = harVelkomstvideo && velkomstvideoSetAt === null && !videoUdsat;
+  // «Se senere» er ikke trykket i denne session — og medlemmet er IKKE
+  // erfarent (30/9, velkomstVisesAutomatisk i ankomst.ts). Den eksplicitte
+  // åbning (videoAaben: listen eller #velkomst) er uændret.
+  const visVelkomstAutomatisk = velkomstVisesAutomatisk({
+    harVelkomstvideo,
+    velkomstvideoSetAt,
+    udsatISessionen: videoUdsat,
+    erfarentMedlem,
+  });
 
   const luk = () => {
     setLukket(true);

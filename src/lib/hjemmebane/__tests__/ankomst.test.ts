@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ERFAREN_EFTER_DAGE, erErfarentMedlem, erVelkomstHash, fokusCtaHref, onboardingBoksMonteres, pillenTraekkerSig, tjeklistenStyrerForsiden, VELKOMST_HASH, VELKOMST_INDLEDNING, velkomstTekst } from "../ankomst";
+import { ERFAREN_EFTER_DAGE, erErfarentMedlem, erVelkomstHash, fokusCtaHref, onboardingBoksMonteres, pillenTraekkerSig, tjeklistenStyrerForsiden, VELKOMST_HASH, VELKOMST_INDLEDNING, velkomstTekst, velkomstVisesAutomatisk } from "../ankomst";
 
 // Ankomstens to løse ender (docs/indgangen-overhaling.md §10, 3/9):
 // hashen der lader fokuskortet åbne velkomstvideoen, og dommen der lader
@@ -177,5 +177,39 @@ describe("pillenTraekkerSig og erfarne medlemmer — pillen gemmer sig aldrig, m
 
   it("andre sider → bliver, også for et nyt medlem", () => {
     expect(pillenTraekkerSig("rapportering", { faerdig: false }, siden(5 * DOEGN), NU)).toBe(false);
+  });
+});
+
+/* ── 5. Velkomsten springer KUN automatisk op for nye (30/9, rådets
+      gennemsyn af PR #1192): 18 af 26 erfarne havde aldrig set videoen og
+      ville få den over skærmen ved første side i hver session. ── */
+describe("velkomstVisesAutomatisk — aldrig automatisk for et erfarent medlem", () => {
+  const ny = { harVelkomstvideo: true, velkomstvideoSetAt: null, udsatISessionen: false, erfarentMedlem: false };
+
+  it("nyt medlem, video sat, aldrig set, ikke udsat → springer op (som før 30/9)", () => {
+    expect(velkomstVisesAutomatisk(ny)).toBe(true);
+  });
+
+  it("erfarent medlem, ellers identisk → springer IKKE op", () => {
+    expect(velkomstVisesAutomatisk({ ...ny, erfarentMedlem: true })).toBe(false);
+  });
+
+  it("de tre gamle betingelser gælder stadig for et nyt medlem", () => {
+    expect(velkomstVisesAutomatisk({ ...ny, harVelkomstvideo: false })).toBe(false);
+    expect(velkomstVisesAutomatisk({ ...ny, velkomstvideoSetAt: "2026-09-01T10:00:00.000Z" })).toBe(false);
+    expect(velkomstVisesAutomatisk({ ...ny, udsatISessionen: true })).toBe(false);
+  });
+
+  it("skallens dom er erErfarentMedlem: 8 måneder → ingen automatisk velkomst; 5 døgn → velkomst", () => {
+    expect(velkomstVisesAutomatisk({ ...ny, erfarentMedlem: erErfarentMedlem(siden(240 * DOEGN), NU) })).toBe(false);
+    expect(velkomstVisesAutomatisk({ ...ny, erfarentMedlem: erErfarentMedlem(siden(5 * DOEGN), NU) })).toBe(true);
+    // Ukendt dato = ny = som før 30/9.
+    expect(velkomstVisesAutomatisk({ ...ny, erfarentMedlem: erErfarentMedlem(null, NU) })).toBe(true);
+  });
+
+  it("erfaren på forsiden: ingen automatisk velkomst OG pillen trækker sig ikke (listen står stadig et sted)", () => {
+    const ms = siden(240 * DOEGN);
+    expect(velkomstVisesAutomatisk({ ...ny, erfarentMedlem: erErfarentMedlem(ms, NU) })).toBe(false);
+    expect(pillenTraekkerSig("boardroom", { faerdig: false }, ms, NU)).toBe(false);
   });
 });

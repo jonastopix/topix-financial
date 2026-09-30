@@ -36,6 +36,7 @@ import { tjeklistenStyrerForsiden } from "@/lib/hjemmebane/ankomst";
     tilfældig tie-break):
       (0) tjeklistepunkt (kun mens tjeklisten er uafsluttet — se ovenfor)
       (a) manglende rapport            (b) rapport afventer godkendelse
+          — over de to seneste afsluttede måneder, ældste først (30/9)
       (c) ubesvaret besked (rådgiver før agent — ActionCenter-ordenen)
       (d) weekly_focus (denne uge, ikke set)
       (e) — UDGÅET («Én plan» fase 3, 16/9): milestone-deadline ≤14 dage
@@ -207,12 +208,64 @@ export function foersteRapportPeriode(contractStartDate: string | null | undefin
   return `${foerste.getUTCFullYear()}-${String(foerste.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
+/** En afsluttet kalendermåned set fra `now`: n = 1 er forrige måned,
+    n = 2 forrige-forrige. Lokal tid som prevKey altid har været; Date
+    normaliserer månedsunderløb over årsskiftet (januar − 2 = november
+    året før). */
+interface AfsluttetMaaned {
+  key: string; // "YYYY-MM"
+  aar: number;
+  navn: string; // dansk, små bogstaver
+}
+function maanedFoer(now: Date, n: number): AfsluttetMaaned {
+  const d = new Date(now.getFullYear(), now.getMonth() - n, 1);
+  const m = d.getMonth();
+  const aar = d.getFullYear();
+  return { key: `${aar}-${String(m + 1).padStart(2, "0")}`, aar, navn: DANISH_MONTHS[m].toLowerCase() };
+}
+
+/** Rapport-dommen for ÉN måned: (a) mangler, (b) afventer godkendelse,
+    eller null (i orden / før kontraktstart). Værnet mod kontraktstarten
+    gælder KUN (a) — se deriveFocus. */
+function rapportPunkt(
+  m: AfsluttetMaaned,
+  processed: ReadonlySet<string>,
+  committed: ReadonlySet<string>,
+  foersteKey: string | null,
+): FocusItem | null {
+  const hasProcessed = processed.has(m.key);
+  const hasCommitted = committed.has(m.key);
+  const foerKontraktstart = foersteKey !== null && m.key < foersteKey;
+  if (!hasProcessed && !foerKontraktstart) {
+    return {
+      key: "missing-report",
+      kind: "missing-report",
+      priority: 1,
+      title: `Upload dine ${m.navn}-tal`,
+      description: `Så er ${m.navn} ${m.aar} med, og din rådgiver kan se fremad med dig.`,
+      ctaLabel: "Upload tallene",
+      ctaHref: "/reports",
+    };
+  }
+  if (hasProcessed && !hasCommitted) {
+    return {
+      key: "pending-approval",
+      kind: "pending-approval",
+      priority: 2,
+      title: `Godkend dine ${m.navn}-tal`,
+      description: `Tallene for ${m.navn} ${m.aar} er uploadet, men ikke godkendt endnu — godkend dem, så de kommer i drift.`,
+      ctaLabel: "Godkend tallene",
+      ctaHref: "/reports",
+    };
+  }
+  return null;
+}
+
 export function deriveFocus(inputs: FocusInputs): FocusItem[] {
   const { now } = inputs;
-  const prevMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
-  const prevYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
-  const prevKey = `${prevYear}-${String(prevMonth + 1).padStart(2, "0")}`;
-  const monthName = DANISH_MONTHS[prevMonth].toLowerCase();
+  const forrige = maanedFoer(now, 1);
+  const prevKey = forrige.key;
+  const monthName = forrige.navn;
 
   const items: FocusItem[] = [];
 
@@ -241,6 +294,7 @@ export function deriveFocus(inputs: FocusInputs): FocusItem[] {
     return items;
   }
 
+  // Pulse-gaten (g) læser stadig KUN forrige måned.
   const hasProcessed = inputs.processedPeriodKeys.has(prevKey);
   const hasCommitted = inputs.committedPeriodKeys.has(prevKey);
 
@@ -252,31 +306,35 @@ export function deriveFocus(inputs: FocusInputs): FocusItem[] {
   // (g)), findes tallene, og så er der noget at godkende og tage
   // stilling til uanset kontraktstart.
   const foersteKey = foersteRapportPeriode(inputs.contractStartDate);
-  const foerKontraktstart = foersteKey !== null && prevKey < foersteKey;
 
-  // (a) Manglende rapport — udelukker (b) pr. datalogik (tekster ordret
-  // fra den oprindelige port). Tier når perioden ligger før kontrakten.
-  if (!hasProcessed && !foerKontraktstart) {
-    items.push({
-      key: "missing-report",
-      kind: "missing-report",
-      priority: 1,
-      title: `Upload dine ${monthName}-tal`,
-      description: `Så er ${monthName} ${prevYear} med, og din rådgiver kan se fremad med dig.`,
-      ctaLabel: "Upload tallene",
-      ctaHref: "/reports",
-    });
-  } else if (hasProcessed && !hasCommitted) {
-    // (b) Uploadet men ikke godkendt.
-    items.push({
-      key: "pending-approval",
-      kind: "pending-approval",
-      priority: 2,
-      title: `Godkend dine ${monthName}-tal`,
-      description: `Tallene for ${monthName} ${prevYear} er uploadet, men ikke godkendt endnu — godkend dem, så de kommer i drift.`,
-      ctaLabel: "Godkend tallene",
-      ctaHref: "/reports",
-    });
+  // (a)/(b) DE TO SENESTE AFSLUTTEDE MÅNEDER, ÆLDSTE FØRST (30/9, rådets
+  // gennemsyn af PR #1192). Før så slottet KUN på forrige måned. Fristen er
+  // den 20. i måneden efter (påmindelser dag 7/15/20), så den 1. i en måned
+  // er den forrige-forrige måneds frist allerede passeret, mens den
+  // forrige måned lige er begyndt at løbe — og så forsvandt den forrige-
+  // forrige måned fra kortet, netop mens den var mest forsinket.
+  //   REGNESTYKKET: kandidaterne er maanedFoer(now, 2) og maanedFoer(now, 1)
+  //   — i den rækkefølge. EKSEMPEL: now = 1/10-2026 →
+  //     forrige-forrige = maanedFoer(now, 2) = "2026-08" (august),
+  //     forrige         = maanedFoer(now, 1) = "2026-09" (september).
+  //   August uploadet, ikke godkendt; september mangler
+  //     → «Godkend dine august-tal» (august dømmes først og vinder).
+  //   August godkendt; september mangler → august giver null
+  //     → «Upload dine september-tal».
+  //   now = 15/9 → juli og august; juli i orden → august dømmes som før.
+  // Den FØRSTE måned med et punkt vælges, og kun ét rapportpunkt vises
+  // (samme som før: (a) og (b) udelukker hinanden, og byggerækkefølgen
+  // forbliver prioritetsordenen). KUN de to seneste — ikke længere
+  // tilbage: ellers dukker gammel historik op (et hul fra i foråret) og
+  // overdøver den måned, der faktisk er aktuel. Kontraktværnet gælder hver
+  // måned for sig: en måned før den første hele kontraktmåned beder (a)
+  // aldrig om.
+  for (const m of [maanedFoer(now, 2), forrige]) {
+    const punkt = rapportPunkt(m, inputs.processedPeriodKeys, inputs.committedPeriodKeys, foersteKey);
+    if (punkt) {
+      items.push(punkt);
+      break;
+    }
   }
 
   // (c) Ubesvarede beskeder — rådgiver før agent (ActionCenter:150-163,

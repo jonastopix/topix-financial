@@ -8,7 +8,7 @@ import { useOnboardingTjekliste } from "@/hooks/useOnboardingTjekliste";
 import { HbOnboardingTjekliste } from "./HbOnboardingTjekliste";
 import { useTjeklisteLukket } from "@/hooks/useTjeklisteLukket";
 import { useHbDokumentGrund } from "@/hooks/useHbDokumentGrund";
-import { onboardingBoksMonteres, pillenTraekkerSig } from "@/lib/hjemmebane/ankomst";
+import { erErfarentMedlem, onboardingBoksMonteres, pillenTraekkerSig } from "@/lib/hjemmebane/ankomst";
 import { HbVisningSom } from "./HbVisningSom";
 import { HbFeedbackDialog } from "./HbFeedbackDialog";
 import { bygHbNav, type HbAktiv } from "@/lib/hjemmebane/hbNav";
@@ -121,6 +121,10 @@ export const HbMemberShell = ({
   // eneste der kender ruten (`active`), så dommen falder her og gives til
   // boksen som prop (src/lib/hjemmebane/ankomst.ts, §10 3/9).
   const tjeklistePilleTraekkerSig = pillenTraekkerSig(active, tjeklisteData.tjekliste, tjeklisteData.medlemSiden, new Date());
+  // Samme dom giver boksen besked om, at velkomsten IKKE skal springe
+  // automatisk op for et erfarent medlem (30/9, velkomstVisesAutomatisk i
+  // ankomst.ts); den eksplicitte åbning fra listen/#velkomst er uændret.
+  const tjeklisteErfarentMedlem = erErfarentMedlem(tjeklisteData.medlemSiden, new Date());
   // Menupunktet vises kun for medlemmer, og kun når listen ikke er færdig
   // ELLER medlemmet selv har lukket den (så den kan hentes frem igen).
   const komGodtIGang =
@@ -256,6 +260,7 @@ export const HbMemberShell = ({
           markerVelkomstSet={tjeklisteData.markerVelkomstSet}
           onUdfoldetChange={setTjeklisteUdfoldet}
           pilleTraekkerSig={tjeklistePilleTraekkerSig}
+          erfarentMedlem={tjeklisteErfarentMedlem}
         />
       )}
       {!isAdvisor && <HbFeedbackDialog open={feedbackAaben} onClose={() => setFeedbackAaben(false)} />}

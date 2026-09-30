@@ -85,7 +85,7 @@ describe("rådgiverens samtaleheader på mobil", () => {
 export const boksenErVaekFraChattenPaaMobil = (skal: string): boolean => {
   const k = udenKommentarer(skal);
   return (
-    k.includes('import { onboardingBoksMonteres, pillenTraekkerSig } from "@/lib/hjemmebane/ankomst";') &&
+    k.includes('import { erErfarentMedlem, onboardingBoksMonteres, pillenTraekkerSig } from "@/lib/hjemmebane/ankomst";') &&
     k.includes("const boksMonteres = onboardingBoksMonteres(active, erMobil);") &&
     // Selve monteringen, bund-luften (pb-[72vh]) og menupunktet følger dommen.
     k.includes("{!isAdvisor && boksMonteres && (\n        <HbOnboardingTjekliste") &&
