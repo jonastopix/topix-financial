@@ -1,13 +1,20 @@
 /**
  * useBoardroomScore — læser grundlaget for Boardroom Score med medlemmets
  * egen RLS og kører den rene motor (src/lib/boardroomScore, design i
- * docs/boardroom-score.md). Ingen migration, ingen ny tabel, ingen flade.
+ * docs/boardroom-score.md). Ingen flade.
  *
- * Fire kilder, alle eksisterende:
- *   - financial_report_facts (period_key, data_basis, metrics, created_at) —
- *     created_at er FØRSTE godkendelse; committed_at overskrives ved
- *     gen-godkendelse og bruges ikke. Egen hentning (useCompanyFacts
- *     vælger ikke created_at), samme policy.
+ * Fem kilder:
+ *   - financial_report_facts (period_key, data_basis, metrics, created_at).
+ *     Egen hentning (useCompanyFacts vælger ikke created_at), samme policy.
+ *   - maaned_foerste_godkendelse (period_key, foerst_godkendt_at) — HUKOMMELSEN
+ *     om månedens første godkendelse (migration 20260930120000, rådets fund 1):
+ *     «Erstat gammel data» og permanent sletning sletter facts-rækken, og en
+ *     rettet måned får en ny række med created_at = now(). Hukommelsen skrives
+ *     af en trigger, når en måned første gang bliver målt, og slettes aldrig
+ *     af fladen. Første godkendelse = den tidligste af hukommelsen og
+ *     created_at (tidligsteGodkendelse). committed_at læses ikke (SENESTE).
+ *     Tabellen er ny: migrationen skal være KØRT i prod, før nogen flade
+ *     bruger hooken — en manglende tabel er en HentningsFejl, ikke «ingen tal».
  *   - companies.contract_start_date — afgrænser disciplin og streak.
  *   - budget_targets: findes mindst én værdirække for indeværende år?
  *     (base-scenariet, period «YYYY-base-idx»; markører har ikke den form.)
@@ -16,15 +23,23 @@
  * Fejl er en fejl (husets regel): hver hentning kaster HentningsFejl med
  * kildens navn — et fejlet kald må ikke ligne «ingen tal» og give en
  * disciplin på 0.
+ *
+ * Uret (rådets fund 7): dommen afhænger af `nu` (frister, den åbne måned,
+ * friskhed). Grundlaget genhentes hvert 5. minut, og dommen regnes om hvert
+ * minut, så status skifter hen over en frist uden genindlæsning.
  */
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { HentningsFejl, kraevRaekker } from "@/lib/kraevRaekker";
 import { kbhDele } from "@/lib/hverdage";
-import { boardroomScore, type ScoreDom, type ScoreGrundlag, type ScoreMaaned } from "@/lib/boardroomScore";
+import { boardroomScore, tidligsteGodkendelse, type ScoreDom, type ScoreGrundlag, type ScoreMaaned } from "@/lib/boardroomScore";
 import type { Json } from "@/integrations/supabase/types";
+
+/** Hvor tit grundlaget genhentes, og hvor tit dommen regnes om af samme grundlag. */
+export const GRUNDLAG_GENHENT_MS = 5 * 60_000;
+export const DOM_UR_MS = 60_000;
 
 function parseMetrics(raw: Json): Record<string, number | null> {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
@@ -38,7 +53,7 @@ function parseMetrics(raw: Json): Record<string, number | null> {
 
 export const boardroomScoreKey = (companyId: string | undefined) => ["boardroom-score", "grundlag", companyId] as const;
 
-/** Henter grundlaget som én query (fire kald), så fladen får ÉN isLoading/isError. */
+/** Henter grundlaget som én query (fem kald), så fladen får ÉN isLoading/isError. */
 export async function hentScoreGrundlag(companyId: string, nu: Date): Promise<ScoreGrundlag> {
   const aar = kbhDele(nu).aar;
 
@@ -50,6 +65,15 @@ export async function hentScoreGrundlag(companyId: string, nu: Date): Promise<Sc
       .order("period_key", { ascending: true }),
     "financial_report_facts",
   );
+
+  // Hukommelsen om første godkendelse. Tabellen er født i 20260930120000 og står
+  // endnu ikke i types.ts (Lovable genererer typerne efter migrationen) — derfor `as any`.
+  const hukommelseRes = await (supabase
+    .from("maaned_foerste_godkendelse" as any)
+    .select("period_key, foerst_godkendt_at")
+    .eq("company_id", companyId) as any);
+  const hukommelse = kraevRaekker(hukommelseRes, "maaned_foerste_godkendelse") as { period_key: string; foerst_godkendt_at: string | null }[];
+  const foersteGodkendt = new Map(hukommelse.map((h) => [h.period_key, h.foerst_godkendt_at]));
 
   const virksomhed = await supabase.from("companies").select("contract_start_date").eq("id", companyId).maybeSingle();
   if (virksomhed.error) throw new HentningsFejl("companies", virksomhed.error.message);
@@ -71,7 +95,7 @@ export async function hentScoreGrundlag(companyId: string, nu: Date): Promise<Sc
   const maaneder: ScoreMaaned[] = facts.map((f) => ({
     key: f.period_key,
     basis: f.data_basis === "estimated" ? "estimated" : "measured",
-    foersteGodkendtAt: f.created_at ?? null,
+    foersteGodkendtAt: tidligsteGodkendelse(foersteGodkendt.get(f.period_key), f.created_at),
     metrics: parseMetrics(f.metrics),
   }));
 
@@ -97,11 +121,18 @@ export function useBoardroomScore(overrideCompanyId?: string): {
     queryKey: boardroomScoreKey(companyId),
     queryFn: () => hentScoreGrundlag(companyId!, new Date()),
     enabled: !!user && !!companyId,
-    staleTime: 5 * 60_000,
+    staleTime: GRUNDLAG_GENHENT_MS,
+    refetchInterval: GRUNDLAG_GENHENT_MS,
   });
 
-  // Dommen regnes i browseren af grundlaget — «nu» er indlæsningens tid (staleTime 5 min).
-  const dom = useMemo(() => (query.data ? boardroomScore(query.data, new Date()) : null), [query.data]);
+  // Uret: `nu` er en afhængighed af dommen — ellers står status stille hen over en frist.
+  const [nuMs, setNuMs] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNuMs(Date.now()), DOM_UR_MS);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const dom = useMemo(() => (query.data ? boardroomScore(query.data, new Date(nuMs)) : null), [query.data, nuMs]);
 
   return { dom, grundlag: query.data, isLoading: query.isLoading, isError: query.isError, error: query.error };
 }

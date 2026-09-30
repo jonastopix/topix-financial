@@ -8,8 +8,11 @@
  *   manglende data straffes aldrig; de øvrige søjler skaleres op, og
  *   daekning siger, hvor meget scoren hviler på.
  *
- *   forrige  = samme dom med `nu` én måned tilbage (kun de rækker, der da var
- *              afsluttede) — retningen uden lager.
+ *   forrige  = samme dom med `nu` én måned tilbage på de rækker, der DA var
+ *              godkendt (første godkendelse ≤ det tidligere tidspunkt; en
+ *              række uden kendt godkendelse var der ikke) — retningen uden
+ *              lager. Begrænsning (rådets fund 4): budget og mål har intet
+ *              tidspunkt i grundlaget og regnes som nu.
  *
  *   Handlinger: én pr. søjle, regnet som marginal effekt på den SAMLEDE score
  *   (disciplin ved simulering af handlingen, de tre tal ved et skridt på
@@ -150,10 +153,24 @@ export function vaelgLoefterMest(handlinger: readonly Handling[]): Handling | nu
   return handlinger.find((h) => h.gevinst === null) ?? null;
 }
 
+/** Grundlaget, som det så ud på `tidspunkt`: kun måneder, hvis første godkendelse er ≤ tidspunktet. Ukendt godkendelse = ikke med. */
+export function grundlagPaa(g: ScoreGrundlag, tidspunkt: Date): ScoreGrundlag {
+  const t = tidspunkt.getTime();
+  return {
+    ...g,
+    maaneder: g.maaneder.filter((m) => {
+      if (!m.foersteGodkendtAt) return false;
+      const g0 = new Date(m.foersteGodkendtAt).getTime();
+      return Number.isFinite(g0) && g0 <= t;
+    }),
+  };
+}
+
 export function boardroomScore(g: ScoreGrundlag, nu: Date): ScoreDom {
   const soejler = alleSoejler(g, nu);
   const { score, daekning, medData } = samlet(soejler);
-  const forrige = samlet(alleSoejler(g, enMaanedTilbage(nu))).score;
+  const foer = enMaanedTilbage(nu);
+  const forrige = samlet(alleSoejler(grundlagPaa(g, foer), foer)).score;
   const handlinger = handlingerFor(g, nu, soejler);
   const mangler = RAEKKEFOELGE.filter((n) => soejler[n].status !== "ok");
   return {

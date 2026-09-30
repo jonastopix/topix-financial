@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  aeldsteFriskeMaaned,
   DISCIPLIN_BUDGET_POINT,
   DISCIPLIN_MAAL_POINT,
   disciplin,
   disciplinVindue,
   indtjening,
+  kontantforbrug,
   likviditet,
   maalteAfsluttede,
   resultatAf,
@@ -111,6 +113,27 @@ describe("likviditet — runway = bank / gennemsnitlig månedlig omkostning", ()
     const d = likviditet(grundlag([sund("2026-09", { cash: 1 })]), NU);
     expect(d.status).toBe("ikke_nok_data");
   });
+  it("kontantforbrug: afskrivninger tæller ikke (ikke penge ud af banken); vareforbrug og finans gør", () => {
+    const d = likviditet(grundlag([sund("2026-08", { depreciation: 30_000 })]), NU);
+    expect(d.status === "ok" && d.detaljer.maanedligOmkostning).toBe(60_000);
+    const d2 = likviditet(grundlag([sund("2026-08", { cogs: 10_000, financial_costs: 5_000, depreciation: 30_000 })]), NU);
+    expect(d2.status === "ok" && d2.detaljer.maanedligOmkostning).toBe(75_000);
+    expect(kontantforbrug({ depreciation: 30_000 })).toEqual({ sum: 0, fundet: 0 });
+  });
+  it("friskhed: banktal ældre end 6 måneder op til seneste passerede frist → ikke nok data", () => {
+    expect(aeldsteFriskeMaaned(NU)).toBe("2026-03");
+    const rows = [sund("2026-02"), sund("2026-06", { cash: null }), sund("2026-07", { cash: null }), sund("2026-08", { cash: null })];
+    const d = likviditet(grundlag(rows), NU);
+    expect(d.status).toBe("ikke_nok_data");
+    if (d.status === "ikke_nok_data") expect(d.grund).toContain("2026-02");
+    // Marts er stadig frisk.
+    const d2 = likviditet(grundlag([sund("2026-03"), ...rows.slice(1)]), NU);
+    expect(d2.status === "ok" && d2.detaljer.bankKey).toBe("2026-03");
+  });
+  it("friskhed: kun gamle omkostningsmåneder → ikke nok data", () => {
+    const d = likviditet(grundlag([sund("2025-06"), sund("2025-07"), sund("2025-08")]), NU);
+    expect(d.status).toBe("ikke_nok_data");
+  });
 });
 
 describe("indtjening — Σ resultat / Σ omsætning over ≤ 3 måneder", () => {
@@ -141,6 +164,10 @@ describe("indtjening — Σ resultat / Σ omsætning over ≤ 3 måneder", () =>
     const rows = [sund("2026-05"), sund("2026-06"), sund("2026-07", { revenue: null }), sund("2026-08", { ebt: null, gross_profit: null })];
     // Vinduet er 06, 07, 08; kun 06 har begge → under 2 → ikke nok data.
     expect(indtjening(grundlag(rows), NU).status).toBe("ikke_nok_data");
+  });
+  it("friskhed: seneste måned med tal ældre end 6 måneder → ikke nok data; marts–april er friske", () => {
+    expect(indtjening(grundlag([sund("2025-11"), sund("2025-12"), sund("2026-01")]), NU).status).toBe("ikke_nok_data");
+    expect(indtjening(grundlag([sund("2026-03"), sund("2026-04")]), NU).status).toBe("ok");
   });
   it("omsætning 0 → ikke nok data (ingen division)", () => {
     expect(indtjening(grundlag([sund("2026-07", { revenue: 0 }), sund("2026-08", { revenue: 0 })]), NU).status).toBe("ikke_nok_data");
@@ -186,14 +213,21 @@ describe("vækst — tre sammenhængende måneder mod samme tre året før, elle
   it("færre end tre målte → ikke nok data", () => {
     expect(vaekst(grundlag([sund("2026-07"), sund("2026-08")]), NU).status).toBe("ikke_nok_data");
   });
+  it("friskhed: et år gamle tal giver ingen vækst-dom, selv med fuld sammenligning", () => {
+    const rows = [...keys("2024-06", 3), ...keys("2025-06", 3)].map((k) => sund(k));
+    expect(vaekst(grundlag(rows), NU).status).toBe("ikke_nok_data");
+    const friske = [...keys("2025-01", 3), ...keys("2026-01", 3)].map((k) => sund(k));
+    expect(vaekst(grundlag(friske), NU).status).toBe("ok");
+  });
 });
 
 describe("disciplinVindue — de seneste 6 måneder med passeret frist, tidligst første hele måned efter kontraktstart", () => {
   it("30/9: august har passeret frist → marts–august", () => {
     expect(disciplinVindue(null, NU)).toEqual(["2026-03", "2026-04", "2026-05", "2026-06", "2026-07", "2026-08"]);
   });
-  it("kontraktstart 15/6 → juli–august", () => {
+  it("kontraktstart 15/6 → juli–august; den 1/6 → juni–august (måneden er hel)", () => {
     expect(disciplinVindue("2026-06-15", NU)).toEqual(["2026-07", "2026-08"]);
+    expect(disciplinVindue("2026-06-01", NU)).toEqual(["2026-06", "2026-07", "2026-08"]);
   });
   it("kontraktstart 20/9 → tomt (ingen hel måned afsluttet med frist)", () => {
     expect(disciplinVindue("2026-09-20", NU)).toEqual([]);
@@ -205,14 +239,21 @@ describe("disciplin — rytme 150 + rettidighed 50 + budget 25 + mål 25", () =>
     const d = disciplin(grundlag(keys("2026-03", 6).map((k) => sund(k)), { harBudgetForAaret: true, harMaal: true }), NU);
     expect(d.status === "ok" && d.point).toBe(SOEJLE_MAX.disciplin);
   });
-  it("3 af 6 målte, 2 af de 3 til tiden, intet budget/mål: 150 × 3/6 + 50 × 2/3 = 75 + 33,3", () => {
+  it("3 af 6 målte, 2 af de 3 til tiden, intet budget/mål: 150 × 3/6 + 50 × 2/3 = 75 + 33,3 (kontraktstart 1/3 → vinduet er marts–august)", () => {
     const rows = [sund("2026-04"), sund("2026-06"), sund("2026-08", {}, { foersteGodkendtAt: "2026-09-20T00:00:00Z" })];
-    const d = disciplin(grundlag(rows), NU);
+    const d = disciplin(grundlag(rows, { kontraktStart: "2026-03-01" }), NU);
     expect(d.status).toBe("ok");
     if (d.status !== "ok") return;
     expect(d.detaljer).toMatchObject({ maalte: 3, rettidige: 2, rytmePoint: 75, budgetPoint: 0, maalPoint: 0 });
     expect(d.detaljer.rettidighedPoint).toBeCloseTo(33.33, 1);
     expect(d.point).toBeCloseTo(108.33, 1);
+  });
+  it("uden kontraktstart begynder vinduet måneden efter den tidligste godkendelse: samme rækker → juni–august, 2 af 3 målte, 1 af 2 til tiden", () => {
+    const rows = [sund("2026-04"), sund("2026-06"), sund("2026-08", {}, { foersteGodkendtAt: "2026-09-20T00:00:00Z" })];
+    const d = disciplin(grundlag(rows), NU); // april godkendt 5/5 → første tællende måned er juni
+    expect(d.status).toBe("ok");
+    if (d.status !== "ok") return;
+    expect(d.detaljer).toMatchObject({ vindue: ["2026-06", "2026-07", "2026-08"], maalte: 2, rettidige: 1, rytmePoint: 100, rettidighedPoint: 25 });
   });
   it("fravær tæller HER: ingen målte måneder → rytme 0, rettidighed 0 (ikke NaN), kun budget/mål", () => {
     const d = disciplin(grundlag([], { harBudgetForAaret: true }), NU);

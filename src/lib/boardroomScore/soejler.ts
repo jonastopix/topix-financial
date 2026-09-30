@@ -7,8 +7,13 @@
  * «nu» i Danmark). Estimater er ikke måneder. En manglende nøgle er umålt,
  * aldrig 0. Fravær giver «ikke_nok_data» — undtagen i disciplin, hvor
  * fraværet ER adfærden.
+ *
+ * FRISKHED (rådets fund 3, 30/9): de tre tal-søjler siger «ikke_nok_data»,
+ * når deres seneste måned er ældre end FRISKHED_MAANEDER måneder op til den
+ * seneste måned med passeret frist — en score på et år gamle tal er ikke et
+ * helbredstal «nu». Likviditetens banktal måles på samme regel (bankKey).
  */
-import { CANONICAL, ebtRegnet, omkostningerIAlt, sumOmkostninger } from "@/lib/omkostningsnoegler";
+import { CANONICAL, ebtRegnet, sumOmkostninger } from "@/lib/omkostningsnoegler";
 import { erMaanedAfsluttet } from "@/lib/maanedsnoegle";
 import { interpoler, type Knaek } from "./kurve";
 import { erGodkendtTilTiden, erMaalt, flytMaaned, foersteTaellendeMaaned, maalteEfterNoegle, naesteMaaned, senesteMaanedMedPasseretFrist } from "./streak";
@@ -25,6 +30,8 @@ export const INDTJENING_MIN_MAANEDER = 2;
 export const VAEKST_MIN_GRUNDLAG_KR = 10_000;
 /** Disciplinvinduet: de seneste N måneder med passeret frist. */
 export const DISCIPLIN_MAANEDER = 6;
+/** Friskhed: de tre tal-søjlers seneste måned (og banktallet) skal ligge inden for så mange måneder op til seneste måned med passeret frist. */
+export const FRISKHED_MAANEDER = 6;
 
 // Knæk (x → point). Begrundelserne står i docs/boardroom-score.md §2.1–2.3.
 export const LIKVIDITET_KNAEK: Knaek = [[0, 0], [1, 50], [3, 150], [6, 225], [9, 250]];
@@ -45,6 +52,33 @@ export function maalteAfsluttede(maaneder: readonly ScoreMaaned[], nu: Date): Sc
     .sort((a, b) => a.key.localeCompare(b.key));
 }
 
+/**
+ * Ældste måned, der stadig er «frisk» set fra `nu`:
+ *   aeldsteFrisk = senesteMaanedMedPasseretFrist(nu) − (FRISKHED_MAANEDER − 1)
+ * 30/9-2026: seneste passerede frist er august → marts–august er de seks friske måneder.
+ */
+export function aeldsteFriskeMaaned(nu: Date): string {
+  return flytMaaned(senesteMaanedMedPasseretFrist(nu), -(FRISKHED_MAANEDER - 1));
+}
+
+const erFrisk = (key: string, nu: Date): boolean => key >= aeldsteFriskeMaaned(nu);
+
+const forGammel = (hvad: string, key: string): string =>
+  `${hvad} er fra ${key} — ældre end ${FRISKHED_MAANEDER} måneder. Godkend de seneste måneder, så tallet er nu.`;
+
+/**
+ * Kontantforbrug pr. måned (rådets fund 5): vareforbrug + drift + finansielle
+ * omkostninger — IKKE afskrivninger, som ikke er penge ud af banken. Nøglerne
+ * er husets (omkostningsnoegler.ts: omfanget «vareforbrug_og_drift» plus
+ * CANONICAL.finans); ingen lokal liste. Σ|beløb|; `fundet` = antal målte poster.
+ */
+export function kontantforbrug(metrics: Record<string, number | null>): { sum: number; fundet: number } {
+  const drift = sumOmkostninger(metrics, CANONICAL, "vareforbrug_og_drift");
+  const finans = CANONICAL.finans ? tal(metrics[CANONICAL.finans]) : null;
+  if (finans === null) return drift;
+  return { sum: drift.sum + Math.abs(finans), fundet: drift.fundet + 1 };
+}
+
 /** Resultat før skat: `ebt` når målt, ellers regnet af posterne (ebtRegnet). */
 export function resultatAf(m: ScoreMaaned): number | null {
   const ebt = tal(m.metrics.ebt);
@@ -55,15 +89,19 @@ export function resultatAf(m: ScoreMaaned): number | null {
 const ikkeNok = <N extends SoejleNavn>(navn: N, grund: string): SoejleDom<N> => ({ navn, max: SOEJLE_MAX[navn], status: "ikke_nok_data", grund });
 
 // ── Likviditet ─────────────────────────────────────────────────────────────
-//   runway = bank / gennemsnit(omkostningerIAlt over de seneste ≤ 3 målte afsluttede måneder med omkostninger)
+//   runway = bank / gennemsnit(kontantforbrug over de seneste ≤ 3 målte afsluttede måneder med kontantforbrug)
 //   point  = interpoler(LIKVIDITET_KNAEK, runway)
+//   Friskhed: både banktallet og den seneste omkostningsmåned skal være ≥ aeldsteFriskeMaaned(nu).
 export function likviditet(g: ScoreGrundlag, nu: Date): SoejleDom<"likviditet"> {
   const rows = maalteAfsluttede(g.maaneder, nu);
   const bankRow = [...rows].reverse().find((m) => tal(m.metrics.cash) !== null);
   if (!bankRow) return ikkeNok("likviditet", "Ingen målt måned har et banktal.");
-  const medOmk = rows.filter((m) => sumOmkostninger(m.metrics, CANONICAL, "alle").fundet > 0).slice(-VINDUE_MAANEDER);
+  if (!erFrisk(bankRow.key, nu)) return ikkeNok("likviditet", forGammel("Det seneste banktal", bankRow.key));
+  const medOmk = rows.filter((m) => kontantforbrug(m.metrics).fundet > 0).slice(-VINDUE_MAANEDER);
   if (medOmk.length === 0) return ikkeNok("likviditet", "Ingen målt måned har omkostninger.");
-  const sum = medOmk.reduce((s, m) => s + omkostningerIAlt(m.metrics, CANONICAL), 0);
+  const senesteOmk = medOmk[medOmk.length - 1].key;
+  if (!erFrisk(senesteOmk, nu)) return ikkeNok("likviditet", forGammel("Den seneste måned med omkostninger", senesteOmk));
+  const sum = medOmk.reduce((s, m) => s + kontantforbrug(m.metrics).sum, 0);
   const gennemsnit = sum / medOmk.length;
   if (gennemsnit <= 0) return ikkeNok("likviditet", "Omkostningerne er nul — runway kan ikke regnes.");
   const bank = tal(bankRow.metrics.cash) as number;
@@ -88,6 +126,8 @@ export function indtjening(g: ScoreGrundlag, nu: Date): SoejleDom<"indtjening"> 
   if (rows.length < INDTJENING_MIN_MAANEDER) {
     return ikkeNok("indtjening", `Kræver mindst ${INDTJENING_MIN_MAANEDER} målte måneder med omsætning og resultat — der er ${rows.length}.`);
   }
+  const senesteKey = rows[rows.length - 1].key;
+  if (!erFrisk(senesteKey, nu)) return ikkeNok("indtjening", forGammel("Den seneste måned med omsætning og resultat", senesteKey));
   const omsaetning = rows.reduce((s, r) => s + r.oms, 0);
   const resultat = rows.reduce((s, r) => s + r.res, 0);
   if (omsaetning <= 0) return ikkeNok("indtjening", "Omsætningen i vinduet er nul eller negativ — marginen kan ikke regnes.");
@@ -115,6 +155,8 @@ export function vaekst(g: ScoreGrundlag, nu: Date): SoejleDom<"vaekst"> {
   };
   const vindue = alle.slice(-VINDUE_MAANEDER).map((m) => m.key);
   if (vindue.length < VINDUE_MAANEDER) return ikkeNok("vaekst", `Kræver ${VINDUE_MAANEDER} målte måneder — der er ${vindue.length}.`);
+  const senesteKey = vindue[vindue.length - 1];
+  if (!erFrisk(senesteKey, nu)) return ikkeNok("vaekst", forGammel("Den seneste målte måned", senesteKey));
   for (let i = 1; i < vindue.length; i++) {
     if (naesteMaaned(vindue[i - 1]) !== vindue[i]) return ikkeNok("vaekst", "De tre seneste målte måneder hænger ikke sammen — der mangler en måned.");
   }
@@ -142,12 +184,14 @@ export function vaekst(g: ScoreGrundlag, nu: Date): SoejleDom<"vaekst"> {
 }
 
 // ── Disciplin ──────────────────────────────────────────────────────────────
-//   vindue      = de seneste 6 måneder med passeret frist, tidligst første hele måned efter kontraktstart
+//   vindue      = de seneste 6 måneder med passeret frist, tidligst første tællende måned
+//                 (kontraktstart den 1. = samme måned, ellers måneden efter; uden kontraktstart:
+//                 måneden efter den tidligste første godkendelse — streak.ts:foersteTaellendeMaaned)
 //   rytme       = 150 × maalte / vindue.length
 //   rettidighed =  50 × rettidige / maalte          (0 når maalte = 0)
 //   budget      =  25 hvis harBudgetForAaret ; maal = 25 hvis harMaal
-export function disciplinVindue(kontraktStart: string | null, nu: Date): string[] {
-  const foerste = foersteTaellendeMaaned(kontraktStart);
+export function disciplinVindue(kontraktStart: string | null, nu: Date, maaneder: readonly ScoreMaaned[] = []): string[] {
+  const foerste = foersteTaellendeMaaned(kontraktStart, maaneder);
   const ud: string[] = [];
   let p = senesteMaanedMedPasseretFrist(nu);
   for (let i = 0; i < DISCIPLIN_MAANEDER; i++) {
@@ -159,8 +203,8 @@ export function disciplinVindue(kontraktStart: string | null, nu: Date): string[
 }
 
 export function disciplin(g: ScoreGrundlag, nu: Date): SoejleDom<"disciplin"> {
-  const vindue = disciplinVindue(g.kontraktStart, nu);
-  if (vindue.length === 0) return ikkeNok("disciplin", "Ingen hel måned er afsluttet siden kontraktstart endnu.");
+  const vindue = disciplinVindue(g.kontraktStart, nu, g.maaneder);
+  if (vindue.length === 0) return ikkeNok("disciplin", "Ingen hel måned er afsluttet siden starten endnu.");
   const maalte = maalteEfterNoegle(g.maaneder);
   const maalteN = vindue.filter((k) => erMaalt(maalte.get(k))).length;
   const rettidige = vindue.filter((k) => erGodkendtTilTiden(maalte.get(k))).length;

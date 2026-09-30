@@ -12,7 +12,13 @@ export interface ScoreMaaned {
   key: string;
   /** Kun 'measured' indgår nogen steder — estimater er ikke måneder (data-basis-kontrakten). */
   basis: "measured" | "estimated";
-  /** Første godkendelse = rækkens created_at (committed_at er SENESTE og overskrives ved gen-godkendelse). ISO-streng; null når ukendt. */
+  /**
+   * Månedens FØRSTE godkendelse: den tidligste af hukommelsen
+   * (maaned_foerste_godkendelse.foerst_godkendt_at — overlever «Erstat gammel
+   * data» og permanent sletning) og facts-rækkens created_at
+   * (streak.ts:tidligsteGodkendelse). committed_at læses aldrig (SENESTE,
+   * overskrives ved gen-godkendelse). ISO-streng; null når ukendt.
+   */
   foersteGodkendtAt: string | null;
   /** Canonical-nøgler (revenue, ebt, cash, payroll …). Manglende nøgle = umålt, aldrig 0. */
   metrics: Record<string, number | null>;
@@ -20,7 +26,7 @@ export interface ScoreMaaned {
 
 export interface ScoreGrundlag {
   maaneder: readonly ScoreMaaned[];
-  /** companies.contract_start_date («YYYY-MM-DD») — afgrænser disciplin og streak; null = ingen afgrænsning. */
+  /** companies.contract_start_date («YYYY-MM-DD») — afgrænser disciplin og streak; null = måneden efter tidligste første godkendelse (streak.ts:foersteTaellendeMaaned). */
   kontraktStart: string | null;
   /** Mindst én værdirække i budget_targets for indeværende år. */
   harBudgetForAaret: boolean;
@@ -109,7 +115,7 @@ export interface ScoreDom {
   /** Andel af de 1000 point, scoren hviler på (Σ max for søjler med data / 1000). */
   daekning: number;
   soejler: Soejler;
-  /** Samme dom med `nu` én måned tilbage — retningen; null når den ikke kan regnes. */
+  /** Samme dom med `nu` én måned tilbage på de måneder, der DA var godkendt — retningen; null når den ikke kan regnes. Budget/mål regnes som nu. */
   forrige: number | null;
   streak: StreakDom;
   handlinger: Handling[];

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { boardroomScore, enMaanedTilbage, krTekst, MIN_SOEJLER_MED_DATA, samlet, vaelgLoefterMest } from "@/lib/boardroomScore/score";
+import { boardroomScore, enMaanedTilbage, grundlagPaa, krTekst, MIN_SOEJLER_MED_DATA, samlet, vaelgLoefterMest } from "@/lib/boardroomScore/score";
 import { naesteMaaned } from "@/lib/boardroomScore/streak";
 import type { Handling, ScoreGrundlag, ScoreMaaned, SoejleDom, SoejleNavn } from "@/lib/boardroomScore/typer";
 
@@ -25,7 +25,7 @@ const keys = (fra: string, antal: number): string[] => {
 
 const grundlag = (maaneder: ScoreMaaned[], over: Partial<ScoreGrundlag> = {}): ScoreGrundlag => ({
   maaneder,
-  kontraktStart: null,
+  kontraktStart: "2025-01-01",
   harBudgetForAaret: true,
   harMaal: true,
   ...over,
@@ -61,12 +61,35 @@ describe("boardroomScore — det fulde grundlag", () => {
     expect(d.ikkeNokData).toBeNull();
     expect(d.soejler.vaekst.status === "ok" && d.soejler.vaekst.detaljer.sammenligning).toBe("aar_til_aar");
   });
-  it("forrige regnes af de samme rækker én måned tilbage — her det samme", () => {
+  it("forrige regnes af de rækker, der var godkendt én måned tilbage — her det samme", () => {
+    // 30/8: august (godkendt 5/9) var der ikke; maj–juli bærer tallene, vækst mod feb–apr (kvartal), disciplin feb–jul = 250.
     expect(d.forrige).toBe(733);
   });
-  it("streaken: 15 måneder til tiden, aktiv", () => {
+
+  it("forrige ser ikke en måned, der først blev godkendt efter tidspunktet (rådets fund 4)", () => {
+    // Juli med vild omsætning, men godkendt 15/9 — 30/8 fandtes den ikke, så forrige er regnet uden den.
+    const rows = FULD.maaneder.map((m) => (m.key === "2026-07" ? sund(m.key, { revenue: 1_000_000, ebt: 900_000 }, { foersteGodkendtAt: "2026-09-15T09:00:00Z" }) : m));
+    const d2 = boardroomScore(grundlag(rows), NU);
+    expect(d2.score).toBeGreaterThan(733);
+    const foer = new Date("2026-08-30T10:00:00Z");
+    const forventet = boardroomScore(grundlag(rows.filter((m) => m.key !== "2026-07")), foer);
+    expect(d2.forrige).toBe(forventet.score);
+    expect(d2.forrige).not.toBe(d2.score);
+  });
+
+  it("grundlagPaa: rækker uden kendt godkendelse var der ikke", () => {
+    const g = grundlag([sund("2026-07", {}, { foersteGodkendtAt: null }), sund("2026-08")]);
+    expect(grundlagPaa(g, new Date("2026-09-30T00:00:00Z")).maaneder.map((m) => m.key)).toEqual(["2026-08"]);
+    expect(grundlagPaa(g, new Date("2026-09-01T00:00:00Z")).maaneder).toEqual([]);
+  });
+  it("streaken: 15 måneder til tiden, aktiv (kontraktstart 1/1-2025 ligger før dem alle)", () => {
     expect(d.streak.laengde).toBe(15);
     expect(d.streak.status).toBe("aktiv");
+  });
+  it("uden kontraktstart tæller streaken fra måneden efter den tidligste godkendelse: juni 2025 godkendt 5/7 → fra august 2025 = 13", () => {
+    const d2 = boardroomScore(grundlag([...FULD.maaneder], { kontraktStart: null }), NU);
+    expect(d2.streak.laengde).toBe(13);
+    expect(d2.score).toBe(733);
   });
   it("handlinger: én pr. søjle med gevinsten i samlet score", () => {
     const pr = Object.fromEntries(d.handlinger.map((h) => [h.soejle, h])) as Record<SoejleNavn, Handling>;

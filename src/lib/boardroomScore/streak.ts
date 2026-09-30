@@ -4,16 +4,23 @@
  *
  * REGLEN, kort:
  *   - En måned P tæller som «godkendt til tiden», når den har en MÅLT række
- *     (data_basis measured), og rækkens FØRSTE godkendelse (created_at —
- *     committed_at overskrives ved gen-godkendelse) er ≤ frist(P).
+ *     (data_basis measured), og månedens FØRSTE godkendelse er ≤ frist(P).
+ *     Første godkendelse er hukommelsen `maaned_foerste_godkendelse`
+ *     (migration 20260930120000 — skrives af en trigger, når en måned første
+ *     gang bliver målt, og overlever «Erstat gammel data» og permanent
+ *     sletning, som begge sletter facts-rækken), ellers rækkens created_at;
+ *     den tidligste af de to (tidligsteGodkendelse). committed_at læses
+ *     aldrig (overskrives ved gen-godkendelse).
  *   - frist(P) = udgangen af den 10. i måneden efter P, dansk tid. Er den 10.
  *     ikke en hverdag (weekend, helligdag, lukkedag — hverdage.ts), rykkes
  *     fristen til udgangen af NÆSTE hverdag. Aldrig den anden vej.
  *   - Streaken tælles baglæns fra den seneste måned, hvis frist er passeret;
  *     den åbne måned lægger til, hvis den allerede er godkendt, og bryder
  *     aldrig.
- *   - Måneder før første HELE måned efter kontraktstart tæller ikke og bryder
- *     ikke (frysning ved start). Ingen anden nåde.
+ *   - Måneder før den første tællende måned tæller ikke og bryder ikke
+ *     (frysning ved start): med kontraktstart er det startmåneden, når
+ *     starten er den 1., ellers måneden efter; uden kontraktstart er det
+ *     måneden efter den tidligste første godkendelse. Ingen anden nåde.
  *
  * Alt regnes i dansk tid gennem hverdage.ts og maanedsnoegle.ts.
  */
@@ -25,6 +32,31 @@ import type { ScoreMaaned, StreakDom } from "./typer";
 export const STREAK_FRIST_DAG = 10;
 
 const MS = 1;
+
+/** Gyldigt tidspunkt i ms, ellers null. */
+function tidMs(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const t = new Date(iso).getTime();
+  return Number.isFinite(t) ? t : null;
+}
+
+/**
+ * Første godkendelse af en måned: den TIDLIGSTE af hukommelsen
+ * (maaned_foerste_godkendelse.foerst_godkendt_at) og facts-rækkens created_at.
+ * Hukommelsen kan aldrig være senere end rækken for rækker født efter
+ * migrationen (triggeren skriver ved fødslen), og for ældre rækker er den
+ * bagudfyldt af created_at — men en rettelse («Erstat gammel data» → ny række
+ * med created_at = now()) giver en NYERE række, og så er hukommelsen det
+ * sande svar. Mangler begge: null (vi påstår intet).
+ */
+export function tidligsteGodkendelse(hukommelse: string | null | undefined, createdAt: string | null | undefined): string | null {
+  const h = tidMs(hukommelse);
+  const c = tidMs(createdAt);
+  if (h === null && c === null) return null;
+  if (h === null) return new Date(c as number).toISOString();
+  if (c === null) return new Date(h).toISOString();
+  return new Date(Math.min(h, c)).toISOString();
+}
 
 /** Måneden efter en nøgle: «2026-12» → «2027-01». Ugyldig nøgle kaster — en nøgle er vores egen. */
 export function naesteMaaned(key: string): string {
@@ -73,10 +105,28 @@ export function aabenMaaned(nu: Date): string {
   return naesteMaaned(senesteMaanedMedPasseretFrist(nu));
 }
 
-/** Første tællende måned: første HELE måned efter kontraktstart; null uden kontraktstart. */
-export function foersteTaellendeMaaned(kontraktStart: string | null): string | null {
-  if (!kontraktStart || !/^\d{4}-\d{2}-\d{2}/.test(kontraktStart)) return null;
-  return naesteMaaned(kontraktStart.slice(0, 7));
+/**
+ * Første tællende måned — den første HELE måned, medlemmet har været med:
+ *   - med kontraktstart: startmåneden, når starten er den 1. (måneden er hel),
+ *     ellers måneden efter (et medlem, der kom 25/9, dømmes ikke på september);
+ *   - uden kontraktstart: måneden EFTER den tidligste første godkendelse blandt
+ *     de målte måneder (dansk tid) — den første måned, der er afsluttet som
+ *     medlem; null uden nogen godkendelse (ingen afgrænsning: fravær er
+ *     adfærden, og der er intet at afgrænse fra).
+ */
+export function foersteTaellendeMaaned(kontraktStart: string | null, maaneder: readonly ScoreMaaned[] = []): string | null {
+  if (kontraktStart && /^\d{4}-\d{2}-\d{2}/.test(kontraktStart)) {
+    const maaned = kontraktStart.slice(0, 7);
+    return kontraktStart.slice(8, 10) === "01" ? maaned : naesteMaaned(maaned);
+  }
+  let tidligst: number | null = null;
+  for (const m of maaneder) {
+    if (!erMaalt(m)) continue;
+    const t = tidMs(m.foersteGodkendtAt);
+    if (t !== null && (tidligst === null || t < tidligst)) tidligst = t;
+  }
+  if (tidligst === null) return null;
+  return naesteMaaned(maanedsNoegleKbh(new Date(tidligst)));
 }
 
 export function erMaalt(m: ScoreMaaned | undefined): m is ScoreMaaned {
@@ -85,9 +135,9 @@ export function erMaalt(m: ScoreMaaned | undefined): m is ScoreMaaned {
 
 /** Målt OG første godkendelse ≤ frist(P). Ukendt godkendelsestidspunkt = ikke til tiden (vi påstår ikke noget, vi ikke har). */
 export function erGodkendtTilTiden(m: ScoreMaaned | undefined): boolean {
-  if (!erMaalt(m) || !m.foersteGodkendtAt) return false;
-  const t = new Date(m.foersteGodkendtAt).getTime();
-  if (!Number.isFinite(t)) return false;
+  if (!erMaalt(m)) return false;
+  const t = tidMs(m.foersteGodkendtAt);
+  if (t === null) return false;
   return t <= frist(m.key).getTime();
 }
 
@@ -111,7 +161,7 @@ export function hverdageTil(fristDatoStr: string, nu: Date): number {
 
 export function streakDom(maaneder: readonly ScoreMaaned[], kontraktStart: string | null, nu: Date): StreakDom {
   const maalte = maalteEfterNoegle(maaneder);
-  const foerste = foersteTaellendeMaaned(kontraktStart);
+  const foerste = foersteTaellendeMaaned(kontraktStart, maaneder);
   const senestePasseret = senesteMaanedMedPasseretFrist(nu);
   const aaben = naesteMaaned(senestePasseret);
 
