@@ -3,7 +3,7 @@
  *
  * En tjenestekonto er en rådgiverkonto, som en maskine bruger til at SE
  * platformen (claude@topix.dk i Claude-appens browser — KUN læsning). Den
- * står i tabellen public.tjenestekonti (migration 20260930100000; kun admin
+ * står i tabellen public.tjenestekonti (migration 20260930140000; kun admin
  * skriver, enhver indlogget læser user_id).
  *
  * TO DOMME, begge rene (ingen React, ingen Supabase):

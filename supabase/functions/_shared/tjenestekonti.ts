@@ -1,6 +1,6 @@
 // _shared/tjenestekonti.ts — tjenestekonti i edge-laget (30/9-2026).
 //
-// En tjenestekonto (public.tjenestekonti, migration 20260930100000) er en
+// En tjenestekonto (public.tjenestekonti, migration 20260930140000) er en
 // rådgiverkonto, en maskine bruger til at SE platformen (claude@topix.dk). Den
 // kan se alt, en rådgiver ser — klokkerne i advisor_notifications skrives også
 // til den — men optræder aldrig som en PERSON: den får ingen mail, og den er

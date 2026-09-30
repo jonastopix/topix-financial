@@ -447,7 +447,7 @@ has_role(auth.uid(), 'admin'::app_role)
 ```
 Applied to: `app_config` management, `user_roles` management,
 `tjenestekonti` (FOR ALL, USING + WITH CHECK — migration
-`20260930100000_tjenestekonti.sql`, 30/9-2026)
+`20260930140000_tjenestekonti.sql`, 30/9-2026)
 
 **`tjenestekonti` (30/9-2026)**: `user_id` (PK, FK auth.users ON DELETE
 CASCADE), `formaal`, `oprettet_at`. RLS enabled. Two policies: "Admin
