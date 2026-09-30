@@ -1653,6 +1653,19 @@
     Talt med grep på kortenes div-tag (class card) og på lukket-status
     (status loest): før 277 og 110 lukkede; efter 286 og 114 lukkede.
     Lukket: 4. Ajour: 1. Tilføjet: 9 (4 lukkede + 5 åbne).
+  RØRT 30/9 NAT — AFTENENS ANDEN DEL (OVERLEVERING DEL 2 «30. september»
+  §7g–§7j; #1176, #1183, #1184)
+    AJOUR (1): a30-update-score — Score-koden er MÅLT i prod-bundlen
+    (index-CGnyrA3M.js, BoardroomView-BPTBwUn2.js); den første søgning var
+    ikke rekursiv og «deploy_project ≠ Update» er ikke bevist (ikke afgjort,
+    spurgt Jonas 20:20). Kortet bliver åbent (øvrige src/-ændringer ikke målt).
+    TILFØJET ÅBNE (4, Ny 30/9): a30-nyhedsagent-laas (låsen åbnes af Jonas
+    efter et læst udkast), a30-pleo-eksport (134 udgifter ikke eksporteret
+    siden 27/7 — Jonas' drift), a30-wilson-bevis (maaling i et delt-svar +
+    Update), a30-klaviyo-laas (Jonas' UPDATE + segmentet).
+    Talt med grep på kortenes div-tag (class card) og på lukket-status
+    (data-status loest): før 289 og 117 lukkede; efter 293 og 117 lukkede.
+    Lukket: 0. Tilføjet: 4. Ingen kort slettet.
   RØRT 30/9 SEN AFTEN — MCP-FORLØBET, MIGRATIONERNE KØRT, «ONLINE NU» BEVIST
   (OVERLEVERING DEL 2 «30. september» §2b, §8; #1171, #1174, #1178, #1179)
     LUKKET (3): a30-netvaerk-testkonto-gaest (Jonas' UPDATE 17:51; målt
@@ -2439,14 +2452,34 @@
       <div class="meta"><span class="tag gold">Beslutning hos Jonas</span><span class="tag ny">Ny 30/9</span><span class="tag size">Mellem</span></div>
     </div>
     <div class="card new" id="a30-update-score" data-status="mangler" data-spor="senere" data-rammer="medlem">
-      <h3>Update i Lovable venter: Score-fladen (#1178) og de øvrige <code>src/</code>-ændringer fra 30/9 er merget men ikke i prod-builden — <code>deploy_project</code> er IKKE Update</h3>
-      <p><strong>Målt 30/9 ~19:10:</strong> #1178 (Score-flade) merget <code>97e0211e</code> efter rådets «ret først» (7 fund rettet). <code>deploy_project</code> gennem MCP'en gav status pending på <code>topix.lovable.app</code>; 8 minutter senere var <code>app.theboardroom.dk</code> uændret (<code>index-BFHfhh9b.js</code>, ingen score-kode i 232 chunks). Update-klikket bliver hos Jonas (regelsættet §6a). Verificér den nye commit er synket før klik (CLAUDE.md, «Deployment af frontend»).</p>
-      <div class="meta"><span class="tag gold">Venter på Jonas' Update-klik</span><span class="tag ny">Ny 30/9</span><span class="tag size">Lille</span></div>
+      <h3>Update i Lovable: Score-koden (#1178) er MÅLT i prod-bundlen, men om det var Update eller <code>deploy_project</code> er ikke afgjort — de øvrige <code>src/</code>-ændringer fra 30/9 er ikke målt</h3>
+      <p><strong>Målt 30/9 ~19:10:</strong> #1178 (Score-flade) merget <code>97e0211e</code> efter rådets «ret først» (7 fund rettet). <code>deploy_project</code> gennem MCP'en gav status pending på <code>topix.lovable.app</code>; 8 minutter senere var index-bundlen på <code>app.theboardroom.dk</code> uændret (<code>index-BFHfhh9b.js</code>). <strong>RETTET sent 30/9:</strong> den første søgning (~19:15, «ingen score-kode i 232 chunks») var ikke rekursiv og bærer ikke «deploy_project ≠ Update». <strong>Målt senere: Score-koden ER i prod-bundlen</strong> — bundlen skiftede til <code>index-CGnyrA3M.js</code> mellem ~19:20 og ~20:15, og <code>maaned_foerste_godkendelse</code>/«helbredstal» ligger i <code>BoardroomView-BPTBwUn2.js</code>. <strong>Ikke afgjort:</strong> om det var Jonas' Update eller <code>deploy_project</code> (spurgt 20:20). De øvrige <code>src/</code>-ændringer (#1169, #1172, #1184) er ikke målt i bundlen. Update-klikket bliver hos Jonas (regelsættet §6a). Verificér den nye commit er synket før klik (CLAUDE.md, «Deployment af frontend»).</p>
+      <div class="meta"><span class="tag gold">Score-koden i prod — resten ikke målt</span><span class="tag ny">Ny 30/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" id="a30-driftsagent-laas" data-status="beslutning" data-spor="senere" data-rammer="raadgiver">
       <h3>Drift-agenten kører (cron 575), men låsen <code>driftsagent_aktiv</code> er lukket — Jonas åbner den efter at have læst en tørkørsel</h3>
       <p><strong>Målt 30/9:</strong> <code>drift-agent-cron</code> udrullet; tørkørsel kald 26601: status 200, <code>"drift_agent":"skive-1"</code>, gul <code>job_mangler</code> (før cronen fandtes), 1.912 kørsler, <code>laesefejl</code> []. Migration <code>20260930152000</code> kørt ~19:00: cron-job 575 «drift-agent» <code>10,25,40,55 * * * *</code>. <code>app_config.driftsagent_aktiv</code> = <strong>false</strong>: intet mailes. Næste trin (kun Jonas): læs en rigtig kørsels fund, derefter en UPDATE guardet på <code>false</code>. OVERLEVERING DEL 2 «30. september», «Driftsagenten, skive 1».</p>
       <div class="meta"><span class="tag gold">Låsen lukket — Jonas åbner</span><span class="tag ny">Ny 30/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="a30-nyhedsagent-laas" data-status="beslutning" data-spor="senere" data-rammer="raadgiver">
+      <h3>Nyhedsagenten kører (cron 576), men låsen <code>nyhedsagent_aktiv</code> er ikke sat — Jonas åbner den efter at have læst et udkast</h3>
+      <p><strong>Målt 30/9:</strong> migration <code>20260930170000</code> kørt ~20:10 (EFTER: 3 tabeller, 3 SELECT-politikker, 9 indeks); <code>nyhed-agent-cron</code>, <code>nyhed-udkast-afgoer</code> og <code>notify-community-opslag</code> udrullet; cron 576 «nyhed-agent» <code>40 4 * * 1</code> (migration <code>20260930171000</code>, #1183). <strong>Tørkørsel kald 26694:</strong> status 200, «skive-1», 5 kilder alle 200, hentet 271, i vinduet 17, relevante 7, udkast med 5 punkter (e-fakturering 10 · sårbarheder 9 · identitetssvindel 8 · AI/patientdata 9 · AI-databrud 8 — de to sidste er næsten samme emne). Låsen er ikke sat: intet udkast skrives. Næste trin (kun Jonas): læs udkastet, derefter åbn låsen. OVERLEVERING DEL 2 «30. september» §7g.</p>
+      <div class="meta"><span class="tag gold">Låsen lukket — Jonas åbner</span><span class="tag ny">Ny 30/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="a30-pleo-eksport" data-status="mangler" data-spor="senere" data-rammer="ingen">
+      <h3>Pleo: 134 af 146 udgifter (90 dage) er ikke eksporteret — seneste eksport 27/7 (Jonas' drift)</h3>
+      <p><strong>Målt 30/9 (Pleo-MCP, #1183 <code>recon-pleo-economic.md</code>):</strong> 134 af 146 udgifter er <code>NOT_EXPORTED</code>; seneste eksport 27/7; 3 uden bilag; alle 146 har <code>tax_code</code> null og <code>vendor</code> null. e-conomic-MCP kan ikke læse kontoplan eller posteringer. Eksporten er Jonas' drift; ingen handling er foretaget. OVERLEVERING DEL 2 «30. september» §7i.</p>
+      <div class="meta"><span class="tag gold">Jonas' drift</span><span class="tag ny">Ny 30/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="a30-wilson-bevis" data-status="mangler" data-spor="1" data-rammer="raadgiver">
+      <h3>Wilson på annoncesporet (#1184): beviset (<code>maaling</code> i et delt-svar) og Update for fladen udestår</h3>
+      <p><strong>Målt 30/9:</strong> #1184 merget <code>2deb10bb</code> 22:10 efter rådets «ret først» (Fable: 2 høje — fail-soft uden <code>maaling</code>; «skiller sig ud» krævede kun 5 personer, nu ≥ 5 succeser og ≥ 5 ikke-succeser i begge grupper; 22/9's 7 af 8 er derfor «kan ikke afgøres»). <code>webinar-delt</code> udrullet («Successfully deployed edge functions: webinar-delt»). <strong>Beviset:</strong> <code>dashboard.spor.kilder[0].maaling</code> i et delt-svar — kræver et delingslink. Derefter Update for fladen. <code>docs/webinaret-og-annoncerne.md</code> §2a. OVERLEVERING DEL 2 «30. september» §7h.</p>
+      <div class="meta"><span class="tag gold">Delingslink + Update</span><span class="tag ny">Ny 30/9</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="a30-klaviyo-laas" data-status="beslutning" data-spor="1" data-rammer="raadgiver">
+      <h3>Klaviyo-medlemsmarkeringen: prøven er bevist i Klaviyo — Jonas' UPDATE af låsen <code>klaviyo_medlem_aktiv</code> og segmentet «Medlemmer (auto)» udestår</h3>
+      <p><strong>Målt 30/9 22:17 (kald 26821):</strong> <code>{"dry_run":false,"email":"lh@greensolar.dk"}</code> → <code>medlem.skrevet</code> 1 · <code>saet_true</code> 1 · <code>lykkedes</code> 1 · <code>laas_aktiv</code> false · <code>sender_rigtigt</code> true; <code>klaviyo_profil</code>-rækken <code>tb_medlem</code> true, <code>udfald</code> ok, status 200. <strong>Målt hos Klaviyo 22:20 (API):</strong> profil <code>01M39DC6DB3313D5ZMYP9FGTR5</code> har <code>properties.tb_medlem = true</code>. <strong>Næste, i rækkefølge:</strong> (1) Jonas' guarded UPDATE af <code>app_config.klaviyo_medlem_aktiv</code>; (2) segmentet «Medlemmer (auto)» på <code>tb_medlem = true</code>. Afløser trin 1 på kortet <a href="#a30-klaviyo-tb-medlem">a30-klaviyo-tb-medlem</a> (som står). OVERLEVERING DEL 2 «30. september» §7j.</p>
+      <div class="meta"><span class="tag gold">Jonas' UPDATE + segment</span><span class="tag ny">Ny 30/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new loest" id="a22-ga-mp-rapporter" data-status="loest" data-spor="1" data-rammer="ingen">
       <h3>Platformens hændelser til Google Analytics er ikke set i GA4's rapporter</h3>

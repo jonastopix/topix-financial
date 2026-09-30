@@ -27,7 +27,7 @@ Workflow ved nye migrationer:
 
 Migrationsfilen i repoet er kanonisk historik — Lovable's SQL editor er den faktiske eksekverings-kanal.
 
-**Lovable-forbindelsen (MCP, fra 30/9-2026 16:40):** Claude når prod gennem Lovables officielle MCP-server — `query_database` (samme database som SQL editoren, som `postgres`), `send_message` til build-chatten (deploy af edge functions) og `deploy_project` — som IKKE er Update-knappen (målt 30/9 ~19:10: publicerede til `topix.lovable.app`, `app.theboardroom.dk` uændret efter 8 min); Update bliver hos Jonas. Projektet er «Boardroom Compass», `0bcda7a6-4154-4a81-9f82-fcdf623eb7ea`. Reglerne for brugen står i `docs/claude-regelsaet.md` §6a; forbindelsen flytter hænderne, ikke beslutningerne.
+**Lovable-forbindelsen (MCP, fra 30/9-2026 16:40):** Claude når prod gennem Lovables officielle MCP-server — `query_database` (samme database som SQL editoren, som `postgres`), `send_message` til build-chatten (deploy af edge functions) og `deploy_project` — hvor det ikke er afgjort, om den svarer til Update-knappen (målt 30/9: kaldet ~19:10 gav `topix.lovable.app`, index-hashen på `app.theboardroom.dk` var uændret efter 8 min, men bundlen skiftede senere til `index-CGnyrA3M.js` med Score-koden — Jonas' Update eller `deploy_project`, spurgt 20:20; den første søgning var ikke rekursiv); Update bliver hos Jonas. Projektet er «Boardroom Compass», `0bcda7a6-4154-4a81-9f82-fcdf623eb7ea`. Reglerne for brugen står i `docs/claude-regelsaet.md` §6a; forbindelsen flytter hænderne, ikke beslutningerne.
 
 ## Deployment af edge functions
 

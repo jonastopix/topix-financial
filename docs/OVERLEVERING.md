@@ -11216,6 +11216,10 @@ Tiderne er commit-tiden på main (dansk). Titlerne er ordret fra `git log origin
 | #1179 | 18:55 | Mortens hilsen i «dagen før»-mailen: tændes af app_config (migrationer KØRT) | migrationerne `20260930180000` og `181000` kørt ~18:35; `webinar-mail-cron` og `webinar-video` udrullet (§3); `4cbd7071` |
 | #1178 | 19:02 | Boardroom Score: medlemmets flade | `src/` — **Update venter hos Jonas** (§7c); merget efter rådets «ret først» (7 fund rettet) og teksten «Tæller med i din score»; `97e0211e` |
 | #1180 | 19:35 | docs: designpapir for anbefalingsprogrammet (affiliate) | kun dokumentation |
+| #1182 | 20:10 | Bogføring 30/9: dagen og aftenen | kun dokumentation |
+| #1176 | 20:18 | Nyhedsagenten skive 1: ugentligt udkast til community-opslag (migration 170000 KØRT; cron 171000 efter tørkørsel) | migration `20260930170000` kørt ~20:10; tre functions udrullet; cron 576 (§7g) |
+| #1183 | 20:41 | Nyhedsagentens cron KØRT (job 576); recon af Pleo og e-conomic | kun dokumentation og hoveder (§7g, §7i) |
+| #1184 | 22:10 | /webinar: Wilson-interval og «skiller sig ud» på fremmøde pr. annonce | `webinar-delt` udrullet; `src/` — Update; beviset udestår (§7h) |
 
 De fire PR'er med «merges efter kørsel» i titlen (#1157, #1169, #1170, #1172) bar hver deres migration, som er bogført KØRT i PR'en (regelsættets §1a: main er altid Update-sikker). De blev merget samlet kl. 16:12. Aftenens fire (#1171, #1174, #1179, #1178) er i tabellen ovenfor; deres migrationer er i §2b.
 
@@ -11293,7 +11297,7 @@ Regelsættets §6a står i `docs/claude-regelsaet.md`. Kort:
 - Arbejdsmiljøets netværk når ikke Supabase eller Lovable (CONNECT 403 målt 16:35); al prod-adgang går derfor gennem MCP'en.
 - Reglerne i §2 og §3 gælder uændret: forbindelsen flytter hænderne, ikke beslutningerne. Build-chatten bruges kun til deploy, med den faste tekst, og `get_diff` skal være tom.
 - **Projektet og kontoen:** «Boardroom Compass», Jonas' konto `jh@jonasherlev.dk`. Forbindelsen blev forbundet kl. 16:46 (§7 over nævner 16:40 som Jonas' besked); #1177 (§6a) blev skrevet af en parallel gren af samme session.
-- **Målt om `deploy_project` (kl. ~19:10):** kaldet gav status **pending** og url `topix.lovable.app`. **8 minutter senere** var `app.theboardroom.dk` uændret (`index-BFHfhh9b.js`, ingen score-kode i 232 chunks). **`deploy_project` er IKKE Update.** Update-klikket bliver hos Jonas (§7c). Regelsættets §6a er rettet.
+- **Målt om `deploy_project` (kl. ~19:10):** kaldet gav status **pending** og url `topix.lovable.app`. **8 minutter senere** var `app.theboardroom.dk` uændret: index-bundlen hed stadig `index-BFHfhh9b.js`. **Om `deploy_project` er det samme som Update, er IKKE afgjort** (rettet sent 30/9, se §7c): den første søgning efter score-kode var ikke rekursiv og kan derfor ikke bære «deploy_project ≠ Update». Update-klikket bliver hos Jonas (§7c). Regelsættets §6a og CLAUDE.md er rettet til «ikke afgjort».
 - **Målt om underagenter:** de ARVER Lovable-MCP'en — en recon-agent (affiliate) kørte en SELECT i prod. Hver agent-prompt skal derfor udtrykkeligt forbyde skrivning i prod og `send_message`/`deploy_project` (regelsættets §6a).
 
 #### 7b. Tre fejl i aftenens forløb (bogført med det, der blev målt)
@@ -11302,10 +11306,16 @@ Regelsættets §6a står i `docs/claude-regelsaet.md`. Kort:
 2. **Push efter en fejlet rebase.** En kæde med `;` kørte `git push` efter en rebase, der fejlede, og sendte main's commit `15c80099` til `feat/driftsagent-2`. GitHub lukkede #1174 automatisk (0 commits). Den blev genåbnet via API'et; intet gik tabt. **Lærestreg (cc):** `&&` hele vejen.
 3. **Værn, der krævede «IKKE KØRT» som første linje** (`driftDom.guard` dom 5 og `webinarMail.guard` dom 19): CI blev rød efter header-flippet til KØRT. Rettet til at tillade «IKKE KØRT|KØRT i prod». Samme klasse som eftermiddagens fejl på fire PR'er. **Lærestreg (dd):** `npx vitest run guard` efter hvert header-flip.
 
-#### 7c. `deploy_project` ≠ Update, og Score-fladen (#1178)
+#### 7c. `deploy_project` og Update — IKKE afgjort — og Score-fladen (#1178)
 
 - #1178 er merget (`97e0211e`, 19:02) efter rådets «ret først»: 7 fund rettet, og teksten på kortet er «Tæller med i din score».
-- **Update i Lovable venter hos Jonas.** Merget alene ændrer ikke prod-builden (CLAUDE.md, «Deployment af frontend»). Kort [`a30-update-score`](mangelliste.html#a30-update-score).
+- **RETTELSE sent 30/9 (hvad jeg troede → hvad der viste sig → hvad det ændrer):**
+  - **Troede:** at `deploy_project` ≠ Update var MÅLT, fordi en søgning 8 minutter efter kaldet (~19:15) ikke fandt score-koden i 232 chunks.
+  - **Viste sig:** søgningen var **ikke rekursiv**. `BoardroomView`-chunken hentes ikke direkte fra index-filen, men gennem dynamiske imports, så «fundet ikke» i de 232 chunks var ikke et fund. **Det eneste holdbare** fra 19:15 er, at **index-hashen var uændret efter 8 minutter** (`index-BFHfhh9b.js`).
+  - **Senere målt:** bundlen på `app.theboardroom.dk` skiftede fra `index-BFHfhh9b.js` til **`index-CGnyrA3M.js`** mellem ~19:20 og ~20:15, og **Score-koden** (`maaned_foerste_godkendelse`, «helbredstal») ligger nu i `BoardroomView-BPTBwUn2.js` — **Score-koden er i prod-bundlen (målt)**.
+  - **Ikke afgjort:** om det var Jonas' Update-klik eller `deploy_project`, der gav den nye version. Jonas er **spurgt kl. 20:20**; svaret er ikke bogført.
+  - **Ændrer:** påstanden «`deploy_project` er IKKE Update» er fjernet fra regelsættets §6a og CLAUDE.md og erstattet af «ikke afgjort (målt 30/9: …)». Claude kalder stadig ikke `deploy_project` som erstatning for Update, men nu fordi det ikke er bevist, at den virker som Update — ikke fordi det er bevist, at den ikke gør. Lærestreg (ee) i regelsættets §4c.
+- **Update i Lovable:** Score-koden er i prod-bundlen (se ovenfor), så kortet [`a30-update-score`](mangelliste.html#a30-update-score) har fået målingen; hvad der udløste den, er ikke afgjort. Merget alene ændrer ikke prod-builden (CLAUDE.md, «Deployment af frontend»).
 - **Observation til Jonas (målt):** kun **7 %** af månederne godkendes inden d. 10 (§7e), så de fleste medlemmer vil se en brudt eller ingen tal-streak på Score-kortet.
 
 #### 7d. Straks-fund: `cron.job_run_details` fylder næsten hele databasen
@@ -11327,12 +11337,41 @@ Begge tal er målt 30/9 aften; dommene står i `docs/agentarkitektur.md` §4.3 o
 - **Nye dokumenter:** `docs/ideer.md` (Topix.dk som «det nye amino.dk»), `docs/affiliate-design.md` (#1180); `docs/prod-hjem.md` (#1181, beslutningspapir om flytning fra Lovable Cloud til eget Supabase-projekt).
 - **Nye forbindelser:** e-conomic og Pleo (MCP), Supabase-projektet `topix-bogholderi` (`obdaxmudpfxeyrodolqb`, eu-west-3), en Nordea API Market-konto (Instant Reporting kræver en Corporate Netbank-aftale).
 
-#### 8. Åbne punkter — aften 30/9 (rettet sidst på aftenen)
+#### 7g. Aftenens anden del: nyhedsagenten i drift bag lås (#1176, #1183)
 
-- **Update i Lovable** for `src/`-ændringerne (#1169, #1172, #1178): hos Jonas. `deploy_project` er ikke Update (§7). Kort [`a30-update-score`](mangelliste.html#a30-update-score).
+- **Migration `20260930170000` (nyhedsagent) kørt via MCP'en ~20:10.** FØR: tomt, låsen ikke sat, `community_traade` findes. EFTER: **3 tabeller, 3 SELECT-politikker, 9 indeks.** #1176 merget `4f4ed55c` (20:18); kildeværnet `nyhedAgent` dom 8 tillader KØRT i hovedet.
+- **Udrullet fra build-chatten:** `nyhed-agent-cron`, `nyhed-udkast-afgoer`, `notify-community-opslag` — for hver «Successfully deployed …». Lovable lavede bagefter en `types.ts`-commit (`0c9951da`).
+- **Tørkørsel (kald 26694, status 200):** `nyhed_agent` «skive-1»; **5 kilder, alle 200**; hentet **271**; i vinduet **17**; relevante **7**; udkast med **5 punkter** (scoret): e-fakturering 10 · sårbarheder 9 · identitetssvindel 8 · AI/patientdata 9 · AI-databrud 8. **De to sidste er næsten samme emne** (observation; ingen dublet-dom er målt eller bygget).
+- **Cron 576 «nyhed-agent»**, `40 4 * * 1` (migration `20260930171000`, KØRT-hoved i #1183, merget `5e765fa1` 20:41).
+- **Låsen `nyhedsagent_aktiv` er ikke sat:** intet udkast skrives, før Jonas åbner den — efter at have læst et udkast. Kort [`a30-nyhedsagent-laas`](mangelliste.html#a30-nyhedsagent-laas).
+
+#### 7h. Rådet, Wilson på annoncesporet (#1184) og /webinar-observationen
+
+- **#1183** (merget `5e765fa1`): nyhedscronens KØRT-hoved og `recon-pleo-economic.md` (§7i).
+- **#1184 merget `2deb10bb` (22:10)** efter rådets «ret først». **Fable fandt to høje:** (1) fail-soft uden `maaling` i svaret; (2) «skiller sig ud» krævede kun 5 personer. **Rettet:** nu kræves **≥ 5 succeser og ≥ 5 ikke-succeser i begge grupper** — 22/9's 7 af 8 er derfor **«kan ikke afgøres»**.
+- **`webinar-delt` udrullet** («Successfully deployed edge functions: webinar-delt»). **Beviset udestår:** en `maaling` i et delt-svar kræver et delingslink (Jonas opretter det). **Flade:** `src/` — Update kræves. Kort [`a30-wilson-bevis`](mangelliste.html#a30-wilson-bevis).
+- **Observation, ikke målt årsag** (siden `/webinar`s egne tal, læst 30/9 aften; detaljen i `docs/webinaret-og-annoncerne.md` §7h): kampagnen «VSL | Adv+ | OM» har brugt **9.450 kr. og har 0 tilmeldte**; **45 annoncer** har forbrug og 0 tilmeldinger; 17/8–29/9 gav **34.905 kr. → 795 tilmeldte → 186 deltagere → 7 ansøgninger → 0 medlemmer**. Hvorfor, er ikke undersøgt.
+- **#1185** (`docs/app-beslutning.md`, A1–A7, og `docs/ideer.md`) var ikke på `main` ved bogføringen. Målt dertil: **19 aktive `auth.sessions` = 17 computer, 1 iOS, 1 Android**; medlemmers klokker **913 på 30 dage, 16 % læst** (rådgiveres **229, 68 % læst**); `public/manifest.json` findes (standalone), ingen service worker eller push.
+
+#### 7i. Pleo og e-conomic (#1183)
+
+- **Pleo (MCP):** **134 af 146 udgifter (90 dage) er NOT_EXPORTED**; seneste eksport **27/7**; **3 uden bilag**; alle 146 har `tax_code` null og `vendor` null. Det er Jonas' drift. Kort [`a30-pleo-eksport`](mangelliste.html#a30-pleo-eksport).
+- **e-conomic (MCP):** kan ikke læse kontoplan eller posteringer — kun kunder, varer, fakturaer, journaler og oprettelse. Det begrænser, hvad regnskabstrækket (§7e, adfærdsagentens genvurdering) kan bygge på.
+
+#### 7j. Webinarmail-forprøven og Klaviyo-prøven (kl. 22:15–22:20)
+
+- **Webinarmail-forprøve 22:15 (tørkørsel med `nu`):** `syv_dage` for 6/10 (06:05Z) → **skal_sendes 351**, loft 1000, `fejl` []; `en_dag` for 12/10 (06:05Z) → **351**; `video` `ikke_sat`. 351 ≤ 1000, så loftet bremser ikke.
+- **Klaviyo-prøven bevist i Klaviyo (kald 26821)** — `{"dry_run":false,"email":"lh@greensolar.dk"}`: `medlem.skrevet` 1 · `saet_true` 1 · `lykkedes` 1 · `laas_aktiv` false · `sender_rigtigt` true. `klaviyo_profil`-rækken: `tb_medlem` true, `udfald` ok, status 200. **Målt hos Klaviyo 22:20 gennem API'et:** profil `01M39DC6DB3313D5ZMYP9FGTR5` har `properties.tb_medlem = true`. **Næste:** Jonas' guarded UPDATE af `klaviyo_medlem_aktiv`, derefter segmentet «Medlemmer (auto)» (§5). Kort [`a30-klaviyo-laas`](mangelliste.html#a30-klaviyo-laas).
+
+#### 8. Åbne punkter — aften 30/9 (rettet sidst på aftenen og sent)
+
+- **Update i Lovable** for `src/`-ændringerne (#1169, #1172, #1178, #1184): hos Jonas. Score-koden er i prod-bundlen (målt, §7c); om det var Update eller `deploy_project`, er ikke afgjort. Kort [`a30-update-score`](mangelliste.html#a30-update-score).
+- **Nyhedsagentens lås `nyhedsagent_aktiv`** (cron 576 kører): Jonas åbner den efter et læst udkast (§7g). Kort [`a30-nyhedsagent-laas`](mangelliste.html#a30-nyhedsagent-laas).
+- **Pleo: 134 udgifter ikke eksporteret siden 27/7** (§7i): Jonas' drift. Kort [`a30-pleo-eksport`](mangelliste.html#a30-pleo-eksport).
+- **Wilson-beviset** (`maaling` i et delt-svar) og Update for fladen (§7h). Kort [`a30-wilson-bevis`](mangelliste.html#a30-wilson-bevis).
 - **`cron.job_run_details` (6.006 MB database, 5.856 MB heap):** beslutning hos Jonas (§7d). Kort [`a30-cron-log-bloat`](mangelliste.html#a30-cron-log-bloat).
 - **Drift-agentens lås `driftsagent_aktiv` er false** (cron 575 kører): Jonas åbner den efter at have læst en rigtig kørsels fund. Kort [`a30-driftsagent-laas`](mangelliste.html#a30-driftsagent-laas).
-- **Klaviyo-medlemspasset:** prøven til `lh@greensolar.dk`, Jonas' guarded UPDATE af låsen og segmentet «Medlemmer (auto)» udestår (§5). Kort [`a30-klaviyo-tb-medlem`](mangelliste.html#a30-klaviyo-tb-medlem).
+- **Klaviyo-medlemspasset:** prøven til `lh@greensolar.dk` er bevist i Klaviyo (§7j); Jonas' guarded UPDATE af låsen og segmentet «Medlemmer (auto)» udestår. Kort [`a30-klaviyo-laas`](mangelliste.html#a30-klaviyo-laas) (og [`a30-klaviyo-tb-medlem`](mangelliste.html#a30-klaviyo-tb-medlem)).
 - **boardroom-2-prod:** nøglerotation og nedlukning, guidet med Jonas. Kort [`a30-boardroom-2-prod`](mangelliste.html#a30-boardroom-2-prod).
 - **Mortens video til «dagen før»-mailen:** migrationerne er kørt og funktionerne udrullet (konfigurationen er `null` = mailen som i dag; tørkørsel `video {status: ikke_sat}`); at tænde den er ikke gjort. Kort [`a30-video-dagen-foer`](mangelliste.html#a30-video-dagen-foer).
 - **Fund 6 i #1157** (§2): `company_id`-WITH CHECK kan ikke verificeres fra koden. Kort [`a30-companies-kolonnevaern`](mangelliste.html#a30-companies-kolonnevaern).
