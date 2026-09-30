@@ -4029,6 +4029,204 @@ export type Database = {
         }
         Relationships: []
       }
+      nyhed_agent_koersel: {
+        Row: {
+          dry_run: boolean
+          hentet: number
+          id: string
+          input_tokens: number
+          kilder: Json
+          llm_kald: number
+          model: string | null
+          nye: number
+          output_tokens: number
+          relevante: number
+          skriver: boolean
+          sluttet_at: string
+          startet_at: string
+          status: string
+          stop_grund: string | null
+          svar: Json | null
+          udkast_id: string | null
+          uge: string | null
+          vurderet: number
+        }
+        Insert: {
+          dry_run: boolean
+          hentet?: number
+          id?: string
+          input_tokens?: number
+          kilder?: Json
+          llm_kald?: number
+          model?: string | null
+          nye?: number
+          output_tokens?: number
+          relevante?: number
+          skriver?: boolean
+          sluttet_at?: string
+          startet_at: string
+          status: string
+          stop_grund?: string | null
+          svar?: Json | null
+          udkast_id?: string | null
+          uge?: string | null
+          vurderet?: number
+        }
+        Update: {
+          dry_run?: boolean
+          hentet?: number
+          id?: string
+          input_tokens?: number
+          kilder?: Json
+          llm_kald?: number
+          model?: string | null
+          nye?: number
+          output_tokens?: number
+          relevante?: number
+          skriver?: boolean
+          sluttet_at?: string
+          startet_at?: string
+          status?: string
+          stop_grund?: string | null
+          svar?: Json | null
+          udkast_id?: string | null
+          uge?: string | null
+          vurderet?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nyhed_agent_koersel_udkast_id_fkey"
+            columns: ["udkast_id"]
+            isOneToOne: false
+            referencedRelation: "nyhed_udkast"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      nyhed_emne: {
+        Row: {
+          begrundelse: string | null
+          brugt_i_udkast_id: string | null
+          handling: string | null
+          hentet_at: string
+          hvem: string | null
+          id: string
+          kilde: string
+          model: string | null
+          relevant: boolean | null
+          resume: string | null
+          score: number | null
+          titel: string
+          udgivet_at: string | null
+          url: string
+          url_hash: string
+          vurderet_at: string | null
+        }
+        Insert: {
+          begrundelse?: string | null
+          brugt_i_udkast_id?: string | null
+          handling?: string | null
+          hentet_at?: string
+          hvem?: string | null
+          id?: string
+          kilde: string
+          model?: string | null
+          relevant?: boolean | null
+          resume?: string | null
+          score?: number | null
+          titel: string
+          udgivet_at?: string | null
+          url: string
+          url_hash: string
+          vurderet_at?: string | null
+        }
+        Update: {
+          begrundelse?: string | null
+          brugt_i_udkast_id?: string | null
+          handling?: string | null
+          hentet_at?: string
+          hvem?: string | null
+          id?: string
+          kilde?: string
+          model?: string | null
+          relevant?: boolean | null
+          resume?: string | null
+          score?: number | null
+          titel?: string
+          udgivet_at?: string | null
+          url?: string
+          url_hash?: string
+          vurderet_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nyhed_emne_brugt_i_udkast_id_fkey"
+            columns: ["brugt_i_udkast_id"]
+            isOneToOne: false
+            referencedRelation: "nyhed_udkast"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      nyhed_udkast: {
+        Row: {
+          afgjort_af: string | null
+          afgjort_at: string | null
+          afvist_grund: string | null
+          created_at: string
+          id: string
+          indhold_json: Json
+          kilder: Json
+          model: string | null
+          status: string
+          titel: string
+          traad_id: string | null
+          uaendret: boolean | null
+          uge: string
+          updated_at: string
+        }
+        Insert: {
+          afgjort_af?: string | null
+          afgjort_at?: string | null
+          afvist_grund?: string | null
+          created_at?: string
+          id?: string
+          indhold_json: Json
+          kilder?: Json
+          model?: string | null
+          status?: string
+          titel: string
+          traad_id?: string | null
+          uaendret?: boolean | null
+          uge: string
+          updated_at?: string
+        }
+        Update: {
+          afgjort_af?: string | null
+          afgjort_at?: string | null
+          afvist_grund?: string | null
+          created_at?: string
+          id?: string
+          indhold_json?: Json
+          kilder?: Json
+          model?: string | null
+          status?: string
+          titel?: string
+          traad_id?: string | null
+          uaendret?: boolean | null
+          uge?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nyhed_udkast_traad_id_fkey"
+            columns: ["traad_id"]
+            isOneToOne: false
+            referencedRelation: "community_traade"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       online_hjerteslag: {
         Row: {
           sidst_set: string
