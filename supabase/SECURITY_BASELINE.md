@@ -740,6 +740,18 @@ skrivende edge functions bruger `SUPABASE_SERVICE_ROLE_KEY`.
   RLS slået til UDEN policies: ingen klient læser eller skriver; læsning i SQL
   editor. Ingen persondata (værn `ansoegningVisning.guard`). Migration
   `20260928170000_ansoegning_visninger.sql`, udkast 28/9-2026.
+- `drift_agent_koersler` og `drift_agent_jobs` — driftsagentens egen log og
+  «første gang set» pr. cron-job, skrevet KUN af `drift-agent-cron` (Bucket B).
+  RLS slået til UDEN policies. Ingen persondata: fundenes sætninger bygges af
+  job-/spornavne, tal og klokkeslæt, og pg_crons fejlbesked føres gennem
+  `udenMail()`. Læsningen `public.drift_agent_laes()` og
+  `public.drift_agent_kerne(text)` er SECURITY INVOKER (ingen ny SECURITY
+  DEFINER), EXECUTE kun til `service_role`; af et HTTP-svar tages kun tal og
+  sandhedsværdier. `20260930151000_driftsagent_rettigheder.sql` giver — KUN
+  hvis FØR-målingen viser, at rollen mangler det — `service_role` USAGE/SELECT
+  på `cron.job`, `cron.job_run_details` og `net._http_response` (læseret, ingen
+  skriveret; `cron.job.command` returneres aldrig af læseren). Migration
+  `20260930150000_driftsagent.sql`, udkast 30/9-2026 (værn `driftDom.guard`).
 - `company_actions` — afviger fra de øvrige: klienter HAR SELECT
   (medlem company-scoped, rådgiver bredt); kun skrivning er
   service-role-only, se afsnittet ovenfor
