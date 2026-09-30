@@ -20,7 +20,7 @@ import {
   listPublishedItems,
   type ItemProgressState,
 } from "@/lib/hjemmebane/akademiApi";
-import { brugbarLinje, optaelBrugbarPrLektion, udelukFraBrugbar } from "@/lib/hjemmebane/lektionBrugbar";
+import { brugbarLinje, optaelBrugbarPrLektion, synligeMedlemmer, udelukFraBrugbar } from "@/lib/hjemmebane/lektionBrugbar";
 import { detaljeTilstand } from "@/lib/hjemmebane/fremdriftDetalje";
 import { kraevRaekker } from "@/lib/kraevRaekker";
 import { raadgiverHentefejlTekst } from "@/lib/raadgiverHentefejl";
@@ -277,7 +277,9 @@ export const ProgressView = () => {
   };
 
   // ── Venstre: medlemsliste (alfabetisk fra api-laget) ────────────────────
-  const members = membersQuery.data ?? [];
+  // Legat-medlemskaber vises ikke på fanen (som før, hvor listMembers
+  // filtrerede dem); de kommer kun med til udelukkelsen ovenfor (30/9).
+  const members = synligeMedlemmer(membersQuery.data ?? []);
   const query = search.trim().toLowerCase();
   const filteredMembers = query
     ? members.filter(
