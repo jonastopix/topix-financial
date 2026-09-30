@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod — 30/9-2026 kl. 15:59 dansk tid (Jonas, Lovable SQL editor), FØR merget af #1172 og FØR Update. EFTER (15:59): efter_tabel 1 · efter_rls true · efter_policies 2 · efter_grant_authenticated true · efter_grant_anon false. Trin 2 (claude@topix.dk) er IKKE kørt endnu.
 --
 -- ⚠ RÆKKEFØLGEN ER IKKE VALGFRI: Update FØR denne migration lægger rådgivernes
 -- forside og Netværket ned. Klienten læser public.tjenestekonti gennem
