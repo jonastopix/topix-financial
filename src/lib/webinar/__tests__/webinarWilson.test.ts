@@ -5,18 +5,22 @@ import {
   andelsdom,
   annoncespor,
   SPOR_FORHOLD_FRA,
+  SPOR_HAENDELSER_FOR_AT_SKILLE,
+  SPOR_INGEN_ANDRE_ANNONCER,
   sporForklaring,
   sporMaerke,
+  sporTal,
   type Tilmelding,
 } from "@/lib/webinar/dashboard";
 import { TROVAERDIG_FRA } from "@/lib/webinar/annoncepriser";
-import { PERSONER_FOR_ET_FORHOLD } from "@/lib/marketing/maalingsdom";
+import { HAENDELSER_FOR_SAMMENLIGNING, PERSONER_FOR_ET_FORHOLD } from "@/lib/marketing/maalingsdom";
 import * as deno from "../../../../supabase/functions/_shared/webinarDashboard.ts";
 
 /**
  * Wilson på annoncesporet (30/9-2026). Tre ting prøves:
  *   1. DOMMEN: lag 6's interval, «for få» ERSTATTER procenten under grænsen,
- *      og «skiller sig ud» KUN når linjen og resten ikke overlapper.
+ *      og «skiller sig ud» KUN når linjen og resten ikke overlapper OG begge
+ *      har ≥ 5 af hvert udfald (rådets fund 30/9: 7 af 8 må ikke skille sig ud).
  *      Tallene er de rigtige fra 22/9 (målt i prod 30/9, marketinganalytikerens
  *      værdivurdering): 52 af 192 mod en lille på 7 af 8.
  *   2. PARITET: serverens spejl (webinar-delt) svarer det samme.
@@ -30,6 +34,10 @@ describe("grænsen er husets ene grænse", () => {
     expect(SPOR_FORHOLD_FRA).toBe(TROVAERDIG_FRA);
     expect(SPOR_FORHOLD_FRA).toBe(PERSONER_FOR_ET_FORHOLD);
   });
+  it("SPOR_HAENDELSER_FOR_AT_SKILLE = lag 6's HAENDELSER_FOR_SAMMENLIGNING = 5", () => {
+    expect(SPOR_HAENDELSER_FOR_AT_SKILLE).toBe(5);
+    expect(SPOR_HAENDELSER_FOR_AT_SKILLE).toBe(HAENDELSER_FOR_SAMMENLIGNING);
+  });
 });
 
 describe("andelsdom — 22/9 i tal", () => {
@@ -39,24 +47,54 @@ describe("andelsdom — 22/9 i tal", () => {
     expect(d.restenOrd).toBe("32 % (23–41 %)");
     expect(d.udfald).toBe("kan_ikke_afgoeres");
     expect(d.retning).toBeNull();
-    expect(sporMaerke(d)).toBe("");
+    expect(sporMaerke(d, "så færdigt")).toBe("");
     // Overlap siges aldrig som «ens».
-    expect(sporForklaring(d, "så det færdigt")).toContain("IKKE ens");
-    expect(sporForklaring(d, "så det færdigt")).not.toMatch(/\ber ens\b/);
+    expect(sporForklaring(d, "så færdigt")).toContain("IKKE ens");
+    expect(sporForklaring(d, "så færdigt")).not.toMatch(/\ber ens\b/);
   });
 
-  it("7 af 8 mod resten af kampagnen (13 af 64): 88 % (53–98 %), skiller sig ud · højere", () => {
+  it("7 af 8 mod resten af kampagnen (13 af 64): 88 % (53–98 %) af 8 — intervallet vises, men ÉN ikke-succes kan ikke afgøre noget", () => {
     const d = andelsdom(7, 8, 7 + 13, 8 + 64);
     expect(d.ord).toBe("88 % (53–98 %)");
-    expect(d.udfald).toBe("skiller_sig_ud");
-    expect(d.retning).toBe("hoejere");
-    expect(sporMaerke(d)).toBe("skiller sig ud · højere");
+    expect(sporTal(d)).toBe("88 % (53–98 %) af 8");
+    expect(d.interval).not.toBeNull();
+    expect(d.udfald).toBe("kan_ikke_afgoeres");
+    expect(d.grund).toBe("for_faa_haendelser");
+    expect(d.retning).toBeNull();
+    expect(sporMaerke(d, "så færdigt")).toBe("");
+    expect(sporForklaring(d, "så færdigt")).toContain(`mindst ${SPOR_HAENDELSER_FOR_AT_SKILLE}, der gjorde, og ${SPOR_HAENDELSER_FOR_AT_SKILLE}, der ikke gjorde`);
   });
 
-  it("den modsatte vej: en klart lavere linje er «lavere», ikke en farve", () => {
-    const d = andelsdom(2, 60, 2 + 60, 60 + 100);
+  it("rådets to eksempler skiller sig IKKE ud: 0 af 6 og 5 af 5", () => {
+    for (const d of [andelsdom(0, 6, 60, 106), andelsdom(5, 5, 35, 105)]) {
+      expect(d.udfald).not.toBe("skiller_sig_ud");
+      expect(d.udfald).toBe("kan_ikke_afgoeres");
+      expect(d.grund).toBe("for_faa_haendelser");
+      expect(d.ord).toMatch(/%/); // intervallet står stadig (n ≥ 5)
+      expect(sporMaerke(d, "mødte op")).toBe("");
+    }
+  });
+
+  it("RESTEN skal også have nok af hvert udfald", () => {
+    // Linjen 20 af 40 (nok), resten 98 af 100 → kun 2 ikke-succeser i resten.
+    const d = andelsdom(20, 40, 20 + 98, 40 + 100);
+    expect(d.udfald).toBe("kan_ikke_afgoeres");
+    expect(d.grund).toBe("for_faa_haendelser");
+  });
+
+  it("med nok af hvert udfald og adskilte intervaller: «flere … end resten»", () => {
+    const d = andelsdom(30, 40, 30 + 20, 40 + 100);
+    expect(d.udfald).toBe("skiller_sig_ud");
+    expect(d.retning).toBe("hoejere");
+    expect(sporMaerke(d, "så færdigt")).toBe("flere så færdigt end resten");
+    expect(sporTal(d)).toBe(`${d.ord} af 40`);
+  });
+
+  it("den modsatte vej: en klart lavere linje er «færre … end resten», ikke en farve", () => {
+    const d = andelsdom(5, 60, 5 + 60, 60 + 100);
     expect(d.udfald).toBe("skiller_sig_ud");
     expect(d.retning).toBe("lavere");
+    expect(sporMaerke(d, "mødte op")).toBe("færre mødte op end resten");
   });
 
   it("under grænsen ERSTATTER «for få» procenten — intervallet findes ikke", () => {
@@ -66,7 +104,8 @@ describe("andelsdom — 22/9 i tal", () => {
       expect(d.interval).toBeNull();
       expect(d.ord).toBe("for få");
       expect(d.ord).not.toMatch(/%/);
-      expect(sporMaerke(d)).toBe("");
+      expect(sporTal(d)).toBe("for få");
+      expect(sporMaerke(d, "mødte op")).toBe("");
     }
   });
 
@@ -86,6 +125,15 @@ describe("andelsdom — 22/9 i tal", () => {
     const d = andelsdom(50, 50, 50 + 0, 50 + 4);
     expect(d.restenOrd).toBeNull();
     expect(d.udfald).toBe("kan_ikke_afgoeres");
+    expect(d.grund).toBe("resten_for_faa");
+    expect(sporForklaring(d, "så færdigt")).toContain("resten er for få");
+  });
+
+  it("er resten TOM, siger forklaringen det — ikke «resten er for få»", () => {
+    const d = andelsdom(10, 20, 10, 20);
+    expect(d.grund).toBe("ingen_andre");
+    expect(sporForklaring(d, "så færdigt", SPOR_INGEN_ANDRE_ANNONCER)).toContain("ingen andre annoncer i kampagnen");
+    expect(sporForklaring(d, "så færdigt", SPOR_INGEN_ANDRE_ANNONCER)).not.toContain("for få");
   });
 });
 
@@ -126,7 +174,9 @@ describe("annoncespor bærer målingen", () => {
     expect(vaerk.tilmeldte).toBe(48);
     expect(vaerk.maaling.grundlag).toBe(8);
     expect(vaerk.maaling.saaFaerdigt.ord).toBe("88 % (53–98 %)");
-    expect(vaerk.maaling.saaFaerdigt.udfald).toBe("skiller_sig_ud");
+    // Én ikke-succes (7 af 8): intervallet står, mærket holdes tilbage.
+    expect(vaerk.maaling.saaFaerdigt.udfald).toBe("kan_ikke_afgoeres");
+    expect(vaerk.maaling.saaFaerdigt.grund).toBe("for_faa_haendelser");
   });
 
   it("annoncen måles mod de andre annoncer i SIN kampagne; en på 1 er «for få»", () => {
@@ -138,6 +188,7 @@ describe("annoncespor bærer målingen", () => {
   it("kampagnen alene i sporet har ingen «andre» — kan ikke afgøres", () => {
     expect(k.maaling.saaFaerdigt.restenOrd).toBeNull();
     expect(k.maaling.saaFaerdigt.udfald).toBe("kan_ikke_afgoeres");
+    expect(k.maaling.saaFaerdigt.grund).toBe("ingen_andre");
   });
 
   it("kun det næste webinar: ingen er afholdt, intet at regne", () => {
@@ -169,8 +220,10 @@ const udenKommentarer = (k: string) =>
  */
 export const fladenSkriverIngenRaaProcent = (view: string): boolean => {
   const kode = udenKommentarer(view);
-  return kode.includes("<SporSikkerhed l={l} />") &&
-    kode.includes("{a.ord}") &&
+  return kode.includes("<SporSikkerhed l={l} indrykket={indrykket} />") &&
+    kode.includes("{sporTal(a)}") &&
+    // Fail-soft (rådets fund 30/9): uden `maaling` (gammel webinar-delt) tegnes linjen uden sikkerhedslinjen.
+    /if \(!m \|\| m\.grundlag === 0\) return null;/.test(kode) &&
     !/pct\(\s*l\.(fremmoedeAndel|gennemfoerselAndel)/.test(kode) &&
     !/l\.(moedteOp|saaFaerdigt)\s*\//.test(kode) &&
     !/\.interval\b/.test(kode) &&
@@ -186,6 +239,9 @@ export const dommenErLag6s = (dom: string): boolean => {
     !/1\.96/.test(kode) &&
     // Under grænsen: intervallet er null i selve svaret.
     /udfald: "for_faa"/.test(kode) &&
+    // «Skiller sig ud» kræver ≥ 5 af HVERT udfald i BÅDE linjen og resten.
+    /!nokHaendelser\(s, antal\) \|\| !nokHaendelser\(rS, rN\)/.test(kode) &&
+    /succes >= SPOR_HAENDELSER_FOR_AT_SKILLE && n - succes >= SPOR_HAENDELSER_FOR_AT_SKILLE/.test(kode) &&
     /if \(antal < SPOR_FORHOLD_FRA\) \{\n\s*return \{ succes: s, n: antal, interval: null, udfald: "for_faa"/.test(kode);
 };
 
@@ -197,16 +253,19 @@ describe("kildeværn — Wilson på annoncesporet", () => {
     const v = laes(VIEW);
     expect(fladenSkriverIngenRaaProcent(v)).toBe(true);
     // Værnet virker — hver fejl indsat på en kopi fanges:
-    expect(fladenSkriverIngenRaaProcent(v.replace("{a.ord}", "{pct(a.interval?.andel ?? null)}"))).toBe(false);
-    expect(fladenSkriverIngenRaaProcent(v.replace("<SporSikkerhed l={l} />", "<span>{pct(l.fremmoedeAndel)}</span>"))).toBe(false);
-    expect(fladenSkriverIngenRaaProcent(v.replace("<SporSikkerhed l={l} />", "<SporSikkerhed l={l} /><span>{Math.round(l.saaFaerdigt / l.tilmeldte * 100)}</span>"))).toBe(false);
-    expect(fladenSkriverIngenRaaProcent(v.replace("<SporSikkerhed l={l} />", ""))).toBe(false);
+    expect(fladenSkriverIngenRaaProcent(v.replace("{sporTal(a)}", "{pct(a.interval?.andel ?? null)}"))).toBe(false);
+    expect(fladenSkriverIngenRaaProcent(v.replace("<SporSikkerhed l={l} indrykket={indrykket} />", "<span>{pct(l.fremmoedeAndel)}</span>"))).toBe(false);
+    expect(fladenSkriverIngenRaaProcent(v.replace("<SporSikkerhed l={l} indrykket={indrykket} />", "<SporSikkerhed l={l} indrykket={indrykket} /><span>{Math.round(l.saaFaerdigt / l.tilmeldte * 100)}</span>"))).toBe(false);
+    expect(fladenSkriverIngenRaaProcent(v.replace("<SporSikkerhed l={l} indrykket={indrykket} />", ""))).toBe(false);
+    expect(fladenSkriverIngenRaaProcent(v.replace("if (!m || m.grundlag === 0) return null;", "if (m.grundlag === 0) return null;"))).toBe(false);
   });
 
   it("dommen er lag 6's, og «for få» sletter intervallet", () => {
     const d = laes(DOM);
     expect(dommenErLag6s(d)).toBe(true);
     expect(dommenErLag6s(d.replace("return { succes: s, n: antal, interval: null, udfald: \"for_faa\"", "return { succes: s, n: antal, interval: wilson(s, antal), udfald: \"for_faa\""))).toBe(false);
+    expect(dommenErLag6s(d.replace("!nokHaendelser(s, antal) || !nokHaendelser(rS, rN)", "false"))).toBe(false);
+    expect(dommenErLag6s(d.replace("succes >= SPOR_HAENDELSER_FOR_AT_SKILLE && n - succes >= SPOR_HAENDELSER_FOR_AT_SKILLE", "n >= SPOR_FORHOLD_FRA"))).toBe(false);
     expect(dommenErLag6s(d.replace("const i = wilson(s, antal);", "const i = { nedre: p - 1.96 * Math.sqrt(p * (1 - p) / antal) };"))).toBe(false);
   });
 });

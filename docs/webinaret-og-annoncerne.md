@@ -92,13 +92,28 @@ fremmoede, saaFaerdigt }`, hver en `Andelsdom` (`andelsdom()`):
 - **Nævneren er de AFHOLDTE** (tilmeldte − kommende): en tilmeldt 13/10 kan
   ikke være mødt op endnu (§5 — tæller og nævner skal dække samme periode).
   «Kun det næste webinar» giver derfor «–» overalt.
+- **Nævneren er personens FØRSTE række** (`foersteTilmeldingPrPerson`, samme
+  som resten af sporet) — ikke den bedste grad over flere sessioner. En, der
+  udeblev 22/9 og så færdigt 29/9 fra en anden annonce, tæller som udeblevet
+  på den annonce, der hentede hende ind.
 - **Under 5 ERSTATTER «for få» procenten** (`SPOR_FORHOLD_FRA` = 5, låst til
   `TROVAERDIG_FRA` og lag 6's `PERSONER_FOR_ET_FORHOLD` af en test — kan ikke
   importeres, fordi annoncepriser.ts importerer dashboard.ts). Intervallet er
   `null` i svaret, så ingen flade kan vise det alligevel.
 - **«Skiller sig ud» KUN når intervallet ikke overlapper resten tilsammen**
-  (`sammenlign` → «adskilte»), med `retning` højere/lavere. Overlap = «kan ikke
-  afgøres», aldrig «ens». Resten under 5 = kan ikke afgøres.
+  (`sammenlign` → «adskilte»), med `retning` højere/lavere, **OG begge grupper
+  har ≥ 5 af HVERT udfald** (`SPOR_HAENDELSER_FOR_AT_SKILLE` = lag 6's
+  `HAENDELSER_FOR_SAMMENLIGNING`, låst af en test): linjen `succes ≥ 5` og
+  `n − succes ≥ 5`, resten det samme. Under det vises intervallet stadig (når
+  n ≥ 5), men udfaldet er «kan ikke afgøres» (`grund: "for_faa_haendelser"`).
+  Overlap = «kan ikke afgøres», aldrig «ens». Resten under 5 = kan ikke
+  afgøres; resten tom = «ingen andre annoncer i kampagnen».
+- **Hvor reglerne afviger fra lag 6** (rådets gennemsyn 30/9 — påstanden «lag
+  6's, ikke nye» er fjernet fra koden): (1) hændelsesgrænsen er SKÆRPET til
+  begge udfald i begge grupper (lag 6 tæller kun den mindste gruppes
+  succeser); (2) lag 6's sessionsgrænse (8 webinarer) er IKKE overtaget — lag
+  6 sammenligner mails på tværs af webinarer, her sammenlignes personer i de
+  samme sessioner. Mærket er derfor et SPOR, ikke en anbefaling.
 - **Resten er søjlens helhed:** kilde og kampagne mod alle andre i sporet,
   annoncen mod de andre annoncer i SIN kampagne (samme målgruppe og budget). En
   kampagne med én annonce kan derfor ikke afgøres på annonceniveau.
@@ -107,20 +122,34 @@ fremmoede, saaFaerdigt }`, hver en `Andelsdom` (`andelsdom()`):
 
 **22/9 i dommen** (prøvet i `webinarWilson.test.ts`): annoncen med 52 af 192
 «så færdigt» = **27 % (21–34 %)** mod kampagnens anden annonce 32 af 101 = 32 %
-(23–41 %) → kan ikke afgøres. «07-vaerkstedet» 7 af 8 = **88 % (53–98 %)** mod
-resten af Adv+-kampagnen → **skiller sig ud · højere**. En annonce med 1–4
-afholdte står som «for få».
+(23–41 %) → kan ikke afgøres. «07-vaerkstedet» 7 af 8 = **88 % (53–98 %) af 8**
+mod resten af Adv+-kampagnen → intervallerne overlapper ikke, men ÉN, der ikke
+så færdigt, er under 5 → **kan ikke afgøres** (rettet 30/9 efter rådets fund;
+udkastet sagde «skiller sig ud · højere»). En annonce med 1–4 afholdte står som
+«for få».
 
-**Fladen** (`WebinarView.tsx`, `SporSikkerhed`/`SporAndel`): under navnet og
-søjlen, i 11 px: «mødte … · færdigt 27 % (21–34 %)» (dommens ord, ordret) og mærket
-«skiller sig ud · højere» i en neutral ramme — ingen farve for op/ned. Hvad der
-er sammenlignet med, står i title/aria-label. Kildeværn i
-`webinarWilson.test.ts`: fladen skriver kun dommens `ord` (ingen `pct()` af
-rå andele, ingen division, læser aldrig `interval`), og dommen har ingen egen
-formel.
+**Fladen** (`WebinarView.tsx`, `SporSikkerhed`/`SporAndel`): under rækken, i
+11 px: «mødte … · færdigt 27 % (21–34 %) af 192» (dommens `sporTal`, ordret) og
+mærket i ord — målet og retningen: «flere så færdigt end resten» / «færre mødte
+op end resten» — i en neutral ramme, ingen farve for op/ned. Under `md` går
+linjen i fuld bredde under hele rækken (`col-span-full`; navnekolonnen er ~130
+px på 360 px). Hvad der er sammenlignet med, står i `title` og i en
+`sr-only`-span (en `aria-label` på en `<span>` læses ikke op). Fodnoten siger:
+med mange rækker vil én ofte skille sig ud ved et tilfælde; brug mærket som et
+spor, ikke en dom. Kildeværn i `webinarWilson.test.ts`: fladen skriver kun
+dommens ord (ingen `pct()` af rå andele, ingen division, læser aldrig
+`interval`), dommen har ingen egen formel, og hændelsesgrænsen står i dommen.
 
-**Udrulning:** `webinar-delt` skal udrulles eksplicit (den regner med de
-spejlede domme); fladen kræver Update. Ingen migration.
+**Fail-soft:** et delt-svar uden `maaling` (den gamle `webinar-delt`) tegner
+sporet uden sikkerhedslinjen (`if (!m || m.grundlag === 0) return null`;
+prøvet i `WebinarVisning.maaling.test.tsx`) — før rådets gennemsyn ville
+`/delt/webinar` være død med en TypeError.
+
+**Udrulning — rækkefølgen:** `webinar-delt` FØRST (eksplicit deploy fra
+Lovable build-chat; den regner med de spejlede domme og trækker
+`_shared/marketingStatistik.ts` ind). **Beviset er `maaling` i et delt-svar**
+(`dashboard.spor.kilder[0].maaling` — kun den nye kode har feltet). DEREFTER
+Update for fladen. Ingen migration.
 
 ---
 
