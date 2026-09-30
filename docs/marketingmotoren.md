@@ -456,3 +456,12 @@ Tallene 220 og 421 er Klaviyos egne pr. 28/9; de øvrige er dynamiske og aflæse
 2. **Sunset venter til efter 13/10 og AFMELDER frem for at slette.** Segmentet «Døde — 180 dage» (`WNygMq`, 421) røres ikke før webinaret. Afmeldte profiler tæller ikke i Klaviyos betaling (help.klaviyo.com «How Klaviyo billing works»), så en afmelding sparer det samme som en sletning — og beholder historikken.
 3. **Prisen står med begge månedstal** — 4.167 ved fuld betaling, 4.375 ved rater (§7 fejl 10). Gjort i platformen 28/9 (#1106, `prisTekst()` i ansøgningens intro — det eneste sted uden betalingsform). **Åbent:** Klaviyos webinarmail 01 siger begge tal uden form; aftaleskabelonen er stadig en pladsholder.
 4. **Optagelsessiden er taget ned** (topix.dk #4/#5, 14:03/14:12): noindex, ude af begge sitemaps, adressen bevaret for de fire udsendte mails. Sidens tekst sagde forkert «holdes live med spørgsmål og svar» — rettet. Grundlagets `optagelseslink` er væk (#1107): et udkast, der linker dertil, fældes af R5.
+
+### 9.5 «Medlemmer (auto)» afløser listen `Xr6Pm9` (udkast 30/9)
+
+Reconen `recon-klaviyo-medlemmer.md` (30/9) målte, at listen «Medlemmer (ekskluderes)» `Xr6Pm9` ikke holdes af noget: fyldt i hånden 28/9, og det nye medlem 29/9 (`lh@greensolar.dk`, «Blev medlem» 13:39) stod uden for den — tilføjet manuelt 30/9 (Jonas), 26 profiler. **Beslutninger (Jonas 30/9 07:22):** (1) den manuelle tilføjelse er nødhjælpen; (2) legatmodtagere og gæster skal IKKE ekskluderes — de er ikke «medlem» i denne forstand; (3) tidligere medlemmer må komme tilbage i markedsføringen, når medlemskabet er udløbet.
+
+**Bygget:** `klaviyo-profil-cron` skriver profilfeltet `tb_medlem` (true/false) i et andet pas — dommen i `_shared/klaviyoMedlem.ts`, reglerne i `CLAUDE.md` («Medlemsfeltet `tb_medlem`»). Klaviyo danner segmentet; platformen skriver kun feltet. Listeskrivning blev fravalgt: den kræver `lists:write`, som `KLAVIYO_API_KEY` ikke er målt at have og ikke kan få tilføjet, og en liste kræver tilføj OG fjern pr. profil — et felt er en absolut tilstand.
+
+**Åbent, til beviset er ført:** segmentet oprettes og skiftes ind i `TGxxUc`, `Wq3MkG`, `SDVvCW`, `XCqPKg` og kampagnerne (PR-teksten har klikkene); `Xr6Pm9` beholdes, til alle er skiftet. `stripe-webhook.meldBlevMedlem` skriver endnu ikke feltet straks (op til en time uden mærke for en ny betaler) — reconens trin 2, først når cronen er bevist.
+

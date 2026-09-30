@@ -13,7 +13,8 @@
  */
 import { KLAVIYO_SECRET } from "./klaviyo.ts";
 import { gensendGemtKrop, sendHaendelse, type Afsendelse, type GemtHaendelse, type HaendelseInput, type SporSkriver } from "./klaviyoHaendelser.ts";
-import { bygProfilKrop, PROFIL_STI, skrivProfil, type ProfilSkriver, type ProfilSkrivning } from "./klaviyoProfil.ts";
+import { bygProfilKrop, PROFIL_STI, skrivMedlem, skrivProfil, type MedlemSkriver, type ProfilSkriver, type ProfilSkrivning } from "./klaviyoProfil.ts";
+import { bygMedlemKrop } from "./klaviyoMedlem.ts";
 import { afmeld, AFMELD_STI, type AfmeldInput, type Afmelding, type AfmeldSkriver, bygAfmeldKrop, KLAVIYO_AFMELD_SECRET } from "./klaviyoAfmelding.ts";
 import type { Profilvaerdier } from "./klaviyoDato.ts";
 
@@ -88,6 +89,30 @@ export async function skrivProfilHvisNoegle(
     };
   }
 }
+/**
+ * Skriv medlemsfeltet tb_medlem (true/false) på PROFILEN for én mail (30/9-2026,
+ * klaviyoMedlem.ts + klaviyoProfil.skrivMedlem). SAMME NØGLE som webinarfelterne
+ * (KLAVIYO_API_KEY, profiles:write — bevist på /profile-import/ siden 22/9), læst
+ * HER, ét sted. KASTER ALDRIG. Kun klaviyo-profil-cron kalder den.
+ */
+export async function skrivMedlemHvisNoegle(
+  skriver: MedlemSkriver | null,
+  email: string,
+  medlem: boolean,
+  nu: Date,
+): Promise<ProfilSkrivning> {
+  try {
+    return await skrivMedlem(skriver, Deno.env.get(KLAVIYO_SECRET), email, medlem, { nuDato: nu });
+  } catch (e) {
+    console.error(`[klaviyo] medlemsfeltet for ${email} kastede — cronen går videre:`, e);
+    return {
+      sendt: false,
+      spor: { udfald: "fejl", metode: "POST", sti: PROFIL_STI, status: null, svar: null, grund: `medlemsskrivningen kastede: ${String(e).slice(0, 300)}`, varighed_ms: 0 },
+      krop: bygMedlemKrop(email, medlem),
+    };
+  }
+}
+
 /**
  * Afmeld ÉN mail fra e-mailmarkedsføring hos Klaviyo (udkast 22/9-2026,
  * klaviyoAfmelding.ts). KASTER ALDRIG — samme kontrakt som de tre ovenfor.

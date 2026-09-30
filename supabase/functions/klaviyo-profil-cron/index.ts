@@ -38,6 +38,21 @@
 // (profilAlarmNoegle bærer datoen; email_send_log slås op FØR afsendelsen).
 // Svaret bærer feltet alarm: sendt · allerede_sendt_i_dag · ingen.
 //
+// MEDLEMSFELTET (30/9-2026, recon-klaviyo-medlemmer.md §4; Jonas 30/9 07:22): et
+// ANDET pas i samme kørsel skriver tb_medlem (true/false) — dommen i
+// _shared/klaviyoMedlem.ts (medlemsmails, medlemPlan), skrivningen i
+// klaviyoProfil.skrivMedlem, nøglen i klaviyoAfsendelse.skrivMedlemHvisNoegle
+// (samme KLAVIYO_API_KEY, samme /profile-import/). true = bruger eller kontaktmail i
+// en virksomhed med aktiv kontrakt eller aktivt abonnement (computeMembershipTier
+// «full»/«subscriber»), IKKE legat, IKKE gæst. false KUN for en, vi før har skrevet
+// true. Afmeldte markeres også (porten ovenfor gælder kun webinarfelterne).
+// Passet er ISOLERET: fejler dets læsning (fx en ukørt migration → 42703), står
+// det i medlem.fejl, og webinarpasset kører uændret. Tørkørsel som standard, som
+// resten. Planen regnes FØR tørkørslens return; skrivningerne EFTER webinarets,
+// inden for samme BUDGET_MS. Svaret bærer feltet `medlem` — KUN tællere, aldrig en
+// mail (rensetMedlemResultat → findForbudteNoegler i Deno.serve før svaret går).
+// Fejlede medlemsskrivninger går i samme alarm (felt «medlem»).
+//
 // KASTER ALDRIG mod én mail: fejler skrivningen for én, tælles den som fejlet,
 // og de andre skrives. Vælter hele kørslen (databasen væk), er svaret 500.
 
@@ -48,8 +63,9 @@ import { skrivRaadgiverBesked } from "../_shared/raadgiverBesked.ts";
 import { sendManagedEmail } from "../_shared/managedEmail.ts";
 import { driftModtager } from "../_shared/driftModtager.ts";
 import { indgangsMailHtml } from "../_shared/indgangsMail.ts";
-import { skrivProfilHvisNoegle } from "../_shared/klaviyoAfsendelse.ts";
+import { skrivMedlemHvisNoegle, skrivProfilHvisNoegle } from "../_shared/klaviyoAfsendelse.ts";
 import { afviger, naesteSessionPrMail, profilVaerdier, type Profilvaerdier, type SidstSkrevet, type TilmeldingTid } from "../_shared/klaviyoDato.ts";
+import { medlemPlan, medlemsmails, type MedlemPlanPost, type MedlemProfil, type MedlemResultat, type MedlemTilknytning, type MedlemVirksomhed, rensetMedlemResultat, tomtMedlemResultat } from "../_shared/klaviyoMedlem.ts";
 import { type FejletSkrivning, PROFIL_ALARM_KLOKKE_TYPE, PROFIL_ALARM_MAIL_LABEL, profilAlarmNoegle, profilAlarmTekst } from "../_shared/klaviyoProfil.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -97,6 +113,8 @@ export interface ProfilResultat {
   eksempler: { email: string; handling: "saet" | "fjern"; tb_naeste_webinar: string | null; tb_naeste_webinar_tekst: string | null; udfald?: string }[];
   /** De fejlede skrivninger (mail, udfald, grund) — alle, ikke kun eksemplerne. */
   fejlede_liste: FejletSkrivning[];
+  /** Medlemsfeltet tb_medlem (30/9) — KUN tællere, aldrig en mail. Findes kun i den nye kode: beviset for udrulningen. */
+  medlem: MedlemResultat;
   /** ingen · sendt · allerede_sendt_i_dag · fejlet: <grund>. Kun en rigtig kørsel med fejlede > 0 alarmerer. */
   alarm: string;
   fejl: string[];
@@ -124,7 +142,7 @@ export async function koerProfil(
   const r: ProfilResultat = {
     ok: true, dry_run: a.toerKoersel, nu: a.nu.toISOString(), email: a.email,
     tilmeldinger_laest: 0, tilstand_laest: 0, afmeldte_udeladt: 0, med_kommende: 0, saet: 0, fjern: 0, uaendret: 0,
-    skrevet: 0, lykkedes: 0, fejlede: 0, udsat: 0, eksempler: [], fejlede_liste: [], alarm: "ingen", fejl: [],
+    skrevet: 0, lykkedes: 0, fejlede: 0, udsat: 0, eksempler: [], fejlede_liste: [], medlem: tomtMedlemResultat(), alarm: "ingen", fejl: [],
   };
 
   // 1. Kommende sessioner — kun rækker med en tid efter nu (replay/null falder fra i SQL).
@@ -182,6 +200,18 @@ export async function koerProfil(
   for (const p of plan.slice(0, EKSEMPLER_MAKS)) {
     r.eksempler.push({ email: p.email, handling: p.oensket === null ? "fjern" : "saet", tb_naeste_webinar: p.oensket?.tb_naeste_webinar ?? null, tb_naeste_webinar_tekst: p.oensket?.tb_naeste_webinar_tekst ?? null });
   }
+  // 3b. Medlemsfeltet — planen regnes her, FØR tørkørslens return. Isoleret: en fejl
+  //     i læsningen standser kun dette pas (medlem.fejl), aldrig webinarpasset.
+  let medlemPoster: MedlemPlanPost[] = [];
+  try {
+    medlemPoster = await planlaegMedlem(admin, a, r.medlem);
+  } catch (err) {
+    const grund = err instanceof Error ? err.message : String(err);
+    r.medlem.fejl.push(`læsning: ${grund}`);
+    r.ok = false;
+    console.error(`${LOG} medlemspasset kunne ikke læse:`, grund);
+  }
+
   if (a.toerKoersel) return r;
 
   // 4. Skrivningerne — sekventielt, inden for budgettet; hver skriver sin egen række i klaviyo_profil.
@@ -195,11 +225,74 @@ export async function koerProfil(
     if (eks) eks.udfald = svar.spor.udfald;
   }
 
-  // 5. Alarmen — kun en rigtig kørsel med fejlede > 0 (tørkørslen returnerede ovenfor).
-  if (r.fejlede > 0) await skrivAlarm(admin, r.fejlede_liste, a.nu, r);
+  // 4b. Medlemsfeltet — efter webinarets skrivninger, inden for SAMME budget.
+  const medlemFejl: FejletSkrivning[] = [];
+  for (const p of medlemPoster) {
+    if (Date.now() - a.startMs > BUDGET_MS) { r.medlem.udsat++; continue; }
+    const svar = await skrivMedlemHvisNoegle(admin, p.email, p.oensket, a.nu);
+    r.medlem.skrevet++;
+    if (svar.sendt) r.medlem.lykkedes++;
+    else {
+      r.medlem.fejlede++;
+      r.medlem.fejlede_udfald[svar.spor.udfald] = (r.medlem.fejlede_udfald[svar.spor.udfald] ?? 0) + 1;
+      medlemFejl.push({ email: p.email, udfald: svar.spor.udfald, grund: svar.spor.grund, felt: "medlem" });
+    }
+  }
 
-  r.ok = r.fejlede === 0;
+  // 5. Alarmen — kun en rigtig kørsel med fejlede > 0 (tørkørslen returnerede ovenfor).
+  //    Medlemsfejlene går i samme alarm; mailene står i mailen til driftModtager, ALDRIG i svaret.
+  //    Et medlemspas, der ikke kunne LÆSE (fx en ukørt migration), alarmerer også — ellers var
+  //    det kun et 500, som kald_edge aldrig viser (princip 1).
+  for (const grund of r.medlem.fejl) medlemFejl.push({ email: "(medlemspasset)", udfald: "fejl", grund, felt: "medlem" });
+  if (r.fejlede + medlemFejl.length > 0) await skrivAlarm(admin, [...r.fejlede_liste, ...medlemFejl], a.nu, r);
+
+  r.ok = r.fejlede === 0 && r.medlem.fejlede === 0 && r.medlem.fejl.length === 0;
   return r;
+}
+
+/**
+ * Medlemspassets læsning og dom (30/9-2026). Læser companies, company_members,
+ * profiles og det, der sidst blev skrevet (klaviyo_profil.tb_medlem), dømmer med
+ * klaviyoMedlem.medlemsmails/medlemPlan og fylder tællerne. Skriver intet.
+ */
+async function planlaegMedlem(
+  admin: SupabaseClient,
+  a: { nu: Date; email: string | null },
+  m: MedlemResultat,
+): Promise<MedlemPlanPost[]> {
+  const virksomheder = await alleSider<MedlemVirksomhed>((fra, til) =>
+    admin.from("companies")
+      .select("id, contract_end_date, subscription_status, subscription_current_period_end, is_legat, vis_i_netvaerk, contact_email")
+      .order("id", { ascending: true }).range(fra, til));
+  const tilknytninger = await alleSider<MedlemTilknytning>((fra, til) =>
+    admin.from("company_members").select("company_id, user_id")
+      .order("company_id", { ascending: true }).order("user_id", { ascending: true }).range(fra, til));
+  const profiler = await alleSider<MedlemProfil>((fra, til) =>
+    admin.from("profiles").select("user_id, email").order("user_id", { ascending: true }).range(fra, til));
+  // Alle rækker (få hundrede); null = aldrig skrevet, filtreres herunder — ikke i SQL, så
+  // feltnavnet som streng kun står i klaviyoMedlem.ts (klaviyoMedlem.guard dom 1).
+  const alleTilstande = await alleSider<{ email: string; tb_medlem: boolean | null }>((fra, til) => {
+    let q = admin.from("klaviyo_profil").select("email, tb_medlem");
+    if (a.email) q = q.eq("email", a.email);
+    return q.order("email", { ascending: true }).range(fra, til);
+  });
+  const tilstand = alleTilstande.filter((t) => t.tb_medlem === true || t.tb_medlem === false);
+  m.virksomheder_laest = virksomheder.length;
+  m.tilknytninger_laest = tilknytninger.length;
+  m.profiler_laest = profiler.length;
+
+  const dom = medlemsmails(virksomheder, tilknytninger, profiler, a.nu);
+  m.virksomheder = dom.virksomheder;
+  m.medlemsmails = dom.mails.size;
+  m.uden_mail = dom.uden_mail;
+  const sidst = new Map<string, boolean | null>(tilstand.map((t) => [t.email, t.tb_medlem]));
+  m.tilstand_true = tilstand.filter((t) => t.tb_medlem === true).length;
+
+  const plan = medlemPlan(dom.mails, sidst, a.email);
+  m.saet_true = plan.saet_true;
+  m.saet_false = plan.saet_false;
+  m.uaendret = plan.uaendret;
+  return plan.poster;
 }
 
 /** Alarmen: én mail pr. dansk kalenderdøgn (nøglen bærer datoen; loggen slås op først) og én klokke pr. døgn (titlen bærer datoen). */
@@ -295,6 +388,8 @@ Deno.serve(async (req) => {
     console.error(`${LOG} kørslen væltede:`, grund);
     return json({ ok: false, dry_run: toerKoersel, nu: nu.toISOString(), fejl: [grund] }, 500);
   }
+  // Medlem-delen må aldrig bære en mail (klaviyoMedlem.findForbudteNoegler) — renses HER, ét sted, for begge veje ud.
+  resultat.medlem = rensetMedlemResultat(resultat.medlem);
   console.log(`${LOG} Summary:`, JSON.stringify({ ...resultat, eksempler: resultat.eksempler.length, fejlede_liste: resultat.fejlede_liste.length }));
   return json(resultat, resultat.ok ? 200 : 500);
 });
