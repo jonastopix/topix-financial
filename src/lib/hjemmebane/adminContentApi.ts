@@ -456,6 +456,11 @@ export type AdminMember = {
   companyName: string;
   /** erKunde(companies-rækken) — false KUN ved eksplicit er_kunde = false. */
   companyErKunde: boolean;
+  /** companies.is_legat === true. Legat-medlemskaber vises ikke på
+      Fremdrift-fanen (ProgressView filtrerer dem), men de skal med i
+      udelukkelsen af «Svar pr. lektion» (30/9, m16-brugbar-er-kunde) —
+      før blev de filtreret fra HER, og så kendte udelukkelsen dem ikke. */
+  companyErLegat: boolean;
 };
 
 export async function listMembers(): Promise<AdminMember[]> {
@@ -470,8 +475,10 @@ export async function listMembers(): Promise<AdminMember[]> {
   const profileByUser = new Map((profilesRes.data ?? []).map((p) => [p.user_id, p]));
   const companyById = new Map((companiesRes.data ?? []).map((c) => [c.id, c]));
 
+  // Legat-medlemskaber filtreres IKKE her længere (30/9, m16-brugbar-er-kunde):
+  // de bærer companyErLegat, listen skjuler dem (ProgressView), og
+  // udelukFraBrugbar holder deres svar ude af tallet.
   return (membersRes.data ?? [])
-    .filter((m) => companyById.get(m.company_id)?.is_legat !== true)
     .map((m) => {
       const profile = profileByUser.get(m.user_id);
       return {
@@ -480,6 +487,7 @@ export async function listMembers(): Promise<AdminMember[]> {
         avatarUrl: profile?.avatar_url ?? null,
         companyName: companyById.get(m.company_id)?.name ?? "",
         companyErKunde: erKunde(companyById.get(m.company_id) ?? {}),
+        companyErLegat: companyById.get(m.company_id)?.is_legat === true,
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name, "da"));

@@ -16,6 +16,7 @@ import {
   persistOrder,
 } from "@/lib/hjemmebane/adminContentApi";
 import { cn } from "@/lib/utils";
+import { adminListeTekst } from "@/lib/hjemmebane/adminListeTekst";
 import { HbAdminSplit } from "../HbAdminShell";
 import { HbTreeList, type HbListRow } from "../HbTreeList";
 import { useAdminHotkeys } from "../useAdminHotkeys";
@@ -391,11 +392,16 @@ export const ContentView = () => {
                   <span className="ml-auto font-mono text-xs text-hb-ink-soft/70">n</span>
                 </button>
               }
-              emptyText={
-                collectionsQuery.isLoading || itemsQuery.isLoading
-                  ? "Henter…"
-                  : "Området er tomt. Opret en samling eller nyt indhold — alt starter som kladde."
-              }
+              emptyText={adminListeTekst(
+                {
+                  isLoading: collectionsQuery.isLoading || itemsQuery.isLoading,
+                  isError: collectionsQuery.isError || itemsQuery.isError,
+                },
+                {
+                  hvad: "områdets indhold",
+                  tom: "Området er tomt. Opret en samling eller nyt indhold — alt starter som kladde.",
+                },
+              )}
             />
           }
           editor={editor}
