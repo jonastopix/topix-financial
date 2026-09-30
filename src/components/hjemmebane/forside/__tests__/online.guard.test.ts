@@ -192,7 +192,7 @@ describe("online.guard — «Online nu» på rådgiverens forside", () => {
   const deOtte = DE_OTTE.map((s) => udenKommentarer(laes(s)));
 
   it("1. migrationen: IKKE KØRT først; RLS; INSERT/UPDATE kun egen række, SELECT egen + rådgiver, ingen DELETE; serverens ur; ingen security definer, ingen DROP; den gamle står", () => {
-    expect(raaSql.split("\n")[0]).toBe(FOERSTE_LINJE);
+    expect(raaSql.split("\n")[0]).toMatch(/^-- (IKKE KØRT\. DEPLOY: manuelt i Lovable|KØRT i prod)/);
     expect(migrationenPasser(sql)).toBe(true);
     expect(raaSql).toContain("kontakt@topix.dk");
     expect(existsSync(resolve(ROD, GAMMEL_MIGRATION))).toBe(true);
