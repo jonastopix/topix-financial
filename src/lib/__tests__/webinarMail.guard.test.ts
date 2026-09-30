@@ -702,8 +702,8 @@ export const videoKunEnDag = (a: { cron: string; tekster: string; video: string;
     /verify_jwt = false/.test(blok) &&
     /\{ name: "verifyVideoKlik\(\)",\s*pattern: \/\\bverifyVideoKlik\\s\*\\\(\/ \}/.test(a.ci) &&
     // ── Migrationerne ──
-    /^-- IKKE KØRT\. DEPLOY: manuelt i Lovable/.test(a.migVideo) &&
-    /^-- IKKE KØRT\. DEPLOY: manuelt i Lovable/.test(a.migKlik) &&
+    /^-- (IKKE KØRT\. DEPLOY: manuelt i Lovable|KØRT i prod)/.test(a.migVideo) &&
+    /^-- (IKKE KØRT\. DEPLOY: manuelt i Lovable|KØRT i prod)/.test(a.migKlik) &&
     // Konfig-migrationen er ÉN insert med null og ON CONFLICT DO NOTHING — intet andet.
     /^insert into public\.app_config \(config_key, config_value, description\)\s+values \('webinar_en_dag_video', 'null'::jsonb, '[^']*'\)\s+on conflict \(config_key\) do nothing;$/.test(videoSql) &&
     // Klik-tabellen: fremmednøgle med cascade, og ingen persondata.
@@ -797,7 +797,7 @@ describe("webinarMail.guard dom 19 — fanger fejlen på en kopi", () => {
   it("verify_jwt, prædikatet i CI-værnet, eller migrationerne ude af form, fælder dom 19", () => {
     expect(videoKunEnDag({ ...f, config: f.config.replace("[functions.webinar-video]\n    verify_jwt = false", "[functions.webinar-video]\n    verify_jwt = true") })).toBe(false);
     expect(med("ci", '{ name: "verifyVideoKlik()",', '{ name: "andet()",')).toBe(false);
-    expect(med("migVideo", "-- IKKE KØRT. DEPLOY:", "-- DEPLOY:")).toBe(false);
+    expect(videoKunEnDag({ ...f, migVideo: f.migVideo.replace(/^-- (IKKE KØRT\. DEPLOY:|KØRT i prod)/, "-- DEPLOY:") })).toBe(false);
     expect(med("migVideo", "on conflict (config_key) do nothing;", "on conflict (config_key) do update set config_value = excluded.config_value;")).toBe(false);
     expect(videoKunEnDag({ ...f, migVideo: `${f.migVideo}\nupdate public.app_config set config_value = 'true'::jsonb where config_key = 'webinar_mail_aktiv';\n` })).toBe(false);
     expect(med("migKlik", "on delete cascade", "on delete set null")).toBe(false);
