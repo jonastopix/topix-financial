@@ -166,7 +166,8 @@ function danskMidnat(d: Date): Date {
  * Den sidste stund, dommen stadig sender en ventende mail (webinarMailDom.doemMail):
  *   straks (bekraeftelse) og en_time (ingen næste art): sessionens start;
  *   ellers max(planlagt + nåde, midnat dansk før den næste arts tidspunkt) — og
- *   aldrig efter sessionens start for arter, der kræver «ikke begyndt» (dagen).
+ *   aldrig efter sessionens start for arter, der kræver «ikke begyndt» (i dag
+ *   kun bekræftelsen og en_time, som begge svarer ovenfor; «dagen» udgik 30/9).
  * null, når tiden ikke kan læses.
  */
 export function fristFor(art: MailArt, sessionTid: string): Date | null {

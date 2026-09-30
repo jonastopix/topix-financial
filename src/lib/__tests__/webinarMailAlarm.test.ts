@@ -130,11 +130,16 @@ describe("webinarMailAlarm — nøglerne i dansk tid", () => {
 });
 
 describe("webinarMailAlarm — fristen (dommens INDHENTNING) og prognosen", () => {
-  it("fristFor: tidssatte arter = max(planlagt + nåde, dansk midnat før næste art); dagen begrænses af starten; straks/en_time = starten", () => {
+  it("fristFor: tidssatte arter = max(planlagt + nåde, dansk midnat før næste art); straks/en_time = starten; udgåede (30/9) = null", () => {
     // fjorten_dage for 13/10 er planlagt 29/9 08:00 dansk; næste er syv_dage 6/10 08:00 → frist = midnat 6/10 dansk = 5/10 22:00Z.
     expect(fristFor("fjorten_dage", SESSION)?.toISOString()).toBe("2026-10-05T22:00:00.000Z");
-    // dagen 13/10 07:30 dansk; næste en_time 10:00 dansk samme dag → midnat FØR den er 12/10 22:00Z (< planlagt) → planlagt + 2 t = 09:30 dansk = 07:30Z; under starten (11:00) → 07:30Z.
-    expect(fristFor("dagen", SESSION)?.toISOString()).toBe("2026-10-13T07:30:00.000Z");
+    // 30/9 (tre_dage og dagen udgået): syv_dage 6/10 08:00 dansk; næste er en_dag 12/10 08:00 → midnat 12/10 dansk = 11/10 22:00Z.
+    expect(fristFor("syv_dage", SESSION)?.toISOString()).toBe("2026-10-11T22:00:00.000Z");
+    // en_dag 12/10 08:00 dansk; næste er en_time 13/10 10:00 dansk → midnat 13/10 dansk = 12/10 22:00Z (> planlagt + 2 t).
+    expect(fristFor("en_dag", SESSION)?.toISOString()).toBe("2026-10-12T22:00:00.000Z");
+    // De udgåede har ingen plan og dermed ingen frist.
+    expect(fristFor("tre_dage", SESSION)).toBeNull();
+    expect(fristFor("dagen", SESSION)).toBeNull();
     expect(fristFor("en_time", SESSION)?.toISOString()).toBe(SESSION.replace("Z", ".000Z"));
     expect(fristFor("bekraeftelse", SESSION)?.toISOString()).toBe(SESSION.replace("Z", ".000Z"));
     expect(fristFor("en_dag", "ikke en tid")).toBeNull();
@@ -154,9 +159,9 @@ describe("webinarMailAlarm — fristen (dommens INDHENTNING) og prognosen", () =
 
   it("fristerIFare: kun dem med frist før færdigtiden, sorteret; uden prognose ingen (der gættes ikke)", () => {
     const p = beregnPrognose(112, 4, NU); // 28 t → 30/9 ~18:09 dansk
-    const liste = [{ art: "fjorten_dage" as const, session_tid: SESSION }, { art: "en_dag" as const, session_tid: "2026-09-30T09:00:00Z" }, { art: "dagen" as const, session_tid: "2026-09-30T09:00:00Z" }];
+    const liste = [{ art: "fjorten_dage" as const, session_tid: SESSION }, { art: "en_dag" as const, session_tid: "2026-09-30T09:00:00Z" }, { art: "en_time" as const, session_tid: "2026-09-30T09:00:00Z" }];
     const fare = fristerIFare(liste, p);
-    expect(fare.map((f) => f.art)).toEqual(["en_dag", "dagen"]);
+    expect(fare.map((f) => f.art)).toEqual(["en_dag", "en_time"]);
     expect(fristerIFare(liste, beregnPrognose(112, 0, NU))).toEqual([]);
   });
 });

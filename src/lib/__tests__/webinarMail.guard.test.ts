@@ -38,6 +38,12 @@ import { resolve } from "node:path";
  *      spejle — og «fjorten_dage» står i begge med sin plan (14 dage, 08:00).
  *      En art, CHECK'en ikke kender, ville sende mailen, tabe sin række i
  *      sporet og sende IGEN fem minutter senere.
+ *      30/9 (udkast): ARTER er ORDFORRÅDET (= CHECK'en), og det, der SENDES, er
+ *      AKTIVE_ARTER = PLANEN.map(art) — ordret i begge spejle, planlaegKoersel
+ *      løber over den, og cronens prøve afviser alt uden for den.
+ *      UDGAAEDE_ARTER (tre_dage, dagen) står i ARTER og i CHECK'en, men har
+ *      ingen linje i PLANEN; AKTIVE + UDGÅEDE = ARTER. Sendes kun arter, CHECK'en
+ *      kender, er sporet sikkert — derfor kræver det ingen migration at FJERNE.
  *  11. TEKSTEN FØLGER INVITATIONEN (28/9): cronen henter filen FØR mailen
  *      bygges og giver `invitationVedhaeftet: ics !== null` videre; feltet er
  *      KRÆVET på MailArgs (ikke `?`), og `indhold` får flaget — aldrig en
@@ -311,7 +317,22 @@ export const arterITakt = (dom: string, spejl: string, migration: string, cron: 
   const artCheck = listeICheck(migration, /check \(art in \(([^)]*)\)\)/);
   const invCheck = listeICheck(migration, /check \(invitation is null or art in \(([^)]*)\)\)/);
   const PLAN = '{ art: "fjorten_dage", dageFoer: 14, time: 8, minut: 0, kraeverIkkeBegyndt: false },';
+  // 30/9: det, der SENDES, er PLANEN — aldrig en håndskrevet liste — og de udgåede
+  // har ingen linje i den. AKTIVE (læst af PLANENs art-felter) + UDGÅEDE = ARTER.
+  const AKTIVE = 'export const AKTIVE_ARTER: readonly MailArt[] = PLANEN.map((p) => p.art);';
+  const udgaaede = listeIKode(dom, "UDGAAEDE_ARTER");
+  const planKrop = (k: string) => { const u = udenKommentarer(k), i = u.indexOf("export const PLANEN"); return i === -1 ? "" : u.slice(i, u.indexOf("];", i)); };
+  const iPlan = [...planKrop(dom).matchAll(/\{ art: "([a-z_]+)"/g)].map((m) => m[1]);
   return (
+    udgaaede.length > 0 && udgaaede.every((a) => arter.includes(a) && !iPlan.includes(a)) &&
+    listeIKode(spejl, "UDGAAEDE_ARTER").join(",") === udgaaede.join(",") &&
+    arter.filter((a) => !udgaaede.includes(a)).join(",") === iPlan.join(",") &&
+    [...planKrop(spejl).matchAll(/\{ art: "([a-z_]+)"/g)].map((m) => m[1]).join(",") === iPlan.join(",") &&
+    dom.includes(AKTIVE) && spejl.includes(AKTIVE) &&
+    udenKommentarer(dom).includes("for (const art of AKTIVE_ARTER) {") &&
+    udenKommentarer(spejl).includes("for (const art of AKTIVE_ARTER) {") &&
+    !udenKommentarer(dom).includes("for (const art of ARTER) {") &&
+    udenKommentarer(cron).includes("if (artRaa !== null && !(AKTIVE_ARTER as readonly string[]).includes(artRaa)) {") &&
     arter.length === 7 && arter.join(",") === artCheck.join(",") &&
     med.length === 2 && med.join(",") === invCheck.join(",") &&
     arter.includes("fjorten_dage") && med.includes("fjorten_dage") &&
@@ -579,7 +600,7 @@ describe("webinarMail.guard — platformens før-webinar-mails", () => {
   it("7. afmeldingen rammer også Klaviyo, og kilde-listen er i takt med CHECK'en", () => expect(etKlikEnBetydning(laes(AFMELD), laes(AFMELDING), laes(MIG_KILDE))).toBe(true));
   it("8. bekræftelsen går gennem MIME'en med den rigtige Content-Type", () => expect(bekraeftelsenGaarGennemMime(laes(CRON), laes(MIME))).toBe(true));
   it("9. bekræftelsen sendes aldrig bagud, og tidspunktet når dommen", () => expect(bekraeftelsenKunFremad(laes(DOM), laes(DOM_SPEJL), laes(CRON))).toBe(true));
-  it("10. ARTER og MED_INVITATION er i takt med CHECK'ene, i begge spejle", () => expect(arterITakt(laes(DOM), laes(DOM_SPEJL), laes(MIG_ARTER), laes(CRON))).toBe(true));
+  it("10. ARTER og MED_INVITATION er i takt med CHECK'ene, og AKTIVE_ARTER er PLANEN (udgåede uden plan), i begge spejle", () => expect(arterITakt(laes(DOM), laes(DOM_SPEJL), laes(MIG_ARTER), laes(CRON))).toBe(true));
   it("11. teksten følger invitationen: hentet FØR byggeren, flaget krævet og brugt", () => expect(tekstenFoelgerInvitationen(laes(CRON), laes(TEKSTER))).toBe(true));
   it("12. loftet regnes før løkken, pause sender intet, og 403/420/429 bryder løkken efter sporet", () => expect(loftetFoerLoekken(laes(CRON), laes(LOFT))).toBe(true));
   it("13. de fejlede læses med samme afgrænsning og gives til dommen, og bekræftelser sorteres først", () => expect(fejledeIndhentes(laes(CRON), laes(DOM), laes(DOM_SPEJL))).toBe(true));
@@ -858,6 +879,24 @@ describe("webinarMail.guard — dommene fanger fejlen på en kopi", () => {
     expect(arterITakt(dom, spejl, migArter.split("FØR webinar-mail-cron UDRULLES").join("efter udrulningen"), cron)).toBe(false);
     // Og den gamle CHECK i ROLLBACK-kommentaren dømmes IKKE på: den er i filen.
     expect(migArter).toContain("check (art in ('bekraeftelse', 'syv_dage', 'tre_dage', 'en_dag', 'dagen', 'en_time'));");
+    // 30/9: en udgået art lagt tilbage i PLANEN uden at blive fjernet fra UDGAAEDE_ARTER.
+    const EN_DAG = '  { art: "en_dag", dageFoer: 1, time: 8, minut: 0, kraeverIkkeBegyndt: false },\n';
+    const TRE = '  { art: "tre_dage", dageFoer: 3, time: 8, minut: 0, kraeverIkkeBegyndt: false },\n';
+    expect(dom).toContain(EN_DAG);
+    expect(arterITakt(dom.split(EN_DAG).join(TRE + EN_DAG), spejl.split(EN_DAG).join(TRE + EN_DAG), migArter, cron)).toBe(false);
+    // En aktiv art fjernet fra PLANEN uden at stå i UDGAAEDE_ARTER — eller i kun det ene spejl.
+    expect(arterITakt(dom.split(EN_DAG).join(""), spejl.split(EN_DAG).join(""), migArter, cron)).toBe(false);
+    expect(arterITakt(dom, spejl.split(EN_DAG).join(""), migArter, cron)).toBe(false);
+    // UDGAAEDE_ARTER ude af takt i spejlet.
+    expect(arterITakt(dom, spejl.split('UDGAAEDE_ARTER: readonly MailArt[] = ["tre_dage", "dagen"]').join('UDGAAEDE_ARTER: readonly MailArt[] = ["tre_dage"]'), migArter, cron)).toBe(false);
+    // Løkken tilbage over ARTER (ordforrådet) — de udgåede ville blive dømt igen.
+    const loekke = dom.split("for (const art of AKTIVE_ARTER) {").join("for (const art of ARTER) {");
+    expect(loekke).not.toBe(dom);
+    expect(arterITakt(loekke, spejl, migArter, cron)).toBe(false);
+    // AKTIVE_ARTER som håndskrevet liste i stedet for PLANEN.
+    expect(arterITakt(dom.split("PLANEN.map((p) => p.art);").join('["bekraeftelse", "fjorten_dage", "syv_dage", "en_dag", "en_time"];'), spejl, migArter, cron)).toBe(false);
+    // Cronens prøve validerer mod ordforrådet — en udgået art kunne «prøves».
+    expect(arterITakt(dom, spejl, migArter, cron.split("!(AKTIVE_ARTER as readonly string[]).includes(artRaa)").join("!(ARTER as readonly string[]).includes(artRaa)"))).toBe(false);
   });
 
   it("mailen bygget FØR hentningen, et flag der er konstant eller valgfrit, eller en dom der ignorerer det, fælder dom 11", () => {
