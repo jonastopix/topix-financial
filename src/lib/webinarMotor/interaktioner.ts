@@ -267,3 +267,20 @@ export function somSeerSer(i: Interaktion, harSvaret: boolean): Omit<Interaktion
   const { rigtigt: _r, forklaring: _f, ...indhold } = i.indhold;
   return { ...uden, indhold };
 }
+
+/**
+ * HELE tidslinjen, som seerens klient får den (skive 2, 30/9-2026): alle
+ * interaktioner undtagen kapitlerne (de står i `kapitler`), MED betingelsen —
+ * så klienten selv kan afgøre, hvornår et kort kommer frem (iVindue +
+ * betingelseOpfyldt på serverens position, rettet med urForskydning) uden at
+ * spørge serveren hvert sekund. Serveren dømmer stadig hvert svar
+ * (svarKanModtages, doemSvar); klientens afgørelse er kun visning.
+ * En quiz' facit sendes først, når seeren har svaret (som somSeerSer).
+ */
+export function seerTidslinje(t: Tidslinje | null, besvarede: Readonly<Record<string, unknown>>): Interaktion[] {
+  if (!t) return [];
+  return t.interaktioner
+    .filter((i) => i.art !== "kapitel")
+    .map((i) => ({ ...somSeerSer(i, i.id in besvarede), betingelse: i.betingelse }))
+    .sort((a, b) => a.vis_fra_sek - b.vis_fra_sek || a.id.localeCompare(b.id));
+}

@@ -78,6 +78,8 @@ const Forside = lazy(() => import("./pages/Forside"));
 const Oekonomi = lazy(() => import("./pages/Oekonomi"));
 const Webinar = lazy(() => import("./pages/Webinar"));
 const DeltWebinar = lazy(() => import("./pages/DeltWebinar"));
+// Lazy — seerens webinarflade (skive 2, 30/9-2026): offentlig, uden login, i ingen menu.
+const WebinarSide = lazy(() => import("./pages/WebinarSide"));
 
 // Lazy — demo routes (no auth)
 const DemoLayout = lazy(() => import("./demo/DemoLayout"));
@@ -265,6 +267,14 @@ const App = () => (
                   alle kald går gennem edge-funktionen webinar-delt, som kun svarer
                   med det færdige dashboard. Ingen skal, ingen navigation. */}
               <Route path="/delt/webinar" element={<DeltWebinar />} />
+              {/* Webinarmotorens seerflade (skive 2, 30/9-2026 — docs/webinarmotor.md §6):
+                  en person UDEN konto. /w/:slug = rummet med token (?t= eller fanens
+                  sessionStorage), ellers tilmeldingen; /tilmeld = altid tilmeldingen;
+                  /kalender?t= = husets .ics. Uguardet som /delt/webinar — alle kald går
+                  gennem webinar-tilmeld/-rum/-puls. Ingen skal, ingen menu, ingen tracking. */}
+              <Route path="/w/:slug" element={<WebinarSide />} />
+              <Route path="/w/:slug/tilmeld" element={<WebinarSide visning="tilmeld" />} />
+              <Route path="/w/:slug/kalender" element={<WebinarSide visning="kalender" />} />
               <Route path="/onboarding" element={<OnboardingRedirect />} />
               <Route path="/" element={<MemberRoute><Index /></MemberRoute>} />
               {/* Rapportering-GO (2026-08-06): /reports bærer Hb-rapporteringen.

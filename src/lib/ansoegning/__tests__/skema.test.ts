@@ -276,6 +276,9 @@ describe("annoncesporet — læst én gang, gemt som det kom (udkast 2, 21/9)", 
   it("landing: tokenet fjernes, ugyldig URL bevares som tekst, lange afkortes", () => {
     expect(landingUdenToken("https://x.dk/ansoeg?t=abc&utm_source=fb")).toBe("https://x.dk/ansoeg?utm_source=fb");
     expect(landingUdenToken("ikke en url")).toBe("ikke en url");
+    // Webinarrummets deltagertoken står i fragmentet (#wt=…) og må aldrig nå sporet (skive 2, 30/9).
+    expect(landingUdenToken("https://app.theboardroom.dk/ansoeg?kilde=webinar#wt=abc.def")).toBe("https://app.theboardroom.dk/ansoeg?kilde=webinar");
+    expect(landingUdenToken("ikke en url#wt=abc")).toBe("ikke en url");
     expect(landingUdenToken("https://x.dk/" + "a".repeat(2000))!.length).toBe(1000);
     expect(landingUdenToken(null)).toBeNull();
   });

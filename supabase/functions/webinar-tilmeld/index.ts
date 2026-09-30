@@ -9,8 +9,9 @@
 //
 // HANDLINGER
 //   { handling: "sessioner", slug }
-//       De næste sessioner (højst 3, ikke fulde) for et AKTIVT webinar. Ingen
-//       persondata ind eller ud.
+//       De næste sessioner (højst 3, ikke fulde) for et AKTIVT webinar, og det,
+//       tilmeldingssiden /w/<slug> viser om webinaret (titel, beskrivelse, vært,
+//       varighed, intro — skive 2). Ingen persondata ind eller ud.
 //   { handling: "tilmeld", slug, session_id, fornavn, email, samtykke_nyhedsbrev?,
 //     utm_*?, fbclid?, landing?, referrer?, fbp?, fbc?, ga_client_id?, hjemmeside? }
 //       Dubletdommen (webinarMotor/tilmelding.ts:tilmeldDom):
@@ -36,7 +37,7 @@
 // tabel og venter på Jonas (spec §A1; claude-regelsaet §3). Loggen bærer
 // `afmeldt: true`; webinar-mail-cron springer stadig mailen over.
 //
-// BEVISET I SVARET: `motor: "boardroom-1"` (MOTOR_VERSION) — kun den nye kode
+// BEVISET I SVARET: `motor: "boardroom-2"` (MOTOR_VERSION) — kun den nye kode
 // kan svare med det.
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
@@ -79,7 +80,9 @@ interface WebinarRaekke {
   id: string;
   slug: string;
   titel: string;
+  beskrivelse: string | null;
   vaert_navn: string | null;
+  vaert_billede: string | null;
   varighed_sek: number;
   intro_sek: number;
   lobby_min: number;
@@ -90,7 +93,7 @@ interface WebinarRaekke {
 async function hentAktivtWebinar(admin: SupabaseClient, slug: string): Promise<WebinarRaekke | null | "fejl"> {
   const { data, error } = await admin
     .from("webinarer")
-    .select("id, slug, titel, vaert_navn, varighed_sek, intro_sek, lobby_min, exitrum_min, status")
+    .select("id, slug, titel, beskrivelse, vaert_navn, vaert_billede, varighed_sek, intro_sek, lobby_min, exitrum_min, status")
     .eq("slug", slug)
     .eq("status", "aktiv")
     .maybeSingle();
@@ -161,7 +164,10 @@ Deno.serve(async (req) => {
       }
       const naeste = naesteSessioner(valg, nuMs);
       return svar(req, {
-        webinar: { slug: webinar.slug, titel: webinar.titel, vaert_navn: webinar.vaert_navn, varighed_sek: webinar.varighed_sek },
+        webinar: {
+          slug: webinar.slug, titel: webinar.titel, beskrivelse: webinar.beskrivelse, vaert_navn: webinar.vaert_navn,
+          vaert_billede: webinar.vaert_billede, varighed_sek: webinar.varighed_sek, intro_sek: webinar.intro_sek,
+        },
         sessioner: naeste.map((s) => ({ id: s.id, starter_at: new Date(s.starterMs).toISOString(), type: s.type })),
       });
     }

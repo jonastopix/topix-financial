@@ -25,7 +25,7 @@
 // hukommelsen og skrives som ÉN sum, af det første kald efter et minutskifte
 // (udskrivFejlsum — det ENESTE console-kald i filen; webinarMotor.guard holder det).
 //
-// BEVISET: `motor: "boardroom-1"`.
+// BEVISET: `motor: "boardroom-2"`.
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { corsHeaders } from "../_shared/edgeFunctionAuth.ts";

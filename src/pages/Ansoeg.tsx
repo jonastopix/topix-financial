@@ -4,6 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { HB_RAMME } from "@/components/hjemmebane/hbFormKlasser";
 import { useHbDokumentGrund } from "@/hooks/useHbDokumentGrund";
+import { useWebinarForudfyld } from "@/hooks/useWebinarForudfyld";
 import { AnsoegIntro } from "@/components/ansoegning/AnsoegIntro";
 import { AnsoegFremdrift } from "@/components/ansoegning/AnsoegFremdrift";
 import { AnsoegSkaerm, type CvrTilstand } from "@/components/ansoegning/AnsoegSkaerm";
@@ -108,6 +109,10 @@ const Ansoeg = () => {
   const [honning, setHonning] = useState("");
   const [virksomhedsnavn, setVirksomhedsnavn] = useState("");
   const [virksomhedsnavnFejl, setVirksomhedsnavnFejl] = useState<string | null>(null);
+
+  // Fra webinarrummets knap (#wt=…, skive 2 30/9): navn og mail udfyldt på forhånd, aldrig i URL'en.
+  // Kun tomme felter udfyldes — et svar, ansøgeren allerede har gemt, vinder altid.
+  useWebinarForudfyld((f) => setKladde((k) => ({ ...k, navn: k.navn || f.navn || undefined, email: k.email || f.email || undefined })));
 
   // Kilden afgøres én gang, af den URL siden blev åbnet med — før ?t= erstatter den.
   const kilde = useRef(
