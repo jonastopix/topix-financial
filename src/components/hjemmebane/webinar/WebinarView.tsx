@@ -18,8 +18,15 @@ import {
   pct,
   procentTal,
   SET_GRAENSE_PROCENT,
+  SPOR_FORHOLD_FRA,
   SPOR_MANGLER_TEKST,
   SPOR_TOMT_TEKST,
+  SPOR_HAENDELSER_FOR_AT_SKILLE,
+  SPOR_INGEN_ANDRE_ANNONCER,
+  SPOR_INGEN_ANDRE_I_SPORET,
+  sporForklaring,
+  sporMaerke,
+  sporTal,
   stemmerOrd,
   TID_EYEBROW,
   TID_TITEL,
@@ -34,6 +41,7 @@ import {
   WEBINAR_TOM_TEKST,
   WEBINAR_UNDERLINJE,
   type AfholdtSession,
+  type Andelsdom,
   type Annoncespor,
   type Bedoemmelse,
   type Kampagnelinje,
@@ -425,6 +433,53 @@ const Tiden = ({ t }: { t: TidTilAnsoegning }) => {
 };
 
 /**
+ * HVOR SIKKERT ER TALLET (30/9-2026): fremmødet og «så færdigt» med Wilson-
+ * intervallet og nævneren — «færdigt 88 % (53–98 %) af 8». Fladen skriver KUN
+ * dommens ord (`sporTal`; under grænsen er det «for få», og intervallet findes
+ * ikke) og dommens mærke i ord («flere så færdigt end resten»); den regner
+ * ingen procent af tællingerne selv. Mærket står i en neutral ramme — ingen
+ * farve for op eller ned. Hvad der er sammenlignet med, står i `title` og i en
+ * `sr-only`-span (en `aria-label` på en `<span>` læses ikke op).
+ */
+const SporAndel = ({ a, hvad, ord, ingenAndre }: { a: Andelsdom; hvad: string; ord: string; ingenAndre: string }) => {
+  const maerke = sporMaerke(a, hvad);
+  const forklaring = sporForklaring(a, hvad, ingenAndre);
+  return (
+    <span className="inline-flex flex-wrap items-baseline gap-x-1" data-spor-udfald={a.udfald} title={forklaring}>
+      <span aria-hidden="true">{ord}</span>
+      <span aria-hidden="true" className={cn("tabular-nums", a.udfald === "for_faa" ? "italic" : "text-hb-ink")}>
+        {sporTal(a)}
+      </span>
+      {maerke !== "" && (
+        <span aria-hidden="true" className="rounded-full border border-hb-line px-1.5 text-[10px] text-hb-ink" data-spor-maerke={a.retning ?? ""}>{maerke}</span>
+      )}
+      <span className="sr-only">{maerke !== "" ? `${maerke}. ` : ""}{forklaring}</span>
+    </span>
+  );
+};
+
+/**
+ * FAIL-SOFT: kører den gamle `webinar-delt` (udrullet før #1184), bærer
+ * delt-svaret ingen `maaling` — så tegnes linjen uden sikkerhedslinjen i
+ * stedet for at /delt/webinar dør. Rækkefølgen: `webinar-delt` FØRST, så
+ * Update (docs/webinaret-og-annoncerne.md §2a).
+ *
+ * Under md går linjen i fuld bredde under hele rækken (`col-span-full`) —
+ * navnekolonnen er kun ~130 px på en 360 px-skærm.
+ */
+const SporSikkerhed = ({ l, indrykket }: { l: Sporlinje; indrykket: boolean }) => {
+  const m = l.maaling as Sporlinje["maaling"] | undefined;
+  if (!m || m.grundlag === 0) return null;
+  const ingenAndre = indrykket ? SPOR_INGEN_ANDRE_ANNONCER : SPOR_INGEN_ANDRE_I_SPORET;
+  return (
+    <span className="col-span-full mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-hb-ink-soft md:col-span-1 md:col-start-1" data-spor-sikkerhed={l.navn}>
+      <SporAndel a={m.fremmoede} hvad="mødte op" ord="mødte" ingenAndre={ingenAndre} />
+      <SporAndel a={m.saaFaerdigt} hvad="så færdigt" ord="færdigt" ingenAndre={ingenAndre} />
+    </span>
+  );
+};
+
+/**
  * Én linje i annoncesporet — samme rytme som de afholdte, plus ansøgerne.
  *
  * FORDELINGSSØJLEN (19/9, efter de rigtige tal): syv rækker med hvert sit
@@ -463,6 +518,7 @@ const SporRaekke = ({ l, indrykket = false, knap }: { l: Sporlinje; indrykket?: 
         {knap.aaben ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
       </button>
     ) : <span />}
+    <SporSikkerhed l={l} indrykket={indrykket} />
   </div>
 );
 
@@ -501,6 +557,7 @@ const Spor = ({ spor }: { spor: Annoncespor }) => {
       </div>
       <p className="mt-3 text-xs text-hb-ink-soft">
         Hver person tælles ved sin FØRSTE tilmelding — annoncen der hentede hende ind.
+        {` Procenterne under navnet er af dem, hvis webinar ER afholdt, med et 95 %-interval i parentes og antallet efter «af»; under ${SPOR_FORHOLD_FRA} står «for få». Et mærke som «flere så færdigt end resten» står kun, når intervallet ikke overlapper resten tilsammen (annoncen mod de andre annoncer i sin kampagne), og når der er mindst ${SPOR_HAENDELSER_FOR_AT_SKILLE}, der gjorde, og ${SPOR_HAENDELSER_FOR_AT_SKILLE}, der ikke gjorde, på begge sider — overlap betyder ikke «ens», kun at vi ikke kan afgøre det. Med mange rækker vil én ofte skille sig ud ved et tilfælde; brug mærket som et spor, ikke en dom.`}
         {spor.flereKilder > 0 ? ` ${spor.flereKilder} ${spor.flereKilder === 1 ? "person" : "personer"} har meldt sig til fra mere end én kilde.` : ""}
         {spor.kunFbclid > 0 ? ` ${spor.kunFbclid} er talt som Facebook på et fbclid alene — annoncen blev klikket, men utm-mærkerne faldt af.` : ""}
       </p>

@@ -33,6 +33,8 @@ const PAR: [string, string, Record<string, string>][] = [
     "@/lib/webinarDom": "./webinarDom.ts",
     // annoncekildeStreng: samme kildeNavn med snævret signatur — Deno's strictNullChecks (filhovedet dér).
     "@/lib/webinar/annoncekilde": "./annoncekildeStreng.ts",
+    // Lag 6's Wilson på annoncesporet (30/9-2026) — byte-ens spejl, prøvet nedenfor.
+    "@/lib/marketing/statistik": "./marketingStatistik.ts",
   }],
   ["src/lib/webinar/annoncepriser.ts", "supabase/functions/_shared/annoncepriser.ts", {
     "@/lib/metaAnnoncer": "./metaAnnoncer.ts", "@/lib/webinar/dashboard": "./webinarDashboard.ts",
@@ -57,6 +59,13 @@ describe("webinarDashboard.paritet — kildeteksten", () => {
     expect(b).toBe(a);
     expect(a).not.toMatch(/^\s*import\s/m);
     expect(a.length).toBeGreaterThan(1500);
+  });
+  it("statistik.ts ↔ marketingStatistik.ts: byte-ens krop, nul imports (Wilson på annoncesporet, 30/9)", () => {
+    const a = krop(laes("src/lib/marketing/statistik.ts")), b = krop(laes("supabase/functions/_shared/marketingStatistik.ts"));
+    expect(b).toBe(a);
+    expect(a).not.toMatch(/^\s*import\s/m);
+    expect(a).toContain("export function wilson(");
+    expect(laes("src/lib/marketing/statistik.ts")).toContain("supabase/functions/_shared/marketingStatistik.ts");
   });
   it("blevMedlem: funktionsteksten er ens i ansoegningVisning.ts og _shared/blevMedlem.ts", () => {
     const funk = (k: string) => k.match(/export function blevMedlem\([^)]*\): boolean \{\n[\s\S]*?\n\}/)?.[0] ?? "";
