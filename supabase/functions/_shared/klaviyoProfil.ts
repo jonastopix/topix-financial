@@ -227,7 +227,7 @@ export function profilAlarmTekst(fejlede: readonly FejletSkrivning[], nu: Date):
 //
 // SAMME ENDEPUNKT, SAMME NØGLE, SAMME TABEL — ANDRE KOLONNER. Webinarparret ovenfor
 // røres aldrig herfra: kroppen bærer KUN tb_medlem (bygMedlemKrop), og tilstanden
-// skrives i medlemskolonnerne (migration 20260930090000_klaviyo_profil_medlem.sql):
+// skrives i medlemskolonnerne (migration 20260930110000_klaviyo_profil_medlem.sql):
 //   tb_medlem · tb_medlem_skrevet_at · medlem_forsoegt_at · medlem_udfald ·
 //   medlem_status · medlem_grund
 //

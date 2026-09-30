@@ -35,7 +35,7 @@ const MEDLEM = "supabase/functions/_shared/klaviyoMedlem.ts";
 const PROFIL = "supabase/functions/_shared/klaviyoProfil.ts";
 const AFSENDELSE = "supabase/functions/_shared/klaviyoAfsendelse.ts";
 const FUNKTION = "supabase/functions/klaviyo-profil-cron/index.ts";
-const MIG = "supabase/migrations/20260930090000_klaviyo_profil_medlem.sql";
+const MIG = "supabase/migrations/20260930110000_klaviyo_profil_medlem.sql";
 const MIG_TABEL = "supabase/migrations/20260921190000_klaviyo_profil.sql";
 const SHARED = "supabase/functions/_shared";
 
