@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod — 30/9-2026 kl. 15:59 dansk tid (Jonas, Lovable SQL editor), FØR merget af #1157. FØR (15:58): triggere_paa_companies = ingen · funktioner_der_skriver_companies = ingen · advisor_notifications_insert_policies = «Members can insert own notifications». EFTER (15:59): triggere_paa_companies = companies_medlem_kolonnevaern · funktioner_der_skriver_companies = ingen · advisor_notifications_insert_policies = ingen.
 --
 -- Kolonneværnet på companies (sikkerhedsanalysen 29/9-2026, fund 1 og fund 7).
 -- Rækkefølgen: (1) FØR-SELECT nederst → skriv værdierne i bogføringen. (2) Kør denne fils
