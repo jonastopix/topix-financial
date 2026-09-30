@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod 30/9-2026 ca. 18:35 via Lovable-MCP'en (i én transaktion med 181000). FØR: nøglen ikke sat. EFTER: config_value = null.
 --
 -- MORTENS HILSEN I MAILEN «DAGEN FØR» — konfigurationen (udkast 30/9-2026; Jonas 30/9).
 -- Morten optager en kort video til mailen `en_dag`. Den er ikke optaget endnu, så

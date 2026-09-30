@@ -519,3 +519,6 @@ egenskab, aldrig et råt felt at dømme på.
 rigtig ansøgning (TESTAD-prøven er kunstig); at `meta_hentning` får sin første
 række i nat; at kampagnerne sender mandag 14:05 (Recipients ≈ 354). §7's liste
 gælder stadig.
+
+
+**Det tekniske råds lave fund til #1179 (Fable, 30/9 aften — bogført, ikke rettet):** (1) klik-tabellen har ingen unik nøgle — én modtager kan give mange rækker; tallet læses derfor altid som `count(distinct mail_id)`. (2) Et klik logges, før functionen ved, om videoen kan vises — «klik» betyder «trykkede», ikke «så». (3) `webinar-video` er en ubegrænset viderestiller til Bunnys faste vært for hvem som helst (ingen persondata; accepteret). (4) Fejler sporskrivningen efter afsendelsen, bærer mailen et id, ingen række har — klikket dømmes «ukendt». (5) Tørkørslen svarer `proeve` for video-status, når `email` er givet, også med `dry_run`. (6) Konflikt med `feat/webinarmotor-skive3` i `webinar-mail-cron`: den, der merger sidst, beholder både `video` i `bygWebinarMail` og `id: mailId` i sporet og kører `webinarMail.guard` + `webinarMotorSkive3.guard`.

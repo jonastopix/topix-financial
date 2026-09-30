@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod 30/9-2026 ca. 18:35 via Lovable-MCP'en. FØR: tabellen null. EFTER: webinar_video_klik findes · rls true · policies «Advisors can view … [SELECT authenticated]» og «Service role can manage … [ALL service_role]» (anon har tabel-INSERT som Supabase-standard, men ingen policy → afvist af RLS).
 --
 -- KLIKKENE PÅ MORTENS HILSEN I MAILEN «DAGEN FØR» (udkast 30/9-2026). Én ny tabel og
 -- intet andet. Skal være KØRT, FØR webinar-video udrulles: uden tabellen fejler
