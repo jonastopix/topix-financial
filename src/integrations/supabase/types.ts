@@ -2179,6 +2179,78 @@ export type Database = {
         }
         Relationships: []
       }
+      drift_agent_jobs: {
+        Row: {
+          foerst_set: string
+          jobid: number
+          jobname: string
+        }
+        Insert: {
+          foerst_set?: string
+          jobid: number
+          jobname: string
+        }
+        Update: {
+          foerst_set?: string
+          jobid?: number
+          jobname?: string
+        }
+        Relationships: []
+      }
+      drift_agent_koersler: {
+        Row: {
+          aftryk: string
+          alarm_klokke: string
+          alarm_mail: string
+          alarm_valg: string
+          alvor: string
+          fund: Json
+          gul_mail: string
+          gule: number
+          id: number
+          laas_aktiv: boolean
+          laesefejl: string[]
+          roede: number
+          tal: Json | null
+          tid: string
+          varighed_ms: number | null
+        }
+        Insert: {
+          aftryk?: string
+          alarm_klokke?: string
+          alarm_mail?: string
+          alarm_valg?: string
+          alvor: string
+          fund?: Json
+          gul_mail?: string
+          gule?: number
+          id?: number
+          laas_aktiv: boolean
+          laesefejl?: string[]
+          roede?: number
+          tal?: Json | null
+          tid?: string
+          varighed_ms?: number | null
+        }
+        Update: {
+          aftryk?: string
+          alarm_klokke?: string
+          alarm_mail?: string
+          alarm_valg?: string
+          alvor?: string
+          fund?: Json
+          gul_mail?: string
+          gule?: number
+          id?: number
+          laas_aktiv?: boolean
+          laesefejl?: string[]
+          roede?: number
+          tal?: Json | null
+          tid?: string
+          varighed_ms?: number | null
+        }
+        Relationships: []
+      }
       email_send_log: {
         Row: {
           created_at: string
@@ -3426,6 +3498,32 @@ export type Database = {
             foreignKeyName: "legat_enrollments_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      maaned_foerste_godkendelse: {
+        Row: {
+          company_id: string
+          foerst_godkendt_at: string
+          period_key: string
+        }
+        Insert: {
+          company_id: string
+          foerst_godkendt_at?: string
+          period_key: string
+        }
+        Update: {
+          company_id?: string
+          foerst_godkendt_at?: string
+          period_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maaned_foerste_godkendelse_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
@@ -4923,6 +5021,32 @@ export type Database = {
         }
         Relationships: []
       }
+      webinar_video_klik: {
+        Row: {
+          id: string
+          klikket_at: string
+          mail_id: string
+        }
+        Insert: {
+          id?: string
+          klikket_at?: string
+          mail_id: string
+        }
+        Update: {
+          id?: string
+          klikket_at?: string
+          mail_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webinar_video_klik_mail_id_fkey"
+            columns: ["mail_id"]
+            isOneToOne: false
+            referencedRelation: "webinar_mails"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       weekly_focus: {
         Row: {
           actions_generated: number
@@ -5013,6 +5137,8 @@ export type Database = {
       }
       community_json_til_tekst: { Args: { p_doc: Json }; Returns: string }
       compute_facts_metrics_hash: { Args: { _metrics: Json }; Returns: string }
+      drift_agent_kerne: { Args: { p_indhold: string }; Returns: Json }
+      drift_agent_laes: { Args: never; Returns: Json }
       event_svar_grupper: {
         Args: { p_event_id: string }
         Returns: {
