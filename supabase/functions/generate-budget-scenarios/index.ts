@@ -228,7 +228,7 @@ REGLER:
     }
 
     throw lastError || new Error("Failed to generate scenario after retries");
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error:", error);
     return new Response(
       JSON.stringify({ error: error.message || "Unknown error" }),
