@@ -123,6 +123,23 @@
   }
 }
 
+/* vh-fallback for virksomhedschattens højde (VirksomhedView CHAT_HOEJDE,
+   30/9). I components-laget: utilities kommer efter, så h-[70dvh] og
+   lg:h-[calc(100dvh-7rem)] vinder, hvor dvh kendes; ellers droppes de ved
+   parsning, og vh herfra står. Tallene skal følge CHAT_HOEJDE. */
+@layer components {
+  .chat-hoejde-vh {
+    height: 70vh;
+    height: 70dvh;
+  }
+  @media (min-width: 1024px) {
+    .chat-hoejde-vh {
+      height: calc(100vh - 7rem);
+      height: calc(100dvh - 7rem);
+    }
+  }
+}
+
 /* Top safe-area utility for standalone/PWA mode */
 .safe-top-pad {
   padding-top: env(safe-area-inset-top, 0px);

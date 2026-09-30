@@ -870,9 +870,8 @@ type ForecastPunkt = { period_key: string; period_label: string; revenue: number
     til Hb er ikke denne etape. */
 /** PR 1 (Jonas 17/9, valg 2): chatten er KONTEKST på siden — den daglige
     puls sker på /chat (raadgiverfladen-design.md §3.4: «/chat bliver stående
-    som ren indbakke»). Derfor 60 vh (min 420 px) frem for hele viewportet, og
-    «Åbn i /chat» (CompanyChatPane læser ?companyId). Under md er 60 vh af en
-    telefon ~400–480 px — min-h holder skrivefeltet synligt. */
+    som ren indbakke»); «Åbn i /chat» (CompanyChatPane læser ?companyId).
+    Højden var 60vh indtil 30/9, se docs/raadgiverfladen-design.md. */
 /** 30/9-2026 (Jonas 21:36: «Chatten på virksomhedssiderne er lidt for små»):
     60 vh gav på en 900 px-skærm en ramme på 540 px, hvoraf chat-hovedet
     (~57 px), «Brug for hjælp til»-båndet (op til flere linjer) og det
@@ -891,7 +890,12 @@ type ForecastPunkt = { period_key: string; period_label: string; revenue: number
     Konteksten fra 17/9 består: «Åbn i /chat» er stadig vejen til indbakken;
     blokken fylder mere, fordi en samtale, man ikke kan se, ikke er kontekst.
     Båndet er fjernet i låst tilstand (CompanyChatPane, ved
-    hjaelpUdfoldetFor), og skrivefeltet er én linje i hvile (lavIHvile). */
+    hjaelpUdfoldetFor), og skrivefeltet er én linje i hvile (lavIHvile).
+    Browsere uden dvh (før Safari 15.4 / Chrome 108) dropper h-[70dvh] og
+    lg:h-[calc(100dvh-7rem)]; `chat-hoejde-vh` (index.css, @layer components)
+    giver dem samme højde i vh. Den står i CSS og ikke som en klasse mere i
+    CHAT_HOEJDE, fordi tailwind-merge (cn) ville fjerne den ene af to
+    h-klasser; i utilities-laget, der kommer efter, vinder dvh, hvor den kendes. */
 const CHAT_HOEJDE = "h-[70dvh] min-h-[440px] lg:h-[calc(100dvh-7rem)] lg:min-h-[480px]";
 
 const Blok4 = ({ d }: { d: VirksomhedsData }) => {
@@ -920,7 +924,7 @@ const Blok4 = ({ d }: { d: VirksomhedsData }) => {
           </span>
         )}
       </div>
-      <div className={cn("flex flex-col overflow-hidden rounded-hb border border-hb-line", CHAT_HOEJDE)}>
+      <div className={cn("flex flex-col overflow-hidden rounded-hb border border-hb-line chat-hoejde-vh", CHAT_HOEJDE)}>
         <CompanyChatPane laastTilCompanyId={d.company.id} />
       </div>
     </HbSection>

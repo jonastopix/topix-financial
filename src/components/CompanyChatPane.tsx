@@ -40,6 +40,7 @@ import {
 import ChatRichInput from "@/components/ChatRichInput";
 import { ChatBeskedTekst } from "@/components/ChatBeskedTekst";
 import { byggChatBesked } from "@/lib/chatDokument";
+import { maalListe, skalHoldeBunden, type ListeMaal } from "@/lib/chatBund";
 import ChatVideoOptager from "@/components/ChatVideoOptager";
 import { ChatVideoBesked } from "@/components/ChatVideoBesked";
 import { uploadChatVideo } from "@/lib/chatVideoUpload";
@@ -263,6 +264,15 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  // Listen tegnes først, når en samtale er valgt — derfor en callback-ref,
+  // så «hold bunden»-effekten (ved rulningen nedenfor) kobles på, når den findes.
+  const [listeEl, setListeEl] = useState<HTMLDivElement | null>(null);
+  const saetListeRef = useCallback((el: HTMLDivElement | null) => {
+    messagesContainerRef.current = el;
+    setListeEl(el);
+  }, []);
+  const bundMaalRef = useRef<ListeMaal | null>(null);
+  const rulletTilBundForRef = useRef<string | null>(null);
   const chatSubmitRef = useRef<() => void>(() => {});
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showMessages, setShowMessages] = useState(false);
@@ -762,8 +772,55 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
   useEffect(() => {
     const el = messagesContainerRef.current;
     if (!el) return;
-    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    // Første gang en samtale har beskeder: straks (ingen animation), så den
+    // nyeste besked står synligt ved åbning, også før sene billeder.
+    const foersteGang = messages.length > 0 && rulletTilBundForRef.current !== activeConvId;
+    if (foersteGang) rulletTilBundForRef.current = activeConvId;
+    el.scrollTo({ top: el.scrollHeight, behavior: foersteGang ? "auto" : "smooth" });
   }, [messages]);
+
+  /* «Hold bunden» (30/9, rådets gennemsyn af #1188): listen skifter mål,
+     uden at `messages` ændrer sig — skrivefeltet vokser ved fokus
+     (lavIHvile 40 → 76 px), et billede indlæses sent, en linje over feltet
+     (svarer på, sendefejl) dukker op. Så krymper listen, og de nederste px af
+     den nyeste besked forsvinder. En ResizeObserver på listen og hvert barn
+     (nye børn tilføjes af en MutationObserver) ruller til bunden, hvis listen
+     stod højst 40 px fra bunden FØR ændringen — dommen og regnestykket i
+     `lib/chatBund.ts`. Målingen FØR holdes af scroll-hændelsen; den nulstilles
+     ved skift af samtale (= «stod ved bunden»). Rulningen er `scrollTop` på
+     listen selv, aldrig forfædrene (se kommentaren ovenfor). */
+  useEffect(() => {
+    bundMaalRef.current = null;
+  }, [activeConvId]);
+
+  useEffect(() => {
+    if (!listeEl || typeof ResizeObserver === "undefined") return;
+    const maal = () => { bundMaalRef.current = maalListe(listeEl); };
+    const vedAendring = () => {
+      const efter = maalListe(listeEl);
+      if (skalHoldeBunden(bundMaalRef.current, efter)) {
+        listeEl.scrollTop = listeEl.scrollHeight;
+      }
+      maal();
+    };
+    const ro = new ResizeObserver(vedAendring);
+    ro.observe(listeEl);
+    Array.from(listeEl.children).forEach((c) => ro.observe(c));
+    const mo = new MutationObserver((poster) => {
+      for (const p of poster) {
+        p.addedNodes.forEach((n) => { if (n instanceof Element) ro.observe(n); });
+        p.removedNodes.forEach((n) => { if (n instanceof Element) ro.unobserve(n); });
+      }
+    });
+    mo.observe(listeEl, { childList: true });
+    listeEl.addEventListener("scroll", maal, { passive: true });
+    maal();
+    return () => {
+      ro.disconnect();
+      mo.disconnect();
+      listeEl.removeEventListener("scroll", maal);
+    };
+  }, [listeEl]);
 
   // Efter en sendt besked (tekst eller video): notifikationen, og når
   // rådgiveren sender, samtalens tilstand og medlemmets klokke.
@@ -1780,7 +1837,7 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                 })()}
 
                 {/* Messages list — MemberChatPane:538-551, ordret */}
-                <div ref={messagesContainerRef} className={`flex-1 overflow-y-auto min-w-0 ${isMobile ? "px-3 py-3 space-y-2" : "px-4 md:px-5 py-4 space-y-4"}`}>
+                <div ref={saetListeRef} className={`flex-1 overflow-y-auto min-w-0 ${isMobile ? "px-3 py-3 space-y-2" : "px-4 md:px-5 py-4 space-y-4"}`}>
                   {messages.length === 0 && (
                     <div className="flex flex-col items-center justify-center h-full py-16 text-center px-8">
                       <div className="h-12 w-12 rounded-full bg-hb-sage/40 flex items-center justify-center mb-4">
