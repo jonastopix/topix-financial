@@ -29,7 +29,7 @@ export const EFFEKT_FOERSTE_SCORE = "Giver dig din første score";
 /** Effekten uden regnet gevinst, når søjlen mangler data. */
 export const EFFEKT_LAASER_OP = "Låser en søjle op";
 /** Effekten uden regnet gevinst, når søjlen HAR data (fx disciplin: en manglende måned) — der er intet at låse op (rådets fund 3). */
-export const EFFEKT_GIVER_SCORE = "Giver dig en score";
+export const EFFEKT_GIVER_SCORE = "Tæller med i din score";
 
 export const SOEJLE_ORDEN: readonly SoejleNavn[] = ["likviditet", "indtjening", "vaekst", "disciplin"];
 export const SOEJLE_LABEL: Record<SoejleNavn, string> = {
@@ -145,7 +145,7 @@ export function streakLinjer(streak: StreakDom): StreakLinjer {
 
 export interface LoefterLinje {
   tekst: string;
-  /** «+18 point», «Giver dig din første score», «Låser en søjle op» eller «Giver dig en score» (effektTekst). */
+  /** «+18 point», «Giver dig din første score», «Låser en søjle op» eller «Tæller med i din score» (effektTekst). */
   effekt: string;
   sti: Handling["sti"];
   soejle: SoejleNavn;
@@ -159,7 +159,7 @@ export interface LoefterLinje {
  *                                    simuleret score; et «+400 point» over «Ikke nok tal endnu» er nonsens)
  *   gevinst regnet, score findes   → «+N point»
  *   gevinst null, søjlen uden data → «Låser en søjle op»
- *   gevinst null, søjlen har data  → «Giver dig en score»
+ *   gevinst null, søjlen har data  → «Tæller med i din score»
  */
 export function effektTekst(h: Pick<Handling, "gevinst" | "soejle">, dom: Pick<ScoreDom, "score" | "soejler">): string {
   if (h.gevinst !== null) return dom.score === null ? EFFEKT_FOERSTE_SCORE : `+${Math.round(h.gevinst)} point`;

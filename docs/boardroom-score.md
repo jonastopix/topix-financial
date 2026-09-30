@@ -490,7 +490,7 @@ ikke — det kræver en beslutning.
 samme PR):** (1) `brudt` for et nyt medlem — rettet i DOMMEN (§4 ovenfor);
 (2) «+400 point» under «Ikke nok tal endnu» → uden score siger en regnet
 gevinst «Giver dig din første score» (`effektTekst`); (3) «Låser en søjle op»
-kun, når søjlen mangler data — ellers «Giver dig en score»; (4) tallet
+kun, når søjlen mangler data — ellers «Tæller med i din score»; (4) tallet
 blinkede endeligt → 0 → optælling — før første ramme vises 0; (5) uden
 score vises disciplinens «0 af 6 måneder godkendt» ikke; (6) en løfter-linje
 uden link (motorens «mere i banken/margin/omsætning») mærkes «Mål» —

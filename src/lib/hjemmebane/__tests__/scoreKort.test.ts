@@ -152,7 +152,7 @@ describe("loefterLinjer — handlingerne ORDRET fra motoren", () => {
     expect(l[0].effekt).toBe(EFFEKT_FOERSTE_SCORE);
     for (const x of l) expect(x.effekt).not.toMatch(/point/);
   });
-  it("rådets fund 3: uden regnet gevinst skelnes søjle med data («Giver dig en score») fra søjle uden («Låser en søjle op»)", () => {
+  it("rådets fund 3: uden regnet gevinst skelnes søjle med data («Tæller med i din score») fra søjle uden («Låser en søjle op»)", () => {
     // TOM: disciplin HAR data (0 godkendt) — der er intet at låse op.
     const tom = loefterLinjer(TOM);
     expect(tom).toHaveLength(1);
