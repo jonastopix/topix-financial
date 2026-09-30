@@ -25,6 +25,12 @@
 // ud fra reference_id (tråd + forfatter + virksomhed), ikke ud fra
 // body: body er kun in-app-teksten.
 //
+// UNDTAGELSEN (30/9, nyhedsagenten): body `udenMail: true` giver priority
+// "info" — send-notification-email mailer kun action_required/important, så
+// modtagerne får in-app-notifikationen og intet andet. Kun et felt, der er
+// PRÆCIS true, slår det til; uden feltet er adfærden uændret for alle andre
+// opslag. Valget kan kun SÆNKE støjen for kalderens egen tråd, aldrig hæve den.
+//
 // dedup_key er ÉN pr. tråd (community_opslag:{traadId}) og unik pr.
 // (user_id, dedup_key): kaldes funktionen igen for samme tråd, får ingen
 // to beskeder.
@@ -75,7 +81,7 @@ Deno.serve(async (req) => {
   } catch {
     return jsonResponse({ error: "Ugyldig JSON-body" }, 400);
   }
-  const { traadId } = (body ?? {}) as { traadId?: unknown };
+  const { traadId, udenMail } = (body ?? {}) as { traadId?: unknown; udenMail?: unknown };
   if (typeof traadId !== "string" || traadId.trim() === "") {
     return jsonResponse({ error: "traadId mangler" }, 400);
   }
@@ -120,7 +126,7 @@ Deno.serve(async (req) => {
 
   const notificeret = await writeNotificationToMany(adminClient, modtagere, {
     type: COMMUNITY_OPSLAG_TYPE,
-    priority: "important",
+    priority: udenMail === true ? "info" : "important",
     title: `${navn} har skrevet et nyt opslag`,
     body: traad.titel,
     deep_link: `/community/${traad.id}`,

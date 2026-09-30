@@ -89,6 +89,7 @@ export const MORGEN_TYPER = [
   "ansoegning_samtale_booket",  // samtaleBesked (kun når ansøgeren selv bookede)
   "ansoegning_samtale_flyttet", // samtaleBesked
   "ansoegning_samtale_aflyst",  // samtaleBesked
+  "nyhed_udkast_klar",          // nyhed-agent-cron (30/9): ugens nyhedsudkast venter på en rådgiver — mandag før kl. 07
 ] as const;
 
 /** ALDRIG mailet — med grunden. */

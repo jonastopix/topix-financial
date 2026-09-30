@@ -111,6 +111,10 @@ const STRIKS: readonly string[] = [
   // alt andet afvises.
   "certifikat-klokke",
 
+  // Nyhedsagenten, skive 1 (30/9): dry_run, nu og uden_llm (cronen); handling,
+  // udkast_id, traad_id og grund (rådgiverens klik). Alt andet afvises.
+  "nyhed-agent-cron",
+  "nyhed-udkast-afgoer",
   // Driftsagenten, skive 1 (30/9): kun dry_run, alt andet afvises.
   "drift-agent-cron",
 ];

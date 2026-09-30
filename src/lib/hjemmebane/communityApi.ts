@@ -189,11 +189,13 @@ export async function notificerNaevnelser(
 /** Nyt opslag → alle med community-adgang (notify-community-opslag,
     opslagsmail 3/9). Samme form som notificerNaevnelser: bivirkning der
     aldrig kaster — opslaget ER gemt, og en fejl her må ikke ligne et
-    mislykket opslag. */
-export async function notificerNytOpslag(traadId: string): Promise<void> {
+    mislykket opslag.
+    `udenMail: true` (kun nyhedsagentens opslag, 30/9) giver priority «info»:
+    in-app, ingen mail. Uden valget sendes body'en præcis som før. */
+export async function notificerNytOpslag(traadId: string, valg?: { udenMail?: boolean }): Promise<void> {
   try {
     const { error } = await supabase.functions.invoke("notify-community-opslag", {
-      body: { traadId },
+      body: valg?.udenMail === true ? { traadId, udenMail: true } : { traadId },
     });
     if (error) console.error("notificerNytOpslag fejlede:", error);
   } catch (fejl) {
