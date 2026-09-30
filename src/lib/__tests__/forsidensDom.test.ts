@@ -537,30 +537,21 @@ describe("de tre former (§3)", () => {
     });
   });
 
-  // Fase 0b («Én plan»): «din afgørelse» kun for forslag med en godkend-vej;
-  // resten «til orientering». Uden tallet (ældre kaldere): den gamle tekst.
-  it("puklen med godkend-vej (0b): alle kan godkendes → den gamle tekst; ingen → «til orientering»; blandet → begge tal", () => {
-    const alle = afgoerForsidensDom([
-      virksomhed({ companyId: "a", navn: "Alfa", signaler: [agentforslag], agentforslagVenter: 2, agentforslagMedGodkendVej: 2 }),
-    ], NU);
-    expect(alle.underStregen.pukler[0].tekst).toBe("2 agentforslag hos Alfa venter på din afgørelse");
-    const ingen = afgoerForsidensDom([
-      virksomhed({ companyId: "a", navn: "Alfa", signaler: [agentforslag], agentforslagVenter: 2, agentforslagMedGodkendVej: 0 }),
-    ], NU);
-    expect(ingen.underStregen.pukler[0].tekst).toBe("2 agentforslag hos Alfa til orientering — de kan kun forkastes");
-    const blandet = afgoerForsidensDom([
-      virksomhed({ companyId: "a", navn: "Alfa", signaler: [agentforslag], agentforslagVenter: 3, agentforslagMedGodkendVej: 1 }),
-      virksomhed({ companyId: "b", navn: "Bravo", signaler: [agentforslag], agentforslagVenter: 2, agentforslagMedGodkendVej: 2 }),
-    ], NU);
-    expect(blandet.underStregen.pukler[0].tekst).toBe("5 agentforslag: 3 venter på din afgørelse, 2 til orientering");
-    expect(blandet.underStregen.pukler[0].antal).toBe(5);
-  });
-  it("puklen uden tallet hos ÉN af flere virksomheder: summen kendes ikke → den gamle tekst", () => {
+  // 30/9 (agent-forslag-design §9): tallet ER det godkendbare — kalderne
+  // tæller med kraeverAfgoerelse. Puklen siger derfor altid «din afgørelse»;
+  // 0b's «til orientering»-tekst og feltet agentforslagMedGodkendVej udgik.
+  it("puklens tekst lover kun en afgørelse — der findes ingen «til orientering»-pukkel", () => {
     const d = afgoerForsidensDom([
-      virksomhed({ companyId: "a", navn: "Alfa", signaler: [agentforslag], agentforslagVenter: 1, agentforslagMedGodkendVej: 0 }),
-      virksomhed({ companyId: "b", navn: "Bravo", signaler: [agentforslag], agentforslagVenter: 1 }),
+      virksomhed({ companyId: "a", navn: "Alfa", signaler: [agentforslag], agentforslagVenter: 2 }),
     ], NU);
-    expect(d.underStregen.pukler[0].tekst).toBe("2 agentforslag venter på din afgørelse");
+    expect(d.underStregen.pukler[0].tekst).toBe("2 agentforslag hos Alfa venter på din afgørelse");
+    expect(d.underStregen.pukler[0].tekst).not.toContain("orientering");
+  });
+  it("nul forslag, der kræver rådgiveren → ingen pukkel, selv om signalet findes", () => {
+    const d = afgoerForsidensDom([
+      virksomhed({ companyId: "a", navn: "Alfa", signaler: [agentforslag], agentforslagVenter: 0 }),
+    ], NU);
+    expect(d.underStregen.pukler.filter((p) => p.slags === "agentforslag")).toEqual([]);
   });
 
   it("puklen hos FLERE virksomheder: alle bæres med, flest forslag først, teksten nævner ingen ved navn", () => {

@@ -481,15 +481,13 @@ export interface VirksomhedTilDom {
   /** afgoerVirksomhedsSignaler(input, nu) — kalderen kører motoren. */
   signaler: readonly Signal[];
   /** Motorens agentforslag_venter-signal bærer ikke antallet; det gør dette
-      felt (samme tal som VirksomhedsInput.agentforslagVenter). */
+      felt (samme tal som VirksomhedsInput.agentforslagVenter). Tallet er KUN
+      forslag, der kræver rådgiveren — gyldige OG godkendbare
+      (kraeverAfgoerelse, @/lib/forslagFlade; 30/9, agent-forslag-design §9).
+      Et forslag, der kun kan forkastes, tælles aldrig: det skaber hverken
+      pukkel eller «Derfor er du her». (0b-feltet agentforslagMedGodkendVej og
+      «til orientering»-teksten udgik samme dag — tallet ER nu det godkendbare.) */
   agentforslagVenter: number;
-  /** Fase 0b («Én plan», plan §4 0b): hvor mange af de ventende forslag der
-      HAR en godkend-vej (tool i UNDERSTOETTEDE_SKRIVEVEJE — i dag kun
-      update_weekly_focus). Resten kan kun forkastes, og puklens tekst må
-      ikke love «din afgørelse» om dem (recon §6.4). Valgfri: en kalder uden
-      tallet (VirksomhedView «derfor er du her», ældre tests) får den gamle
-      tekst. */
-  agentforslagMedGodkendVej?: number;
   /** afgoerFornyelsestilstand(…, nu); null når kalderen ikke har regnet den
       (fx legat — samme udsnit som FornyelsesSektion). */
   fornyelse: Fornyelsestilstand | null;
@@ -1232,14 +1230,12 @@ export function usaedvanligtMangeTekst(d: Pick<Forsidensdom, "nyeSidenIGaar">): 
     : USAEDVANLIGT_MANGE_TEKST;
 }
 
-/** Puklens tekst (0b): «din afgørelse» loves kun for forslag der kan
-    godkendes. Uden tallet (null): den gamle tekst. Alle med godkend-vej:
-    den gamle tekst. Ingen: «til orientering — de kan kun forkastes».
-    Blandet: begge tal. Kortets egen tekstrettelse (EPIC 4/9, recon §8c). */
-export function pukkeltekst(antal: number, medGodkendVej: number | null, hos: string): string {
-  if (medGodkendVej == null || medGodkendVej >= antal) return `${antal} agentforslag${hos} venter på din afgørelse`;
-  if (medGodkendVej <= 0) return `${antal} agentforslag${hos} til orientering — de kan kun forkastes`;
-  return `${antal} agentforslag${hos}: ${medGodkendVej} venter på din afgørelse, ${antal - medGodkendVej} til orientering`;
+/** Puklens tekst. «Din afgørelse» er sand, fordi antallet KUN tæller
+    forslag, der kan godkendes (kraeverAfgoerelse, 30/9 — design §9). Før
+    30/9 (0b) skelnede teksten «til orientering» for forslag, der kun kunne
+    forkastes; de skaber nu slet ingen linje og står i Agent-loggen. */
+export function pukkeltekst(antal: number, hos: string): string {
+  return `${antal} agentforslag${hos} venter på din afgørelse`;
 }
 
 /** Den samlede måls-linje (fase 4): gennemgang og stilstand er to ting og
@@ -1429,9 +1425,6 @@ export function afgoerForsidensDom(virksomheder: readonly VirksomhedTilDom[], nu
   let agentforslagAntal = 0;
   let agentforslagAlvor: number | null = null;
   const agentforslagHos: Pukkellinje["virksomheder"] = [];
-  // Godkend-vej (0b): summen kendes kun når ALLE bidragende virksomheder
-  // bærer tallet — ellers null, og teksten er den gamle.
-  let agentforslagMedGodkendVej: number | null = 0;
 
   for (const v of virksomheder) {
     // Puklen tælles på tværs af alle — også dem der får en linje. Virksomheden
@@ -1441,11 +1434,6 @@ export function afgoerForsidensDom(virksomheder: readonly VirksomhedTilDom[], nu
       agentforslagAntal += v.agentforslagVenter;
       agentforslagAlvor = Math.max(agentforslagAlvor ?? 0, pukkelSignal.alvor);
       agentforslagHos.push({ companyId: v.companyId, navn: v.navn, antal: v.agentforslagVenter });
-      if (agentforslagMedGodkendVej != null) {
-        agentforslagMedGodkendVej = v.agentforslagMedGodkendVej == null
-          ? null
-          : agentforslagMedGodkendVej + Math.min(v.agentforslagMedGodkendVej, v.agentforslagVenter);
-      }
     }
 
     const grunde = grundeFor(v, nu);
@@ -1527,7 +1515,7 @@ export function afgoerForsidensDom(virksomheder: readonly VirksomhedTilDom[], nu
       linje: "pukkel",
       slags: "agentforslag",
       antal: agentforslagAntal,
-      tekst: pukkeltekst(agentforslagAntal, agentforslagMedGodkendVej, hos),
+      tekst: pukkeltekst(agentforslagAntal, hos),
       virksomheder: agentforslagHos,
       alvor: agentforslagAlvor,
       lukkerOmDage: null,

@@ -12,10 +12,9 @@ import { hentAlleSider } from "@/lib/budgetEngine";
 import type { MaalRaekke } from "@/lib/hjemmebane/planen";
 import { fletKvitteringer, laesKvittering, type Kvittering } from "@/lib/opgaveLukning";
 import { afgoerPulsen, SVAR_VINDUE_DAGE, type PulsSvar } from "@/lib/pulsen";
-import { erForslagGyldigt } from "@/lib/forslagUdloeb";
-// Fase 0b («Én plan»): puklen lover «din afgørelse» kun for forslag med en
-// godkend-vej — fladens spejl af motorens UNDERSTOETTEDE_SKRIVEVEJE.
-import { UNDERSTOETTEDE_SKRIVEVEJE_FLADE } from "@/lib/forslagFlade";
+// 30/9 (design §9): kun forslag, der KRÆVER rådgiveren — gyldige og
+// godkendbare — tælles. Én dom, delt med useVirksomhed.
+import { kraeverAfgoerelse } from "@/lib/forslagFlade";
 import { afgoerFornyelsestilstand, type Fornyelsesbeslutning } from "@/lib/fornyelse";
 import { afgoerBetalingsfrist } from "@/lib/betalingsfrist";
 import { erKunde } from "@/lib/raadgiverensKunder";
@@ -738,20 +737,16 @@ export const hentAdvisorDashboard = () =>
       // Kø 6 (§3.5): agentforslag der venter — læses af den nye forside
       // (RaadgiverForsideView); AdvisorDashboards render kender den ikke.
       const bAgent: BucketItem[] = [];
-      const signalerByCompany = new Map<string, { signaler: Signal[]; agentforslagVenter: number; agentforslagMedGodkendVej: number; senestePeriode: string | null }>();
+      const signalerByCompany = new Map<string, { signaler: Signal[]; agentforslagVenter: number; senestePeriode: string | null }>();
       const agentforslagByCompany = new Map<string, number>();
-      // 0b: hvor mange af de ventende der kan GODKENDES (tool med skrivevej).
-      const godkendbareByCompany = new Map<string, number>();
-      // Kun forslag der stadig kan AFGØRES tælles (besluttet 7/9): udløbne
-      // (passeret ISO-uge) kan kun forkastes, og puklen lover en afgørelse.
-      // Samme dom som AgentForslagPanel og agent-forslag-afgoer, samme «nu»
-      // som resten af queryFn.
+      // Kun forslag der KRÆVER rådgiveren tælles (30/9, design §9):
+      // gyldige (indeværende ISO-uge, besluttet 7/9) OG godkendbare (tool med
+      // skrivevej). Et forslag, der kun kan forkastes, er til orientering i
+      // Agent-loggen og skaber aldrig en linje. Samme dom som useVirksomhed
+      // (kraeverAfgoerelse, @/lib/forslagFlade), samme «nu» som resten af queryFn.
       for (const p of kraevRaekker(agentProposalsRes, "agent_proposals") as { company_id: string; proposed_at: string; tool: string | null }[]) {
-        if (!p.company_id || !erForslagGyldigt(p.proposed_at, now)) continue;
+        if (!p.company_id || !kraeverAfgoerelse(p, now)) continue;
         agentforslagByCompany.set(p.company_id, (agentforslagByCompany.get(p.company_id) || 0) + 1);
-        if (p.tool && UNDERSTOETTEDE_SKRIVEVEJE_FLADE.has(p.tool)) {
-          godkendbareByCompany.set(p.company_id, (godkendbareByCompany.get(p.company_id) || 0) + 1);
-        }
       }
 
       for (const c of investorSummaries) {
@@ -839,7 +834,7 @@ export const hentAdvisorDashboard = () =>
         const signaler = afgoerVirksomhedsSignaler(signalInput, now);
         // Forsidens dom får motorens udfald uændret (én dom i huset).
         // senestePeriode: talsignalernes grundlag (lukningen) — perioden de er regnet af.
-        signalerByCompany.set(c.company_id, { signaler, agentforslagVenter: signalInput.agentforslagVenter, agentforslagMedGodkendVej: godkendbareByCompany.get(c.company_id) ?? 0, senestePeriode: senesteNoegle ?? null });
+        signalerByCompany.set(c.company_id, { signaler, agentforslagVenter: signalInput.agentforslagVenter, senestePeriode: senesteNoegle ?? null });
         // Pending: signalerne er regnet (til pulsen); bunkerne er fladens.
         if (erPending) continue;
         for (const s of signaler) {
@@ -959,7 +954,6 @@ export const hentAdvisorDashboard = () =>
             navn: c.company_name,
             signaler: sig?.signaler ?? [],
             agentforslagVenter: sig?.agentforslagVenter ?? 0,
-            agentforslagMedGodkendVej: sig?.agentforslagMedGodkendVej ?? 0,
             fornyelse: iFornyelsesUdsnit
               ? afgoerFornyelsestilstand({
                   contract_end_date: row.contract_end_date ?? null,
