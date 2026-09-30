@@ -332,7 +332,7 @@ begin
              'status', s.status,
              'start', s.start_time,
              'slut', s.end_time,
-             'besked', case when s.status = 'failed' then left(s.return_message, 300) end
+             'besked', case when s.status = 'failed' then left(s.return_message, 160) end
            ) order by s.runid) filter (where s.start_time > now() - interval '25 hours'), '[]'::jsonb),
            count(*) = v_koersler_loft and min(s.start_time) > now() - interval '25 hours',
            min(s.start_time)

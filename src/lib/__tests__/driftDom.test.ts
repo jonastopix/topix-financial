@@ -409,14 +409,37 @@ describe("driftDom — alarmen", () => {
 });
 
 describe("driftDom — én ikke-200 efter tid er ikke altid rød (teknisk råd fund 3)", () => {
-  it("4xx én gang → gul; 4xx to gange i træk på et job, der kører oftere end hver time → rød", () => {
+  it("4xx én gang → gul; to 4xx i træk → stadig gul; to ikke-200 i træk, hvor ikke begge er 4xx og begge er entydige → rød", () => {
     const j = httpJob("ansoegning-rykker", "ansoegning-rykker-cron", null);
     const en = doemDrift(grund({ jobs: alleJobs(j), koersler: [koersel(j, 2)], svar: [svar(1, { status: 404, kerne: null })] }));
     expect(koder(en.fund)).toEqual(["gul:http_fejl:ansoegning-rykker"]);
     expect(en.fund[0].saetning).toContain("4xx — en afvisning, ikke et nedbrud");
-    const to = doemDrift(grund({ jobs: alleJobs(j), koersler: [koersel(j, 17), koersel(j, 2)], svar: [svar(16, { status: 401, kerne: null }), svar(1, { status: 404, kerne: null })] }));
-    expect(koder(to.fund)).toEqual(["roed:http_fejl:ansoegning-rykker"]);
-    expect(to.fund[0].saetning).toContain("også i kørslen før");
+    // To afvisninger i træk er stadig en afvisning, ikke et nedbrud.
+    const to4 = doemDrift(grund({ jobs: alleJobs(j), koersler: [koersel(j, 17), koersel(j, 2)], svar: [svar(16, { status: 401, kerne: null }), svar(1, { status: 404, kerne: null })] }));
+    expect(koder(to4.fund)).toEqual(["gul:http_fejl:ansoegning-rykker"]);
+    // Et 500 før et 404: ikke begge 4xx, begge entydige → rød.
+    const blandet = doemDrift(grund({ jobs: alleJobs(j), koersler: [koersel(j, 17), koersel(j, 2)], svar: [svar(16, { status: 500, kerne: null }), svar(1, { status: 404, kerne: null })] }));
+    expect(koder(blandet.fund)).toEqual(["roed:http_fejl:ansoegning-rykker"]);
+    expect(blandet.fund[0].saetning).toContain("også i kørslen før");
+  });
+
+  it("to ikke-200 i træk giver kun rødt, når begge svar er entydigt tilskrevet; er det forrige tvetydigt, er det gult", () => {
+    const a = httpJob("a-job", "a-cron", null), b = httpJob("b-job", "b-cron", null);
+    // Forrige svar (12,9 min) ligger lige efter både a's og b's kørsel → tvetydigt; det seneste (1,9 min) er entydigt a's.
+    const tv = doemDrift(grund({
+      jobs: alleJobs(a, b),
+      koersler: [koersel(a, 13), koersel(b, 13), koersel(a, 2)],
+      svar: [svar(12.9, { status: 500, kerne: null }), svar(1.9, { status: 404, kerne: null })],
+    }));
+    const f = tv.fund.filter((x) => x.kode === "http_fejl" && x.emne === "a-job");
+    expect(f.map((x) => x.alvor)).toEqual(["gul"]);
+    // Samme to svar, begge entydige → rød.
+    const en = doemDrift(grund({
+      jobs: alleJobs(a, b),
+      koersler: [koersel(a, 13), koersel(b, 20), koersel(a, 2)],
+      svar: [svar(12.9, { status: 500, kerne: null }), svar(1.9, { status: 404, kerne: null })],
+    }));
+    expect(en.fund.filter((x) => x.kode === "http_fejl" && x.emne === "a-job").map((x) => x.alvor)).toEqual(["roed"]);
   });
 
   it("en tvetydig tilskrivning af et 500 → gul; det samme 500 entydigt → rød", () => {

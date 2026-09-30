@@ -722,11 +722,17 @@ export function doemDrift(g: DriftGrundlag): DriftDom {
       // Fund 3: tilskrivning efter tid kan tage fejl. Én ikke-200 er GUL, når
       // tilskrivningen var tvetydig eller status er 4xx (en afvisning, ikke et nedbrud).
       // RØD kræver 5xx/timeout/transportfejl, entydigt tilskrevet — ELLER to ikke-200
-      // i træk for et job, der kører oftere end hver time (underEnTime).
+      // i træk for et job, der kører oftere end hver time (underEnTime) — begge entydigt tilskrevet, ikke begge 4xx.
       const tvetydig = tilskrivning.tvetydigeSvar.has(sidsteSvar.id);
       const firehundrede = !sidsteSvar.timeout && sidsteSvar.status !== null && sidsteSvar.status >= 400 && sidsteSvar.status < 500;
       const forrigeSvar = svarene[svarene.length - 2];
-      const iTraek = skema !== null && underEnTime(skema) && forrigeSvar !== undefined && forrigeSvar.status !== 200;
+      const erFirehundrede = (sv: { status: number | null; timeout?: boolean }) =>
+        !sv.timeout && sv.status !== null && sv.status >= 400 && sv.status < 500;
+      // «To ikke-200 i træk» giver kun rødt, når BEGGE svar er entydigt tilskrevet og ikke begge er 4xx
+      // (to afvisninger er stadig en afvisning, ikke et nedbrud); ellers gul.
+      const iTraek = skema !== null && underEnTime(skema) && forrigeSvar !== undefined && forrigeSvar.status !== 200
+        && !tvetydig && !tilskrivning.tvetydigeSvar.has(forrigeSvar.id)
+        && !(firehundrede && erFirehundrede(forrigeSvar));
       const vagtGrund = vagtensGrund("http_fejl", sidsteSvar.created);
       const roed = (!tvetydig && !firehundrede) || iTraek;
       const forbehold = [tvetydig ? "tvetydigt tilskrevet" : "", firehundrede && !iTraek ? "4xx — en afvisning, ikke et nedbrud" : ""].filter(Boolean).join("; ");
