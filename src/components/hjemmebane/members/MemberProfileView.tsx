@@ -13,6 +13,7 @@ import {
   manglerSaetning,
   profilensDele,
 } from "@/lib/hjemmebane/netvaerksprofil";
+import { RAADGIVER_PROFIL_STI, raadgiverManglerSaetning } from "@/lib/hjemmebane/raadgiverNetvaerksprofil";
 
 /** Medlemsprofilens visningsflade (/medlemmer/:userId) — profilen forfra
     (Jonas 9/9). En side man LÆSER, ikke et skema: husets læse-mønstre
@@ -93,7 +94,11 @@ export const MemberProfileView = ({ userId }: { userId: string }) => {
     member_since: profile.member_since,
   });
   const dele = profilensDele(profile);
-  const mangler = isOwn ? manglerSaetning(profile) : null;
+  // En rådgiver har ingen virksomhed i netværket og skriver sin profil på
+  // /konto (raadgiverNetvaerksprofil.ts, 30/9) — /settings sender rådgivere
+  // videre, og «hvad I laver»/«hvad du leder efter» er ikke deres felter.
+  const mangler = !isOwn ? null : profile.is_advisor ? raadgiverManglerSaetning(profile) : manglerSaetning(profile);
+  const skrivSti = profile.is_advisor ? RAADGIVER_PROFIL_STI : PROFIL_STI;
   const harNoget = PROFIL_FELTER.some((f) => dele[f.noegle] !== null);
   // eksterntHref (flyttet 22/9 fra memberProfile, med skemakontrol): prod-data
   // mangler ofte protokol (www.brroset.dk), og et <a href="www.brroset.dk"> er
@@ -163,8 +168,8 @@ export const MemberProfileView = ({ userId }: { userId: string }) => {
       {mangler && (
         <p className={`${harNoget ? "mt-8" : "mt-10"} text-sm text-hb-ink-soft`}>
           {mangler}{" "}
-          <Link to={PROFIL_STI} className="text-hb-evergreen underline-offset-4 hover:underline">
-            {harNoget ? "Skriv resten" : `${PROFIL_OPFORDRING_TEKST} — ${PROFIL_OPFORDRING_LINKTEKST}`}
+          <Link to={skrivSti} className="text-hb-evergreen underline-offset-4 hover:underline">
+            {profile.is_advisor ? "Skriv det på din konto" : harNoget ? "Skriv resten" : `${PROFIL_OPFORDRING_TEKST} — ${PROFIL_OPFORDRING_LINKTEKST}`}
           </Link>
         </p>
       )}

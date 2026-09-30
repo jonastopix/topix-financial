@@ -7,6 +7,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { hentTjenestekonti } from "@/hooks/tjenestekonti";
 import { synligeRaadgivere } from "@/lib/tjenestekonto";
+import type { RaadgiverProfilFelter } from "./raadgiverNetvaerksprofil";
 
 /** DET fælles kolonnesæt fra visnings-RPC'erne (get_member_profile,
     get_event_participants, get_member_directory) — én type, ét sted.
@@ -111,6 +112,29 @@ export async function saveMyMemberProfile(
       { onConflict: "user_id" },
     );
   if (error) throw new Error(error.message);
+}
+
+/** Rådgiverens egen række (30/9, raadgiverNetvaerksprofil.ts) — upsert med
+    KUN linkedin_url, expertise og ask_me_about: working_on og
+    working_on_updated_at røres aldrig (upsert opdaterer kun de medsendte
+    kolonner). RLS: «Users can insert/update their own member profile»
+    (auth.uid() = user_id) — målt i prod 30/9, gælder også rådgivere.
+    Nul rækker = RLS sagde nej (#709-mønstret): kastes, aldrig en stille succes. */
+export async function saveMyAdvisorProfile(userId: string, fields: RaadgiverProfilFelter): Promise<void> {
+  const { data, error } = await supabase
+    .from("member_profiles" as any)
+    .upsert(
+      {
+        user_id: userId,
+        linkedin_url: fields.linkedin_url,
+        expertise: fields.expertise,
+        ask_me_about: fields.ask_me_about,
+      },
+      { onConflict: "user_id" },
+    )
+    .select("user_id");
+  if (error) throw new Error(error.message);
+  if (!data || (data as unknown[]).length === 0) throw new Error("Skrivningen ramte nul rækker — profilen er ikke din (RLS).");
 }
 
 /** «Det laver vi» (9/9) skriver til companies.description — den ene

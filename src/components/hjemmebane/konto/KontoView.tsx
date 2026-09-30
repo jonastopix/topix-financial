@@ -13,6 +13,11 @@ import { HbSection } from "../HbSection";
 import { HbTag } from "../HbTag";
 import { HbField, HbInput } from "../admin/HbField";
 import { ProfilFotoFelt } from "../ProfilFotoFelt";
+import { useQuery } from "@tanstack/react-query";
+import { erTjenestekonto } from "@/hooks/tjenestekonti";
+import { useScrollToHash } from "@/hooks/useScrollToHash";
+import { visRaadgiverProfilKort } from "@/lib/hjemmebane/raadgiverNetvaerksprofil";
+import { RaadgiverNetvaerksprofil } from "./RaadgiverNetvaerksprofil";
 
 /**
  * /konto — KONTOEN i Hjemmebane (Jonas 9/9: «Indstillinger er også gammelt
@@ -40,6 +45,13 @@ import { ProfilFotoFelt } from "../ProfilFotoFelt";
  * som Settings brugte (profiles.full_name/avatar_url, storage «avatars»,
  * auth.updateUser) — flyttet, ikke omskrevet. De rene dele (regler, ord)
  * bor i src/lib/konto.ts.
+ *
+ * RÅDGIVERENS NETVÆRKSPROFIL (30/9, Jonas 21:21): /settings sender rådgivere
+ * hertil, så deres profil i Netværket («Dine rådgivere») havde ingen flade.
+ * Den står nu som sidste sektion før Session — kun for rådgivere, aldrig for
+ * en tjenestekonto (visRaadgiverProfilKort, fail-closed mens opslaget
+ * henter). Samme react-query-nøgle som useAuth's tjenestekonto-opslag, så
+ * det er ét kald. Ankeret #netvaerksprofil er profilsidens «skriv det»-link.
  */
 
 const Kort = ({ titel, children }: { titel: string; children: React.ReactNode }) => (
@@ -52,6 +64,16 @@ const Kort = ({ titel, children }: { titel: string; children: React.ReactNode })
 export const KontoView = () => {
   const { user, profile, isAdvisor, refreshProfile, signOut } = useAuth();
   const navigate = useNavigate();
+  useScrollToHash();
+  // Samme nøgle og funktion som useAuth — delt cache, ét kald.
+  const tjenestekontoQuery = useQuery({
+    queryKey: ["tjenestekonto", user?.id ?? null],
+    queryFn: () => erTjenestekonto(user!.id),
+    enabled: !!user,
+    retry: false,
+    staleTime: 10 * 60 * 1000,
+  });
+  const visNetvaerksprofil = visRaadgiverProfilKort(isAdvisor, tjenestekontoQuery.status, tjenestekontoQuery.data);
 
   // Navn + billede
   const [navn, setNavn] = useState("");
@@ -112,7 +134,7 @@ export const KontoView = () => {
         <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">Konto</p>
         <h1 className="mt-3 font-editorial text-4xl font-medium leading-[1.1] tracking-tight text-hb-ink md:text-5xl">Din konto</h1>
         <p className="mt-3 text-sm text-hb-ink-soft">
-          Navn, adgangskode og login.
+          {visNetvaerksprofil ? "Navn, adgangskode, login og din profil i netværket." : "Navn, adgangskode og login."}
           {!isAdvisor && (
             <>
               {" "}Virksomheden, din profil i netværket og notifikationerne står under{" "}
@@ -199,6 +221,8 @@ export const KontoView = () => {
           </Kort>
         </div>
       </HbSection>
+
+      {visNetvaerksprofil && <RaadgiverNetvaerksprofil />}
 
       <HbSection eyebrow="Session" hairline className="mt-12 max-w-3xl">
         <HbCard className="flex flex-wrap items-center justify-between gap-3 p-5">
