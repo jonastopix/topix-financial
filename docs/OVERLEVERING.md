@@ -11202,6 +11202,21 @@ Under «tilføj secret» committede Lovable `@lovable.dev/email-js@0.1.0` (`9082
 
 **Tracking (Meta, LinkedIn, GA4, TikTok, Stape, eWebinar, Klaviyo — hvad der sendes til hvem, principperne fra 21/9, det åbne):** `docs/tracking.md` er husets ENE dokument om det fra 21/9; recon-/rapportfilerne i `~/Downloads` er kilder.
 
+### Driftsagenten, skive 1 — rækkefølgen i drift (30/9, gren `feat/driftsagent-2`)
+
+Tre migrationer og én function. **Hver fil for sig, aldrig i en samlet kørsel** — to af dem har med vilje en anden første linje end husets «IKKE KØRT», så en scanning efter den linje kun finder den første (teknisk råd 30/9 fund 9). Ét trin ad gangen; hvert trins bevis før det næste.
+
+| # | hvad | kanal | beviset før næste trin |
+|---|---|---|---|
+| 1 | `20260930150000_driftsagent.sql` — tabeller, lås (false), læser (INVOKER), `drift_agent_jobs` fyldt med de nuværende jobs | Lovable SQL editor (FØR-SQL i hovedet → kørsel → EFTER-SQL) | EFTER: 2 tabeller, 2 funktioner med `prosecdef=false`, lås false, `drift_agent_jobs` = antal i `cron.job`; FØR-SQL'ens sektion 6 (kørsler 25 t) under 3000 |
+| 2 | `20260930151000_driftsagent_rettigheder.sql` — gør `drift_agent_laes()` til SECURITY DEFINER (search_path `public, pg_temp`, EXECUTE kun service_role). **Kræver Jonas' grønne lys** (FORBIDDEN-listen). Ingen GRANT på `cron`/`net` | Lovable SQL editor (FØR/EFTER i hovedet) | EFTER: `prosecdef` true, ejer postgres; `service_role USAGE schema cron` og `EXECUTE cron.schedule/unschedule` UÆNDREDE fra FØR |
+| 3 | merge → **eksplicit deploy** af `drift-agent-cron` | Lovable build-chat (bed den KØRE deploy-værktøjet og vise resultatet) | «Successfully deployed … drift-agent-cron» |
+| 4 | tørkørsel i hånden: `SELECT public.kald_edge('drift-agent-cron', '{}'::jsonb, 60000);` og svaret i `net._http_response` | Lovable SQL editor | `"drift_agent":"skive-1"`, `tal.jobs` > 0, `laesefejl` tom |
+| 5 | `20260930152000_driftsagent_cron.sql` — cron-jobbet `drift-agent` (10,25,40,55; `dry_run: false`; låsen styrer mail) | Lovable SQL editor | én række i `cron.job`, active; første række i `drift_agent_koersler` inden 15 min |
+| 6 | låsen åbnes (`app_config.driftsagent_aktiv` = true), når en rigtig kørsels fund er læst | Lovable SQL editor (UPDATE guardet på `false`) | røde fund mailes straks (én pr. time, samme billede én gang pr. dag); gule samles kl. 07 på hverdage |
+
+Uden trin 2 svarer agenten med et RØDT fund («kan ikke læse cron.job …» / «ser 0 cron-jobs») — den tier ikke, men den kan ikke dømme. Første udgave af trin 2 gav `service_role` USAGE på skemaet `cron` — fjernet: det kan åbne `cron.schedule`/`cron.unschedule` (skriveret). Teknisk råds øvrige rettelser (30/9) står i `supabase/functions/_shared/driftDom.ts`' filhoved.
+
 ### 30/9 og frem — de åbne fra 29/9 (skrevet 29/9 eftermiddag)
 
 **Opstarten 30/9:** `docs/opstart-30-09.md` samler disse rækker med alle 191 ældre åbne kort i én prioriteret liste — et FORSLAG, som Jonas godkender, før der bygges.
