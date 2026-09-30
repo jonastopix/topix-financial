@@ -176,7 +176,7 @@ export const migrationerneErRigtige = (filer: readonly { navn: string; sql: stri
     // Efter kørslen vendes hovedet til «-- KØRT i prod …» (§1a); før kørslen står husets «IKKE KØRT».
     (linjer(0)[0] === FOERSTE_LINJE || linjer(0)[0].startsWith("-- KØRT i prod")) &&
     ((linjer(1)[0] === RET_FOERSTE && linjer(1)[1] === FOERSTE_LINJE) || linjer(1)[0].startsWith("-- KØRT i prod")) &&
-    linjer(2)[0] === CRON_FOERSTE && linjer(2)[1] === FOERSTE_LINJE &&
+    ((linjer(2)[0] === CRON_FOERSTE && linjer(2)[1] === FOERSTE_LINJE) || linjer(2)[0].startsWith("-- KØRT i prod")) &&
     overlevering.includes("### Driftsagenten, skive 1 — rækkefølgen") &&
     foer(afsnit, "20260930150000_driftsagent.sql", "20260930151000_driftsagent_rettigheder.sql") &&
     foer(afsnit, "20260930151000_driftsagent_rettigheder.sql", "drift-agent-cron") &&
@@ -298,7 +298,8 @@ describe("driftDom.guard — dommene fælder på en kopi", () => {
   it("cron-jobbet eller DEFINER'en med husets «IKKE KØRT» som FØRSTE linje, eller en overlevering uden rækkefølgen, fælder dom 5 (fund 9)", () => {
     const filer = egneMig();
     const med = (i: number, sql: string) => filer.map((f, j) => (j === i ? { ...f, sql } : f));
-    expect(migrationerneErRigtige(med(2, cron.split("\n").slice(1).join("\n")), migNavne, overl)).toBe(false);
+    // Hovedet med husets «IKKE KØRT» som FØRSTE linje (hverken «KØRT i prod» eller cron-linjen) fælder — også efter header-flippet.
+    expect(migrationerneErRigtige(med(2, [FOERSTE_LINJE, ...cron.split("\n").slice(1)].join("\n")), migNavne, overl)).toBe(false);
     expect(migrationerneErRigtige(med(1, ret.split("\n").slice(1).join("\n")), migNavne, overl)).toBe(false);
     expect(migrationerneErRigtige(filer, migNavne, byt(overl, "### Driftsagenten, skive 1 — rækkefølgen", "### Driftsagenten"))).toBe(false);
     const afsnitStart = overl.indexOf("### Driftsagenten, skive 1 — rækkefølgen");

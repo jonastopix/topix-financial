@@ -11196,6 +11196,150 @@ Under «tilføj secret» committede Lovable `@lovable.dev/email-js@0.1.0` (`9082
 - **De døde statusmail-grene skal slettes.** Kort [`a29-statusmail-grene`](mangelliste.html#a29-statusmail-grene).
 - **Update/drift-beviset** står fortsat åbent (§5).
 
+### 30. september — dagen og aftenen: kolonneværnet på companies, «Online nu» som hjerteslag, `tb_medlem` på Klaviyo-profilen, tjenestekontoen claude@, fem webinarmails pr. session, Lovable-forbindelsen (MCP), Boardroom Score, driftsagentens skive 1 og Mortens hilsen i «dagen før» (#1157, #1167, #1169, #1170, #1171, #1172, #1174, #1175, #1177, #1178, #1179, #1180)
+
+Tiderne er commit-tiden på main (dansk). Titlerne er ordret fra `git log origin/main`. Afsnittet skriver kun det, commit-beskederne og dagens målinger dækker. Det, der ikke er målt, står som åbent i §8.
+
+#### 1. Merget 30/9
+
+| # | tid | titel | drift |
+|---|---|---|---|
+| #1167 | 09:38 | Færre webinarpåmindelser: «om tre dage» og «det er i dag» droppes (merges efter Jonas' ja) | `webinar-mail-cron` udrullet fra build-chatten; beviset: `tre_dage` giver 400 `art_ugyldig` (§3, §6) |
+| #1175 | 13:35 | docs: det tekniske råd (§4b), lærestreger 30/9, agentarkitekturen og dagens recons | kun dokumentation |
+| #1157 | 16:12 | Sikkerhed: medlemmer kan kun rette hvidlistede felter på egen virksomhed (merges efter kørsel) | migration `20260930090000` kørt i prod (§2) |
+| #1169 | 16:12 | Online nu: hjerteslag i en tabel i stedet for Realtime Presence (merges efter kørsel) | migration `20260930120000` kørt i prod; `src/` — Update; ikke bevist med et kundemedlem (§8) |
+| #1170 | 16:12 | Klaviyo: tb_medlem holder medlemsmarkeringen opdateret automatisk (merges efter kørsel) | migration `20260930110000` kørt i prod; `klaviyo-profil-cron` udrullet; låsen er FALSE (§5) |
+| #1172 | 16:12 | Tjenestekonto til claude@: ingen auto-logud, usynlig som rådgiver, markerer intet som læst (merges efter kørsel) | migration `20260930140000` kørt i prod; `src/` og tre functions (§4) |
+| #1177 | 16:47 | Regelsæt §6a: Lovable-forbindelsen (MCP) | kun dokumentation (`docs/claude-regelsaet.md`, `CLAUDE.md`) |
+| #1171 | 17:44 | Boardroom Score og tal-streak: motoren og designet | migration `20260930130000` kørt i prod via MCP'en ~17:40 (§2b); `0e61df16` |
+| #1174 | 18:51 | Driftsagenten skive 1 (migrationerne 150000 og 151000 KØRT; 152000 først efter tørkørsel) | `drift-agent-cron` udrullet; migrationerne kørt via MCP'en (§2b); genåbnet efter en fejl (§7b); `5cd60383` |
+| #1179 | 18:55 | Mortens hilsen i «dagen før»-mailen: tændes af app_config (migrationer KØRT) | migrationerne `20260930180000` og `181000` kørt ~18:35; `webinar-mail-cron` og `webinar-video` udrullet (§3); `4cbd7071` |
+| #1178 | 19:02 | Boardroom Score: medlemmets flade | `src/` — **Update venter hos Jonas** (§7c); merget efter rådets «ret først» (7 fund rettet) og teksten «Tæller med i din score»; `97e0211e` |
+| #1180 | 19:35 | docs: designpapir for anbefalingsprogrammet (affiliate) | kun dokumentation |
+
+De fire PR'er med «merges efter kørsel» i titlen (#1157, #1169, #1170, #1172) bar hver deres migration, som er bogført KØRT i PR'en (regelsættets §1a: main er altid Update-sikker). De blev merget samlet kl. 16:12. Aftenens fire (#1171, #1174, #1179, #1178) er i tabellen ovenfor; deres migrationer er i §2b.
+
+#### 2. Migrationer kørt i prod 30/9
+
+Hver fil er bogført KØRT i sin PR med «Jonas, målt», og kildeværnet godtager KØRT-linjen.
+
+| fil | PR | hvad |
+|---|---|---|
+| `20260930090000_…` | #1157 | `companies_medlem_kolonnevaern` (BEFORE UPDATE, SECURITY INVOKER, `search_path = public`): afviser med 42501 enhver ændret kolonne uden for hvidlisten, når kalderen er medlem. Rådgivere/admin, `service_role` og `postgres` uden JWT passerer. Policyen «Members can insert own notifications» droppet (fund 7). |
+| `20260930110000_…` | #1170 | seks nullable kolonner + CHECK på `klaviyo_profil` (`tb_medlem`, `tb_medlem_skrevet_at`, `medlem_forsoegt_at`, `medlem_udfald`, `medlem_status`, `medlem_grund`) og låsen `app_config.klaviyo_medlem_aktiv` (standard false, `ON CONFLICT DO NOTHING`). Omdøbt fra `20260930090000`, som #1157 havde optaget. |
+| `20260930120000_…` | #1169 | `online_hjerteslag` (user_id PK, `sidst_set`), politikker (medlemmet: INSERT/UPDATE/SELECT på egen række; rådgiver: SELECT), trigger der sætter `sidst_set = now()`, funktionen `online_hjerteslag_friske(vindue_sekunder)` (SECURITY INVOKER, serverens ur). Ingen SECURITY DEFINER, ingen DROP. |
+| `20260930140000_…` | #1172 | `public.tjenestekonti` (user_id): kun admin skriver, enhver indlogget læser. Omdøbt fra `20260930100000`, som #1158 havde optaget. |
+
+- **Fund 6 i #1157 er ÅBENT** (commit-beskeden): `user_company_id` (LIMIT 1) og ikke-unik `company_members` gør en `company_id`-WITH CHECK umulig at verificere fra koden. En FØR-SELECT måler.
+- `SECURITY_BASELINE.md` (§3/§5), `docs/adgangsdomme.md` og `CLAUDE.md` er opdateret i #1157; `CLAUDE.md` og `docs/marketingmotoren.md` §9.5 i #1170; `SECURITY_BASELINE.md` og `CLAUDE.md` i #1169.
+
+#### 2b. Aftenens migrationer, kørt gennem Lovable-MCP'en med FØR og EFTER (30/9 ~17:40–19:00)
+
+Samme regler som dagens øvrige (regelsættets §6a): FØR-måling → filens krop ordret → EFTER-måling i samme kørsel; hovedet vendt til KØRT i PR'en.
+
+| fil | PR | FØR → EFTER (målt) |
+|---|---|---|
+| `20260930130000_…` (`husk_foerste_godkendelse`; Jonas 16:57: «Ja til begge») | #1171 | FØR: tabel null; 186 rækker målt. EFTER: tabel findes, RLS true, 2 SELECT-policies, trigger O, `protect` O, 186 rækker, EXECUTE for anon/authenticated false. #1171 merget `0e61df16`. |
+| `20260930150000_…` (tabeller, lås, læser) | #1174 | FØR: låsen ikke sat; `service_role` `bypassrls` true, USAGE på schema `cron` false; EXECUTE på `cron.schedule`/`unschedule` true (fandtes i forvejen); SELECT på `cron.job`/`job_run_details`/`net._http_response`/`_vagt_log` true; USAGE på `net` true; 1.916 kørsler på 25 timer. EFTER: 2 tabeller, 2 funktioner med `prosecdef` f, låsen false, ingen policies; `drift_agent_laes`: jobs 30 · kørsler 1.916 · svar 395 · spor 5 · fejl []; `drift_agent_jobs` 30 af 30. |
+| `20260930151000_…` (`drift_agent_laes` → SECURITY DEFINER) | #1174 | Første kørsel brugte en FORÆLDET tracking-ref — se §7b(1). Funktionen blev genskabt ordret fra PR-hovedet `ef723620` + 151000 i ÉN transaktion; målt: `har_160` true, `prosecdef` true, `search_path` = `public, pg_temp`, EXECUTE for anon/authenticated false. |
+| `20260930152000_…` (cron-job 575) | #1174 | Kørt efter tørkørslen (§3): `cron.schedule` gav **jobid 575**, «drift-agent», `10,25,40,55 * * * *`. Låsen `driftsagent_aktiv` er **false**. Filhovedet vendt til KØRT. |
+| `20260930180000_…` og `20260930181000_…` | #1179 | ~18:35. FØR: konfigurationen `webinar_en_dag_video` null. EFTER: tabellen `webinar_video_klik` findes, RLS true, 2 policies. #1179 merget `4cbd7071`. |
+
+#### 3. Udrullet fra build-chatten 30/9
+
+- **Fem functions:** `webinar-mail-cron`, `klokke-mail-cron`, `run-company-agent`, `send-welcome-message` og `klaviyo-profil-cron`.
+  - **Beviset for `webinar-mail-cron`:** arten `tre_dage` giver **400 `art_ugyldig`**. Kun den nye kode kan svare det (CLAUDE.md, «Deployment af edge functions»).
+- **Kl. ~16:55: `send-report-reminder` og onboarding-rytmen.** Det var **den første deploy gennem Lovable-MCP'en** (§7).
+  - `get_diff` på beskeden svarede «Message has no associated edit» — altså ingen kodeændring, som reglen kræver.
+  - Samme dag målt: `companies` 52, `company_members` 30, `financial_reports` 436, `financial_report_facts` 306 rækker. Alle er under PostgRESTs grænse på 1.000, så #1165's paginering ændrer ingen modtagere i dag.
+- **Aften (gennem MCP'en):** `drift-agent-cron`, `webinar-mail-cron` og `webinar-video` — for hver «Successfully deployed …». Lovable lavede bagefter en `types.ts`-commit (`3c27fa8a`: typegenerering efter migrationerne, som CLAUDE.md beskriver).
+- **Tørkørsler (bevis, læst i `net._http_response`):**
+  - Kald **26601**, `drift-agent-cron`: 200, `"drift_agent":"skive-1"`, gul `job_mangler` (før cron-jobbet fandtes), 1.912 kørsler, `laesefejl` [].
+  - Kald **26602**, `webinar-mail-cron`: 200, `video {status: ikke_sat}`.
+- **Cron 575** oprettet bagefter (§2b). Låsen `driftsagent_aktiv` er false: intet mailes.
+
+#### 4. Tjenestekontoen claude@topix.dk (#1172)
+
+- **Kontoen:** `claude@topix.dk`, `user_id` `04556818-3613-4017-960c-f09ffe03ba29`. En rådgiverkonto, som en maskine bruger til at SE platformen.
+- **Tre regler** (`CLAUDE.md`, «Tjenestekonti»): ingen inaktivitets-logud · det at SE skriver intet spor (`laeseMarkeringTilladt`) · kontoen optræder aldrig som person (`erSynligRaadgiver`/`synligeRaadgivere` i klienten, `_shared/tjenestekonti.ts` i edge-laget).
+- **Set i browseren kl. 16:30 (målt):** rådgiverforsiden virker. Netværket viser kun Jonas og Morten under «Dine rådgivere».
+- **LUKKET kl. 17:51:** Netværket viste testkontoen «Jonas Herlev · Topix.dk ApS» (`vis_i_netvaerk = true`). Jonas kørte UPDATE'en (feltet «Gæst», regelsættets §3). **Målt bagefter:** `vis_i_netvaerk` false; `get_member_directory` giver **0 rækker** for Topix; 22 virksomheder skjult i alt.
+
+#### 5. Klaviyo-medlemspasset (#1170) — tørkørslen målt, låsen er stadig FALSE
+
+`klaviyo-profil-cron` skriver i et andet pas profilfeltet `tb_medlem`; segmentet «Medlemmer (auto)» skal erstatte den håndfyldte liste `Xr6Pm9` (`docs/marketingmotoren.md` §9.5).
+
+- **Tørkørsel (kald 26440, status 200):** låsen `false` · medlemsmails **31** · `saet_true` 31 · `saet_false` 0 · `fejl` [].
+- **Virksomheder efter dom:** `aktiv_kontrakt` 27 · `egen` 1 · `gaest` 13 · `slettet` 8 · `udloebet` 3 · `demo` 0 · `legat` 0.
+- **Næste, i rækkefølge:**
+  1. prøve til `lh@greensolar.dk` (`{"dry_run": false, "email": "lh@greensolar.dk"}`)
+  2. Jonas' guarded UPDATE af låsen `app_config.klaviyo_medlem_aktiv`
+  3. segmentet «Medlemmer (auto)» i Klaviyo (`tb_medlem` er true)
+
+#### 6. Webinarmails: fem pr. session (#1167)
+
+- **Jonas 30/9 kl. 06:06** (morgenlistens D1): «om tre dage» (`tre_dage`) og «det er i dag» (`dagen`) droppes. De står i `UDGAAEDE_ARTER` og i `ARTER` (ordforrådet = `webinar_mails_art_check`, sporet har rækker med dem) — ingen migration.
+- **eWebinars 10-minutters-påmindelse er slettet af Jonas 30/9.**
+- **Deltageren får nu:** bekræftelse · 14 dage før · 7 dage før · dagen før (08:00) · 1 time før.
+- **Indhentningens loft pr. art** (senere tilføjelse i #1167): `fjorten_dage` 8 · `syv_dage` 4 · `en_dag` 1 dage før sessionen. Uden loftet ville en fejlet «om en uge» kunne indhentes til to dage før sessionen. For 13/10 kl. 11 slutter indhentningen 5/10, 9/10 og 12/10 kl. 23:59 dansk.
+- **Udrulning bevist:** §3 (`tre_dage` → 400 `art_ugyldig`).
+
+#### 7. Lovable-forbindelsen (MCP) — forbundet 30/9 kl. 16:40 (#1177)
+
+Regelsættets §6a står i `docs/claude-regelsaet.md`. Kort:
+
+- Forbindelsen har hele Jonas' Lovable-kontos adgang, men bruges KUN på «Boardroom Compass» (`0bcda7a6-4154-4a81-9f82-fcdf623eb7ea`).
+- Målt 16:41 med `query_database`: `current_user = postgres`, Postgres 17.6, 52 virksomheder, 30 cron-jobs — samme database som SQL editoren.
+- Arbejdsmiljøets netværk når ikke Supabase eller Lovable (CONNECT 403 målt 16:35); al prod-adgang går derfor gennem MCP'en.
+- Reglerne i §2 og §3 gælder uændret: forbindelsen flytter hænderne, ikke beslutningerne. Build-chatten bruges kun til deploy, med den faste tekst, og `get_diff` skal være tom.
+- **Projektet og kontoen:** «Boardroom Compass», Jonas' konto `jh@jonasherlev.dk`. Forbindelsen blev forbundet kl. 16:46 (§7 over nævner 16:40 som Jonas' besked); #1177 (§6a) blev skrevet af en parallel gren af samme session.
+- **Målt om `deploy_project` (kl. ~19:10):** kaldet gav status **pending** og url `topix.lovable.app`. **8 minutter senere** var `app.theboardroom.dk` uændret (`index-BFHfhh9b.js`, ingen score-kode i 232 chunks). **`deploy_project` er IKKE Update.** Update-klikket bliver hos Jonas (§7c). Regelsættets §6a er rettet.
+- **Målt om underagenter:** de ARVER Lovable-MCP'en — en recon-agent (affiliate) kørte en SELECT i prod. Hver agent-prompt skal derfor udtrykkeligt forbyde skrivning i prod og `send_message`/`deploy_project` (regelsættets §6a).
+
+#### 7b. Tre fejl i aftenens forløb (bogført med det, der blev målt)
+
+1. **Forældet tracking-ref.** Første kørsel af `20260930151000` brugte den lokale `origin/<gren>`, som stod på `393b9387` (med `left(return_message, 300)`); PR-hovedet var `ef723620` (160 tegn). Funktionen blev genskabt ordret fra `ef723620` + 151000 i én transaktion og målt (`har_160` true, `prosecdef` true, `search_path` = `public, pg_temp`, EXECUTE anon/authenticated false). **Lærestreg (bb)** i regelsættets §4c: læs grenens hoved med `git ls-remote`.
+2. **Push efter en fejlet rebase.** En kæde med `;` kørte `git push` efter en rebase, der fejlede, og sendte main's commit `15c80099` til `feat/driftsagent-2`. GitHub lukkede #1174 automatisk (0 commits). Den blev genåbnet via API'et; intet gik tabt. **Lærestreg (cc):** `&&` hele vejen.
+3. **Værn, der krævede «IKKE KØRT» som første linje** (`driftDom.guard` dom 5 og `webinarMail.guard` dom 19): CI blev rød efter header-flippet til KØRT. Rettet til at tillade «IKKE KØRT|KØRT i prod». Samme klasse som eftermiddagens fejl på fire PR'er. **Lærestreg (dd):** `npx vitest run guard` efter hvert header-flip.
+
+#### 7c. `deploy_project` ≠ Update, og Score-fladen (#1178)
+
+- #1178 er merget (`97e0211e`, 19:02) efter rådets «ret først»: 7 fund rettet, og teksten på kortet er «Tæller med i din score».
+- **Update i Lovable venter hos Jonas.** Merget alene ændrer ikke prod-builden (CLAUDE.md, «Deployment af frontend»). Kort [`a30-update-score`](mangelliste.html#a30-update-score).
+- **Observation til Jonas (målt):** kun **7 %** af månederne godkendes inden d. 10 (§7e), så de fleste medlemmer vil se en brudt eller ingen tal-streak på Score-kortet.
+
+#### 7d. Straks-fund: `cron.job_run_details` fylder næsten hele databasen
+
+- **Målt ~18:05:** databasen er **6.006 MB**; `cron.job_run_details` har en heap på **5.856 MB** for ≈41.000 rækker (runid 1.878.375–1.919.702). Ejer: `supabase_admin`; `postgres` har DELETE og TRUNCATE, men ikke VACUUM FULL.
+- **Ingen handling uden Jonas** (TRUNCATE/DELETE hører under regelsættets §3). Henvisning: `docs/prod-hjem.md` (#1181). Kort [`a30-cron-log-bloat`](mangelliste.html#a30-cron-log-bloat).
+- Prod-tal samme aften (18:05): `auth.users` 37 (google 4, email 36) · 10 buckets, 713 objekter, 457 MB · 104 tabeller, 93 funktioner · 198 registrerede migrationer (409 filer i repoet).
+
+#### 7e. To værdivurderinger: begge LÆG FREM, ingen bygget
+
+Begge tal er målt 30/9 aften; dommene står i `docs/agentarkitektur.md` §4.3 og `docs/marketingmotoren.md` §4.
+
+- **Adfærdsagenten — LÆG FREM.** 26 kundevirksomheder, 28 medlemsbrugere. `user_login_log` 5.068 rækker, men højst 0–4 virksomheder «regelmæssige» (≥ 6 af 8 uger) i nogen uge, 2 i september; reglen «regelmæssig → 3 uger væk» ville give **5 fund på 26 uger**. Rapportering: 102 målte måneder i 2026, median godkendelse **93 dage** efter periodens udløb, **7 %** inden d. 10, **0 af 15** virksomheder med rettidig normal. Stille-klokkerne har sendt 22 klokker på 10 dage. **Genvurderes** når e-conomic/Dinero-trækket kører, eller ≥ 10 virksomheder har en ugentlig login-normal.
+  - **Rettelse:** `gamification-analyse.md` §1.1 og `agentarkitektur.md` §4.3 byggede på `forside_sidst_set`; den har kun **3 rækker, alle rådgiveres**, og er ikke et medlemssignal.
+- **Marketinganalytikeren — LÆG FREM.** 3 sessioner (25/8 og 22/9 afholdt; 13/10 kommende). Tilmeldinger pr. uge: 102 · 72 · 116 · 201 · 155 · 137 · 40. Kilder: fb 489 · facebook 179 · ig 99 · ingen 26 · fbclid 15 · klaviyo 6. 11 indsendte ansøgninger i alt (webinar 5, andet 5, direkte 1); trin: lukket 8, indkaldt 2, underskrevet 1. Tragt 25/8: 91 → 19 så ≥ 75 % → 1 ansøgte → 0 møde; 22/9: 384 → 113 → 5 → 0. `/webinar` viser tragten; «møde»-leddet og Wilson mangler. **Genvurderes efter 13/10** (3 sessioner = «mønster»-tærsklen), enhed = session. Evt. nu: Wilson + «for få» på fremmødeandel pr. annonce i `/webinar`.
+
+#### 7f. Øvrige nyt fra aftenen
+
+- **Nye dokumenter:** `docs/ideer.md` (Topix.dk som «det nye amino.dk»), `docs/affiliate-design.md` (#1180); `docs/prod-hjem.md` (#1181, beslutningspapir om flytning fra Lovable Cloud til eget Supabase-projekt).
+- **Nye forbindelser:** e-conomic og Pleo (MCP), Supabase-projektet `topix-bogholderi` (`obdaxmudpfxeyrodolqb`, eu-west-3), en Nordea API Market-konto (Instant Reporting kræver en Corporate Netbank-aftale).
+
+#### 8. Åbne punkter — aften 30/9 (rettet sidst på aftenen)
+
+- **Update i Lovable** for `src/`-ændringerne (#1169, #1172, #1178): hos Jonas. `deploy_project` er ikke Update (§7). Kort [`a30-update-score`](mangelliste.html#a30-update-score).
+- **`cron.job_run_details` (6.006 MB database, 5.856 MB heap):** beslutning hos Jonas (§7d). Kort [`a30-cron-log-bloat`](mangelliste.html#a30-cron-log-bloat).
+- **Drift-agentens lås `driftsagent_aktiv` er false** (cron 575 kører): Jonas åbner den efter at have læst en rigtig kørsels fund. Kort [`a30-driftsagent-laas`](mangelliste.html#a30-driftsagent-laas).
+- **Klaviyo-medlemspasset:** prøven til `lh@greensolar.dk`, Jonas' guarded UPDATE af låsen og segmentet «Medlemmer (auto)» udestår (§5). Kort [`a30-klaviyo-tb-medlem`](mangelliste.html#a30-klaviyo-tb-medlem).
+- **boardroom-2-prod:** nøglerotation og nedlukning, guidet med Jonas. Kort [`a30-boardroom-2-prod`](mangelliste.html#a30-boardroom-2-prod).
+- **Mortens video til «dagen før»-mailen:** migrationerne er kørt og funktionerne udrullet (konfigurationen er `null` = mailen som i dag; tørkørsel `video {status: ikke_sat}`); at tænde den er ikke gjort. Kort [`a30-video-dagen-foer`](mangelliste.html#a30-video-dagen-foer).
+- **Fund 6 i #1157** (§2): `company_id`-WITH CHECK kan ikke verificeres fra koden. Kort [`a30-companies-kolonnevaern`](mangelliste.html#a30-companies-kolonnevaern).
+- **De to agenter (adfærd og marketinganalytiker):** lagt frem, ikke bygget; genvurderes som i §7e.
+
+Lukket i dag (kortene er markeret løst, ikke slettet): [`a30-companies-kolonnevaern`](mangelliste.html#a30-companies-kolonnevaern), [`a30-webinar-fem-mails`](mangelliste.html#a30-webinar-fem-mails), [`a30-tjenestekonto`](mangelliste.html#a30-tjenestekonto), [`a30-lovable-mcp`](mangelliste.html#a30-lovable-mcp), [`a30-netvaerk-testkonto-gaest`](mangelliste.html#a30-netvaerk-testkonto-gaest) (målt: 0 rækker for Topix), [`a30-security-definer-ja`](mangelliste.html#a30-security-definer-ja) (begge kørt og målt) og [`m16e-online-realtime`](mangelliste.html#m16e-online-realtime) (**«Online nu» BEVIST: Jonas 30/9 kl. 17:32, «Online nu virker. Yes!»**).
+
 ---
 
 ## DEL 3 · Det der venter
@@ -11205,6 +11349,8 @@ Under «tilføj secret» committede Lovable `@lovable.dev/email-js@0.1.0` (`9082
 ### Driftsagenten, skive 1 — rækkefølgen i drift (30/9, gren `feat/driftsagent-2`)
 
 Tre migrationer og én function. **Hver fil for sig, aldrig i en samlet kørsel** — to af dem har med vilje en anden første linje end husets «IKKE KØRT», så en scanning efter den linje kun finder den første (teknisk råd 30/9 fund 9). Ét trin ad gangen; hvert trins bevis før det næste.
+
+**Status 30/9 aften:** trin 1–5 er gennemført og målt (§2b, §3): migrationerne 150000/151000 kørt, functionen udrullet, tørkørsel kald 26601 (200, `skive-1`, `laesefejl` []), cron-job **575** oprettet. **Trin 6 (låsen) står hos Jonas** — `driftsagent_aktiv` er false.
 
 | # | hvad | kanal | beviset før næste trin |
 |---|---|---|---|

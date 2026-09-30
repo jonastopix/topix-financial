@@ -296,9 +296,11 @@ Alle på platformen (undtagen indberetning og driftens Topix-del), alle i agentr
 
 ### 4.3 Adfærdsagenten
 - **Formål:** se, hvad medlemmet gør og ikke gør (login-dage, rapporter, skridt, chat, events, Akademi) og foreslå ÉN handling til medlemmet eller rådgiveren.
-- **Data:** tabellerne i `gamification-analyse.md` §1.1 (alle findes; `user_login_log` kun som distinkte dage; `forside_sidst_set` har ingen historik — en `adfaerd_dag`-snapshot pr. virksomhed pr. dag skal bygges først, ren SQL-cron).
+- **Data:** tabellerne i `gamification-analyse.md` §1.1 (alle findes; `user_login_log` kun som distinkte dage; `forside_sidst_set` har ingen historik, og **RETTET 30/9 aften (målt): den har kun 3 rækker, alle rådgiveres — den er ikke et medlemssignal og må ikke bruges som grundlag her** — en `adfaerd_dag`-snapshot pr. virksomhed pr. dag skal bygges først, ren SQL-cron).
 - **Output:** rådgiver-klokke («X har ikke logget ind i 21 dage, og september mangler») og fokuskort-forslag (mulighed 7 i medlemsrejsen).
 - **Niveau:** N2 for rådgiver-klokker (samme som stille-klokkerne), N1 for alt medlemsvendt. **Første skive:** snapshot-tabellen + én dom («tavs i 21 dage») som klokke; måling: hvor mange klokker fører til en rådgiverhandling inden 5 dage.
+- **DOM 30/9 aften (værdivurdering): LÆG FREM — IKKE BYGGET.** Målt: 26 kundevirksomheder og 28 medlemsbrugere. `user_login_log` har 5.068 rækker, men højst 0–4 virksomheder er «regelmæssige» (≥ 6 af 8 uger) i nogen uge — 2 i september. Reglen «regelmæssig → tre uger væk» ville give **5 fund på 26 uger**. Rapportering: 102 målte måneder i 2026, median godkendelse **93 dage** efter periodens udløb, **7 %** godkendt inden d. 10, **0 af 15** virksomheder med rettidig normal. Stille-klokkerne har sendt 22 klokker på 10 dage. **Genvurderes,** når e-conomic/Dinero-trækket kører, eller når ≥ 10 virksomheder har en ugentlig login-normal — den, der indtræffer først.
+
 
 ### 4.4 Månedsagenten — bestyrelsespakken
 - **Formål:** visionens §3: en færdig pakke pr. medlem pr. måned, redigeret af rådgiveren på 10 minutter.

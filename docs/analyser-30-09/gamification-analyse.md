@@ -33,7 +33,7 @@ Ejerskab: «medlem» = bruger via `company_members` (user_id ↔ company_id, `ty
 | Ugens fokus vist | `weekly_focus` (4875) | `generated_at`, `seen_at` | `company_id` |
 | Login | `user_login_log` (4450) | `logged_in_at` (én række pr. SIGNED_IN inkl. faneskift) | `user_id` |
 | Sidst logget ind | `auth.users.last_sign_in_at` via RPC `get_users_last_login` (`types.ts:5187`) | dato | bruger |
-| Sidst set forsiden | `forside_sidst_set` (2765) | `set_at` — ÉN række pr. bruger, kun seneste | `user_id` |
+| Sidst set forsiden | `forside_sidst_set` (2765) | `set_at` — ÉN række pr. bruger, kun seneste. **RETTET 30/9 aften (målt): tabellen har kun 3 rækker, alle rådgiveres — den er IKKE et medlemssignal** (medlemmerne skriver ikke til den) | `user_id` |
 | Onboarding | `profiles` (4050) | `onboarded_at`, `tour_completed_at`, `velkomstvideo_set_at`, `deling_hentet_at`, `created_at` | `user_id` |
 | Profil | `member_profiles` (3416) | `updated_at`, `working_on_updated_at` | `user_id` |
 | Certifikat-hentninger | `certificate_downloads` (1050) | `created_at`; `design`, `format` | `user_id` |
