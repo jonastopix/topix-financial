@@ -145,7 +145,7 @@ export function bucketAKlik(afgoer: string): boolean {
 export const migrationerneErRigtige = (mig: string, cron: string, motor: string): boolean => {
   const timeout = motor.match(/export const JOB_TIMEOUT_MS = ([\d_]+);/)?.[1]?.replace(/_/g, "");
   return (mig.split("\n")[0] === "-- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik)." || mig.split("\n")[0].startsWith("-- KØRT i prod")) &&
-    cron.split("\n")[0] === "-- KØRES FØRST EFTER UDRULNING OG TØRKØRSEL." &&
+    (cron.split("\n")[0] === "-- KØRES FØRST EFTER UDRULNING OG TØRKØRSEL." || (cron.split("\n")[0].startsWith("-- KØRT i prod") && cron.split("\n")[1] === "-- KØRES FØRST EFTER UDRULNING OG TØRKØRSEL.")) &&
     // Fund 6: linje 2 må ikke bære husets markør — den, der scanner efter «IKKE KØRT», må ikke køre cron-jobbet med de andre.
     !cron.split("\n").slice(1).some((l) => l.includes("IKKE KØRT")) &&
     !!timeout && cron.includes(`    ${timeout},`) && cron.includes("'40 4 * * 1'") && cron.includes("'nyhed-agent-cron'") &&

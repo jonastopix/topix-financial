@@ -1,3 +1,4 @@
+-- KØRT i prod 30/9-2026 ca. 20:30 via Lovable-MCP'en efter deploy og tørkørsel (kald 26694: 200, "nyhed_agent":"skive-1", 5 kilder 200, 17 nye, 7 relevante). cron.schedule gav jobid 576. Låsen nyhedsagent_aktiv er ikke sat (= false): intet udkast skrives.
 -- KØRES FØRST EFTER UDRULNING OG TØRKØRSEL.
 -- Venter. Manuelt i Lovable → SQL editor, EFTER 20260930170000_nyhedsagent.sql, den eksplicitte deploy af nyhed-agent-cron og en læst tørkørsel. (Linjen bærer bevidst ikke husets «kør efter merge»-markør: den, der scanner mappen efter den, må ikke køre denne sammen med de andre.)
 --
