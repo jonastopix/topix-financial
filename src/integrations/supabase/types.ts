@@ -3089,9 +3089,15 @@ export type Database = {
           email: string
           forsoegt_at: string
           grund: string | null
+          medlem_forsoegt_at: string | null
+          medlem_grund: string | null
+          medlem_status: number | null
+          medlem_udfald: string | null
           skrevet_at: string | null
           status: number | null
           svar: string | null
+          tb_medlem: boolean | null
+          tb_medlem_skrevet_at: string | null
           tb_naeste_webinar: string | null
           tb_naeste_webinar_tekst: string | null
           udfald: string
@@ -3101,9 +3107,15 @@ export type Database = {
           email: string
           forsoegt_at?: string
           grund?: string | null
+          medlem_forsoegt_at?: string | null
+          medlem_grund?: string | null
+          medlem_status?: number | null
+          medlem_udfald?: string | null
           skrevet_at?: string | null
           status?: number | null
           svar?: string | null
+          tb_medlem?: boolean | null
+          tb_medlem_skrevet_at?: string | null
           tb_naeste_webinar?: string | null
           tb_naeste_webinar_tekst?: string | null
           udfald: string
@@ -3113,9 +3125,15 @@ export type Database = {
           email?: string
           forsoegt_at?: string
           grund?: string | null
+          medlem_forsoegt_at?: string | null
+          medlem_grund?: string | null
+          medlem_status?: number | null
+          medlem_udfald?: string | null
           skrevet_at?: string | null
           status?: number | null
           svar?: string | null
+          tb_medlem?: boolean | null
+          tb_medlem_skrevet_at?: string | null
           tb_naeste_webinar?: string | null
           tb_naeste_webinar_tekst?: string | null
           udfald?: string
@@ -3913,6 +3931,21 @@ export type Database = {
         }
         Relationships: []
       }
+      online_hjerteslag: {
+        Row: {
+          sidst_set: string
+          user_id: string
+        }
+        Insert: {
+          sidst_set?: string
+          user_id: string
+        }
+        Update: {
+          sidst_set?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       partners: {
         Row: {
           category: string
@@ -4444,6 +4477,24 @@ export type Database = {
           id?: string
           metadata?: Json | null
           reason?: string
+        }
+        Relationships: []
+      }
+      tjenestekonti: {
+        Row: {
+          formaal: string
+          oprettet_at: string
+          user_id: string
+        }
+        Insert: {
+          formaal: string
+          oprettet_at?: string
+          user_id: string
+        }
+        Update: {
+          formaal?: string
+          oprettet_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -5246,6 +5297,12 @@ export type Database = {
       }
       mark_notifications_seen: { Args: never; Returns: number }
       meta_hentning_vagt: { Args: never; Returns: string }
+      online_hjerteslag_friske: {
+        Args: { vindue_sekunder: number }
+        Returns: {
+          user_id: string
+        }[]
+      }
       opret_community_svar: {
         Args: { p_indhold: string; p_indhold_json?: Json; p_traad_id: string }
         Returns: string
