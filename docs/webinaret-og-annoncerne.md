@@ -73,6 +73,55 @@ fire ting; tre kom til:
 
 Udkast: `~/Downloads/udkast-webinar-dashboard/`.
 
+### 2a. Hvor sikkert er tallet — Wilson på «Hvor kom de fra» (udkast 30/9-2026)
+
+**Hvorfor.** Marketinganalytikerens værdivurdering 30/9 (målt i prod): med to
+afholdte sessioner er leddet tilmeldt → mødte op / så færdigt (≥ 75 %) det
+eneste, der kan skille annoncer ad. 22/9 havde 10 annoncer, 7 med ≥ 5
+tilmeldte — fx 52 af 192 = 27 % mod en lille på 7 af 8 = 88 %. Rå procenter
+lader 7 af 8 ligne en vinder og 1 af 2 ligne halvdelen. Nicklas (ekstern
+marketing) vælger annoncer til 13/10 ud fra tabellen.
+
+**Dommen** (`annoncespor()` i `src/lib/webinar/dashboard.ts`, spejlet i
+`_shared/webinarDashboard.ts`; lag 6's `statistik.ts` spejlet BYTE-ENS i
+`_shared/marketingStatistik.ts`, paritet i `webinarDashboard.paritet.test.ts`):
+hver kilde-, kampagne- og annoncelinje bærer `maaling` = `{ grundlag,
+fremmoede, saaFaerdigt }`, hver en `Andelsdom` (`andelsdom()`):
+
+- **Wilson 95 %** med lag 6's `wilson` og `intervalOrd` — ingen ny formel.
+- **Nævneren er de AFHOLDTE** (tilmeldte − kommende): en tilmeldt 13/10 kan
+  ikke være mødt op endnu (§5 — tæller og nævner skal dække samme periode).
+  «Kun det næste webinar» giver derfor «–» overalt.
+- **Under 5 ERSTATTER «for få» procenten** (`SPOR_FORHOLD_FRA` = 5, låst til
+  `TROVAERDIG_FRA` og lag 6's `PERSONER_FOR_ET_FORHOLD` af en test — kan ikke
+  importeres, fordi annoncepriser.ts importerer dashboard.ts). Intervallet er
+  `null` i svaret, så ingen flade kan vise det alligevel.
+- **«Skiller sig ud» KUN når intervallet ikke overlapper resten tilsammen**
+  (`sammenlign` → «adskilte»), med `retning` højere/lavere. Overlap = «kan ikke
+  afgøres», aldrig «ens». Resten under 5 = kan ikke afgøres.
+- **Resten er søjlens helhed:** kilde og kampagne mod alle andre i sporet,
+  annoncen mod de andre annoncer i SIN kampagne (samme målgruppe og budget). En
+  kampagne med én annonce kan derfor ikke afgøres på annonceniveau.
+- Feltet er tal og ord — ingen personer — og går ud gennem delingen
+  (`udenRaekker`, `findForbudteNoegler` uændret).
+
+**22/9 i dommen** (prøvet i `webinarWilson.test.ts`): annoncen med 52 af 192
+«så færdigt» = **27 % (21–34 %)** mod kampagnens anden annonce 32 af 101 = 32 %
+(23–41 %) → kan ikke afgøres. «07-vaerkstedet» 7 af 8 = **88 % (53–98 %)** mod
+resten af Adv+-kampagnen → **skiller sig ud · højere**. En annonce med 1–4
+afholdte står som «for få».
+
+**Fladen** (`WebinarView.tsx`, `SporSikkerhed`/`SporAndel`): under navnet og
+søjlen, i 11 px: «mødte … · færdigt 27 % (21–34 %)» (dommens ord, ordret) og mærket
+«skiller sig ud · højere» i en neutral ramme — ingen farve for op/ned. Hvad der
+er sammenlignet med, står i title/aria-label. Kildeværn i
+`webinarWilson.test.ts`: fladen skriver kun dommens `ord` (ingen `pct()` af
+rå andele, ingen division, læser aldrig `interval`), og dommen har ingen egen
+formel.
+
+**Udrulning:** `webinar-delt` skal udrulles eksplicit (den regner med de
+spejlede domme); fladen kræver Update. Ingen migration.
+
 ---
 
 ## 3. Meta — annoncerne, forbruget og tokenet (#1018, #1022, #1023, #1025, #1027)

@@ -1,38 +1,11 @@
 /**
- * statistik — den lille smule matematik, lag 6 må bruge, og ikke mere.
+ * marketingStatistik — SPEJL af src/lib/marketing/statistik.ts (lag 6's Wilson),
+ * så serveren (webinar-delt, gennem _shared/webinarDashboard.ts) dømmer
+ * annoncesporets andele med SAMME matematik som fladen (30/9-2026).
  *
- * VALGET, OG HVORFOR DET ER DETTE (udkast 19/9-2026).
- *
- * Fire veje var mulige, og jeg valgte den tredje:
- *
- *   1. RÅ TAL UDEN NOGET. Altid ærligt, men ubrugeligt: «mail 3: 2 af 14» og
- *      «mail 5: 1 af 13» siger ikke, om forskellen er noget. En agent, der kun
- *      får rå tal, opfinder selv betydningen — og den opfinder forkert.
- *   2. P-VÆRDIER (χ², z-test). Forkerte ved vores tal: normaltilnærmelsen
- *      kræver ~5 hændelser i hver gruppe, og vi har 1–3. Værre: et tal som
- *      «p = 0,04» inviterer til ordet «signifikant», og det ord er præcis den
- *      fejl, hele laget skal forhindre.
- *   3. WILSON-INTERVALLET. Et interval pr. andel. Opfører sig rigtigt ved
- *      n = 0, 1 og 3, hvor normaltilnærmelsen giver negative grænser og
- *      bredder på nul. Det svarer på det, der faktisk spørges om — «hvor
- *      meget ved vi?» — og det er bredt, når vi intet ved. **Valgt.**
- *   4. BAYESIANSK POSTERIOR (Beta). Ville være mindst lige så rigtigt, men
- *      kræver et valg af prior, som ingen her kan efterprøve, og et sprog
- *      ingen læser. Afvist på læsbarhed, ikke på matematik.
- *
- * SAMMENLIGNING SKER PÅ OVERLAP, OG DET ER MED VILJE KONSERVATIVT.
- * To intervaller der ikke overlapper, betyder «forskellen er reel». To der
- * overlapper, betyder IKKE «ingen forskel» — kun «vi kan ikke afgøre det».
- * En formel to-andels-test ville finde nogle flere forskelle end denne regel.
- * Den asymmetri er valgt: laget skal hellere tie end tage fejl, fordi prisen
- * for en forkert konklusion er, at nogen ændrer noget, der virkede.
- *
+ * Kroppen efter dette filhoved er BYTE-ENS med originalen — ret dér, kopiér
+ * hertil. Låst af src/lib/__tests__/webinarDashboard.paritet.test.ts.
  * Ren matematik. Ingen imports, ingen IO, ingen datoer.
- *
- * SPEJLET i supabase/functions/_shared/marketingStatistik.ts (30/9-2026): webinarets
- * annoncespor (src/lib/webinar/dashboard.ts) lægger Wilson på fremmødet, og den
- * dom regnes også af webinar-delt. Kroppen efter filhovedet er BYTE-ENS; låst af
- * src/lib/__tests__/webinarDashboard.paritet.test.ts.
  */
 
 /** z for 95 % tosidet. Ét sted; ændres det, ændres bredden alle steder. */

@@ -18,8 +18,11 @@ import {
   pct,
   procentTal,
   SET_GRAENSE_PROCENT,
+  SPOR_FORHOLD_FRA,
   SPOR_MANGLER_TEKST,
   SPOR_TOMT_TEKST,
+  sporForklaring,
+  sporMaerke,
   stemmerOrd,
   TID_EYEBROW,
   TID_TITEL,
@@ -34,6 +37,7 @@ import {
   WEBINAR_TOM_TEKST,
   WEBINAR_UNDERLINJE,
   type AfholdtSession,
+  type Andelsdom,
   type Annoncespor,
   type Bedoemmelse,
   type Kampagnelinje,
@@ -425,6 +429,35 @@ const Tiden = ({ t }: { t: TidTilAnsoegning }) => {
 };
 
 /**
+ * HVOR SIKKERT ER TALLET (30/9-2026): fremmødet og «så færdigt» med Wilson-
+ * intervallet under navnet — «færdigt 27 % (21–34 %)». Fladen skriver KUN
+ * dommens `ord` (under grænsen er det «for få», og intervallet findes ikke) og
+ * dommens mærke; den regner ingen procent af tællingerne selv. Mærket er et ord
+ * i en neutral ramme — ingen farve for op eller ned. Hvad der er sammenlignet
+ * med, står i title/aria-label, så mærket kan efterprøves.
+ */
+const SporAndel = ({ a, hvad, ord }: { a: Andelsdom; hvad: string; ord: string }) => {
+  const maerke = sporMaerke(a);
+  return (
+    <span className="inline-flex flex-wrap items-baseline gap-x-1" data-spor-udfald={a.udfald} title={sporForklaring(a, hvad)} aria-label={sporForklaring(a, hvad)}>
+      <span>{ord}</span>
+      <span className={cn("tabular-nums", a.udfald === "for_faa" ? "italic" : "text-hb-ink")}>{a.ord}</span>
+      {maerke !== "" && (
+        <span className="rounded-full border border-hb-line px-1.5 text-[10px] uppercase tracking-[0.08em] text-hb-ink" data-spor-maerke={a.retning ?? ""}>{maerke}</span>
+      )}
+    </span>
+  );
+};
+
+const SporSikkerhed = ({ l }: { l: Sporlinje }) =>
+  l.maaling.grundlag === 0 ? null : (
+    <span className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-hb-ink-soft" data-spor-sikkerhed={l.navn}>
+      <SporAndel a={l.maaling.fremmoede} hvad="mødte op" ord="mødte" />
+      <SporAndel a={l.maaling.saaFaerdigt} hvad="så det færdigt" ord="færdigt" />
+    </span>
+  );
+
+/**
  * Én linje i annoncesporet — samme rytme som de afholdte, plus ansøgerne.
  *
  * FORDELINGSSØJLEN (19/9, efter de rigtige tal): syv rækker med hvert sit
@@ -447,6 +480,7 @@ const SporRaekke = ({ l, indrykket = false, knap }: { l: Sporlinje; indrykket?: 
           <span className="text-[11px] tabular-nums text-hb-ink-soft">{pct(l.andelAfHelhed)}</span>
         </span>
       )}
+      <SporSikkerhed l={l} />
     </div>
     <span className="text-right text-sm tabular-nums text-hb-ink">{l.tilmeldte}</span>
     <span className="text-right text-sm tabular-nums text-hb-ink-soft">{l.moedteOp}</span>
@@ -501,6 +535,7 @@ const Spor = ({ spor }: { spor: Annoncespor }) => {
       </div>
       <p className="mt-3 text-xs text-hb-ink-soft">
         Hver person tælles ved sin FØRSTE tilmelding — annoncen der hentede hende ind.
+        {` Procenterne under navnet er af dem, hvis webinar ER afholdt, med et 95 %-interval i parentes; under ${SPOR_FORHOLD_FRA} står «for få». «Skiller sig ud» betyder, at intervallet ikke overlapper resten tilsammen (annoncen mod de andre annoncer i sin kampagne) — overlap betyder ikke «ens», kun at vi ikke kan afgøre det.`}
         {spor.flereKilder > 0 ? ` ${spor.flereKilder} ${spor.flereKilder === 1 ? "person" : "personer"} har meldt sig til fra mere end én kilde.` : ""}
         {spor.kunFbclid > 0 ? ` ${spor.kunFbclid} er talt som Facebook på et fbclid alene — annoncen blev klikket, men utm-mærkerne faldt af.` : ""}
       </p>
