@@ -73,6 +73,11 @@ export interface OnboardingTjeklisteResultat {
   harVelkomstvideo: boolean;
   /** Rå værdi, så fladen kan afgøre om velkomsten skal vises. */
   velkomstvideoSetAt: string | null;
+  /** profiles.created_at — personens dag 0 (TjeklisteInput.medlem_siden).
+      Forsiden og skallen dømmer «erfarent medlem» på den
+      (tjeklistenStyrerForsiden i lib/hjemmebane/ankomst.ts). null indtil
+      hentet, og altid for rådgivere. */
+  medlemSiden: string | null;
   isLoading: boolean;
   isError: boolean;
   /** Stempler profiles.velkomstvideo_set_at = now() og genindlæser. */
@@ -234,6 +239,7 @@ export function useOnboardingTjekliste(): OnboardingTjeklisteResultat {
     tjekliste: aktiv && query.data ? byggTjekliste(query.data.input) : null,
     harVelkomstvideo: query.data?.input.har_velkomstvideo ?? false,
     velkomstvideoSetAt: query.data?.velkomstvideoSetAt ?? null,
+    medlemSiden: aktiv ? (query.data?.input.medlem_siden ?? null) : null,
     isLoading: aktiv && query.isLoading,
     isError: query.isError,
     markerVelkomstSet: () => stempel.mutateAsync(),

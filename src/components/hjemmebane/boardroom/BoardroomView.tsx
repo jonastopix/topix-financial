@@ -57,7 +57,7 @@ import { HbAvatar } from "../HbAvatar";
 import { HbMaalForklaring } from "../milestones/HbMaalForklaring";
 import { MAAL_FORKLARING_OVERSKRIFT } from "@/lib/hjemmebane/maalForklaring";
 import { hasRichTextContent } from "@/lib/hjemmebane/richtext";
-import { fokusCtaHref } from "@/lib/hjemmebane/ankomst";
+import { fokusCtaHref, tjeklistenStyrerForsiden } from "@/lib/hjemmebane/ankomst";
 import { isTrackedEntry, useAkademiData, type AkademiItem } from "../akademi/useAkademiData";
 import { afgoerForloeb, forloebslinje, type Forloebslinje } from "@/lib/hjemmebane/forloeb";
 import { maaskeRelevant, MAASKE_RELEVANT_PRAEFIKS } from "@/lib/hjemmebane/maaskeRelevant";
@@ -258,8 +258,9 @@ const PageHeader = ({ firstName, velkomst, linje }: { firstName: string; velkoms
   <section className="mt-8 max-w-3xl md:mt-10">
     <h1 className="font-editorial text-4xl font-medium leading-[1.1] tracking-tight text-hb-ink md:text-5xl">
       {/* Ankomsten (trin 9, indgangen-overhaling §5): så længe tjeklisten
-          ikke er færdig, hedder det «Velkommen» — tidshilsenen kommer
-          når medlemmet er kommet ind. */}
+          styrer forsiden, hedder det «Velkommen» — tidshilsenen kommer
+          når medlemmet er kommet ind (listen færdig ELLER erfarent medlem,
+          30/9 — tjeklistenStyrerForsiden, ankomst.ts). */}
       {velkomst ? "Velkommen" : getGreeting()}, {firstName}.
     </h1>
     {/* Forside PR 2: én linje der er sand i dag — dagen og «N nye ting siden
@@ -1984,8 +1985,11 @@ export const BoardroomView = () => {
       // kontrakten. Begge dømmes i motoren (nextStep.ts).
       contractStartDate: contractStartQuery.data ?? null,
       tjekliste: tjeklisteData.tjekliste,
+      // Erfarent medlem (30/9): > 30 døgn siden profiles.created_at →
+      // tjeklisten slipper kortet (tjeklistenStyrerForsiden, ankomst.ts).
+      medlemSiden: tjeklisteData.medlemSiden,
     });
-  }, [companyId, processedQuery.data, committedKeys, pulseQuery.data, unreadQuery.data, weeklyFocusQuery.data, actionsQuery.data, leversQuery.data, ownProfileQuery.data, contractStartQuery.data, tjeklisteData.tjekliste]);
+  }, [companyId, processedQuery.data, committedKeys, pulseQuery.data, unreadQuery.data, weeklyFocusQuery.data, actionsQuery.data, leversQuery.data, ownProfileQuery.data, contractStartQuery.data, tjeklisteData.tjekliste, tjeklisteData.medlemSiden]);
 
   // Markér ugens fokus som SET når punktet faktisk vises — samme mekanik
   // som DashboardActionCenter:87-98 (mutation + engangs-ref).
@@ -2272,7 +2276,7 @@ export const BoardroomView = () => {
     <div>
       <PageHeader
         firstName={firstName}
-        velkomst={Boolean(tjeklisteData.tjekliste && !tjeklisteData.tjekliste.faerdig)}
+        velkomst={tjeklistenStyrerForsiden(tjeklisteData.tjekliste, tjeklisteData.medlemSiden, new Date())}
         // Dag 1 (PR 3, rettet efter Jonas' skærm 17/9 11:28): medlemskabets start
         // (contract_start_date, som forsiden allerede henter til fokus-motoren)
         // inden for 14 døgn — ikke «tjeklisten ikke færdig».
