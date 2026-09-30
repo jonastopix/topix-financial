@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod — 30/9-2026 kl. 16:00 dansk tid (Jonas, Lovable SQL editor), FØR merget af #1170 og FØR deploy af klaviyo-profil-cron. EFTER (16:00): seks kolonner (tb_medlem boolean, tb_medlem_skrevet_at, medlem_forsoegt_at, medlem_udfald, medlem_status, medlem_grund) · klaviyo_profil_medlem_udfald_check · 350 rækker i klaviyo_profil · låsen klaviyo_medlem_aktiv = false.
 --
 -- MEDLEMSFELTET tb_medlem PÅ KLAVIYO-PROFILEN (30/9-2026, recon-klaviyo-medlemmer.md §4;
 -- Jonas 30/9 07:22). klaviyo-profil-cron skriver nu ét felt mere på profilen:
