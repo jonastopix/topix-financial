@@ -40,6 +40,7 @@ import {
 import ChatRichInput from "@/components/ChatRichInput";
 import { ChatBeskedTekst } from "@/components/ChatBeskedTekst";
 import { byggChatBesked } from "@/lib/chatDokument";
+import { maalListe, skalHoldeBunden, type ListeMaal } from "@/lib/chatBund";
 import ChatVideoOptager from "@/components/ChatVideoOptager";
 import { ChatVideoBesked } from "@/components/ChatVideoBesked";
 import { uploadChatVideo } from "@/lib/chatVideoUpload";
@@ -263,6 +264,15 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  // Listen tegnes først, når en samtale er valgt — derfor en callback-ref,
+  // så «hold bunden»-effekten (ved rulningen nedenfor) kobles på, når den findes.
+  const [listeEl, setListeEl] = useState<HTMLDivElement | null>(null);
+  const saetListeRef = useCallback((el: HTMLDivElement | null) => {
+    messagesContainerRef.current = el;
+    setListeEl(el);
+  }, []);
+  const bundMaalRef = useRef<ListeMaal | null>(null);
+  const rulletTilBundForRef = useRef<string | null>(null);
   const chatSubmitRef = useRef<() => void>(() => {});
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showMessages, setShowMessages] = useState(false);
@@ -755,14 +765,62 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
      FØRSTE indlæsning i låst tilstand (blok 4): rulningen BEHOLDES.
      Bekymringen var at siden selv rullede ned til chatten, så man
      mistede blok 1 — det gjorde scrollIntoView; scrollTo på listen kan
-     ikke flytte siden, listen står i sin faste 100dvh-ramme og viser de
+     ikke flytte siden, listen står i sin faste ramme (VirksomhedView
+     CHAT_HOEJDE — fra 30/9 viewport-højden minus sektionens hoved på lg) og viser de
      nyeste beskeder nederst, som en chat skal. Uden rulningen ville
      tråden åbne ved sin ÆLDSTE besked. */
   useEffect(() => {
     const el = messagesContainerRef.current;
     if (!el) return;
-    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    // Første gang en samtale har beskeder: straks (ingen animation), så den
+    // nyeste besked står synligt ved åbning, også før sene billeder.
+    const foersteGang = messages.length > 0 && rulletTilBundForRef.current !== activeConvId;
+    if (foersteGang) rulletTilBundForRef.current = activeConvId;
+    el.scrollTo({ top: el.scrollHeight, behavior: foersteGang ? "auto" : "smooth" });
   }, [messages]);
+
+  /* «Hold bunden» (30/9, rådets gennemsyn af #1188): listen skifter mål,
+     uden at `messages` ændrer sig — skrivefeltet vokser ved fokus
+     (lavIHvile 40 → 76 px), et billede indlæses sent, en linje over feltet
+     (svarer på, sendefejl) dukker op. Så krymper listen, og de nederste px af
+     den nyeste besked forsvinder. En ResizeObserver på listen og hvert barn
+     (nye børn tilføjes af en MutationObserver) ruller til bunden, hvis listen
+     stod højst 40 px fra bunden FØR ændringen — dommen og regnestykket i
+     `lib/chatBund.ts`. Målingen FØR holdes af scroll-hændelsen; den nulstilles
+     ved skift af samtale (= «stod ved bunden»). Rulningen er `scrollTop` på
+     listen selv, aldrig forfædrene (se kommentaren ovenfor). */
+  useEffect(() => {
+    bundMaalRef.current = null;
+  }, [activeConvId]);
+
+  useEffect(() => {
+    if (!listeEl || typeof ResizeObserver === "undefined") return;
+    const maal = () => { bundMaalRef.current = maalListe(listeEl); };
+    const vedAendring = () => {
+      const efter = maalListe(listeEl);
+      if (skalHoldeBunden(bundMaalRef.current, efter)) {
+        listeEl.scrollTop = listeEl.scrollHeight;
+      }
+      maal();
+    };
+    const ro = new ResizeObserver(vedAendring);
+    ro.observe(listeEl);
+    Array.from(listeEl.children).forEach((c) => ro.observe(c));
+    const mo = new MutationObserver((poster) => {
+      for (const p of poster) {
+        p.addedNodes.forEach((n) => { if (n instanceof Element) ro.observe(n); });
+        p.removedNodes.forEach((n) => { if (n instanceof Element) ro.unobserve(n); });
+      }
+    });
+    mo.observe(listeEl, { childList: true });
+    listeEl.addEventListener("scroll", maal, { passive: true });
+    maal();
+    return () => {
+      ro.disconnect();
+      mo.disconnect();
+      listeEl.removeEventListener("scroll", maal);
+    };
+  }, [listeEl]);
 
   // Efter en sendt besked (tekst eller video): notifikationen, og når
   // rådgiveren sender, samtalens tilstand og medlemmets klokke.
@@ -1008,6 +1066,21 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
   const drawerAnalysis = latestCommentary ? laesAnalysisData(latestCommentary.analysis) : null;
   const drawerIsStale = latestCommentary?.is_stale ?? false;
 
+  /* «Brug for hjælp til» (Jonas 30/9 21:36: «vel reelt ligegyldigt nu, hvor
+     vi har fået refleksionerne for oven på siderne»). Afgjort ved
+     kodelæsning 30/9:
+     - VIRKSOMHEDSSIDEN (laast): blok 2 (VirksomhedView Blok2, «Refleksionen»)
+       viser SAMME felt — seneste pulse_checkins-række for virksomheden,
+       help_needed i fuld længde under «Søger hjælp til» (useVirksomhed.ts,
+       select … help_needed … order created_at desc limit 1). Båndet her er
+       et 30-dagesudsnit af præcis den række: altid enten den samme tekst
+       eller intet. Derfor INTET bånd og ingen hentning i låst tilstand — det
+       stjal chattens højde for en gentagelse.
+     - /chat (indbakken): der er ingen refleksion på den flade, så oplysningen
+       bliver — men FOLDET til én linje med «Vis mere», lukket som standard
+       (udfoldningen gælder kun den samtale, den blev åbnet i). */
+  const [hjaelpUdfoldetFor, setHjaelpUdfoldetFor] = useState<string | null>(null);
+
   // Pulse context for advisor chat banner — only show if from last 30 days
   const { data: latestPulse } = useQuery({
     queryKey: ["chat-pulse-context", activeConv?.company_id],
@@ -1024,7 +1097,7 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
         .maybeSingle();
       return data;
     },
-    enabled: !!isAdvisor && !!activeConv?.company_id,
+    enabled: !!isAdvisor && !laast && !!activeConv?.company_id,
     staleTime: 5 * 60_000,
   });
 
@@ -1739,19 +1812,32 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                   </div>
                 ) : null}
 
-                {/* Pulse banner — rådgiver-specifik. Før amber (off-token); nu en
-                    stille sage-linje under headeren: medlemmets egne ord er en
-                    oplysning, ikke en advarsel. */}
-                {isAdvisor && activeConv && latestPulse?.help_needed && (
-                  <div className="px-4 py-2 bg-hb-sage/20 border-b border-hb-line">
-                    <p className="text-[11px] text-hb-ink-soft">
-                      <span className="font-medium text-hb-ink">Brug for hjælp til:</span> {latestPulse.help_needed}
-                    </p>
-                  </div>
-                )}
+                {/* «Brug for hjælp til» — rådgiver-specifik, KUN på /chat (se
+                    beslutningen ved hjaelpUdfoldetFor: på virksomhedssiden står
+                    feltet i blok 2). Én linje, lukket som standard; «Vis mere»
+                    folder ud for denne samtale. Stille sage-linje: medlemmets
+                    egne ord er en oplysning, ikke en advarsel. */}
+                {isAdvisor && !laast && activeConv && latestPulse?.help_needed && (() => {
+                  const udfoldet = hjaelpUdfoldetFor === activeConv.id;
+                  return (
+                    <div className="flex items-start gap-2 px-4 py-1.5 bg-hb-sage/20 border-b border-hb-line" data-hjaelp-linje>
+                      <p className={`min-w-0 flex-1 text-[11px] text-hb-ink-soft ${udfoldet ? "whitespace-pre-line" : "truncate"}`}>
+                        <span className="font-medium text-hb-ink">Brug for hjælp til:</span> {latestPulse.help_needed}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setHjaelpUdfoldetFor(udfoldet ? null : activeConv.id)}
+                        aria-expanded={udfoldet}
+                        className="shrink-0 text-[11px] font-medium text-hb-evergreen underline-offset-2 hover:underline"
+                      >
+                        {udfoldet ? "Vis mindre" : "Vis mere"}
+                      </button>
+                    </div>
+                  );
+                })()}
 
                 {/* Messages list — MemberChatPane:538-551, ordret */}
-                <div ref={messagesContainerRef} className={`flex-1 overflow-y-auto min-w-0 ${isMobile ? "px-3 py-3 space-y-2" : "px-4 md:px-5 py-4 space-y-4"}`}>
+                <div ref={saetListeRef} className={`flex-1 overflow-y-auto min-w-0 ${isMobile ? "px-3 py-3 space-y-2" : "px-4 md:px-5 py-4 space-y-4"}`}>
                   {messages.length === 0 && (
                     <div className="flex flex-col items-center justify-center h-full py-16 text-center px-8">
                       <div className="h-12 w-12 rounded-full bg-hb-sage/40 flex items-center justify-center mb-4">
@@ -2177,6 +2263,7 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                       maxLength={MAX_MESSAGE_LENGTH}
                       variant="hb"
                       videoKnap={isAdvisor ? { onClick: () => setVideoOptagerAaben(true), fremdrift: videoFremdrift } : undefined}
+                      lavIHvile={laast}
                     />
                     {!isMobile && (
                       <HbButton

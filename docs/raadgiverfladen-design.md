@@ -332,6 +332,16 @@ siden.» Jonas 17/9 (ordret: «Ja på alle») til analysens fem valg, alle A:
 
 1. Planen: blok 3 i fuld bredde, før tallene.
 2. Chatten: ned under tallene, 60 vh (min 420 px), med «Åbn i /chat».
+   **Rettet 30/9-2026** (Jonas 21:36: «Chatten på virksomhedssiderne er
+   lidt for små … banneret "brug for hjælp til" … vel reelt ligegyldigt nu,
+   hvor vi har fået refleksionerne for oven på siderne?»): 60 vh gav én
+   synlig besked. Nu `lg:h-[calc(100dvh-7rem)]` (min 480 px) — hele
+   sektionen på én skærm — og 70 dvh (min 440 px) under lg; regnestykket
+   ved `CHAT_HOEJDE` i `VirksomhedView.tsx`. «Brug for hjælp til»-båndet er
+   fjernet i låst tilstand (blok 2 viser samme `pulse_checkins.help_needed`
+   i fuld længde) og foldet til én linje med «Vis mere» på `/chat`;
+   skrivefeltet er én linje i hvile på virksomhedssiden (`lavIHvile`).
+   Værn: `virksomhedschatPlads.guard` + `virksomhedsside.guard` dom 5.
 3. Aftalen: foldet som standard med statuslinje åben; åbnes af
    ?grund=fornyelse|indgang og ?section=aftale (scroll-effekten åbner
    folden).
@@ -348,7 +358,7 @@ blokkenes NUMRE ovenfor beholdes som navne i koden, Blok1…Blok7):
 | 2 | Deres ord og din forberedelse (blok 2) | `section-refleksion`, `section-session` | uændret (forberedelsen læser planen: PR 2) |
 | 3 | **Planen** (`VirksomhedPlanen`) — egen sektion i FULD BREDDE: målene som rækker, hele titler, skridtene ÅBNE (◻ aktive · ? venter · ✓ gjort · – ikke gjort; op til seks, resten «Vis alle»), handlinger som ord; parkerede/nåede foldet | `section-milestones` | flyttet fra blok 6 |
 | 4 | Tallene (blok 5) | `section-tal` | før chatten |
-| 5 | Chatten (blok 4) — 60 vh, min 420 px, «Åbn i /chat»; den daglige puls sker på `/chat` (§3.4) | `section-chat` | efter tallene, lavere |
+| 5 | Chatten (blok 4) — ~~60 vh, min 420 px~~ viewport-højde fra 30/9 (se punkt 2), «Åbn i /chat»; den daglige puls sker på `/chat` (§3.4) | `section-chat` | efter tallene, lavere; højere 30/9 |
 | 6 | Aktivitet (blok 6): Rapportering · Handouts (to kort) + Rapporter (foldet efter tre) + Leveringsoverblik | `section-handouts`, `section-reports` | uden Planen |
 | 7 | Aftalen (blok 7) — FOLDET, statuslinjen (tier · fornyelse · indgang · fejlede træk · medlemmer · invitationer) åben; folden åbnes af `?section=aftale` og `?grund=fornyelse\|indgang` | `section-aftale` | foldet |
 | 8 | Mails til virksomheden | `section-mails` | uændret |

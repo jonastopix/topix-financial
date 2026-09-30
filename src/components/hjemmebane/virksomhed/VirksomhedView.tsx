@@ -870,10 +870,33 @@ type ForecastPunkt = { period_key: string; period_label: string; revenue: number
     til Hb er ikke denne etape. */
 /** PR 1 (Jonas 17/9, valg 2): chatten er KONTEKST på siden — den daglige
     puls sker på /chat (raadgiverfladen-design.md §3.4: «/chat bliver stående
-    som ren indbakke»). Derfor 60 vh (min 420 px) frem for hele viewportet, og
-    «Åbn i /chat» (CompanyChatPane læser ?companyId). Under md er 60 vh af en
-    telefon ~400–480 px — min-h holder skrivefeltet synligt. */
-const CHAT_HOEJDE = "h-[60vh] min-h-[420px]";
+    som ren indbakke»); «Åbn i /chat» (CompanyChatPane læser ?companyId).
+    Højden var 60vh indtil 30/9, se docs/raadgiverfladen-design.md. */
+/** 30/9-2026 (Jonas 21:36: «Chatten på virksomhedssiderne er lidt for små»):
+    60 vh gav på en 900 px-skærm en ramme på 540 px, hvoraf chat-hovedet
+    (~57 px), «Brug for hjælp til»-båndet (op til flere linjer) og det
+    tre-linjers skrivefelt med værktøjslinje (~130 px) tog så meget, at kun
+    ÉN besked var synlig. Nu:
+    - lg (skallens kolonne scroller, ingen topbar — HbNav er lg:hidden):
+      rammen er viewportet minus sektionens eget hoved, så HELE sektionen
+      (eyebrow-linjen ~57 px + statusrækken ~34 px ≈ 5,7 rem + rammen) står
+      på én skærm: 100dvh − 7 rem + 5,7 rem = 100dvh − 1,3 rem. Ankeret
+      (lg:scroll-mt-4 = 1 rem) lægger bunden 0,3 rem over skærmkanten, så
+      der er ingen dobbelt-scroll: listen ruller i rammen, kolonnen står.
+      900 px-skærm: 900 − 112 = 788 px (før 540). 768 px: 656 (før 461).
+      Minimum 480 px, så skrivefeltet aldrig klemmes på lave skærme.
+    - under lg (dokumentet scroller, mobil-topbaren på 4 rem): 70 dvh, min
+      440 px (før 60 vh / 420) — telefonen har stadig siden omkring chatten.
+    Konteksten fra 17/9 består: «Åbn i /chat» er stadig vejen til indbakken;
+    blokken fylder mere, fordi en samtale, man ikke kan se, ikke er kontekst.
+    Båndet er fjernet i låst tilstand (CompanyChatPane, ved
+    hjaelpUdfoldetFor), og skrivefeltet er én linje i hvile (lavIHvile).
+    Browsere uden dvh (før Safari 15.4 / Chrome 108) dropper h-[70dvh] og
+    lg:h-[calc(100dvh-7rem)]; `chat-hoejde-vh` (index.css, @layer components)
+    giver dem samme højde i vh. Den står i CSS og ikke som en klasse mere i
+    CHAT_HOEJDE, fordi tailwind-merge (cn) ville fjerne den ene af to
+    h-klasser; i utilities-laget, der kommer efter, vinder dvh, hvor den kendes. */
+const CHAT_HOEJDE = "h-[70dvh] min-h-[440px] lg:h-[calc(100dvh-7rem)] lg:min-h-[480px]";
 
 const Blok4 = ({ d }: { d: VirksomhedsData }) => {
   // Samtalestatus + «Tildelt» over chatten (MemberDetail:924-950, samme fire
@@ -892,7 +915,7 @@ const Blok4 = ({ d }: { d: VirksomhedsData }) => {
   const tildelt = samtale?.assigned_advisor_id ? d.raadgiverNavne[samtale.assigned_advisor_id] ?? null : null;
   return (
     // id="section-chat": ankeret for «derfor er du her» (§6) — svar og «skriv til» lander her.
-    <HbSection id="section-chat" eyebrow="Chatten" hairline linkLabel="Åbn i /chat" linkTo={`/chat?companyId=${d.company.id}`} className="mt-12 scroll-mt-24">
+    <HbSection id="section-chat" eyebrow="Chatten" hairline linkLabel="Åbn i /chat" linkTo={`/chat?companyId=${d.company.id}`} className="mt-12 scroll-mt-24 lg:scroll-mt-4">
       <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
         <HbTag className={cn("px-2 py-0.5 text-[11px]", samtale ? "border border-hb-line bg-hb-paper text-hb-ink" : "bg-hb-line/60 text-hb-ink-soft")}>{status}</HbTag>
         {samtale && (
@@ -901,7 +924,7 @@ const Blok4 = ({ d }: { d: VirksomhedsData }) => {
           </span>
         )}
       </div>
-      <div className={cn("flex flex-col overflow-hidden rounded-hb border border-hb-line", CHAT_HOEJDE)}>
+      <div className={cn("flex flex-col overflow-hidden rounded-hb border border-hb-line chat-hoejde-vh", CHAT_HOEJDE)}>
         <CompanyChatPane laastTilCompanyId={d.company.id} />
       </div>
     </HbSection>
