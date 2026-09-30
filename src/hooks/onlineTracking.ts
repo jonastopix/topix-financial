@@ -1,56 +1,64 @@
 /**
  * src/hooks/onlineTracking.ts
  *
- * Medlemmet tracker sig selv på den private Presence-kanal ONLINE_KANAL
- * (16/9, plan-online-realtime.md §2; migration 20260917100000_online_presence.sql:
- * INSERT-politikken «Medlemmer tracker sig i online-medlemmer»). Kaldes i
- * HbMemberShells TOPBLOK med aktiv = !!user && !isAdvisor — useAuth's RÅ
- * isAdvisor, IKKE useViewMode.viewingAsMember: i «Se som medlem» er
- * rådgiveren stadig rådgiver og tracker aldrig.
+ * Medlemmet slår HJERTESLAG i tabellen online_hjerteslag (30/9-2026;
+ * migration 20260930120000_online_hjerteslag.sql; modellen og regnestykket i
+ * src/lib/hjemmebane/online.ts). Erstatter Presence-kanalen fra 16/9, som
+ * aldrig viste et navn. Kaldes i HbMemberShells TOPBLOK med aktiv = !!user &&
+ * !isAdvisor — useAuth's RÅ isAdvisor, IKKE useViewMode.viewingAsMember: i
+ * «Se som medlem» er rådgiveren stadig rådgiver og slår aldrig hjerteslag.
  *
- *   private: true            — politikkerne på realtime.messages håndhæves
- *                              («instantiate the Realtime Channel with the
- *                              config option private: true»).
- *   presence.key = user.id   — flere faner fra samme bruger = én nøgle
- *                              («This key should be unique among clients»).
- *   presence.enabled = true  — NØDVENDIG for en klient der kun tracker:
- *                              realtime-js 2.97 sender ellers join'et med
- *                              presence: { enabled: false } (RealtimeChannel.js
- *                              :126-128 — enabled kun hvis der er en
- *                              presence-lytter ELLER config.presence.enabled).
- *   track() KUN ved SUBSCRIBED — «Presence calls per client: 5 per 30
- *                              seconds»; ingen track ved rutevalg, fokus eller
- *                              visibilitychange. En genforbindelse fyrer
- *                              SUBSCRIBED igen — det er den ene gentagelse.
- *   untrack + removeChannel  — i cleanup (logout, skallen unmountes).
- *                              Ved lukket fane når cleanup ikke altid at
- *                              køre; så kommer «leave» af den tabte
- *                              forbindelse (heartbeat 25 s).
+ *   upsert { user_id }   — KUN egen række (RLS: user_id = auth.uid()).
+ *                          Serveren sætter sidst_set = now() (trigger);
+ *                          klienten sender ingen tid.
+ *   ved montering        — straks, hvis fanen er synlig og det forrige slag
+ *                          er ≥ ONLINE_MIN_AFSTAND_MS gammelt (skalSlaa;
+ *                          skallen monteres pr. side, så sidste slag huskes
+ *                          i modulet, ikke i komponenten).
+ *   hvert ONLINE_HJERTESLAG_MS — kun mens document.visibilityState er
+ *                          «visible»; bliver fanen synlig igen, slås der
+ *                          straks (samme skalSlaa).
+ *   stop ved afmontering — interval og lytter fjernes; rækken bliver
+ *                          liggende og ældes ud af vinduet.
  *
- * Medlemmet får ingen SELECT-politik og modtager intet — det lytter ikke.
- * Fejl (join afvist, politik mangler) logges ikke til medlemmet og viser
- * ingen toast: medlemmet skal ikke vide det; rådgiverens forside viser
- * husets kanalfejl-tekst.
+ * FAIL-SOFT: et fejlet slag vises aldrig for medlemmet — ingen toast, ingen
+ * kastet fejl, ingen log. Næste interval prøver igen; rådgiverens forside
+ * viser husets fejltekst, hvis SIN hentning fejler.
  */
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { ONLINE_KANAL } from "@/lib/hjemmebane/online";
+import { ONLINE_HJERTESLAG_MS, ONLINE_TABEL, skalSlaa } from "@/lib/hjemmebane/online";
+
+/** Tidspunktet for sidste forsøg — i modulet, så det overlever skallens afmontering. */
+let sidsteSlagMs: number | null = null;
+
+/** Ét hjerteslag: upsert af egen række. Kaster aldrig. */
+export async function slaaHjerteslag(userId: string): Promise<void> {
+  try {
+    await (supabase.from(ONLINE_TABEL as never) as any).upsert({ user_id: userId }, { onConflict: "user_id" });
+  } catch {
+    // fail-soft: medlemmet skal ikke vide det
+  }
+}
 
 export function useOnlineTracking(aktiv: boolean, userId: string | null | undefined): void {
   useEffect(() => {
     if (!aktiv || !userId) return;
-    const channel = supabase.channel(ONLINE_KANAL, {
-      config: { private: true, presence: { key: userId, enabled: true } },
-    });
-    channel.subscribe((status) => {
-      if (status === "SUBSCRIBED") {
-        void channel.track({ online_at: new Date().toISOString() });
-      }
-    });
+    const slag = () => {
+      const nuMs = Date.now();
+      if (!skalSlaa({ synlig: document.visibilityState === "visible", nuMs, sidsteMs: sidsteSlagMs })) return;
+      sidsteSlagMs = nuMs;
+      void slaaHjerteslag(userId);
+    };
+    const vedSynlighed = () => {
+      if (document.visibilityState === "visible") slag();
+    };
+    slag();
+    const timer = window.setInterval(slag, ONLINE_HJERTESLAG_MS);
+    document.addEventListener("visibilitychange", vedSynlighed);
     return () => {
-      void channel.untrack().finally(() => {
-        void supabase.removeChannel(channel);
-      });
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", vedSynlighed);
     };
   }, [aktiv, userId]);
 }

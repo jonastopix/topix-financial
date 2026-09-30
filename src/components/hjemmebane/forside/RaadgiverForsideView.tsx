@@ -522,12 +522,13 @@ export const RaadgiverForsideView = () => {
     enabled: !!user,
     staleTime: 5 * 60_000,
   });
-  // Online nu (Jonas 16/9; hooks/onlineMedlemmer + lib/hjemmebane/online):
-  // rådgiveren lytter på den private Presence-kanal (tracker aldrig) og slår
-  // navn, billede og virksomhed op for netop de id'er der er online — nøglen
-  // bærer id'erne, så et nyt medlem online giver ét opslag. Kanalen har sin
-  // egen status (henter · live · fejl); hentningen er en query. Hooks i
-  // topblokken, før nogen betinget return (React #310).
+  // Online nu (Jonas 16/9; hjerteslag 30/9; hooks/onlineMedlemmer +
+  // lib/hjemmebane/online): rådgiveren henter friske hjerteslag (hvert 30. s
+  // og ved fokus) og slår navn, billede og virksomhed op for netop de id'er
+  // der er online — nøglen bærer id'erne, så et nyt medlem online giver ét
+  // opslag. Hjerteslagene har deres egen status (henter · live · fejl);
+  // opslaget er en query. Hooks i topblokken, før nogen betinget return
+  // (React #310).
   const online = useOnlineMedlemmer(!!user);
   const onlineQuery = useQuery({
     queryKey: ONLINE_DOM_KEY(online.ids),
@@ -640,12 +641,13 @@ export const RaadgiverForsideView = () => {
   };
   const sessionerListe = sessionerQuery.data ? dagensSessioner({ ...sessionerQuery.data, nu }) : null;
   const sessionerFelt = felt(sessionerQuery, "sessioner", sessionerListe ? sessionerListe.length : null);
-  // Online: kanalen har sin egen status (henter · live · fejl), opslaget er en
-  // query. Kanalfejl FØRST, så skelet, så opslagsfejl, så listen (onlineMedlemmer).
+  // Online: hjerteslagene har deres egen status (henter · live · fejl), opslaget
+  // er en query. Hjerteslagsfejl FØRST, så skelet, så opslagsfejl, så listen
+  // (onlineMedlemmer).
   let onlineFelt: FeltTilstand;
   let onlineListe: ReturnType<typeof onlineMedlemmer> | null = null;
   if (online.status === "fejl") {
-    iDagFejl.push({ noegle: "online", tekst: raadgiverHentefejlTekst(new HentningsFejl("realtime_presence", "kanalen kunne ikke åbnes"), "forsiden") });
+    iDagFejl.push({ noegle: "online", tekst: raadgiverHentefejlTekst(new HentningsFejl("online_hjerteslag", "hjerteslagene kunne ikke hentes"), "forsiden") });
     onlineFelt = { art: "fejl" };
   } else if (online.status === "henter" || (online.ids.length > 0 && !onlineQuery.data && !onlineQuery.isError)) {
     onlineFelt = { art: "henter" };
