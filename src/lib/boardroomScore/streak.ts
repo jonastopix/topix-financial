@@ -6,7 +6,7 @@
  *   - En måned P tæller som «godkendt til tiden», når den har en MÅLT række
  *     (data_basis measured), og månedens FØRSTE godkendelse er ≤ frist(P).
  *     Første godkendelse er hukommelsen `maaned_foerste_godkendelse`
- *     (migration 20260930120000 — skrives af en trigger, når en måned første
+ *     (migration 20260930130000 — skrives af en trigger, når en måned første
  *     gang bliver målt, og overlever «Erstat gammel data» og permanent
  *     sletning, som begge sletter facts-rækken), ellers rækkens created_at;
  *     den tidligste af de to (tidligsteGodkendelse). committed_at læses

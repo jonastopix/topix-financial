@@ -7,7 +7,7 @@
  *   - financial_report_facts (period_key, data_basis, metrics, created_at).
  *     Egen hentning (useCompanyFacts vælger ikke created_at), samme policy.
  *   - maaned_foerste_godkendelse (period_key, foerst_godkendt_at) — HUKOMMELSEN
- *     om månedens første godkendelse (migration 20260930120000, rådets fund 1):
+ *     om månedens første godkendelse (migration 20260930130000, rådets fund 1):
  *     «Erstat gammel data» og permanent sletning sletter facts-rækken, og en
  *     rettet måned får en ny række med created_at = now(). Hukommelsen skrives
  *     af en trigger, når en måned første gang bliver målt, og slettes aldrig
@@ -66,7 +66,7 @@ export async function hentScoreGrundlag(companyId: string, nu: Date): Promise<Sc
     "financial_report_facts",
   );
 
-  // Hukommelsen om første godkendelse. Tabellen er født i 20260930120000 og står
+  // Hukommelsen om første godkendelse. Tabellen er født i 20260930130000 og står
   // endnu ikke i types.ts (Lovable genererer typerne efter migrationen) — derfor `as any`.
   const hukommelseRes = await (supabase
     .from("maaned_foerste_godkendelse" as any)

@@ -16,7 +16,7 @@ medlemmets egen, mod sig selv).
 **Skiven er MOTOR FØR FLADE.** Denne PR bærer designet (dette dokument),
 den rene motor `src/lib/boardroomScore/` med tests, én hook
 `src/hooks/useBoardroomScore.ts`, der læser med medlemmets egen RLS, og ÉN
-tilføjende migration (`20260930120000_maaned_foerste_godkendelse.sql`, §4a
+tilføjende migration (`20260930130000_maaned_foerste_godkendelse.sql`, §4a
 — hukommelsen om første godkendelse). Ingen flade. §7 siger, hvad fladen
 mangler.
 
@@ -315,7 +315,7 @@ sletter facts-rækken → `commit_report_facts` indsætter en ny med
 
 **Reglen:** en måned, der én gang er talt rettidig, forbliver rettidig.
 
-**Kilden:** migration `20260930120000_maaned_foerste_godkendelse.sql` — KUN
+**Kilden:** migration `20260930130000_maaned_foerste_godkendelse.sql` — KUN
 TILFØJENDE. Tabellen `maaned_foerste_godkendelse (company_id, period_key,
 foerst_godkendt_at)`, én række pr. måned pr. virksomhed, skrevet af
 triggeren `trigger_husk_foerste_godkendelse` (AFTER INSERT OR UPDATE OF
@@ -444,7 +444,7 @@ src/lib/boardroomScore/
   index.ts      re-eksport
   __tests__/    kurve · soejler · streak · score
 src/hooks/useBoardroomScore.ts   læser facts + hukommelsen (§4a), kontraktstart, budget-år, mål — medlemmets RLS
-supabase/migrations/20260930120000_maaned_foerste_godkendelse.sql   hukommelsen (§4a) — tilføjende
+supabase/migrations/20260930130000_maaned_foerste_godkendelse.sql   hukommelsen (§4a) — tilføjende
 ```
 
 Inddata (`ScoreGrundlag`): `maaneder[]` (`key`, `basis`, `foersteGodkendtAt`
@@ -475,7 +475,7 @@ skrives ud»).
 - En klokke/mail før fristen («Du har 3 hverdage til at holde din streak»)
   — «et signal, kun en browser kan vise, er ikke et signal». Kræver en
   Bucket B-cron og hverdags-reglen; kan bygge på `send-report-reminder`.
-- Migrationen `20260930120000` KØRT i prod og målt (§4a) — FØR nogen flade
+- Migrationen `20260930130000` KØRT i prod og målt (§4a) — FØR nogen flade
   får Update.
 - `companies.contract_start_date` sat på alle aktive virksomheder, så
   «første tællende måned» ikke skal udledes af godkendelserne (§2.4).
