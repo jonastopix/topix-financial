@@ -318,14 +318,24 @@ lå før skillelinjen.
 |---|---|---|---|
 | Bekræftelse | **platformen** | straks, **kun nye** (efter 19:03) | eWebinars SLUKKET 19:03 · Klaviyos `WFzxH9` slukket |
 | **14 dage før** | **platformen** | 08:00, **MED `invite.ics`** som bekræftelsen | **I DRIFT 28/9 10:00** (#1102 + migration `20260928120000`): lukker hullet for de ~217, der tilmeldte sig 13/10 før 19:03 og aldrig fik en invitation — går til ALLE, uden `BEKRAEFTELSE_FRA`-port; samme 2-timers nåde. Prøve til jonas@topix.dk 10:05 ok/200/hentet, prøverækken slettet 10:06. Sender **29/9 08:09–09:59 til 317**; aflæses ~10:05 (§7f) |
-| 7 / 3 / 1 dag før | **platformen** | 08:00 | ny |
-| Dagen | **platformen** | 07:30 | ny |
+| 7 / 1 dag før | **platformen** | 08:00 | ny. **3 dage før og «dagen» (07:30) er udgået 30/9** (besluttet af Jonas 30/9 kl. 06:06 (morgenlistens D1: "Ja det skal de. Drop de to"); `mail-worstcase` §4 P1-8) |
 | 1 time før | **platformen** | −60 min | eWebinars 1-times SLUKKET |
 | **10 min før** | **eWebinar** | −10 min | **BEHOLDT**, oversat til dansk 22/9 |
 | Efter webinaret | **Klaviyo** | uændret | `Wq3MkG`, `SDVvCW` urørte (`UiECQS` slukket 19:0x) |
 
 Platformen har overtaget alt FØR webinaret på nær de sidste ti minutter; Klaviyo
 har alt EFTER; eWebinar har én mail tilbage.
+
+### Fem arter sendes — `tre_dage` og `dagen` udgået (30/9)
+
+Efter `mail-worstcase` §4 P1-8, besluttet af Jonas 30/9 kl. 06:06 (morgenlistens D1: "Ja det skal de. Drop de to"): en deltager får bekræftelse · 14 dage ·
+7 dage · 1 dag · 1 time (plus eWebinars egen 10-minutters-mail); `tre_dage` og
+`dagen` står i `UDGAAEDE_ARTER`, ikke i `PLANEN`, og ordene bliver i `ARTER` og
+`webinar_mails_art_check` (historik; ingen migration). **Indhentningens loft
+(30/9):** en mail, vi selv har fejlet med, indhentes højst til artens
+`indhentesSenestDageFoer` — **8 · 4 · 1 dage** før sessionen for `fjorten_dage` ·
+`syv_dage` · `en_dag` (inklusivt, danske kalenderdage), så teksten stadig er
+sand; uden loftet ville en fejlet «om en uge» løbe til dagen før `en_dag`.
 
 ### Bekræftelsen sendes ALDRIG bagud (Jonas ~19:05)
 

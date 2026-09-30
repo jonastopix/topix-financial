@@ -26,6 +26,7 @@ import { useScrollToHash } from "@/hooks/useScrollToHash";
 import { aarsrapportHulTekst, faktaTilKf, manglendeAarsrapportFelter } from "@/lib/aarsrapportHuller";
 import { formatCompact, formatDKK, SHORT_MONTHS } from "@/lib/financialUtils";
 import { KPI_DEFS, VALUE_EXTRACTORS, deriveKpiMetrics, type KpiMetric } from "@/lib/kpiDefs";
+import { maanedOgAar } from "@/lib/maanedTekst";
 import { INDUSTRY_TEMPLATES, type BenchmarkTemplate } from "@/lib/appConfig";
 import { HbFinancialAnalysis } from "./HbFinancialAnalysis";
 import { usePeriodFilter } from "@/components/PeriodSelector";
@@ -335,7 +336,8 @@ export const NoegletalView = () => {
     refetchComments();
     supabase.functions
       .invoke("notify-kpi-comment", {
-        body: { company_id: companyId, period_label: commentPopover.periodKey, kpi_key: selectedKPI },
+        // Medlemmets ord i notifikationen: «juli 2026», ikke nøglen «2026-07» (maanedTekst.ts).
+        body: { company_id: companyId, period_label: maanedOgAar(commentPopover.periodKey), kpi_key: selectedKPI },
       })
       .catch(() => {});
   };

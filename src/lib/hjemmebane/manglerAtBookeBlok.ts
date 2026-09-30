@@ -29,7 +29,8 @@ export interface ManglerLinje {
   virksomheder: ManglerVirksomhed[];
 }
 
-const ETIKET: Readonly<Record<ManglerLinje["raadgiver"], string>> = {
+/** Rækkens navn uden tallet — forsidens foldbare række (30/9) sætter tallet i et mærke ved siden af. */
+export const ETIKET: Readonly<Record<ManglerLinje["raadgiver"], string>> = {
   morten: "Morten-session",
   jonas: "Jonas-session",
 };

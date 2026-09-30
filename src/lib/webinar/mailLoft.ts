@@ -32,7 +32,7 @@
  *
  * Regnestykket: den første hele hold-mail, «syv_dage» 6/10 kl. 08:00, går til
  * ca. 217. 217 ≤ 1000, så loftet bremser den ikke; hvor mange EN kørsel når,
- * afgør tidsbudgettet (BUDGET_MS i webinar-mail-cron), ikke dette tal. Loftet
+ * afgør tidsbudgettet (webinarMailBudget.ts), ikke dette tal. Loftet
  * er stadig en bremse, hvis Mailgun alligevel siger stop: et 403/420/429 i
  * vinduet giver PAUSEN og bruddet i løkken, uændret.
  */

@@ -11,7 +11,15 @@ import { HbRaadgiverPortraetter } from "@/components/hjemmebane/HbRaadgiverPortr
 import { HB_EYEBROW, HB_H1, HB_INPUT, HB_INPUT_LAAST, HB_LABEL, HB_RAMME } from "@/components/hjemmebane/hbFormKlasser";
 import { HbSpinner } from "@/components/hjemmebane/HbSpinner";
 import { useHbDokumentGrund } from "@/hooks/useHbDokumentGrund";
-import { afgoerInvitationslink, LINK_UKENDT_TEKST, signupFejl, type Invitationslink } from "@/lib/signupFejl";
+import {
+  afgoerInvitationslink,
+  INVITATIONSOPSLAG_FRIST_MS,
+  INVITATIONSOPSLAG_UDEBLEV,
+  LINK_UKENDT_TEKST,
+  signupFejl,
+  type Invitationslink,
+} from "@/lib/signupFejl";
+import { medFrist } from "@/lib/medFrist";
 import { sikkerReturSti } from "@/lib/sikkerReturUrl";
 
 /* Rammen, eyebrow, overskrift og felterne deles med ResetPassword og
@@ -108,11 +116,16 @@ const Auth = () => {
   // Dommen (16/9, lib/signupFejl.ts): gyldig → som før; ukendt (brugt,
   // slettet eller forvansket token — data null eller 22P02) → siden åbner
   // på «Log ind» med en linje der siger det; fejl (netværk o.l.) → signup
-  // som før, og triggeren afgør.
+  // som før, og triggeren afgør. Fristen (30/9, m28-invitationsopslag-haenger):
+  // svarer RPC'en ikke inden INVITATIONSOPSLAG_FRIST_MS, er dommen «fejl» —
+  // aldrig en spinner for evigt. Et svar efter fristen ignoreres (medFrist).
   useEffect(() => {
     if (!inviteToken) return;
-    supabase
-      .rpc("lookup_invite_company_info", { invite_token: inviteToken })
+    medFrist(
+      supabase.rpc("lookup_invite_company_info", { invite_token: inviteToken }),
+      INVITATIONSOPSLAG_FRIST_MS,
+      INVITATIONSOPSLAG_UDEBLEV,
+    )
       .then(({ data, error }) => {
         const dom = afgoerInvitationslink({ harToken: true, data, error });
         if (dom === "gyldig") {
@@ -133,6 +146,12 @@ const Auth = () => {
           console.warn("[Auth] lookup_invite_company_info fejlede:", error.code ?? "", error.message ?? "");
         }
         setOpslag(dom);
+      })
+      .catch((e: unknown) => {
+        // Et opslag, der KASTER (i stedet for at svare med error), stod før
+        // også på «venter» for evigt. Samme dom som et fejlet svar.
+        console.warn("[Auth] lookup_invite_company_info kastede:", e);
+        setOpslag("fejl");
       });
   }, [inviteToken]);
 

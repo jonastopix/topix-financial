@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { fornyelsesToastTekst, laesFoer, TOAST_TITEL } from "@/lib/fornyelsesToast";
@@ -7,8 +7,7 @@ import MembershipExpiredGate from "@/components/MembershipExpiredGate";
 import CompanyLinkFailedGate from "@/components/CompanyLinkFailedGate";
 import FornyelseKvittering from "@/components/FornyelseKvittering";
 import { HbMemberShell } from "@/components/hjemmebane/HbMemberShell";
-import { BoardroomView } from "@/components/hjemmebane/boardroom/BoardroomView";
-import { RaadgiverForsideView } from "@/components/hjemmebane/forside/RaadgiverForsideView";
+import { HbIndholdSpinner } from "@/components/hjemmebane/HbSpinner";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
@@ -26,6 +25,18 @@ import { supabase } from "@/integrations/supabase/client";
     nogens landingsside; dens hentAdvisorDashboard er stadig forsidens
     datalag. /forside viderestiller hertil (Forside.tsx). Hilsenen bor i
     RaadgiverForsideView, så getGreeting er væk herfra. */
+
+/* De to forsider hentes hver for sig (29/9, analyse-hastighed.md #4):
+   medlemmet henter ikke rådgiverens dom (RaadgiverForsideView,
+   forsidensDom, hentAdvisorDashboard), og rådgiveren ikke medlemmets
+   BoardroomView (+ kalenderen). Suspense står INDE i skallen, så sidebaren
+   tegnes med det samme, og kun indholdsfeltet venter på sin chunk. */
+const BoardroomView = lazy(() =>
+  import("@/components/hjemmebane/boardroom/BoardroomView").then((m) => ({ default: m.BoardroomView })),
+);
+const RaadgiverForsideView = lazy(() =>
+  import("@/components/hjemmebane/forside/RaadgiverForsideView").then((m) => ({ default: m.RaadgiverForsideView })),
+);
 
 /* ── Fornyelses-låsen ────────────────────────────────────────────────────
    HVORFOR DEN FINDES: opret-fornyelse-checkout sender medlemmet tilbage til
@@ -253,14 +264,18 @@ const Dashboard = () => {
   if (isAdvisor && !companyId) {
     return (
       <HbMemberShell active="boardroom">
-        <RaadgiverForsideView />
+        <Suspense fallback={<HbIndholdSpinner />}>
+          <RaadgiverForsideView />
+        </Suspense>
       </HbMemberShell>
     );
   }
 
   return (
     <HbMemberShell active="boardroom">
-      <BoardroomView />
+      <Suspense fallback={<HbIndholdSpinner />}>
+        <BoardroomView />
+      </Suspense>
     </HbMemberShell>
   );
 };

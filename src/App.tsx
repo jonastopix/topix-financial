@@ -13,16 +13,19 @@ import ScrollToTop from "@/components/ScrollToTop";
 import { HbSpinner } from "@/components/hjemmebane/HbSpinner";
 import InvitationTilLoggetInd from "@/components/hjemmebane/InvitationTilLoggetInd";
 
-// Synchronous — needed on initial load
-import Index from "./pages/Index";
-import Auth from "./pages/Auth";
-import ResetPassword from "./pages/ResetPassword";
-import Betal from "./pages/Betal";
-import Ansoeg from "./pages/Ansoeg";
-import AnsoegPersondata from "./pages/AnsoegPersondata";
-import AnsoegStatus from "./pages/AnsoegStatus";
-import Aftale from "./pages/Aftale";
-import NotFound from "./pages/NotFound";
+// Lazy — også forsiden og de offentlige sider (29/9, analyse-hastighed.md #4).
+// Før lå de synkront i hoved-chunken (1.317 kB / 400 kB gzip), så ansøgeren
+// på /ansoeg hentede både medlems- og rådgiverforsiden. Suspense-fallback'en
+// nedenfor er HbSpinner — samme rolige papir som ProtectedRoute/MemberRoute.
+const Index = lazy(() => import("./pages/Index"));
+const Auth = lazy(() => import("./pages/Auth"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const Betal = lazy(() => import("./pages/Betal"));
+const Ansoeg = lazy(() => import("./pages/Ansoeg"));
+const AnsoegPersondata = lazy(() => import("./pages/AnsoegPersondata"));
+const AnsoegStatus = lazy(() => import("./pages/AnsoegStatus"));
+const Aftale = lazy(() => import("./pages/Aftale"));
+const NotFound = lazy(() => import("./pages/NotFound"));
 
 // Lazy — member/advisor routes
 const Milestones = lazy(() => import("./pages/Milestones"));

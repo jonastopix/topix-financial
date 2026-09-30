@@ -1,7 +1,7 @@
 import * as React from "react";
 import { Link } from "react-router-dom";
 import { ListChecks, Lock, LogOut, X } from "lucide-react";
-import topixIcon from "@/assets/topix-icon-green.png";
+import topixIcon from "@/assets/topix-icon-green-96.png";
 import { cn } from "@/lib/utils";
 
 /** Nav-struktur. `to` = rigtig route; uden `to` er linket dødt (V0-preview-

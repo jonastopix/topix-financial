@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 /**
- * Kildeværn for platformens før-webinar-mails (22/9-2026). Seksten domme, hver
+ * Kildeværn for platformens før-webinar-mails (22/9-2026). Sytten domme, hver
  * bevist på en kopi med fejlen indsat:
  *
  *   1. BUCKET B + LÅS: webinar-mail-cron kalder authenticateServiceRole FØRST,
@@ -38,6 +38,12 @@ import { resolve } from "node:path";
  *      spejle — og «fjorten_dage» står i begge med sin plan (14 dage, 08:00).
  *      En art, CHECK'en ikke kender, ville sende mailen, tabe sin række i
  *      sporet og sende IGEN fem minutter senere.
+ *      30/9 (udkast): ARTER er ORDFORRÅDET (= CHECK'en), og det, der SENDES, er
+ *      AKTIVE_ARTER = PLANEN.map(art) — ordret i begge spejle, planlaegKoersel
+ *      løber over den, og cronens prøve afviser alt uden for den.
+ *      UDGAAEDE_ARTER (tre_dage, dagen) står i ARTER og i CHECK'en, men har
+ *      ingen linje i PLANEN; AKTIVE + UDGÅEDE = ARTER. Sendes kun arter, CHECK'en
+ *      kender, er sporet sikkert — derfor kræver det ingen migration at FJERNE.
  *  11. TEKSTEN FØLGER INVITATIONEN (28/9): cronen henter filen FØR mailen
  *      bygges og giver `invitationVedhaeftet: ics !== null` videre; feltet er
  *      KRÆVET på MailArgs (ikke `?`), og `indhold` får flaget — aldrig en
@@ -76,6 +82,14 @@ import { resolve } from "node:path";
  *      doemMail, som springer PÅMINDELSER (erPaamindelse, læst af PLANEN — ikke
  *      bekræftelsen) over FØR nåden. Uden det fik en person tilmeldt to sessioner
  *      to hele serier, to mails i samme minut (mail-worstcase §3 scenarie C).
+ *  17. BUDGETTET DÆKKER DET VÆRSTE FORLØB (30/9, analyse-drift fund 4): et
+ *      forsøg startes kun, hvis forløbet + (ics + Mailgun + spor) ≤ jobbets
+ *      timeout − margin; tjekket står efter loftet og FØR hentningen og
+ *      afsendelsen, et nej er endeligt i kørslen, JOB_TIMEOUT_MS er ORDRET
+ *      kald_edge-timeouten i den nyeste migration, der planlægger 'webinar-mail',
+ *      og intet andet await står mellem Mailguns svar og sporet. Uden det kunne
+ *      det sidste forsøg ende ved 45 + 8 + 10 = 63 s mod en timeout på 60 s:
+ *      pg_net afbryder, mailen er sendt, sporet er ikke — og næste slot sender igen.
  */
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -117,6 +131,14 @@ const DOM = "supabase/functions/_shared/webinarMailDom.ts";
 const DOM_SPEJL = "src/lib/webinar/mailDom.ts";
 const LOFT = "supabase/functions/_shared/webinarMailLoft.ts";
 const ALARM = "supabase/functions/_shared/webinarMailAlarm.ts";
+const BUDGET = "supabase/functions/_shared/webinarMailBudget.ts";
+/** Den NYESTE migration, der planlægger cron-jobbet 'webinar-mail' — det er dens timeout, der gælder. */
+const MIG_JOB = (() => {
+  const mappe = "supabase/migrations";
+  const filer = readdirSync(resolve(process.cwd(), mappe)).filter((n) => n.endsWith(".sql")).sort();
+  const med = filer.filter((n) => /cron\.schedule\(\s*'webinar-mail',/.test(udenSql(readFileSync(resolve(process.cwd(), mappe, n), "utf8"))));
+  return med.length > 0 ? `${mappe}/${med[med.length - 1]}` : "";
+})();
 
 // ── 1 ──────────────────────────────────────────────────────────────────────
 export const bucketBOgLaas = (cron: string, config: string): boolean => {
@@ -294,8 +316,23 @@ export const arterITakt = (dom: string, spejl: string, migration: string, cron: 
   const arter = listeIKode(dom, "ARTER"), med = listeIKode(dom, "MED_INVITATION");
   const artCheck = listeICheck(migration, /check \(art in \(([^)]*)\)\)/);
   const invCheck = listeICheck(migration, /check \(invitation is null or art in \(([^)]*)\)\)/);
-  const PLAN = '{ art: "fjorten_dage", dageFoer: 14, time: 8, minut: 0, kraeverIkkeBegyndt: false },';
+  const PLAN = '{ art: "fjorten_dage", dageFoer: 14, time: 8, minut: 0, indhentesSenestDageFoer: 8, kraeverIkkeBegyndt: false },';
+  // 30/9: det, der SENDES, er PLANEN — aldrig en håndskrevet liste — og de udgåede
+  // har ingen linje i den. AKTIVE (læst af PLANENs art-felter) + UDGÅEDE = ARTER.
+  const AKTIVE = 'export const AKTIVE_ARTER: readonly MailArt[] = PLANEN.map((p) => p.art);';
+  const udgaaede = listeIKode(dom, "UDGAAEDE_ARTER");
+  const planKrop = (k: string) => { const u = udenKommentarer(k), i = u.indexOf("export const PLANEN"); return i === -1 ? "" : u.slice(i, u.indexOf("];", i)); };
+  const iPlan = [...planKrop(dom).matchAll(/\{ art: "([a-z_]+)"/g)].map((m) => m[1]);
   return (
+    udgaaede.length > 0 && udgaaede.every((a) => arter.includes(a) && !iPlan.includes(a)) &&
+    listeIKode(spejl, "UDGAAEDE_ARTER").join(",") === udgaaede.join(",") &&
+    arter.filter((a) => !udgaaede.includes(a)).join(",") === iPlan.join(",") &&
+    [...planKrop(spejl).matchAll(/\{ art: "([a-z_]+)"/g)].map((m) => m[1]).join(",") === iPlan.join(",") &&
+    dom.includes(AKTIVE) && spejl.includes(AKTIVE) &&
+    udenKommentarer(dom).includes("for (const art of AKTIVE_ARTER) {") &&
+    udenKommentarer(spejl).includes("for (const art of AKTIVE_ARTER) {") &&
+    !udenKommentarer(dom).includes("for (const art of ARTER) {") &&
+    udenKommentarer(cron).includes("if (artRaa !== null && !(AKTIVE_ARTER as readonly string[]).includes(artRaa)) {") &&
     arter.length === 7 && arter.join(",") === artCheck.join(",") &&
     med.length === 2 && med.join(",") === invCheck.join(",") &&
     arter.includes("fjorten_dage") && med.includes("fjorten_dage") &&
@@ -389,6 +426,43 @@ export const fejledeIndhentes = (cron: string, dom: string, spejl: string): bool
   );
 };
 
+// ── 18 ─────────────────────────────────────────────────────────────────────
+/**
+ * 30/9: INDHENTNINGENS LOFT følger teksten. Uden tre_dage i PLANEN løb en fejlet
+ * «om en uge» til dagen før en_dag (to dage før sessionen). Nu har hver tidssat
+ * påmindelse et loft (indhentesSenestDageFoer: 8 · 4 · 1), indhentningSlut tager
+ * den TIDLIGSTE af næste arts dato og loftet, et manglende loft er fail-closed —
+ * i begge spejle — og alarmens frist læser SAMME funktion.
+ */
+export const indhentningFoelgerTeksten = (dom: string, spejl: string, alarm: string): boolean => {
+  const iDommen = (k: string) => {
+    const d = udenKommentarer(k);
+    const doem = d.slice(d.indexOf("export function doemMail("), d.indexOf("export function erPaamindelse("));
+    const slut = d.slice(d.indexOf("export function indhentningSlut("), d.indexOf("export function sammeDanskeDato("));
+    return (
+      d.includes('{ art: "fjorten_dage", dageFoer: 14, time: 8, minut: 0, indhentesSenestDageFoer: 8, kraeverIkkeBegyndt: false },') &&
+      d.includes('{ art: "syv_dage", dageFoer: 7, time: 8, minut: 0, indhentesSenestDageFoer: 4, kraeverIkkeBegyndt: false },') &&
+      d.includes('{ art: "en_dag", dageFoer: 1, time: 8, minut: 0, indhentesSenestDageFoer: 1, kraeverIkkeBegyndt: false },') &&
+      doem.includes("const slut = indhentningSlut(i.sessionTid, art);") &&
+      doem.includes("if (i.nu.getTime() < slut.getTime()) {") &&
+      !doem.includes("planlagtTid(i.sessionTid, naeste)") && !doem.includes("sammeDanskeDato(") &&
+      slut.includes("plan.indhentesSenestDageFoer === undefined) return null;") &&
+      slut.includes("const a = danskMidnatDageFoer(naesteTid, 0);") &&
+      slut.includes("const b = danskMidnatDageFoer(new Date(ms), plan.indhentesSenestDageFoer - 1);") &&
+      slut.includes("return new Date(Math.min(a.getTime(), b.getTime()));")
+    );
+  };
+  const a = udenKommentarer(alarm);
+  const frist = a.slice(a.indexOf("export function fristFor("), a.indexOf("export interface Prognose"));
+  return (
+    iDommen(dom) && iDommen(spejl) &&
+    a.includes("indhentningSlut") &&
+    !a.includes("naesteTidssatteArt") &&
+    frist.includes("const slut = indhentningSlut(sessionTid, art);") &&
+    frist.includes("new Date(Math.max(efterNaade.getTime(), slut.getTime()))")
+  );
+};
+
 // ── 15 ─────────────────────────────────────────────────────────────────────
 /**
  * 29/9: et forsøg med UKENDT udfald (timeout, afbrudt forbindelse, 5xx) gensendes
@@ -451,6 +525,63 @@ export const kunNaermesteSession = (cron: string, dom: string, spejl: string): b
   );
 };
 
+// ── 17 ─────────────────────────────────────────────────────────────────────
+/** Jobbets timeout, læst af kald_edge-kaldet i migrationen (kommentarlinjer og halekommentarer væk). */
+export const jobTimeoutIMigrationen = (mig: string): number | null => {
+  const k = udenSql(mig).replace(/--[^\n]*/g, "");
+  const m = k.match(/kald_edge\(\s*'webinar-mail-cron',\s*'[^']*'::jsonb,\s*(\d+)\s*,/);
+  return m ? Number(m[1]) : null;
+};
+
+export const budgetDaekkerVaersteForloeb = (cron: string, budget: string, mig: string): boolean => {
+  const f = udenKommentarer(cron), b = udenKommentarer(budget);
+  const LOEKKE = "for (let i = 0; i < sendinger.length; i++) {";
+  const start = f.indexOf(LOEKKE), slut = f.indexOf("async function skrivAlarm(");
+  if (start === -1 || slut === -1 || start > slut) return false;
+  const loekke = f.slice(start, slut);
+  const TJEK = "if (!budgetTillader({ forloebetMs, medInvitation: baererInvitation(s.art) })) {";
+  const STOP = "if (r.budget.stoppet_af_budget) { r.udsat++; continue; }";
+  // Fra det SIDSTE Mailgun-kald til sporet: intet andet await.
+  const KALD = "spor = await sendMailgun";
+  const sidsteKald = loekke.lastIndexOf(KALD);
+  const insert = loekke.indexOf('await a.admin.from("webinar_mails").insert(');
+  const mellem = sidsteKald !== -1 && insert > sidsteKald ? loekke.slice(sidsteKald + KALD.length, insert) : null;
+  const jobTimeout = jobTimeoutIMigrationen(mig);
+  const konst = (navn: string) => { const m = b.match(new RegExp(`export const ${navn} = ([\\d_]+);`)); return m ? Number(m[1].replace(/_/g, "")) : null; };
+  const JOB = konst("JOB_TIMEOUT_MS"), MARGIN = konst("OPSTART_MARGIN_MS"), SPOR = konst("SPOR_RESERVE_MS");
+  return (
+    f.includes('from "../_shared/webinarMailBudget.ts"') &&
+    // Det gamle, halve budget er væk.
+    !/BUDGET_MS/.test(f) &&
+    // Tjekket: forløbet regnes fra startMs, dømmes pr. art, og står EFTER loftet og FØR alt, der tager tid.
+    loekke.includes("const forloebetMs = Date.now() - a.startMs;") &&
+    loekke.includes(TJEK) &&
+    loekke.includes(STOP) &&
+    foer(loekke, "if (forsoegt >= loft.maks) {", TJEK) &&
+    foer(loekke, TJEK, STOP) &&
+    foer(loekke, STOP, "await byggAfmeldToken(") &&
+    foer(loekke, STOP, "await hentInvitation(") &&
+    foer(loekke, STOP, "await sendMailgun") &&
+    // Et nej er endeligt: stoppet sættes, og forløbet bogføres.
+    loekke.includes("r.budget.stoppet_af_budget = true;") &&
+    loekke.includes("r.budget.forloebet_ved_stop_ms = forloebetMs;") &&
+    // Beviset i svaret.
+    f.includes("budget: BudgetBevis;") &&
+    f.includes("budget: tomtBudgetBevis(),") &&
+    // Sporet så tidligt som muligt: intet await mellem Mailguns svar og insertet.
+    mellem !== null && !/\bawait\b/.test(mellem) &&
+    // Motoren: resttiden er begge timeouts + spor, dommen er ≤ job − margin, fail-closed.
+    b.includes('import { TIMEOUT_MS } from "./mailgunAfsendelse.ts";') &&
+    b.includes('import { INVITATION_TIMEOUT_MS } from "./mimeInvitation.ts";') &&
+    b.includes("return (medInvitation ? INVITATION_TIMEOUT_MS : 0) + TIMEOUT_MS + SPOR_RESERVE_MS;") &&
+    b.includes("return a.forloebetMs + resttidKraevetMs(a.medInvitation) <= JOB_TIMEOUT_MS - OPSTART_MARGIN_MS;") &&
+    b.includes("if (!Number.isFinite(a.forloebetMs) || a.forloebetMs < 0) return false;") &&
+    // Tallene: jobbets timeout er ORDRET migrationens, og marginerne er ikke nul.
+    jobTimeout !== null && JOB === jobTimeout &&
+    MARGIN !== null && MARGIN >= 1_000 && SPOR !== null && SPOR >= 1_000
+  );
+};
+
 // ── 14 ─────────────────────────────────────────────────────────────────────
 /** Omdømt 29/9 14:04: alarmen kaldes kun i en rigtig kørsel, og KUN når doemAlarm siger ja; loft, tabt og frist har nøgle pr. dag, kun fejl pr. time. */
 export const alarmenKunIRigtigKoersel = (cron: string, alarm: string): boolean => {
@@ -506,13 +637,20 @@ describe("webinarMail.guard — platformens før-webinar-mails", () => {
   it("7. afmeldingen rammer også Klaviyo, og kilde-listen er i takt med CHECK'en", () => expect(etKlikEnBetydning(laes(AFMELD), laes(AFMELDING), laes(MIG_KILDE))).toBe(true));
   it("8. bekræftelsen går gennem MIME'en med den rigtige Content-Type", () => expect(bekraeftelsenGaarGennemMime(laes(CRON), laes(MIME))).toBe(true));
   it("9. bekræftelsen sendes aldrig bagud, og tidspunktet når dommen", () => expect(bekraeftelsenKunFremad(laes(DOM), laes(DOM_SPEJL), laes(CRON))).toBe(true));
-  it("10. ARTER og MED_INVITATION er i takt med CHECK'ene, i begge spejle", () => expect(arterITakt(laes(DOM), laes(DOM_SPEJL), laes(MIG_ARTER), laes(CRON))).toBe(true));
+  it("10. ARTER og MED_INVITATION er i takt med CHECK'ene, og AKTIVE_ARTER er PLANEN (udgåede uden plan), i begge spejle", () => expect(arterITakt(laes(DOM), laes(DOM_SPEJL), laes(MIG_ARTER), laes(CRON))).toBe(true));
   it("11. teksten følger invitationen: hentet FØR byggeren, flaget krævet og brugt", () => expect(tekstenFoelgerInvitationen(laes(CRON), laes(TEKSTER))).toBe(true));
   it("12. loftet regnes før løkken, pause sender intet, og 403/420/429 bryder løkken efter sporet", () => expect(loftetFoerLoekken(laes(CRON), laes(LOFT))).toBe(true));
   it("13. de fejlede læses med samme afgrænsning og gives til dommen, og bekræftelser sorteres først", () => expect(fejledeIndhentes(laes(CRON), laes(DOM), laes(DOM_SPEJL))).toBe(true));
   it("14. alarmen kaldes kun i en rigtig kørsel, opslaget står før mailen, mailen går til driftModtager, klokken bærer referencen", () => expect(alarmenKunIRigtigKoersel(laes(CRON), laes(ALARM))).toBe(true));
   it("15. et forsøg med ukendt udfald gensendes aldrig automatisk, i begge spejle", () => expect(ukendteGensendesIkke(laes(CRON), laes(DOM), laes(DOM_SPEJL))).toBe(true));
   it("16. kun den nærmeste kommende session får påmindelser, i begge spejle", () => expect(kunNaermesteSession(laes(CRON), laes(DOM), laes(DOM_SPEJL))).toBe(true));
+  it("17. budgettet dækker det værste forløb før jobbets timeout, og sporet skrives straks efter Mailgun", () => {
+    expect(MIG_JOB).toBe("supabase/migrations/20260922172000_webinar_mail_cron.sql");
+    expect(jobTimeoutIMigrationen(laes(MIG_JOB))).toBe(60_000);
+    expect(budgetDaekkerVaersteForloeb(laes(CRON), laes(BUDGET), laes(MIG_JOB))).toBe(true);
+  });
+  it("18. indhentningens loft følger teksten (8 · 4 · 1 dage før), fail-closed, i begge spejle, og alarmens frist læser samme funktion", () =>
+    expect(indhentningFoelgerTeksten(laes(DOM), laes(DOM_SPEJL), laes(ALARM))).toBe(true));
 });
 
 describe("webinarMail.guard — dommene fanger fejlen på en kopi", () => {
@@ -528,6 +666,26 @@ describe("webinarMail.guard — dommene fanger fejlen på en kopi", () => {
     expect(fejledeIndhentes(cron, dom.split("        fejlede: i.fejlede,\n").join(""), spejl)).toBe(false);
     expect(fejledeIndhentes(cron, dom, spejl.split("if (!(i.fejlede?.has(noegle(mail, i.sessionTid, art)) ?? false)) {").join("if (true) {"))).toBe(false);
     expect(fejledeIndhentes(cron, dom.split("    Number(erStraks(b.art)) - Number(erStraks(a.art)) ||\n").join(""), spejl)).toBe(false);
+  });
+
+  it("et loft flyttet, fjernet eller fail-open, min byttet til max, loftet ikke inklusivt, den gamle regel tilbage i dommen, eller alarmen på næste art alene, fælder dom 18", () => {
+    const dom = laes(DOM), spejl = laes(DOM_SPEJL), alarm = laes(ALARM);
+    expect(indhentningFoelgerTeksten(dom, spejl, alarm)).toBe(true);
+    // Loftet for «om en uge» flyttet til 2 dage før — i kun det ene spejl.
+    expect(indhentningFoelgerTeksten(dom, spejl.split("indhentesSenestDageFoer: 4,").join("indhentesSenestDageFoer: 2,"), alarm)).toBe(false);
+    // Loftet fjernet fra syv_dage.
+    expect(indhentningFoelgerTeksten(dom.split(" indhentesSenestDageFoer: 4,").join(""), spejl, alarm)).toBe(false);
+    // Fail-open: et manglende loft giver ikke længere null.
+    expect(indhentningFoelgerTeksten(dom.split(" || plan.indhentesSenestDageFoer === undefined) return null;").join(") return null;"), spejl, alarm)).toBe(false);
+    // Den SENESTE af de to grænser i stedet for den tidligste.
+    expect(indhentningFoelgerTeksten(dom, spejl.split("Math.min(a.getTime(), b.getTime())").join("Math.max(a.getTime(), b.getTime())"), alarm)).toBe(false);
+    // Loftet ikke inklusivt (en dag for tidligt).
+    expect(indhentningFoelgerTeksten(dom.split("plan.indhentesSenestDageFoer - 1)").join("plan.indhentesSenestDageFoer)"), spejl, alarm)).toBe(false);
+    // Den gamle regel (næste arts dato alene) tilbage i dommen.
+    expect(indhentningFoelgerTeksten(dom.split("const slut = indhentningSlut(i.sessionTid, art);").join("const naesteTid = planlagtTid(i.sessionTid, naeste); const slut = naesteTid;"), spejl, alarm)).toBe(false);
+    // Alarmen regner fristen af næste art selv — og kan blive uenig med dommen.
+    expect(indhentningFoelgerTeksten(dom, spejl, alarm.split("const slut = indhentningSlut(sessionTid, art);").join("const slut = planlagtTid(sessionTid, naesteTidssatteArt(art));"))).toBe(false);
+    expect(indhentningFoelgerTeksten(dom, spejl, alarm.split("Math.max(efterNaade.getTime(), slut.getTime())").join("efterNaade.getTime()"))).toBe(false);
   });
 
   it("ukendte ikke givet ind, timeout som afvisning, 5xx som afvisning, opslaget fjernet eller efter nåden, eller delingen byttet om, fælder dom 15", () => {
@@ -597,6 +755,48 @@ describe("webinarMail.guard — dommene fanger fejlen på en kopi", () => {
     expect(alarmenKunIRigtigKoersel(cron, alarm.split('export const ARTER_PR_DAG: readonly AlarmArt[] = ["loft", "tabt", "frist"];').join('export const ARTER_PR_DAG: readonly AlarmArt[] = ["loft", "tabt"];'))).toBe(false);
     expect(alarmenKunIRigtigKoersel(cron, alarm.replace(/fejl\.length > 0 \? "fejl"\s*: tabt > 0 \? "tabt"\s*: iFare\.length > 0 \? "frist"\s*: loftStop \? "loft"\s*: null;/, 'loftStop ? "loft" : fejl.length > 0 ? "fejl" : tabt > 0 ? "tabt" : iFare.length > 0 ? "frist" : null;'))).toBe(false);
     expect(alarmenKunIRigtigKoersel(cron, alarm.split("if (!r.sender_rigtigt) return null;").join(""))).toBe(false);
+  });
+
+  it("det gamle budget, et tjek efter hentningen, et stop der ikke holder, en anden timeout, en resttid uden ics, eller et await før sporet, fælder dom 17", () => {
+    const budget = laes(BUDGET), migJob = laes(MIG_JOB);
+    expect(budgetDaekkerVaersteForloeb(cron, budget, migJob)).toBe(true);
+    const SLUT = "    if (r.budget.stoppet_af_budget) { r.udsat++; continue; }\n";
+    const TJEK_BLOK = cron.slice(cron.indexOf("    if (!r.budget.stoppet_af_budget) {"), cron.indexOf(SLUT) + SLUT.length);
+    expect(TJEK_BLOK.length).toBeGreaterThan(100);
+    // Det gamle, halve budget tilbage: tjekket kun FØR forsøget, uden dets varighed.
+    const gammelt = cron.split(TJEK_BLOK).join("    if (Date.now() - a.startMs > BUDGET_MS) { r.udsat++; continue; }\n");
+    expect(gammelt).not.toBe(cron);
+    expect(budgetDaekkerVaersteForloeb(gammelt, budget, migJob)).toBe(false);
+    // Tjekket flyttet EFTER ics-hentningen: hentningens 8 s ligger så uden for budgettet.
+    const HENT = "      const inv = await hentInvitation(s.kalenderLink);\n";
+    const efterHent = cron.split(TJEK_BLOK).join("").replace(HENT, HENT + TJEK_BLOK);
+    expect(efterHent).not.toBe(cron);
+    expect(budgetDaekkerVaersteForloeb(efterHent, budget, migJob)).toBe(false);
+    // Stoppet ikke endeligt: dommen spørges igen ved hver mail, og rækkefølgen brydes.
+    const ikkeEndeligt = cron.split("        r.budget.stoppet_af_budget = true;\n").join("");
+    expect(ikkeEndeligt).not.toBe(cron);
+    expect(budgetDaekkerVaersteForloeb(ikkeEndeligt, budget, migJob)).toBe(false);
+    // Dommen spurgt uden art: ics-tiden ville aldrig tælle med.
+    expect(budgetDaekkerVaersteForloeb(cron.split("medInvitation: baererInvitation(s.art) })").join("medInvitation: false })"), budget, migJob)).toBe(false);
+    // Beviset væk fra svaret.
+    expect(budgetDaekkerVaersteForloeb(cron.split("budget: tomtBudgetBevis(),").join(""), budget, migJob)).toBe(false);
+    // Et await mellem Mailguns svar og sporet (fx en log-skrivning): mere tid, hvor en afbrydelse efterlader en mail uden spor.
+    const ekstraAwait = cron.replace('    if (spor.udfald === "ok") r.sendt++;', '    await new Promise((klar) => setTimeout(klar, 1));\n    if (spor.udfald === "ok") r.sendt++;');
+    expect(ekstraAwait).not.toBe(cron);
+    expect(budgetDaekkerVaersteForloeb(ekstraAwait, budget, migJob)).toBe(false);
+    // Motoren: en anden jobtimeout end migrationens, eller en migration med en kortere timeout.
+    for (const andet of ["30_000", "90_000", "150_000"]) {
+      expect(budgetDaekkerVaersteForloeb(cron, budget.split("export const JOB_TIMEOUT_MS = 60_000;").join(`export const JOB_TIMEOUT_MS = ${andet};`), migJob), andet).toBe(false);
+    }
+    const kortereJob = migJob.replace(/(kald_edge\(\s*'webinar-mail-cron',\s*'[^']*'::jsonb,\s*)60000/, "$130000");
+    expect(kortereJob).not.toBe(migJob);
+    expect(budgetDaekkerVaersteForloeb(cron, budget, kortereJob)).toBe(false);
+    // Resttiden uden ics-hentningen, dommen uden margin, marginerne nul, eller fail-open.
+    expect(budgetDaekkerVaersteForloeb(cron, budget.split("return (medInvitation ? INVITATION_TIMEOUT_MS : 0) + TIMEOUT_MS + SPOR_RESERVE_MS;").join("return TIMEOUT_MS + SPOR_RESERVE_MS;"), migJob)).toBe(false);
+    expect(budgetDaekkerVaersteForloeb(cron, budget.split("<= JOB_TIMEOUT_MS - OPSTART_MARGIN_MS;").join("<= JOB_TIMEOUT_MS;"), migJob)).toBe(false);
+    expect(budgetDaekkerVaersteForloeb(cron, budget.split("export const OPSTART_MARGIN_MS = 5_000;").join("export const OPSTART_MARGIN_MS = 0;"), migJob)).toBe(false);
+    expect(budgetDaekkerVaersteForloeb(cron, budget.split("export const SPOR_RESERVE_MS = 5_000;").join("export const SPOR_RESERVE_MS = 0;"), migJob)).toBe(false);
+    expect(budgetDaekkerVaersteForloeb(cron, budget.split("if (!Number.isFinite(a.forloebetMs) || a.forloebetMs < 0) return false;").join(""), migJob)).toBe(false);
   });
 
   it("loftet fjernet, break fjernet, stop før sporet, eller et andet loft i motoren, fælder dom 12", () => {
@@ -724,7 +924,7 @@ describe("webinarMail.guard — dommene fanger fejlen på en kopi", () => {
     expect(enTil).not.toBe(dom);
     expect(arterITakt(enTil, spejl, migArter, cron)).toBe(false);
     // Planen flyttet (13 dage) — i det ene spejl, eller i begge.
-    const PLAN = '{ art: "fjorten_dage", dageFoer: 14, time: 8, minut: 0, kraeverIkkeBegyndt: false },';
+    const PLAN = '{ art: "fjorten_dage", dageFoer: 14, time: 8, minut: 0, indhentesSenestDageFoer: 8, kraeverIkkeBegyndt: false },';
     const flyttet = PLAN.replace("dageFoer: 14", "dageFoer: 13");
     expect(arterITakt(dom.split(PLAN).join(flyttet), spejl, migArter, cron)).toBe(false);
     expect(arterITakt(dom.split(PLAN).join(flyttet), spejl.split(PLAN).join(flyttet), migArter, cron)).toBe(false);
@@ -738,6 +938,24 @@ describe("webinarMail.guard — dommene fanger fejlen på en kopi", () => {
     expect(arterITakt(dom, spejl, migArter.split("FØR webinar-mail-cron UDRULLES").join("efter udrulningen"), cron)).toBe(false);
     // Og den gamle CHECK i ROLLBACK-kommentaren dømmes IKKE på: den er i filen.
     expect(migArter).toContain("check (art in ('bekraeftelse', 'syv_dage', 'tre_dage', 'en_dag', 'dagen', 'en_time'));");
+    // 30/9: en udgået art lagt tilbage i PLANEN uden at blive fjernet fra UDGAAEDE_ARTER.
+    const EN_DAG = '  { art: "en_dag", dageFoer: 1, time: 8, minut: 0, indhentesSenestDageFoer: 1, kraeverIkkeBegyndt: false },\n';
+    const TRE = '  { art: "tre_dage", dageFoer: 3, time: 8, minut: 0, kraeverIkkeBegyndt: false },\n';
+    expect(dom).toContain(EN_DAG);
+    expect(arterITakt(dom.split(EN_DAG).join(TRE + EN_DAG), spejl.split(EN_DAG).join(TRE + EN_DAG), migArter, cron)).toBe(false);
+    // En aktiv art fjernet fra PLANEN uden at stå i UDGAAEDE_ARTER — eller i kun det ene spejl.
+    expect(arterITakt(dom.split(EN_DAG).join(""), spejl.split(EN_DAG).join(""), migArter, cron)).toBe(false);
+    expect(arterITakt(dom, spejl.split(EN_DAG).join(""), migArter, cron)).toBe(false);
+    // UDGAAEDE_ARTER ude af takt i spejlet.
+    expect(arterITakt(dom, spejl.split('UDGAAEDE_ARTER: readonly MailArt[] = ["tre_dage", "dagen"]').join('UDGAAEDE_ARTER: readonly MailArt[] = ["tre_dage"]'), migArter, cron)).toBe(false);
+    // Løkken tilbage over ARTER (ordforrådet) — de udgåede ville blive dømt igen.
+    const loekke = dom.split("for (const art of AKTIVE_ARTER) {").join("for (const art of ARTER) {");
+    expect(loekke).not.toBe(dom);
+    expect(arterITakt(loekke, spejl, migArter, cron)).toBe(false);
+    // AKTIVE_ARTER som håndskrevet liste i stedet for PLANEN.
+    expect(arterITakt(dom.split("PLANEN.map((p) => p.art);").join('["bekraeftelse", "fjorten_dage", "syv_dage", "en_dag", "en_time"];'), spejl, migArter, cron)).toBe(false);
+    // Cronens prøve validerer mod ordforrådet — en udgået art kunne «prøves».
+    expect(arterITakt(dom, spejl, migArter, cron.split("!(AKTIVE_ARTER as readonly string[]).includes(artRaa)").join("!(ARTER as readonly string[]).includes(artRaa)"))).toBe(false);
   });
 
   it("mailen bygget FØR hentningen, et flag der er konstant eller valgfrit, eller en dom der ignorerer det, fælder dom 11", () => {

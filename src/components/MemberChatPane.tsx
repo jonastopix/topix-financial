@@ -34,6 +34,8 @@ import { bygBeskedMeta, laesChipFraState, type NoegletalChip } from "@/lib/noegl
 // Citatet over et svar på et refleksionsfelt (29/9) — egen linje: chatSvar.guard dom 3 læser linjen ovenfor ordret.
 import { RefleksionCitat } from "@/components/ChatSvarCitat";
 import { kanBesvares, svarUddrag } from "@/lib/chatSvar";
+import { sendeUdfald, visSendefejl, type FejletBesked } from "@/lib/chatSendefejl";
+import { ChatSendefejlLinje } from "@/components/ChatSendefejlLinje";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 import { format, startOfDay } from "date-fns";
 import { da } from "date-fns/locale";
@@ -97,6 +99,8 @@ const MemberChatPane = () => {
   const [sending, setSending] = useState(false);
   // Svar på en besked (16/9, form A) — som CompanyChatPane: kun id'et sendes.
   const [svarPaa, setSvarPaa] = useState<Message | null>(null);
+  // Sendefejl (30/9): beskeden, der ikke blev sendt — til linjen med «Prøv igen».
+  const [fejletBesked, setFejletBesked] = useState<FejletBesked | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -429,18 +433,45 @@ const MemberChatPane = () => {
         insertData.svar_paa_id = svarPaa.id;
       }
 
-      const { data, error } = await supabase.from("messages").insert(insertData).select().single();
+      // Editoren er allerede tømt (ChatRichInput rydder ved onSubmit), så en
+      // fejlet indsættelse må ALDRIG være tavs: rækken gemmes til «Prøv igen»
+      // (chatSendefejl.ts).
+      const svar = await supabase.from("messages").insert(insertData).select().single()
+        .then((r) => r, (e: unknown) => ({ data: null, error: e }));
 
-      if (!error && data) {
+      if (sendeUdfald(svar) === "sendt") {
         setNewMessage("");
         setSvarPaa(null);
         setNoegletalChip(null);
-        notifyChatMessage((data as any).id);
+        notifyChatMessage((svar.data as any).id);
+      } else {
+        console.error("[MemberChatPane] beskeden blev ikke sendt:", svar.error);
+        setFejletBesked({ raekke: insertData });
+        // Svar og chip står i den fejlede række (svar_paa_id, context_meta) og
+        // sendes med den ved «Prøv igen» — de ryddes fra feltet, så en ny
+        // besked ikke bærer dem en gang til.
+        setSvarPaa(null);
+        setNoegletalChip(null);
       }
     }
 
     setSending(false);
   }, [activeConvId, user, conversations, svarPaa, noegletalChip]);
+
+  /** «Prøv igen» på sendefejl-linjen: den SAMME række (ingen ny upload). */
+  const proevFejletIgen = useCallback(async () => {
+    if (!fejletBesked || sending) return;
+    setSending(true);
+    const svar = await supabase.from("messages").insert(fejletBesked.raekke as any).select().single()
+      .then((r) => r, (e: unknown) => ({ data: null, error: e }));
+    if (sendeUdfald(svar) === "sendt") {
+      setFejletBesked(null);
+      notifyChatMessage((svar.data as any).id);
+    } else {
+      console.error("[MemberChatPane] «Prøv igen» fejlede:", svar.error);
+    }
+    setSending(false);
+  }, [fejletBesked, sending]);
 
   const activeConv = conversations.find((c) => c.id === activeConvId);
 
@@ -947,6 +978,15 @@ const MemberChatPane = () => {
                   </div>
                 ) : (
                 <>
+                {visSendefejl(fejletBesked, activeConvId) && (
+                  /* Sendefejl-linjen (30/9, mønstret fra #1140's sendelinje) — samme komponent som rådgiverens chat. */
+                  <ChatSendefejlLinje
+                    besked={fejletBesked}
+                    sender={sending}
+                    onProevIgen={() => void proevFejletIgen()}
+                    onKasser={() => setFejletBesked(null)}
+                  />
+                )}
                 {svarPaa && (
                   <SvarerPaaBanner navn={navnFor(svarPaa.sender_id)} uddrag={svarUddrag(svarPaa.content)} onFjern={() => setSvarPaa(null)} />
                 )}

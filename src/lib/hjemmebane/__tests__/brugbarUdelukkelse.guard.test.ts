@@ -63,7 +63,7 @@ describe("brugbarUdelukkelse.guard — tallet regnes aldrig med rådgiverlisten 
 
   it("1. ProgressView giver udelukFraBrugbar(raadgivereQuery.data, membersQuery.data) til optaelBrugbarPrLektion", () => {
     expect(giverSaettet(blok)).toBe(true);
-    expect(view).toContain('import { brugbarLinje, optaelBrugbarPrLektion, udelukFraBrugbar } from "@/lib/hjemmebane/lektionBrugbar";');
+    expect(view).toContain('import { brugbarLinje, optaelBrugbarPrLektion, synligeMedlemmer, udelukFraBrugbar } from "@/lib/hjemmebane/lektionBrugbar";');
     expect(view).not.toContain(GAMMELT_KALD);
   });
 

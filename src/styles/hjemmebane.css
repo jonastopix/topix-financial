@@ -3,7 +3,7 @@
    importeres af Hb-fladerne (PreviewHjemmebane, AdminContent, Akademiet,
    Boardroom). App-temaet (:root/.dark i index.css) er urørt —
    PDF-eksporten afhænger af det. */
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400..600&display=swap');
+/* Fraunces hentes i index.html sammen med husets øvrige skrifttyper. */
 
 .theme-hjemmebane {
   /* Flader */
