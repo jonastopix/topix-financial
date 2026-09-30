@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { ScoreKort } from "../ScoreKort";
@@ -6,7 +6,7 @@ import { boardroomScore } from "@/lib/boardroomScore/score";
 import { naesteMaaned } from "@/lib/boardroomScore/streak";
 import { loefterMitTal } from "@/lib/boardroomScore/loefter";
 import type { ScoreGrundlag, ScoreMaaned } from "@/lib/boardroomScore/typer";
-import { SCORE_AFVENTER_OVERSKRIFT, SCORE_FEJL_TEKST, SCORE_FORBEHOLD } from "@/lib/hjemmebane/scoreKort";
+import { EFFEKT_FOERSTE_SCORE, LOEFTER_MAAL_MAERKE, SCORE_AFVENTER_OVERSKRIFT, SCORE_FEJL_TEKST, SCORE_FORBEHOLD } from "@/lib/hjemmebane/scoreKort";
 
 /* Kortet tegner dommen — de fire tilstande og at handlingerne er motorens. */
 
@@ -38,6 +38,10 @@ const tegn = (props: Partial<React.ComponentProps<typeof ScoreKort>> = {}) =>
   );
 
 describe("ScoreKort", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("henter: skelet, ingen tekst om scoren", () => {
     const { container } = tegn({ isLoading: true });
     expect(container.querySelector('[data-score="henter"]')).not.toBeNull();
@@ -92,6 +96,63 @@ describe("ScoreKort", () => {
     const { container } = tegn({ dom });
     expect(screen.getByText("Ikke nok tal endnu")).toBeTruthy();
     expect(container.querySelector("[data-score-streak]")).not.toBeNull();
+  });
+
+  it("rådets fund 1+2: nyt medlem (start 20/8, august uploadet) — streaken er ikke «brudt», og ingen «+N point» under «Ikke nok tal endnu»", () => {
+    const dom = boardroomScore(
+      grundlag([sund("2026-08")].map((m) => ({ ...m, foersteGodkendtAt: "2026-09-03T09:00:00Z" })), { kontraktStart: "2026-08-20" }),
+      NU,
+    );
+    expect(dom.score).toBeNull();
+    const { container } = tegn({ dom });
+    expect(container.querySelector('[data-score-streak="ingen"]')).not.toBeNull();
+    expect(container.textContent).not.toMatch(/brudt/);
+    expect(container.textContent).not.toMatch(/\+\d+ point/);
+    expect(container.textContent).toContain(EFFEKT_FOERSTE_SCORE);
+  });
+
+  it("rådets fund 4: med bevægelse viser første frame 0, ikke det endelige tal", () => {
+    // matchMedia: ingen «reduce» → bevægelse; requestAnimationFrame holdes tilbage, så vi ser tilstanden FØR første ramme.
+    vi.stubGlobal("matchMedia", (q: string) => ({ matches: false, media: q, addEventListener: () => {}, removeEventListener: () => {} }));
+    vi.stubGlobal("requestAnimationFrame", () => 1);
+    vi.stubGlobal("cancelAnimationFrame", () => {});
+    const dom = boardroomScore(grundlag(keys("2025-06", 15).map((k) => sund(k))), NU);
+    expect(dom.score).toBeGreaterThan(0);
+    // Den virkelige vej: kortet monteres, mens hooken henter (score null), og dommen kommer bagefter.
+    const { container, rerender } = tegn({ isLoading: true });
+    rerender(
+      <MemoryRouter>
+        <ScoreKort dom={dom} afventerMigration={false} isLoading={false} isError={false} onProevIgen={() => {}} />
+      </MemoryRouter>,
+    );
+    const tal = container.querySelector("[data-score-tal] span[aria-hidden]")!;
+    expect(tal.textContent).toBe("0");
+    // Skærmlæseren får stadig det endelige tal.
+    expect(screen.getByText(`Din Boardroom Score er ${dom.score} ud af 1.000`)).toBeTruthy();
+  });
+
+  it("rådets fund 6: en løfter-linje uden link mærkes som mål; en med link gør ikke", () => {
+    const dom = boardroomScore(grundlag(keys("2025-06", 15).map((k) => sund(k))), NU);
+    const { container } = tegn({ dom });
+    const rækker = [...container.querySelectorAll("[data-loefter-soejle]")];
+    expect(rækker.length).toBeGreaterThan(0);
+    for (const r of rækker) {
+      const harLink = r.querySelector("a") !== null;
+      expect(r.getAttribute("data-loefter-art")).toBe(harLink ? "handling" : "maal");
+      expect(r.querySelector("[data-loefter-maal]")?.textContent ?? null).toBe(harLink ? null : LOEFTER_MAAL_MAERKE);
+    }
+  });
+
+  it("rådets fund 7: ingen «Din score» under sektionens eyebrow; søjlernes detaljer først fra sm", () => {
+    const dom = boardroomScore(grundlag(keys("2025-06", 15).map((k) => sund(k))), NU);
+    const { container } = tegn({ dom });
+    expect(container.textContent).not.toContain("Din score");
+    const detaljer = container.querySelectorAll("[data-soejle-detalje]");
+    expect(detaljer).toHaveLength(4);
+    for (const d of detaljer) {
+      expect(d.className).toMatch(/(^|\s)hidden(\s|$)/);
+      expect(d.className).toMatch(/sm:block/);
+    }
   });
 
   it("ingen procent i kortets tekst (husets «Din måned»-mønster)", () => {

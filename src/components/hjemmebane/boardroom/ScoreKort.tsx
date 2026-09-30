@@ -7,6 +7,7 @@ import type { ScoreDom } from "@/lib/boardroomScore/typer";
 import {
   daekningTekst,
   ikkeNokDataTekst,
+  LOEFTER_MAAL_MAERKE,
   loefterLinjer,
   retningTekst,
   SCORE_AFVENTER_OVERSKRIFT,
@@ -37,7 +38,13 @@ import { HbCard } from "../HbCard";
 
     Animation: kun tallet tæller op (ease-out, TAEL_OP_MS), fra det sidst viste
     — samme tal ved genhentning/uret tæller ikke igen. prefers-reduced-motion
-    → tallet står straks. Ingen konfetti, ingen farve for op/ned. */
+    → tallet står straks. Ingen konfetti, ingen farve for op/ned. Før den
+    første ramme vises 0 (ikke det endelige tal), så tallet ikke blinker
+    endeligt → 0 → optælling (rådets fund 4).
+
+    Overskriften er sektionens eyebrow «Boardroom Score» (BoardroomView) —
+    kortet har ingen egen «Din score» over tallet (rådets fund 7). Søjlernes
+    detaljetekst vises først fra `sm`, så kortet fylder mindre på 375 px. */
 
 type Props = {
   dom: ScoreDom | null;
@@ -69,6 +76,8 @@ function useTaelOp(til: number | null, bevaegelse: boolean): number | null {
   const sidst = useRef<number>(0);
   useEffect(() => {
     if (til === null) {
+      // Næste tal tæller fra 0 — samme værdi, som kortet viser før første ramme.
+      sidst.current = 0;
       setVist(null);
       return;
     }
@@ -145,12 +154,12 @@ export const ScoreKort = ({ dom, afventerMigration, isLoading, isError, onProevI
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:gap-8">
         {/* Tallet */}
         <div className="min-w-0" data-score-tal>
-          <p className={mikro}>Din score</p>
           {dom.score !== null ? (
             <>
-              <p className="mt-2 flex items-baseline gap-2">
+              <p className="flex items-baseline gap-2">
                 <span className="font-editorial text-6xl font-medium leading-none tabular-nums text-hb-ink" aria-hidden>
-                  {krTekst(vist ?? dom.score)}
+                  {/* Før første ramme: 0 med bevægelse (optællingen starter derfra), ellers tallet selv — aldrig det endelige tal i én frame. */}
+                  {krTekst(vist ?? (bevaegelse ? 0 : dom.score))}
                 </span>
                 <span className="text-sm text-hb-ink-soft" aria-hidden>/ 1.000</span>
                 <span className="sr-only">{`Din Boardroom Score er ${dom.score} ud af 1.000`}</span>
@@ -160,7 +169,7 @@ export const ScoreKort = ({ dom, afventerMigration, isLoading, isError, onProevI
             </>
           ) : (
             <>
-              <p className="mt-2 font-editorial text-2xl font-medium leading-tight text-hb-ink">Ikke nok tal endnu</p>
+              <p className="font-editorial text-2xl font-medium leading-tight text-hb-ink">Ikke nok tal endnu</p>
               {mangler && <p className="mt-2 text-sm leading-relaxed text-hb-ink-soft" data-score-mangler>{mangler}</p>}
             </>
           )}
@@ -202,7 +211,7 @@ export const ScoreKort = ({ dom, afventerMigration, isLoading, isError, onProevI
                 style={{ width: `${Math.round(s.andel * 1000) / 10}%` }}
               />
             </div>
-            <p className="mt-1.5 text-xs leading-relaxed text-hb-ink-soft">{s.detalje}</p>
+            {s.detalje && <p className="mt-1.5 hidden text-xs leading-relaxed text-hb-ink-soft sm:block" data-soejle-detalje>{s.detalje}</p>}
           </div>
         ))}
       </dl>
@@ -215,13 +224,16 @@ export const ScoreKort = ({ dom, afventerMigration, isLoading, isError, onProevI
             {loefter.map((h) => {
               const indhold = (
                 <>
-                  <span className="min-w-0 flex-1 text-[15px] font-medium leading-snug text-hb-ink">{h.tekst}</span>
+                  <span className="min-w-0 flex-1 text-[15px] font-medium leading-snug text-hb-ink">
+                    {h.art === "maal" && <span className={cn(mikro, "mr-2")} data-loefter-maal>{LOEFTER_MAAL_MAERKE}</span>}
+                    {h.tekst}
+                  </span>
                   <span className="shrink-0 whitespace-nowrap text-sm text-hb-ink-soft">{h.effekt}</span>
                   {h.sti && <ArrowRight className="h-4 w-4 shrink-0 self-center text-hb-evergreen" aria-hidden />}
                 </>
               );
               return (
-                <li key={`${h.soejle}:${h.tekst}`} className="border-t border-hb-line last:border-b" data-loefter-soejle={h.soejle}>
+                <li key={`${h.soejle}:${h.tekst}`} className="border-t border-hb-line last:border-b" data-loefter-soejle={h.soejle} data-loefter-art={h.art}>
                   {h.sti ? (
                     <Link to={h.sti} className="flex items-baseline gap-3 py-3 hover:bg-hb-sage/20">
                       {indhold}

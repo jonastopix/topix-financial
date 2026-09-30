@@ -5,6 +5,10 @@ import { loefterMitTal } from "@/lib/boardroomScore/loefter";
 import type { ScoreGrundlag, ScoreMaaned, StreakDom } from "@/lib/boardroomScore/typer";
 import {
   daekningTekst,
+  EFFEKT_FOERSTE_SCORE,
+  EFFEKT_GIVER_SCORE,
+  EFFEKT_LAASER_OP,
+  effektTekst,
   ikkeNokDataTekst,
   loefterLinjer,
   retningTekst,
@@ -38,6 +42,12 @@ const grundlag = (maaneder: ScoreMaaned[], over: Partial<ScoreGrundlag> = {}): S
   ...over,
 });
 const FULD = boardroomScore(grundlag(keys("2025-06", 15).map((k) => sund(k))), NU);
+/** Rådets scenarie (30/9): kontraktstart 20/8, august uploadet 3/9 → første tællende måned september. */
+const NYT_AUGUST = boardroomScore(grundlag([sund("2026-08", {}, { foersteGodkendtAt: "2026-09-03T09:00:00Z" })], { kontraktStart: "2026-08-20", harBudgetForAaret: false, harMaal: false }), NU);
+/** Intet uploadet, kontraktstart 1/1: disciplin har data (0 godkendt), de tre tal-søjler ikke. */
+const TOM = boardroomScore(grundlag([], { kontraktStart: "2026-01-01" }), NU);
+/** Én måned uden omkostninger og uden kontraktstart: ingen søjle har data. */
+const EN_UDEN_START = boardroomScore(grundlag([sund("2026-08", { gross_profit: null, payroll: null, admin_costs: null }, { foersteGodkendtAt: "2026-09-03T09:00:00Z" })], { kontraktStart: null }), NU);
 
 describe("retningTekst — i ord, aldrig procent", () => {
   it("op, ned, samme, ukendt", () => {
@@ -77,6 +87,14 @@ describe("soejleLinjer", () => {
     }
     expect(l[0].detalje).toMatch(/måneders omkostninger i banken \(bank pr\. august\)$/);
     expect(l[3].detalje).toBe("6 af 6 måneder godkendt, 6 til tiden");
+  });
+  it("uden score: disciplinens «0 af 6 måneder godkendt, 0 til tiden» vises ikke (rådets fund 5); med score står den", () => {
+    expect(TOM.score).toBeNull();
+    expect(TOM.soejler.disciplin.status).toBe("ok");
+    const disciplin = soejleLinjer(TOM).find((x) => x.navn === "disciplin")!;
+    expect(disciplin.detalje).toBe("");
+    expect(disciplin.point).not.toBeNull();
+    expect(soejleLinjer(FULD)[3].detalje).toBe("6 af 6 måneder godkendt, 6 til tiden");
   });
   it("uden data: point null, andel 0, motorens egen grund", () => {
     const d = boardroomScore(grundlag(keys("2025-06", 15).map((k) => sund(k, { cash: null }))), NU);
@@ -122,11 +140,44 @@ describe("loefterLinjer — handlingerne ORDRET fra motoren", () => {
     expect(l.map((x) => x.tekst)).toEqual(loefterMitTal(d).map((h) => h.tekst));
     for (const x of l) expect(x.effekt).toMatch(/^\+\d+ point$/);
   });
-  it("intet uploadet: én linje, der låser op", () => {
-    const d = boardroomScore(grundlag([], { kontraktStart: "2026-01-01" }), NU);
-    const l = loefterLinjer(d);
+  it("intet uploadet: højst én linje, og den lover aldrig point", () => {
+    const l = loefterLinjer(TOM);
     expect(l.length).toBeLessThanOrEqual(1);
-    for (const x of l) expect(["+", "L"]).toContain(x.effekt[0]);
+    for (const x of l) expect(x.effekt).not.toMatch(/point/);
+  });
+  it("rådets fund 2: score null men regnet gevinst → «Giver dig din første score», aldrig «+N point»", () => {
+    expect(NYT_AUGUST.score).toBeNull();
+    const l = loefterLinjer(NYT_AUGUST);
+    expect(loefterMitTal(NYT_AUGUST)[0].gevinst).toBeGreaterThan(0);
+    expect(l[0].effekt).toBe(EFFEKT_FOERSTE_SCORE);
+    for (const x of l) expect(x.effekt).not.toMatch(/point/);
+  });
+  it("rådets fund 3: uden regnet gevinst skelnes søjle med data («Giver dig en score») fra søjle uden («Låser en søjle op»)", () => {
+    // TOM: disciplin HAR data (0 godkendt) — der er intet at låse op.
+    const tom = loefterLinjer(TOM);
+    expect(tom).toHaveLength(1);
+    expect(tom[0].soejle).toBe("disciplin");
+    expect(TOM.soejler.disciplin.status).toBe("ok");
+    expect(tom[0].effekt).toBe(EFFEKT_GIVER_SCORE);
+    // EN_UDEN_START: ingen søjle har data — handlingen låser en søjle op.
+    const en = loefterLinjer(EN_UDEN_START);
+    expect(en).toHaveLength(1);
+    expect(EN_UDEN_START.soejler[en[0].soejle].status).not.toBe("ok");
+    expect(en[0].effekt).toBe(EFFEKT_LAASER_OP);
+  });
+  it("effektTekst: alle fire grene", () => {
+    const med = { score: 600, soejler: FULD.soejler };
+    const uden = { score: null, soejler: TOM.soejler };
+    expect(effektTekst({ soejle: "vaekst", gevinst: 17.6 }, med)).toBe("+18 point");
+    expect(effektTekst({ soejle: "vaekst", gevinst: 400 }, uden)).toBe(EFFEKT_FOERSTE_SCORE);
+    expect(effektTekst({ soejle: "likviditet", gevinst: null }, uden)).toBe(EFFEKT_LAASER_OP);
+    expect(effektTekst({ soejle: "disciplin", gevinst: null }, uden)).toBe(EFFEKT_GIVER_SCORE);
+  });
+  it("rådets fund 6: en linje uden link er et «maal», med link en «handling» — rækkefølgen er stadig motorens", () => {
+    const d = boardroomScore(grundlag(keys("2025-06", 15).map((k) => sund(k)), { harBudgetForAaret: false, harMaal: false }), NU);
+    const l = loefterLinjer(d);
+    expect(l[0].tekst).toBe(d.loefterMest!.tekst);
+    for (const x of l) expect(x.art).toBe(x.sti ? "handling" : "maal");
   });
 });
 

@@ -22,6 +22,14 @@ export const SCORE_AFVENTER_OVERSKRIFT = "Din Boardroom Score er på vej";
 export const SCORE_AFVENTER_TEKST = "Vi gør din score og din tal-streak klar. Den dukker op her af sig selv — du skal ikke gøre noget.";
 export const SCORE_FEJL_TEKST = "Din score kunne ikke hentes.";
 export const SCORE_LOEFTER_OVERSKRIFT = "Hvad løfter dit tal";
+/** Mærket på en løfter-linje uden link (motorens «mere i banken/margin/omsætning»): et mål, ikke en knap (rådets fund 6, 30/9). */
+export const LOEFTER_MAAL_MAERKE = "Mål";
+/** Effekten, når scoren endnu er null: et tal ville stå over for «Ikke nok tal endnu» (rådets fund 2). */
+export const EFFEKT_FOERSTE_SCORE = "Giver dig din første score";
+/** Effekten uden regnet gevinst, når søjlen mangler data. */
+export const EFFEKT_LAASER_OP = "Låser en søjle op";
+/** Effekten uden regnet gevinst, når søjlen HAR data (fx disciplin: en manglende måned) — der er intet at låse op (rådets fund 3). */
+export const EFFEKT_GIVER_SCORE = "Giver dig en score";
 
 export const SOEJLE_ORDEN: readonly SoejleNavn[] = ["likviditet", "indtjening", "vaekst", "disciplin"];
 export const SOEJLE_LABEL: Record<SoejleNavn, string> = {
@@ -72,7 +80,7 @@ export interface SoejleLinje {
 }
 
 /** Tallet bag en søjle med data, i ord. Hver gren læser sin egen søjle (Soejler bevarer navn → detaljer). */
-function detaljeTekst(soejler: Soejler, navn: SoejleNavn): string | null {
+function detaljeTekst(soejler: Soejler, navn: SoejleNavn, score: number | null): string | null {
   if (navn === "likviditet") {
     const s = soejler.likviditet;
     if (s.status !== "ok") return null;
@@ -91,16 +99,19 @@ function detaljeTekst(soejler: Soejler, navn: SoejleNavn): string | null {
   }
   const s = soejler.disciplin;
   if (s.status !== "ok") return null;
+  // Uden score (nyt medlem) er «0 af 6 måneder godkendt, 0 til tiden» en anklage, ikke en oplysning —
+  // streaken ved siden af siger allerede, hvad der skal ske (rådets fund 5). Tom detalje = ingen linje.
+  if (score === null) return null;
   return `${s.detaljer.maalte} af ${s.detaljer.vindue.length} måneder godkendt, ${s.detaljer.rettidige} til tiden`;
 }
 
-export function soejleLinjer(dom: Pick<ScoreDom, "soejler">): SoejleLinje[] {
+export function soejleLinjer(dom: Pick<ScoreDom, "score" | "soejler">): SoejleLinje[] {
   return SOEJLE_ORDEN.map((navn) => {
     const s = dom.soejler[navn];
     const label = SOEJLE_LABEL[navn];
     if (s.status !== "ok") return { navn, label, point: null, max: s.max, andel: 0, detalje: s.grund };
     const andel = s.max > 0 ? Math.min(1, Math.max(0, s.point / s.max)) : 0;
-    return { navn, label, point: Math.round(s.point), max: s.max, andel, detalje: detaljeTekst(dom.soejler, navn) ?? "" };
+    return { navn, label, point: Math.round(s.point), max: s.max, andel, detalje: detaljeTekst(dom.soejler, navn, dom.score) ?? "" };
   });
 }
 
@@ -134,19 +145,41 @@ export function streakLinjer(streak: StreakDom): StreakLinjer {
 
 export interface LoefterLinje {
   tekst: string;
-  /** «+18 point» eller «Låser en søjle op». */
+  /** «+18 point», «Giver dig din første score», «Låser en søjle op» eller «Giver dig en score» (effektTekst). */
   effekt: string;
   sti: Handling["sti"];
   soejle: SoejleNavn;
+  /** «handling» (har et link — noget, man kan gøre nu) eller «maal» (intet link — et tal at nå; kortet mærker den LOEFTER_MAAL_MAERKE). */
+  art: "handling" | "maal";
 }
 
-/** De 1–3 handlinger fra loefterMitTal i ord — teksten er motorens, ordret. */
-export function loefterLinjer(dom: Pick<ScoreDom, "handlinger">): LoefterLinje[] {
+/**
+ * Effekten i ord — aldrig et tal, kortet ikke kan stå inde for:
+ *   gevinst regnet, score null     → «Giver dig din første score» (motoren regner gevinsten mod en
+ *                                    simuleret score; et «+400 point» over «Ikke nok tal endnu» er nonsens)
+ *   gevinst regnet, score findes   → «+N point»
+ *   gevinst null, søjlen uden data → «Låser en søjle op»
+ *   gevinst null, søjlen har data  → «Giver dig en score»
+ */
+export function effektTekst(h: Pick<Handling, "gevinst" | "soejle">, dom: Pick<ScoreDom, "score" | "soejler">): string {
+  if (h.gevinst !== null) return dom.score === null ? EFFEKT_FOERSTE_SCORE : `+${Math.round(h.gevinst)} point`;
+  return dom.soejler[h.soejle].status !== "ok" ? EFFEKT_LAASER_OP : EFFEKT_GIVER_SCORE;
+}
+
+/**
+ * De 1–3 handlinger fra loefterMitTal i ord — teksten er motorens, ordret, og
+ * RÆKKEFØLGEN er motorens (størst regnet gevinst først; første = loefterMest).
+ * En linje uden link er et MÅL og mærkes som det (rådets fund 6): at sortere
+ * links først ville sætte en mindre gevinst over en større under overskriften
+ * «Hvad løfter dit tal» og gøre kortet uenigt med motorens loefterMest.
+ */
+export function loefterLinjer(dom: Pick<ScoreDom, "handlinger" | "score" | "soejler">): LoefterLinje[] {
   return loefterMitTal(dom).map((h) => ({
     tekst: h.tekst,
-    effekt: h.gevinst === null ? "Låser en søjle op" : `+${Math.round(h.gevinst)} point`,
+    effekt: effektTekst(h, dom),
     sti: h.sti,
     soejle: h.soejle,
+    art: h.sti ? "handling" : "maal",
   }));
 }
 
