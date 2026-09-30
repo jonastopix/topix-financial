@@ -207,7 +207,14 @@ export const HbMemberShell = ({
     <div ref={rodRef} className={`theme-hjemmebane ${fuld ? "h-screen-safe" : "min-h-screen-safe"} bg-hb-paper font-body text-hb-ink antialiased`}>
       <div className={`flex ${fuld ? "h-full overflow-hidden" : "lg:h-screen lg:overflow-hidden"}`}>
         <HbSidebar avatarSrc={avatarSrc} userName={userName} nav={nav} homeTo={boardroomTo} onSignOut={signOut} komGodtIGang={komGodtIGang} visIndstillinger={!isAdvisor} givFeedback={givFeedback} klokke={<HbKlokke />} spotifyLink={spotifyLink} />
-        <div className={`min-w-0 flex-1 ${fuld ? "flex flex-col overflow-hidden" : "lg:overflow-y-auto"}`}>
+        {/* `relative` (30/9, Jonas: «to scrollers i højre side»): uden en positioneret
+            forfader fandt absolut placerede elementer (fx `sr-only`-tekster i
+            Svartids-uret og Score-kortet) deres ramme i dokumentet i stedet for
+            i denne scrollende kolonne — dokumentet blev højere end vinduet, og
+            Chrome viste en ANDEN scrollbar og et tomt felt under bunden. Målt
+            30/9 22:55 på 1440×900: docH 1113 > 900, eneste element under
+            bunden var en sr-only-span. Med `relative` bliver de i kolonnen. */}
+        <div className={`relative min-w-0 flex-1 ${fuld ? "flex flex-col overflow-hidden" : "lg:overflow-y-auto"}`}>
           <HbNav onMenuClick={() => setDrawerOpen(true)} avatarSrc={avatarSrc} />
           {/* «Visning som» (3/9, recon-raadgiverfladen §4): en rådgiver med et
               valgt medlem får linjen øverst i indholdskolonnen — under

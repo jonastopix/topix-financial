@@ -29,7 +29,7 @@ const PreviewHjemmebane = () => {
       <div className="flex lg:h-screen lg:overflow-hidden">
         <HbSidebar avatarSrc="/jonas-herlev.png" avatarAlt="Jonas Herlev" userName="Jonas Herlev" />
 
-        <div className="min-w-0 flex-1 lg:overflow-y-auto">
+        <div className="relative min-w-0 flex-1 lg:overflow-y-auto">
           <HbNav onMenuClick={() => setDrawerOpen(true)} avatarSrc="/jonas-herlev.png" avatarAlt="Jonas Herlev" />
 
           <main className="mx-auto max-w-[1200px] px-6 py-12 md:py-16">

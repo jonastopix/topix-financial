@@ -269,7 +269,7 @@ const SidebarContent = ({
     (indholdskolonnen scroller), fordi #root's globale overflow-x-regel gør
     sticky virkningsløs. overflow-y-auto så strukturen ikke klippes på lave skærme. */
 const HbSidebar = (props: HbSidebarProps) => (
-  <aside className="hidden h-screen w-[272px] shrink-0 flex-col overflow-y-auto border-r border-hb-line bg-hb-paper px-7 py-8 lg:flex">
+  <aside className="relative hidden h-screen w-[272px] shrink-0 flex-col overflow-y-auto border-r border-hb-line bg-hb-paper px-7 py-8 lg:flex">
     <SidebarContent {...props} />
   </aside>
 );
