@@ -173,8 +173,9 @@ export const migrationerneErRigtige = (filer: readonly { navn: string; sql: stri
   const stempler = navne.map((n) => n.slice(0, 14));
   return (
     filer.length === 3 &&
-    linjer(0)[0] === FOERSTE_LINJE &&
-    linjer(1)[0] === RET_FOERSTE && linjer(1)[1] === FOERSTE_LINJE &&
+    // Efter kørslen vendes hovedet til «-- KØRT i prod …» (§1a); før kørslen står husets «IKKE KØRT».
+    (linjer(0)[0] === FOERSTE_LINJE || linjer(0)[0].startsWith("-- KØRT i prod")) &&
+    ((linjer(1)[0] === RET_FOERSTE && linjer(1)[1] === FOERSTE_LINJE) || linjer(1)[0].startsWith("-- KØRT i prod")) &&
     linjer(2)[0] === CRON_FOERSTE && linjer(2)[1] === FOERSTE_LINJE &&
     overlevering.includes("### Driftsagenten, skive 1 — rækkefølgen") &&
     foer(afsnit, "20260930150000_driftsagent.sql", "20260930151000_driftsagent_rettigheder.sql") &&
