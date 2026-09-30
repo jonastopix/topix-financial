@@ -49,6 +49,8 @@ import { cn } from "@/lib/utils";
 import { raadgiverHentefejlTekst } from "@/lib/raadgiverHentefejl";
 import { useMedlemsOverblik } from "@/hooks/medlemsOverblik";
 import { ManglerAtBooke } from "./ManglerAtBooke";
+import { SVARTID_KEY, hentSvartid } from "@/hooks/svartid";
+import { SvartidsUret } from "./SvartidsUret";
 
 /**
  * Rådgiverens forside på /forside — DOMMEN (docs/forsiden-design.md,
@@ -445,7 +447,7 @@ const DomLinje = ({ l, onLuk, lukker }: { l: Linje; onLuk: (linje: LukbarLinje, 
 };
 
 export const RaadgiverForsideView = () => {
-  const { user, profile } = useAuth();
+  const { user, profile, isAdvisor } = useAuth();
   const queryClient = useQueryClient();
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ADVISOR_DASHBOARD_QUERY_KEY(user?.id),
@@ -534,6 +536,17 @@ export const RaadgiverForsideView = () => {
   // hentning og nøgle — en fejl her lader forsiden stå. Hook i topblokken,
   // før nogen betinget return (React #310).
   const overblikQuery = useMedlemsOverblik(!!user);
+  // Svartids-uret (30/9, hooks/svartid + lib/svartid): median svartid i
+  // chatten, ældste ubesvarede og «Intet venter»-streaken. KUN rådgivere:
+  // query'en kører kun med rollen, og kortet tegner intet uden den
+  // (svartidsUret.guard). Egen nøgle — en fejl her lader forsiden stå.
+  // Hook i topblokken, før nogen betinget return (React #310).
+  const svartidQuery = useQuery({
+    queryKey: SVARTID_KEY,
+    queryFn: () => hentSvartid(),
+    enabled: !!user && isAdvisor,
+    staleTime: 5 * 60_000,
+  });
   // Lukningen — hook i TOPBLOKKEN, før nogen betinget return (React #310).
   // Skriv, så hent igen: dommen afgør hvad der står; ingen lokal patch.
   const lukning = useMutation({
@@ -896,6 +909,12 @@ export const RaadgiverForsideView = () => {
 
         {/* ── Højre, række 2: «UGEN» og «MÅNEDEN» — det der orienterer ── */}
         <aside className="mt-10 min-w-0 space-y-1 text-sm text-hb-ink-soft lg:col-start-2 lg:row-start-2 lg:mt-12 lg:border-l lg:border-hb-line lg:pl-8" data-forside-felt="ugen-maaneden">
+        {/* SVARTIDS-URET (30/9, lib/svartid): teamets median svartid 7 dage i
+            hverdagstimer med farve og trend, 30 dage ved siden af, ældste
+            ubesvarede med link til chatten og «Intet venter»-streaken. Fælles
+            teamtal, aldrig en rangliste. Øverst i Ugen/Måneden: det orienterer,
+            det er ikke dagens arbejde. */}
+        <SvartidsUret hentning={svartidQuery} />
         <p className="mb-3 text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">Ugen</p>
         {/* SIDEN SIDST (Jonas 8/9, lib/sidenSidst + hooks/sidenSidst): hvad der
             har flyttet sig siden du sidst åbnede — pr. rådgiver, syv dages
