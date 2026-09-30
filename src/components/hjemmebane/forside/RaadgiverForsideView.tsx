@@ -9,7 +9,6 @@ import { OpgavelisteView } from "@/components/hjemmebane/opgaver/OpgavelisteView
 import { ANSOEGNINGER_STI, TAERSKEL, usaedvanligtMangeTekst, type Betaltlinje, type Boelgelinje, type Linje, type OpgaveSlags, type Tilstandslinje, type Ventelistelinje, type Virksomhedslinje } from "@/lib/forsidensDom";
 import { samletLinjeLink } from "@/lib/hjemmebane/forsideLinks";
 import { LUKNINGS_UDFALD, UDFALD_TEKST, type LukningsUdfald } from "@/lib/opgaveLukning";
-import { pulsLinjer } from "@/lib/pulsen";
 import { SIDEN_SIDST_KEY, hentSidenSidst } from "@/hooks/sidenSidst";
 import { CRON_VAGT_KEY, hentCronVagt } from "@/hooks/cronVagt";
 import { vagtLinje } from "@/lib/cronVagt";
@@ -17,7 +16,6 @@ import { intetNytTekst, sidenSidstLinjeDele, sidenSidstNavneSep, sidenTekst } fr
 import { UBESVAREDE_OPSLAG_KEY, hentUbesvaredeOpslag } from "@/hooks/ubesvaredeOpslag";
 import { VENTER_PAA_BETALING_KEY, hentVenterPaaBetaling } from "@/hooks/venterPaaBetaling";
 import {
-  INGEN_VENTER_TEKST,
   KORT_OVERSKRIFT as VENTER_OVERSKRIFT,
   VIRKSOMHEDER_STI,
   flereTekst as venterFlereTekst,
@@ -26,7 +24,6 @@ import {
   virksomhedsSti,
 } from "@/lib/hjemmebane/venterPaaBetaling";
 import {
-  ALLE_BESVARET_TEKST,
   alderTekst,
   flereTekst,
   KORT_OVERSKRIFT,
@@ -38,12 +35,12 @@ import {
 import { KILDE_PRAESENTATION, KILDE_PRAESENTATION_LABEL } from "@/lib/hjemmebane/praesentation";
 import { KOHORTE_KEY, hentKohorte } from "@/hooks/kohorte";
 import { DAGENS_SESSIONER_KEY, hentDagensSessioner } from "@/hooks/dagensSessioner";
-import { INGEN_SESSIONER_TEKST, SESSIONER_OVERSKRIFT, dagensSessioner, sessionLinjeTekst } from "@/lib/hjemmebane/dagensSessioner";
+import { SESSIONER_OVERSKRIFT, dagensSessioner, sessionLinjeTekst } from "@/lib/hjemmebane/dagensSessioner";
 import { IKKE_KOMMET_IGEN_PRAEFIKS, KOHORTE_OVERSKRIFT, ikkeKommetIgenDele, ikkeKommetIgenHale, kohorteLinje, kohorteTekst, startetIDagTekst } from "@/lib/hjemmebane/kohorte";
 import { HbTag } from "@/components/hjemmebane/HbTag";
 import { HbAvatar } from "@/components/hjemmebane/HbAvatar";
 import { ONLINE_DOM_KEY, hentOnlineDom, useOnlineMedlemmer } from "@/hooks/onlineMedlemmer";
-import { INGEN_ONLINE_TEKST, onlineMedlemmer, onlineOverskrift, onlineTitel, onlineUdsnit } from "@/lib/hjemmebane/online";
+import { onlineMedlemmer, onlineOverskrift, onlineTitel, onlineUdsnit } from "@/lib/hjemmebane/online";
 import { HentningsFejl } from "@/lib/kraevRaekker";
 import { cn } from "@/lib/utils";
 import { raadgiverHentefejlTekst } from "@/lib/raadgiverHentefejl";
@@ -51,6 +48,8 @@ import { useMedlemsOverblik } from "@/hooks/medlemsOverblik";
 import { ManglerAtBooke } from "./ManglerAtBooke";
 import { SVARTID_KEY, hentSvartid } from "@/hooks/svartid";
 import { SvartidsUret } from "./SvartidsUret";
+import { EYEBROW, Fremdrift, KORT, Maerke, MIKRO, TalFelt, type FeltTilstand } from "./HoejreKolonne";
+import { KOHORTE_BJAELKE_ETIKET, ONLINE_FELT_LOFT, pulsVisning } from "@/lib/hjemmebane/hoejreKolonne";
 
 /**
  * Rådgiverens forside på /forside — DOMMEN (docs/forsiden-design.md,
@@ -110,6 +109,17 @@ import { SvartidsUret } from "./SvartidsUret";
  * medlemmer) — så det der er nu står øverst og månedstallene nederst. På
  * mobil: dommen → Under stregen → «I dag» → Jeres liste → Ugen/Måneden.
  * Målingslinjen er væk (PR 1).
+ *
+ * HØJRE SOM KORT (30/9, Jonas: «højre kolonne … er blevet uoverskuelig. Der
+ * er meget almindelig tekst i én lang køre»; godkendt redesign): hver
+ * sektion er et kort (hvid flade, hairline, rounded-hb), tal før tekst.
+ * «I dag» er fire felter i et 2×2-gitter med prik + ord, listerne under
+ * gitteret kun for de felter der har noget; «Mangler at booke» to foldbare
+ * rækker; Svartids-uret en tabel og en pille; Pulsen og Nye medlemmer
+ * fremdriftsbjælker og mærker; «Ugen» én rolig linje når intet er nyt.
+ * INGEN ændring af data, hentning eller domme — kun opsætning (lib/
+ * hjemmebane/hoejreKolonne + HoejreKolonne.tsx). Rækkefølgen og felterne
+ * i gridet er de samme.
  *
  * LUKNINGEN (Jonas 8/9, lib/opgaveLukning): hver virksomhedslinje har to
  * handlinger, «Færdiggjort» og «Ikke relevant». Ingen «Udsæt». Fladen
@@ -609,6 +619,53 @@ export const RaadgiverForsideView = () => {
   const under = dom.underStregen;
   const antalUnder = under.antalVirksomhederUnderTaersklen;
 
+  // «I DAG» (30/9, redesignet): hver dom køres ÉN gang her — feltet i
+  // gitteret og listen under det læser samme værdi. Ingen hooks (de står i
+  // topblokken); kun de samme dommekald som før, flyttet ud af JSX'en.
+  // Rækkefølgen i hver kæde er den gamle: henter → fejl → tal. En fejl giver
+  // ALDRIG et 0, der ligner «alt i orden».
+  const nu = new Date();
+  const iDagFejl: { noegle: string; tekst: string }[] = [];
+  const felt = (q: { isLoading: boolean; isError: boolean; error: unknown }, noegle: string, antal: number | null): FeltTilstand => {
+    if (q.isLoading) return { art: "henter" };
+    if (q.isError) {
+      iDagFejl.push({ noegle, tekst: raadgiverHentefejlTekst(q.error, "forsiden") });
+      return { art: "fejl" };
+    }
+    return antal === null ? { art: "henter" } : { art: "tal", antal };
+  };
+  const sessionerListe = sessionerQuery.data ? dagensSessioner({ ...sessionerQuery.data, nu }) : null;
+  const sessionerFelt = felt(sessionerQuery, "sessioner", sessionerListe ? sessionerListe.length : null);
+  // Online: kanalen har sin egen status (henter · live · fejl), opslaget er en
+  // query. Kanalfejl FØRST, så skelet, så opslagsfejl, så listen (onlineMedlemmer).
+  let onlineFelt: FeltTilstand;
+  let onlineListe: ReturnType<typeof onlineMedlemmer> | null = null;
+  if (online.status === "fejl") {
+    iDagFejl.push({ noegle: "online", tekst: raadgiverHentefejlTekst(new HentningsFejl("realtime_presence", "kanalen kunne ikke åbnes"), "forsiden") });
+    onlineFelt = { art: "fejl" };
+  } else if (online.status === "henter" || (online.ids.length > 0 && !onlineQuery.data && !onlineQuery.isError)) {
+    onlineFelt = { art: "henter" };
+  } else if (onlineQuery.isError) {
+    iDagFejl.push({ noegle: "online", tekst: raadgiverHentefejlTekst(onlineQuery.error, "forsiden") });
+    onlineFelt = { art: "fejl" };
+  } else {
+    onlineListe = online.ids.length === 0 || !onlineQuery.data ? [] : onlineMedlemmer({ ids: online.ids, ...onlineQuery.data });
+    onlineFelt = { art: "tal", antal: onlineListe.length };
+  }
+  const opslagDom = ubesvaredeQuery.data ? ubesvaredeOpslag({ ...ubesvaredeQuery.data, nu }) : null;
+  const opslagFelt = felt(ubesvaredeQuery, "opslag", opslagDom ? opslagDom.ialt : null);
+  const venterDom = venterQuery.data ? venterPaaBetaling(venterQuery.data, nu) : null;
+  const venterFelt = felt(venterQuery, "betaling", venterDom ? venterDom.ialt : null);
+  const iDag = {
+    nu,
+    fejl: iDagFejl,
+    // Listerne kun når feltet står med et tal — ved fejl står fejlen, ikke gamle rækker.
+    sessionerIDag: { felt: sessionerFelt, liste: sessionerFelt.art === "tal" ? sessionerListe : null },
+    online: { felt: onlineFelt, liste: onlineListe },
+    opslag: { felt: opslagFelt, dom: opslagFelt.art === "tal" ? opslagDom : null },
+    venter: { felt: venterFelt, dom: venterFelt.art === "tal" ? venterDom : null },
+  };
+
   return (
     <div>
       {/* ── Toppen (§10) ── */}
@@ -709,127 +766,105 @@ export const RaadgiverForsideView = () => {
           </section>
         </div>
 
-        {/* ── Højre, række 1: «I DAG» — det der er nu ── */}
-        <aside className="mt-10 min-w-0 space-y-1 text-sm text-hb-ink-soft lg:col-start-2 lg:row-start-1 lg:mt-0 lg:border-l lg:border-hb-line lg:pl-8" data-forside-felt="i-dag">
-        <p className="mb-3 text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">I dag</p>
-        {/* SESSIONER I DAG (17/9, PR 2 — NY; lib/hjemmebane/dagensSessioner +
-            hooks/dagensSessioner): «10:00 Floren Engros · Morten» → virksomhedssiden.
-            Fem minutter før et møde er dette det første rådgiveren skal se.
-            Fejl siges med husets hentefejltekst — aldrig «Ingen sessioner i dag». */}
-        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{SESSIONER_OVERSKRIFT}</p>
-        {sessionerQuery.isLoading ? (
-          <div aria-hidden className="pb-4"><div className="h-3 w-2/3 animate-pulse rounded bg-hb-line/60" /></div>
-        ) : sessionerQuery.isError ? (
-          <p className="pb-4 text-xs">{raadgiverHentefejlTekst(sessionerQuery.error, "forsiden")}</p>
-        ) : sessionerQuery.data ? (
-          (() => {
-            const liste = dagensSessioner({ ...sessionerQuery.data, nu: new Date() });
-            return liste.length > 0 ? (
-              <ul className="space-y-1 pb-4" data-sessioner-i-dag={liste.length}>
-                {liste.map((s) => (
-                  <li key={s.id}>
-                    {s.companyId ? (
-                      <Link to={virksomhedsLink(s.companyId)} className={TEKSTLINK}>{sessionLinjeTekst(s)}</Link>
-                    ) : (
-                      sessionLinjeTekst(s)
-                    )}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="pb-4">{INGEN_SESSIONER_TEKST}</p>
-            );
-          })()
-        ) : null}
-        {/* ONLINE NU (Jonas 16/9, lib/hjemmebane/online + hooks/onlineMedlemmer):
-            profilbilleder af de medlemmer der har appen åben lige nu — det
-            eneste på siden der er «nu», derfor øverst. Navn (+ « · Legat») ved
-            hover og for skærmlæsere; højst ONLINE_LOFT billeder, resten «+ N».
-            Skelet før første sync; «Ingen medlemmer online lige nu.» når
-            kanalen er live og tom; kanalfejl (CHANNEL_ERROR/TIMED_OUT/CLOSED)
-            og opslagsfejl siges med husets hentefejltekst — aldrig «ingen
-            online» ved en fejl. Dommen (hvem vises) er onlineMedlemmer. */}
-        {(() => {
-          const overskrift = (antal: number) => (
-            <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{onlineOverskrift(antal)}</p>
-          );
-          const skelet = (
-            <div aria-hidden className="flex gap-2 pb-4">
-              {[0, 1, 2].map((i) => <div key={i} className="h-8 w-8 animate-pulse rounded-full bg-hb-line/40" />)}
-            </div>
-          );
-          if (online.status === "fejl") {
-            return (
-              <>
-                {overskrift(0)}
-                <p className="pb-4 text-xs">{raadgiverHentefejlTekst(new HentningsFejl("realtime_presence", "kanalen kunne ikke åbnes"), "forsiden")}</p>
-              </>
-            );
-          }
-          if (online.status === "henter" || (online.ids.length > 0 && !onlineQuery.data && !onlineQuery.isError)) {
-            return <>{overskrift(0)}{skelet}</>;
-          }
-          if (onlineQuery.isError) {
-            return (
-              <>
-                {overskrift(0)}
-                <p className="pb-4 text-xs">{raadgiverHentefejlTekst(onlineQuery.error, "forsiden")}</p>
-              </>
-            );
-          }
-          const liste = online.ids.length === 0 || !onlineQuery.data ? [] : onlineMedlemmer({ ids: online.ids, ...onlineQuery.data });
-          if (liste.length === 0) {
-            return <>{overskrift(0)}<p className="pb-4">{INGEN_ONLINE_TEKST}</p></>;
-          }
-          const { viste, flere } = onlineUdsnit(liste);
-          return (
-            <>
-              {overskrift(liste.length)}
-              <ul className="flex flex-wrap gap-2 pb-4" data-online-antal={liste.length}>
-                {viste.map((m) => (
-                  <li key={m.user_id}>
-                    <HbAvatar navn={m.navn} avatarUrl={m.avatar_url} stoerrelse="sm" title={onlineTitel(m)} />
-                  </li>
-                ))}
-                {flere > 0 && (
-                  <li>
-                    <span
-                      title={`og ${flere} mere`}
-                      className="flex h-8 w-8 items-center justify-center rounded-full border border-hb-line bg-hb-paper text-xs font-medium text-hb-ink-soft"
-                    >
-                      +{flere}
-                    </span>
-                  </li>
-                )}
-              </ul>
-            </>
-          );
+        {/* ── Højre, række 1: «I DAG» — det der er nu ──
+            OPSÆTNINGEN (30/9, Jonas' godkendte redesign): ét kort med fire
+            felter i et 2×2-gitter — Sessioner i dag, Online nu, Ubesvarede
+            opslag, Venter på betaling — tal før tekst, prik + ord (grøn = i
+            orden, orange = noget venter; lib/hjemmebane/hoejreKolonne). Et
+            felt på 0 er lille og roligt. Under gitteret: Driften (KUN når
+            rød), fejllinjerne med husets hentefejltekst, og listerne bag de
+            felter der har noget (sessionerne, opslagene, betalingerne) — så
+            navnene stadig er ét klik væk. Sidst i kortet: Mangler at booke.
+            Dommene køres ÉN gang (iDag ovenfor) — feltet og listen læser
+            samme værdi. */}
+        <aside className="mt-10 min-w-0 space-y-4 text-sm text-hb-ink-soft lg:col-start-2 lg:row-start-1 lg:mt-0" data-forside-felt="i-dag">
+        <div className={KORT} data-i-dag-kort>
+        <p className={EYEBROW}>I dag</p>
+        <div className="mt-4 grid grid-cols-2 gap-3" data-i-dag-gitter>
+          <TalFelt slags="sessioner" etiket={SESSIONER_OVERSKRIFT} tilstand={iDag.sessionerIDag.felt} />
+          <TalFelt slags="online" etiket={onlineOverskrift(0)} tilstand={iDag.online.felt}>
+            {/* Profilbillederne bliver i feltet (højst ONLINE_FELT_LOFT, resten
+                «+N»); navn (+ « · Legat») ved hover og for skærmlæsere. */}
+            {iDag.online.liste && iDag.online.liste.length > 0 && (() => {
+              const { viste, flere } = onlineUdsnit(iDag.online.liste, ONLINE_FELT_LOFT);
+              return (
+                <ul className="mt-2 flex flex-wrap gap-1" data-online-antal={iDag.online.liste.length}>
+                  {viste.map((m) => (
+                    <li key={m.user_id}>
+                      <HbAvatar navn={m.navn} avatarUrl={m.avatar_url} stoerrelse="sm" title={onlineTitel(m)} />
+                    </li>
+                  ))}
+                  {flere > 0 && (
+                    <li>
+                      <span
+                        title={`og ${flere} mere`}
+                        className="flex h-8 w-8 items-center justify-center rounded-full border border-hb-line bg-hb-paper text-xs font-medium text-hb-ink-soft"
+                      >
+                        +{flere}
+                      </span>
+                    </li>
+                  )}
+                </ul>
+              );
+            })()}
+          </TalFelt>
+          <TalFelt slags="opslag" etiket={KORT_OVERSKRIFT} tilstand={iDag.opslag.felt} />
+          <TalFelt slags="betaling" etiket={VENTER_OVERSKRIFT} tilstand={iDag.venter.felt} />
+        </div>
+        {/* DRIFTEN (9/9, lib/cronVagt): vagten i databasen dømmer hver time —
+            vault, cron-svarene, mailkøen — og skriver til cron_vagt_log. Her
+            står kun én linje: grøn er ink-soft, rød er rust med hvad der er
+            galt og siden hvornår. 9/9 fik alle ni jobs 401 i 17 timer uden
+            at nogen så det; denne linje er dét der skal ses. */}
+        {vagtQuery.isLoading ? null : vagtQuery.isError ? (
+          <p className="mt-4">Driften: vagten kunne ikke hentes lige nu.</p>
+        ) : (() => {
+          const v = vagtLinje(vagtQuery.data ?? [], new Date());
+          // KUN når rød (17/9, PR 2): grøn drift er ingen nyhed og får ingen
+          // plads i «I dag»; klokkens drift-notifikation lander på «/», hvor
+          // den røde linje står. Fejl siges stadig.
+          return v.tone === "rust" ? <p className="mt-4 rounded-hb border border-hb-rust/40 bg-hb-rust/5 p-3 text-hb-rust">{v.tekst}</p> : null;
         })()}
-        {/* UBESVAREDE OPSLAG (Jonas 16/9, valg B): «et eget kort på forsiden
-            … med medlemmers opslag fra de sidste 14 dage som ingen rådgiver
-            har svaret på, og et link til hvert». Forsvinder af sig selv når
-            en af rådgiverne har svaret (dommen læser svarene). Højst fem
-            linjer; flere → «og N mere i fællesskabet». Fejl siges med husets
-            hentefejltekst — aldrig en tom liste der ligner «alt besvaret». */}
-        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{KORT_OVERSKRIFT}</p>
-        {ubesvaredeQuery.isLoading ? (
-          <div aria-hidden className="pb-4"><div className="h-3 w-2/3 animate-pulse rounded bg-hb-line/60" /></div>
-        ) : ubesvaredeQuery.isError ? (
-          <p className="pb-4 text-xs">{raadgiverHentefejlTekst(ubesvaredeQuery.error, "forsiden")}</p>
-        ) : ubesvaredeQuery.data ? (
-          (() => {
-            const nu = new Date();
-            const { liste, ialt } = ubesvaredeOpslag({ ...ubesvaredeQuery.data, nu });
-            if (ialt === 0) return <p className="pb-4">{ALLE_BESVARET_TEKST}</p>;
-            const { viste, flere } = kortUdsnit(liste);
-            return (
-              <ul className="space-y-1 pb-4" data-ubesvarede-opslag={ialt}>
+        {/* FEJLENE — aldrig et 0 der ligner «alt i orden»: feltet siger «Kunne
+            ikke hentes», og linjen her siger HVAD (husets rådgivertekst). */}
+        {iDag.fejl.length > 0 && (
+          <ul className="mt-4 space-y-1 text-xs" data-i-dag-fejl={iDag.fejl.length}>
+            {iDag.fejl.map((f) => <li key={f.noegle}>{f.tekst}</li>)}
+          </ul>
+        )}
+        {/* SESSIONER I DAG (17/9, PR 2; lib/hjemmebane/dagensSessioner):
+            «10:00 Floren Engros · Morten» → virksomhedssiden. */}
+        {iDag.sessionerIDag.liste && iDag.sessionerIDag.liste.length > 0 && (
+          <div className="mt-5 border-t border-hb-line pt-4">
+            <p className={MIKRO}>{SESSIONER_OVERSKRIFT}</p>
+            <ul className="mt-2 space-y-1" data-sessioner-i-dag={iDag.sessionerIDag.liste.length}>
+              {iDag.sessionerIDag.liste.map((s) => (
+                <li key={s.id}>
+                  {s.companyId ? (
+                    <Link to={virksomhedsLink(s.companyId)} className={TEKSTLINK}>{sessionLinjeTekst(s)}</Link>
+                  ) : (
+                    sessionLinjeTekst(s)
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {/* UBESVAREDE OPSLAG (Jonas 16/9, valg B): medlemmers opslag fra de
+            sidste 14 dage uden svar fra en rådgiver, et link til hvert. Højst
+            fem; flere → «og N mere i fællesskabet». */}
+        {iDag.opslag.dom && iDag.opslag.dom.ialt > 0 && (() => {
+          const { viste, flere } = kortUdsnit(iDag.opslag.dom.liste);
+          return (
+            <div className="mt-5 border-t border-hb-line pt-4">
+              <p className={MIKRO}>{KORT_OVERSKRIFT}</p>
+              <ul className="mt-2 space-y-1" data-ubesvarede-opslag={iDag.opslag.dom.ialt}>
                 {viste.map((t) => (
                   <li key={t.id}>
                     <Link to={traadSti(t.id)} className="text-hb-evergreen underline-offset-4 hover:underline">
                       {linjeTekst(t)}
                     </Link>
-                    <span className="text-hb-ink-soft"> · {alderTekst(t.created_at, nu)}</span>
+                    <span className="text-hb-ink-soft"> · {alderTekst(t.created_at, iDag.nu)}</span>
                     {t.kilde_type === KILDE_PRAESENTATION && <HbTag className="ml-2">{KILDE_PRAESENTATION_LABEL}</HbTag>}
                   </li>
                 ))}
@@ -839,42 +874,19 @@ export const RaadgiverForsideView = () => {
                   </li>
                 )}
               </ul>
-            );
-          })()
-        ) : null}
-        {/* DRIFTEN (9/9, lib/cronVagt): vagten i databasen dømmer hver time —
-            vault, cron-svarene, mailkøen — og skriver til cron_vagt_log. Her
-            står kun én linje: grøn er ink-soft, rød er rust med hvad der er
-            galt og siden hvornår. 9/9 fik alle ni jobs 401 i 17 timer uden
-            at nogen så det; denne linje er dét der skal ses. */}
-        {vagtQuery.isLoading ? null : vagtQuery.isError ? (
-          <p className="pb-4">Driften: vagten kunne ikke hentes lige nu.</p>
-        ) : (() => {
-          const v = vagtLinje(vagtQuery.data ?? [], new Date());
-          // KUN når rød (17/9, PR 2): grøn drift er ingen nyhed og får ingen
-          // plads i «I dag»; klokkens drift-notifikation lander på «/», hvor
-          // den røde linje står. Fejl siges stadig.
-          return v.tone === "rust" ? <p className="pb-4 text-hb-rust">{v.tekst}</p> : null;
+            </div>
+          );
         })()}
         {/* VENTER PÅ BETALING (19/9, recon-indgangspaamindelser §5): hvem har
             skrevet under og ikke betalt — med hvor længe, og hvad vi har sendt
-            dem. Står SIDST i «I dag»: det er dagens arbejde, men det er ikke
-            det første man skal se. Rust på de to hvor nogen skal gøre noget nu
-            (prisen mangler, fristen er passeret). Højst fem linjer; flere →
-            «og N mere i indgangen» til virksomhedslisten. Fejl siges med husets
-            hentefejltekst — aldrig en tom liste, der ligner «alle har betalt». */}
-        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{VENTER_OVERSKRIFT}</p>
-        {venterQuery.isLoading ? (
-          <div aria-hidden className="pb-4"><div className="h-3 w-2/3 animate-pulse rounded bg-hb-line/60" /></div>
-        ) : venterQuery.isError ? (
-          <p className="pb-4 text-xs">{raadgiverHentefejlTekst(venterQuery.error, "forsiden")}</p>
-        ) : venterQuery.data ? (
-          (() => {
-            const { liste, ialt } = venterPaaBetaling(venterQuery.data, new Date());
-            if (ialt === 0) return <p className="pb-4">{INGEN_VENTER_TEKST}</p>;
-            const { viste, flere } = venterUdsnit(liste);
-            return (
-              <ul className="space-y-1 pb-4" data-venter-paa-betaling={ialt}>
+            dem. Rust på de to hvor nogen skal gøre noget nu (prisen mangler,
+            fristen er passeret). Højst fem; flere → «og N mere i indgangen». */}
+        {iDag.venter.dom && iDag.venter.dom.ialt > 0 && (() => {
+          const { viste, flere } = venterUdsnit(iDag.venter.dom.liste);
+          return (
+            <div className="mt-5 border-t border-hb-line pt-4">
+              <p className={MIKRO}>{VENTER_OVERSKRIFT}</p>
+              <ul className="mt-2 space-y-1" data-venter-paa-betaling={iDag.venter.dom.ialt}>
                 {viste.map((l) => (
                   <li key={l.companyId}>
                     <Link to={virksomhedsSti(l.companyId)} className={cn(TEKSTLINK, l.haster && "text-hb-rust")}>
@@ -889,14 +901,17 @@ export const RaadgiverForsideView = () => {
                   </li>
                 )}
               </ul>
-            );
-          })()
-        ) : null}
-        {/* MANGLER AT BOOKE (Jonas 29/9): to linjer — Morten- og Jonas-session —
-            med navnene under. Står sidst i «I dag» som «Venter på betaling»:
-            dagens arbejde, ikke det første man skal se. Dommen er motorens
-            manglerAtBooke; blokken tæller kun (ManglerAtBooke.tsx). */}
+            </div>
+          );
+        })()}
+        {/* MANGLER AT BOOKE (Jonas 29/9): to foldbare rækker — Morten- og
+            Jonas-session — med tallet i et mærke og navnene bag klikket
+            (ManglerAtBooke.tsx). Sidst i «I dag»: dagens arbejde, ikke det
+            første man skal se. Dommen er motorens manglerAtBooke. */}
+        <div className="mt-5 border-t border-hb-line pt-4">
         <ManglerAtBooke hentning={overblikQuery} virksomhedsLink={virksomhedsLink} linkKlasse={TEKSTLINK} />
+        </div>
+        </div>
         </aside>
 
         {/* ── Venstre, række 2: Jeres liste (Jonas 8/9): UNDER DOMMEN, med
@@ -907,33 +922,35 @@ export const RaadgiverForsideView = () => {
           <OpgavelisteView paaForsiden />
         </div>
 
-        {/* ── Højre, række 2: «UGEN» og «MÅNEDEN» — det der orienterer ── */}
-        <aside className="mt-10 min-w-0 space-y-1 text-sm text-hb-ink-soft lg:col-start-2 lg:row-start-2 lg:mt-12 lg:border-l lg:border-hb-line lg:pl-8" data-forside-felt="ugen-maaneden">
+        {/* ── Højre, række 2: «UGEN» og «MÅNEDEN» — det der orienterer ──
+            Tre kort (30/9): Svartids-uret, Ugen, Måneden. */}
+        <aside className="mt-10 min-w-0 space-y-4 text-sm text-hb-ink-soft lg:col-start-2 lg:row-start-2 lg:mt-12" data-forside-felt="ugen-maaneden">
         {/* SVARTIDS-URET (30/9, lib/svartid): teamets median svartid 7 dage i
-            hverdagstimer med farve og trend, 30 dage ved siden af, ældste
-            ubesvarede med link til chatten og «Intet venter»-streaken. Fælles
-            teamtal, aldrig en rangliste. Øverst i Ugen/Måneden: det orienterer,
-            det er ikke dagens arbejde. */}
+            hverdagstimer med farve og trend, 7 og 30 dage i en lille tabel,
+            ældste ubesvarede med knap til chatten og «Intet venter»-pillen.
+            Fælles teamtal, aldrig en rangliste. Øverst i Ugen/Måneden: det
+            orienterer, det er ikke dagens arbejde. */}
         <SvartidsUret hentning={svartidQuery} />
-        <p className="mb-3 text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">Ugen</p>
+        <div className={KORT} data-ugen-kort>
+        <p className={cn(EYEBROW, "mb-3")}>Ugen</p>
         {/* SIDEN SIDST (Jonas 8/9, lib/sidenSidst + hooks/sidenSidst): hvad der
             har flyttet sig siden du sidst åbnede — pr. rådgiver, syv dages
-            loft. Fem-seks linjer med tal og navne; tom tilstand er rolig. */}
-        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
+            loft. Tom tilstand er ÉN rolig linje. */}
+        <p className={MIKRO}>
           Siden sidst{sidenSidstQuery.data ? ` · ${sidenTekst(sidenSidstQuery.data.siden, new Date())}` : ""}
         </p>
         {sidenSidstQuery.isLoading ? (
-          <div aria-hidden className="pb-4"><div className="h-3 w-2/3 animate-pulse rounded bg-hb-line/60" /></div>
+          <div aria-hidden className="pt-2"><div className="h-3 w-2/3 animate-pulse rounded bg-hb-line/60" /></div>
         ) : sidenSidstQuery.isError ? (
-          <p className="pb-4 text-xs">Kunne ikke hente hvad der er sket siden sidst.</p>
+          <p className="pt-2 text-xs">Kunne ikke hente hvad der er sket siden sidst.</p>
         ) : sidenSidstQuery.data ? (
           (() => {
             const linjer = sidenSidstLinjeDele(sidenSidstQuery.data.raekker);
             return linjer.length > 0 ? (
-              <ul className="space-y-1 pb-4">
+              <ul className="mt-2 divide-y divide-hb-line/70">
                 {linjer.map((l) => (
-                  <li key={l.slags}>
-                    {l.hoved}
+                  <li key={l.slags} className="py-1.5 first:pt-0 last:pb-0">
+                    <span className="text-hb-ink">{l.hoved}</span>
                     {l.viste.length > 0 && " · "}
                     {l.viste.map((v, i) => (
                       <Fragment key={`${v.id ?? "navn"}:${v.navn}:${i}`}>
@@ -950,51 +967,60 @@ export const RaadgiverForsideView = () => {
                 ))}
               </ul>
             ) : (
-              <p className="pb-4">{intetNytTekst(sidenSidstQuery.data.siden, new Date())}</p>
+              <p className="pt-2">{intetNytTekst(sidenSidstQuery.data.siden, new Date())}</p>
             );
           })()
         ) : null}
-        <p className="mb-3 text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">Måneden</p>
-        {/* PULSEN (Jonas 8/9, lib/pulsen): fire tal for hele porteføljen, læses
-            hver morgen. Tallene er MOTORERNES — tavshed er virksomhedsSignalers
-            21 dage, fornyelser er dommens FORNYELSE_VENTER_STATUSSER, «har
-            rapporteret» er seneste afsluttede måned med målte tal. Ingen
-            grafer; klik hvor der er nogen at klikke på. */}
-        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">Pulsen</p>
-        <ul className="space-y-1 pb-4">
-          {pulsLinjer(data.pulsen).map((l) => (
-            <li key={l.noegle} className={cn(l.noegle === "tavse" && data.pulsen.tavse.antal > 0 && "text-hb-rust")}>
-              {l.to ? (
-                <Link to={l.to} className={cn("underline-offset-4 hover:underline", l.noegle === "tavse" && data.pulsen.tavse.antal > 0 ? "text-hb-rust" : "text-hb-evergreen")}>
-                  {l.tekst}
-                </Link>
-              ) : (
-                l.tekst
-              )}
-            </li>
-          ))}
-        </ul>
+        </div>
+        <div className={KORT} data-maaneden-kort>
+        <p className={cn(EYEBROW, "mb-3")}>Måneden</p>
+        {/* PULSEN (Jonas 8/9, lib/pulsen): porteføljens tal som to
+            fremdriftsbjælker (rapporteret, svaret på forslag — X af Y) og
+            mærker (tavse med fordelingen, fornyelser). Tallene er MOTORERNES
+            (afgoerPulsen), linkene pulsLinjers; pulsVisning sætter dem kun
+            op. Rust kun på de tavse, som før. */}
+        <p className={MIKRO}>Pulsen</p>
+        {(() => {
+          const { bjaelker, maerker } = pulsVisning(data.pulsen);
+          return (
+            <div className="mt-2 space-y-3" data-pulsen>
+              {bjaelker.map((b) => (
+                <Fremdrift key={b.noegle} noegle={b.noegle} etiket={b.etiket} x={b.x} y={b.y} to={b.to} linkKlasse={TEKSTLINK} />
+              ))}
+              <div className="flex flex-wrap gap-1.5" data-puls-maerker>
+                {maerker.map((m) => (
+                  <Maerke key={m.noegle} tekst={m.tekst} to={m.to} advarsel={m.advarsel} linkKlasse="underline-offset-4 hover:underline" />
+                ))}
+              </div>
+            </div>
+          );
+        })()}
         {/* NYE MEDLEMMER (Jonas 16/9, lib/hjemmebane/kohorte + hooks/kohorte):
-            «N af M kom igen efter dag 1» — nulpunktets regel (16/9 00:57)
-            som linje, med navnene på dem der ikke er kommet igen (højst fem).
-            Startet i dag tælles ikke i M — de har ikke kunnet komme igen
-            endnu — men siges. Intet tal før hentningen er klar; fejl siges
-            med husets hentefejltekst — aldrig «Ingen nye medlemmer». */}
-        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{KOHORTE_OVERSKRIFT}</p>
+            «N af M kom igen efter dag 1» — nu som bjælke — med navnene på dem
+            der ikke er kommet igen (højst fem) som links. Startet i dag
+            tælles ikke i M, men siges. Intet tal før hentningen er klar; fejl
+            siges med husets hentefejltekst — aldrig «Ingen nye medlemmer». */}
+        <div className="mt-5 border-t border-hb-line pt-4">
+        <p className={MIKRO}>{KOHORTE_OVERSKRIFT}</p>
         {kohorteQuery.isLoading ? (
-          <div aria-hidden className="pb-4"><div className="h-3 w-2/3 animate-pulse rounded bg-hb-line/60" /></div>
+          <div aria-hidden className="pt-2"><div className="h-3 w-2/3 animate-pulse rounded bg-hb-line/60" /></div>
         ) : kohorteQuery.isError ? (
-          <p className="pb-4 text-xs">{raadgiverHentefejlTekst(kohorteQuery.error, "forsiden")}</p>
+          <p className="pt-2 text-xs">{raadgiverHentefejlTekst(kohorteQuery.error, "forsiden")}</p>
         ) : kohorteQuery.data ? (
           (() => {
             const linje = kohorteLinje({ ...kohorteQuery.data, nu: new Date() });
             const idag = startetIDagTekst(linje.udeladtIDag);
             const ikke = ikkeKommetIgenDele(linje.ikkeKommetIgenVirksomheder);
             return (
-              <div className="space-y-1 pb-4" data-kohorte-m={linje.m} data-kohorte-n={linje.n}>
-                <p>{kohorteTekst(linje)}{idag ? ` ${idag}` : ""}</p>
+              <div className="mt-2 space-y-2" data-kohorte-m={linje.m} data-kohorte-n={linje.n}>
+                {linje.m > 0 ? (
+                  <Fremdrift noegle="kohorte" etiket={KOHORTE_BJAELKE_ETIKET} x={linje.n} y={linje.m} to={null} linkKlasse={TEKSTLINK} />
+                ) : (
+                  <p>{kohorteTekst(linje)}</p>
+                )}
+                {idag && <p className="text-xs">{idag}</p>}
                 {ikke && (
-                  <p>
+                  <p className="text-xs leading-relaxed">
                     {IKKE_KOMMET_IGEN_PRAEFIKS}
                     {ikke.viste.map((v, i) => (
                       <Fragment key={v.id}>
@@ -1009,6 +1035,8 @@ export const RaadgiverForsideView = () => {
             );
           })()
         ) : null}
+        </div>
+        </div>
         </aside>
       </div>
     </div>
