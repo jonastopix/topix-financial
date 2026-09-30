@@ -240,7 +240,7 @@ describe("disciplin — rytme 150 + rettidighed 50 + budget 25 + mål 25", () =>
     expect(d.status === "ok" && d.point).toBe(SOEJLE_MAX.disciplin);
   });
   it("3 af 6 målte, 2 af de 3 til tiden, intet budget/mål: 150 × 3/6 + 50 × 2/3 = 75 + 33,3 (kontraktstart 1/3 → vinduet er marts–august)", () => {
-    const rows = [sund("2026-04"), sund("2026-06"), sund("2026-08", {}, { foersteGodkendtAt: "2026-09-20T00:00:00Z" })];
+    const rows = [sund("2026-04"), sund("2026-06"), sund("2026-08", {}, { foersteGodkendtAt: "2026-09-25T00:00:00Z" })];
     const d = disciplin(grundlag(rows, { kontraktStart: "2026-03-01" }), NU);
     expect(d.status).toBe("ok");
     if (d.status !== "ok") return;
@@ -249,7 +249,7 @@ describe("disciplin — rytme 150 + rettidighed 50 + budget 25 + mål 25", () =>
     expect(d.point).toBeCloseTo(108.33, 1);
   });
   it("uden kontraktstart begynder vinduet måneden efter den tidligste godkendelse: samme rækker → juni–august, 2 af 3 målte, 1 af 2 til tiden", () => {
-    const rows = [sund("2026-04"), sund("2026-06"), sund("2026-08", {}, { foersteGodkendtAt: "2026-09-20T00:00:00Z" })];
+    const rows = [sund("2026-04"), sund("2026-06"), sund("2026-08", {}, { foersteGodkendtAt: "2026-09-25T00:00:00Z" })];
     const d = disciplin(grundlag(rows), NU); // april godkendt 5/5 → første tællende måned er juni
     expect(d.status).toBe("ok");
     if (d.status !== "ok") return;

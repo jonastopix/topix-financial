@@ -12,7 +12,10 @@ import {
   ikkeNokDataTekst,
   loefterLinjer,
   retningTekst,
+  RING_RADIUS,
+  ringBue,
   soejleLinjer,
+  streakKortLinje,
   streakLinjer,
   TAEL_OP_MS,
   taelOpVaerdi,
@@ -105,12 +108,12 @@ describe("soejleLinjer", () => {
 });
 
 describe("streakLinjer", () => {
-  const base: StreakDom = { laengde: 7, status: "aktiv", bedste: 7, aabenMaanedGodkendt: false, naesteFrist: { key: "2026-09", tidspunkt: new Date(), hverdageTil: 8 } };
-  it("aktiv: tallet, enheden og fristen med dansk dato (10/10 er lørdag → 12/10)", () => {
+  const base: StreakDom = { laengde: 7, status: "aktiv", bedste: 7, aabenMaanedGodkendt: false, naesteFrist: { key: "2026-09", tidspunkt: new Date(), hverdageTil: 14 } };
+  it("aktiv: tallet, enheden og fristen med dansk dato (20/10-2026 er en tirsdag → 20/10)", () => {
     const s = streakLinjer(base);
     expect(s.laengde).toBe(7);
     expect(s.enhed).toBe("måneder i træk");
-    expect(s.frist).toBe("Næste frist: september senest 12/10 (8 hverdage)");
+    expect(s.frist).toBe("Næste frist: september senest 20/10 (14 hverdage)");
     expect(s.bedste).toBeNull();
   });
   it("én måned, én hverdag, fristen i dag", () => {
@@ -128,8 +131,53 @@ describe("streakLinjer", () => {
     expect(s.frist).toMatch(/^Næste frist: oktober senest /);
     expect(s.frist).toMatch(/September er allerede i hus\.$/);
   });
-  it("mod motoren 30/9-2026: fristen for september er 12/10", () => {
-    expect(streakLinjer(FULD.streak).frist).toMatch(/^Næste frist: september senest 12\/10 \(\d+ hverdage?\)$/);
+  it("mod motoren 30/9-2026: fristen for september er 20/10 om 14 hverdage", () => {
+    expect(streakLinjer(FULD.streak).frist).toBe("Næste frist: september senest 20/10 (14 hverdage)");
+  });
+  it("en weekend-frist står som den rykkede hverdag: august 2026 (20/9 er søndag) → 21/9", () => {
+    expect(streakLinjer({ ...base, naesteFrist: { ...base.naesteFrist, key: "2026-08", hverdageTil: 3 } }).frist).toBe("Næste frist: august senest 21/9 (3 hverdage)");
+  });
+  it("status uden streak nævner den 20. — samme frist som påmindelserne", () => {
+    expect(streakLinjer({ ...base, laengde: 0, status: "ingen" }).status).toBe("Godkend dine tal senest den 20. og start din streak");
+  });
+  it("streakKortLinje: tallet med enhed og fristen på én linje", () => {
+    expect(streakKortLinje(base)).toEqual({ tal: "7 måneder i træk", frist: "Næste frist: september senest 20/10 (14 hverdage)", erStatus: false });
+    expect(streakKortLinje({ ...base, laengde: 1 }).tal).toBe("1 måned i træk");
+  });
+  it("streakKortLinje uden streak (status «ingen»): statussen er linjen — aldrig «0 måneder i træk» — og fristen står stadig", () => {
+    const l = streakKortLinje({ ...base, laengde: 0, bedste: 0, status: "ingen" });
+    expect(l).toEqual({
+      tal: "Godkend dine tal senest den 20. og start din streak",
+      frist: "Næste frist: september senest 20/10 (14 hverdage)",
+      erStatus: true,
+    });
+    expect(l.tal).not.toMatch(/0 måneder/);
+  });
+  it("streakKortLinje med brudt streak: «Streaken er brudt — næste frist starter en ny» + fristen", () => {
+    const l = streakKortLinje({ ...base, laengde: 0, status: "brudt" });
+    expect(l).toEqual({
+      tal: "Streaken er brudt — næste frist starter en ny",
+      frist: "Næste frist: september senest 20/10 (14 hverdage)",
+      erStatus: true,
+    });
+  });
+});
+
+describe("ringBue — buen i skala 0–1000", () => {
+  it("omkreds = 2π × 54 = 339,29; 733 → 339,29 × 0,733 = 248,70", () => {
+    const b = ringBue(733);
+    expect(b.omkreds).toBeCloseTo(2 * Math.PI * RING_RADIUS, 6);
+    expect(b.omkreds).toBeCloseTo(339.29, 2);
+    expect(b.laengde).toBeCloseTo(248.70, 2);
+  });
+  it("0 og 1000 er kanterne; over/under klemmes; null/NaN/max 0 → ingen bue", () => {
+    expect(ringBue(0).laengde).toBe(0);
+    expect(ringBue(1000).laengde).toBeCloseTo(ringBue(1000).omkreds, 9);
+    expect(ringBue(1500).laengde).toBeCloseTo(ringBue(1000).omkreds, 9);
+    expect(ringBue(-5).laengde).toBe(0);
+    expect(ringBue(null).laengde).toBe(0);
+    expect(ringBue(Number.NaN).laengde).toBe(0);
+    expect(ringBue(500, 0).laengde).toBe(0);
   });
 });
 
