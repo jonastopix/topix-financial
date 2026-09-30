@@ -38,8 +38,10 @@
 --           fodnote [a]'s forbehold (som UPDATE har). Uden den fejler hvert
 --           slag efter det første med 42501. Medlemmet ser kun sig selv —
 --           intet om andre.
---   SELECT  authenticated  using has_role(auth.uid(), 'advisor') — rådgivere
---           (admin arver) ser alle.
+--   SELECT  authenticated  using (select public.has_role((select auth.uid()), 'advisor'::app_role))
+--           — rådgivere (admin arver) ser alle. has_role og auth.uid() er pakket
+--           ind i (select …), så planlæggeren evaluerer dem én gang pr. forespørgsel
+--           (initPlan), ikke pr. række.
 --   INGEN DELETE-politik; DELETE og TRUNCATE tilbagekaldt fra authenticated
 --   (TRUNCATE ser ikke RLS), alt tilbagekaldt fra anon. Rækken forsvinder
 --   kun med brugeren (on delete cascade — RI kører som tabellens ejer).
@@ -51,6 +53,15 @@
 -- nogen «online». Læsningen online_hjerteslag_friske(vindue_sekunder)
 -- sammenligner med serverens now() (SECURITY INVOKER — RLS afgør, hvad
 -- kalderen ser: rådgiveren alle, medlemmet sig selv).
+--
+-- ── MÅLINGEN OG RÆKKEFØLGEN ───────────────────────────────────────────────
+-- Anon-målingen fra CLAUDE.md (`GET /rest/v1/<tabel>?select=<kolonne>&limit=0`
+-- med anon-nøglen) GÆLDER IKKE for denne tabel: anon er tilbagekaldt (`revoke
+-- all … from anon`), så et anon-kald giver 401/42501 uanset om tabellen findes.
+-- MÅLINGEN ER EFTER-SQL'ens sektioner nedenfor (pg_class, pg_policies,
+-- pg_trigger, pg_proc, has_table_privilege — læst fra kataloget, ikke gættet).
+-- RÆKKEFØLGEN: migration → EFTER-SQL → Update. Frontenden må ikke publiceres,
+-- før EFTER-SQL'en har vist facit.
 --
 -- ── FØR-SQL og EFTER-SQL (samme sæt, ét resultatsæt) ─────────────────────
 --   select '1 tabel' as sektion, 'to_regclass' as noegle,
@@ -237,7 +248,7 @@ create policy "Raadgivere ser hjerteslag"
   on public.online_hjerteslag
   for select
   to authenticated
-  using (public.has_role((select auth.uid()), 'advisor'::app_role));
+  using ((select public.has_role((select auth.uid()), 'advisor'::app_role)));
 
 -- Friske hjerteslag målt mod SERVERENS ur. SECURITY INVOKER: RLS afgør.
 create function public.online_hjerteslag_friske(vindue_sekunder integer)

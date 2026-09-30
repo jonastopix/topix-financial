@@ -26,7 +26,7 @@
  *                                HentningsFejl med kildens navn, og fladen viser
  *                                husets fejltekst — aldrig «ingen online».
  */
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { kraevRaekker } from "@/lib/kraevRaekker";
 import {
@@ -66,6 +66,8 @@ export function useOnlineMedlemmer(aktiv: boolean): OnlineKanal {
     refetchInterval: ONLINE_GENHENT_MS,
     refetchOnWindowFocus: true,
     staleTime: 0,
+    // Feltet blinker ikke: mellem to hentninger står det forrige svar.
+    placeholderData: keepPreviousData,
   });
   const status: OnlineStatus = q.isError ? "fejl" : q.data ? "live" : "henter";
   return { status, ids: q.data ?? [] };

@@ -80,7 +80,7 @@ export const migrationenPasser = (sql: string): boolean => {
   const update = af("update");
   const select = af("select");
   const selectEgen = select.filter((p) => p.includes(`using (${EGEN})`) && !/has_role/.test(p));
-  const selectRaadgiver = select.filter((p) => /using \(public\.has_role\(\(select auth\.uid\(\)\), 'advisor'::app_role\)\)/.test(p));
+  const selectRaadgiver = select.filter((p) => /using \(\(select public\.has_role\(\(select auth\.uid\(\)\), 'advisor'::app_role\)\)\)/.test(p));
   return new RegExp(`create table public\\.${ONLINE_TABEL} \\(`).test(sql) &&
     new RegExp(`alter table public\\.${ONLINE_TABEL} enable row level security;`).test(sql) &&
     politikker.length === 4 &&
@@ -243,7 +243,7 @@ describe("online.guard — VÆRNET VIRKER på kopier med fejlen indsat", () => {
   it("1. en INSERT uden egen-række-check, en UPDATE uden WITH CHECK, en SELECT for alle, en DELETE-politik, security definer, DROP eller en klient-tid fælder dom 1", () => {
     expect(migrationenPasser(sql.replace("for insert\n  to authenticated\n  with check (user_id = (select auth.uid()));", "for insert\n  to authenticated\n  with check (true);"))).toBe(false);
     expect(migrationenPasser(sql.replace("  using (user_id = (select auth.uid()))\n  with check (user_id = (select auth.uid()));", "  using (user_id = (select auth.uid()));"))).toBe(false);
-    expect(migrationenPasser(sql.replace("using (public.has_role((select auth.uid()), 'advisor'::app_role));", "using (true);"))).toBe(false);
+    expect(migrationenPasser(sql.replace("using ((select public.has_role((select auth.uid()), 'advisor'::app_role)));", "using (true);"))).toBe(false);
     expect(migrationenPasser(sql + '\ncreate policy "x" on public.online_hjerteslag for delete to authenticated using (user_id = (select auth.uid()));')).toBe(false);
     expect(migrationenPasser(sql.replace("  security invoker\n", "  security definer\n"))).toBe(false);
     expect(migrationenPasser(sql + "\ndrop policy if exists \"Medlemmer tracker sig i online-medlemmer\" on realtime.messages;")).toBe(false);
