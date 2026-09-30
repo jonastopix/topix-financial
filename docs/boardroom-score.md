@@ -380,8 +380,9 @@ hukommelse 5/9 + ny række 20/9 → rettidig; uden hukommelsen → for sen.
 **Rækkefølgen ved udrulning (CLAUDE.md «Nye migrations»):** migrationen KØRT
 i prod og målt udefra (`GET /rest/v1/maaned_foerste_godkendelse?select=period_key&limit=0`
 med anon-nøglen → 200) FØR nogen flade, der bruger hooken, får Update.
-Hooken kaster `HentningsFejl("maaned_foerste_godkendelse")` på en manglende
-tabel — en fejl, ikke «ingen tal».
+Hooken svarer `{ tilstand: "afventer_migration" }` på en manglende tabel
+(PGRST205/42P01), og kortet står roligt «på vej» — ingen score regnet uden
+hukommelsen. Enhver ANDEN fejl kaster `HentningsFejl` (en fejl er ikke «ingen tal»).
 
 ---
 
@@ -464,6 +465,21 @@ skrives ud»).
 ---
 
 ## 7. Hvad der mangler til fladen (næste skive)
+
+**Bygget 30/9-2026 (grenen `feat/boardroom-score-flade`, oven på denne):**
+kortet på medlemmets forside — `components/hjemmebane/boardroom/ScoreKort.tsx`,
+ordene i `lib/hjemmebane/scoreKort.ts`, «Hvad løfter dit tal» som den rene
+dom `boardroomScore/loefter.ts:loefterMitTal` (1–3 handlinger med størst
+REGNET gevinst, ved lige disciplin → likviditet → indtjening → vækst; uden
+nogen gevinst > 0 én handling, der låser op; første = `loefterMest`).
+Placeringen: egen sektion i fuld bredde under toppens grid og over «Din
+plan» — toppens to kolonner (Jonas «A på alle», 17/9) er urørt. Hooken
+svarer `afventer_migration` (roligt «på vej») i stedet for at kaste, når
+`maaned_foerste_godkendelse` ikke findes (PGRST205/42P01,
+`lib/manglendeTabel.ts`); enhver anden fejl kaster stadig. **Rådgiverens
+tal på virksomhedskortet er IKKE bygget:** dette dokument placerer det
+ikke — det kræver en beslutning. `udaekket`-linjen og klokken før fristen
+er stadig åbne (herunder).
 
 - Et kort på medlemmets forside (mellem «Din måned» og planen): tallet,
   fire søjler som hairline-barer med point, `daekning`-linjen,

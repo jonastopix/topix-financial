@@ -1,7 +1,7 @@
 /**
  * useBoardroomScore — læser grundlaget for Boardroom Score med medlemmets
  * egen RLS og kører den rene motor (src/lib/boardroomScore, design i
- * docs/boardroom-score.md). Ingen flade.
+ * docs/boardroom-score.md). Fladen: components/hjemmebane/boardroom/ScoreKort.tsx.
  *
  * Fem kilder:
  *   - financial_report_facts (period_key, data_basis, metrics, created_at).
@@ -13,8 +13,13 @@
  *     af en trigger, når en måned første gang bliver målt, og slettes aldrig
  *     af fladen. Første godkendelse = den tidligste af hukommelsen og
  *     created_at (tidligsteGodkendelse). committed_at læses ikke (SENESTE).
- *     Tabellen er ny: migrationen skal være KØRT i prod, før nogen flade
- *     bruger hooken — en manglende tabel er en HentningsFejl, ikke «ingen tal».
+ *     Tabellen er ny (migration 20260930130000). FLADEN (30/9, ScoreKort):
+ *     findes tabellen IKKE (PGRST205/42P01 — lib/manglendeTabel), svarer
+ *     hentningen `{ tilstand: "afventer_migration" }` og kortet står roligt
+ *     «på vej» — ingen score, ingen streak regnet på created_at alene (det
+ *     var netop fejlen, hukommelsen retter). Kortet bliver rigtigt af sig
+ *     selv, når migrationen er kørt. ENHVER anden fejl kaster stadig
+ *     HentningsFejl — en fejl er ikke «ingen tal».
  *   - companies.contract_start_date — afgrænser disciplin og streak.
  *   - budget_targets: findes mindst én værdirække for indeværende år?
  *     (base-scenariet, period «YYYY-base-idx»; markører har ikke den form.)
@@ -33,6 +38,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { HentningsFejl, kraevRaekker } from "@/lib/kraevRaekker";
+import { erManglendeTabel } from "@/lib/manglendeTabel";
 import { kbhDele } from "@/lib/hverdage";
 import { boardroomScore, tidligsteGodkendelse, type ScoreDom, type ScoreGrundlag, type ScoreMaaned } from "@/lib/boardroomScore";
 import type { Json } from "@/integrations/supabase/types";
@@ -53,8 +59,11 @@ function parseMetrics(raw: Json): Record<string, number | null> {
 
 export const boardroomScoreKey = (companyId: string | undefined) => ["boardroom-score", "grundlag", companyId] as const;
 
+/** Udfaldet af hentningen: grundlaget, eller «hukommelsens tabel findes ikke endnu» (migrationen ikke kørt). */
+export type ScoreHentning = { tilstand: "klar"; grundlag: ScoreGrundlag } | { tilstand: "afventer_migration" };
+
 /** Henter grundlaget som én query (fem kald), så fladen får ÉN isLoading/isError. */
-export async function hentScoreGrundlag(companyId: string, nu: Date): Promise<ScoreGrundlag> {
+export async function hentScoreGrundlag(companyId: string, nu: Date): Promise<ScoreHentning> {
   const aar = kbhDele(nu).aar;
 
   const facts = kraevRaekker(
@@ -72,6 +81,8 @@ export async function hentScoreGrundlag(companyId: string, nu: Date): Promise<Sc
     .from("maaned_foerste_godkendelse" as any)
     .select("period_key, foerst_godkendt_at")
     .eq("company_id", companyId) as any);
+  // Migrationen ikke kørt → roligt «på vej», ikke en fejl og ikke en score uden hukommelse.
+  if (hukommelseRes?.error && erManglendeTabel(hukommelseRes.error)) return { tilstand: "afventer_migration" };
   const hukommelse = kraevRaekker(hukommelseRes, "maaned_foerste_godkendelse") as { period_key: string; foerst_godkendt_at: string | null }[];
   const foersteGodkendt = new Map(hukommelse.map((h) => [h.period_key, h.foerst_godkendt_at]));
 
@@ -100,19 +111,25 @@ export async function hentScoreGrundlag(companyId: string, nu: Date): Promise<Sc
   }));
 
   return {
-    maaneder,
-    kontraktStart: (virksomhed.data as { contract_start_date?: string | null } | null)?.contract_start_date ?? null,
-    harBudgetForAaret: (budget.count ?? 0) > 0,
-    harMaal: (maal.count ?? 0) > 0,
+    tilstand: "klar",
+    grundlag: {
+      maaneder,
+      kontraktStart: (virksomhed.data as { contract_start_date?: string | null } | null)?.contract_start_date ?? null,
+      harBudgetForAaret: (budget.count ?? 0) > 0,
+      harMaal: (maal.count ?? 0) > 0,
+    },
   };
 }
 
 export function useBoardroomScore(overrideCompanyId?: string): {
   dom: ScoreDom | null;
   grundlag: ScoreGrundlag | undefined;
+  /** true, mens hukommelsens tabel ikke findes i drift (migration 20260930130000 ikke kørt) — fladen står roligt. */
+  afventerMigration: boolean;
   isLoading: boolean;
   isError: boolean;
   error: unknown;
+  refetch: () => void;
 } {
   const { user, companyId: authCompanyId } = useAuth();
   const companyId = overrideCompanyId ?? authCompanyId;
@@ -132,7 +149,16 @@ export function useBoardroomScore(overrideCompanyId?: string): {
     return () => window.clearInterval(id);
   }, []);
 
-  const dom = useMemo(() => (query.data ? boardroomScore(query.data, new Date(nuMs)) : null), [query.data, nuMs]);
+  const grundlag = query.data?.tilstand === "klar" ? query.data.grundlag : undefined;
+  const dom = useMemo(() => (grundlag ? boardroomScore(grundlag, new Date(nuMs)) : null), [grundlag, nuMs]);
 
-  return { dom, grundlag: query.data, isLoading: query.isLoading, isError: query.isError, error: query.error };
+  return {
+    dom,
+    grundlag,
+    afventerMigration: query.data?.tilstand === "afventer_migration",
+    isLoading: query.isLoading,
+    isError: query.isError,
+    error: query.error,
+    refetch: () => void query.refetch(),
+  };
 }

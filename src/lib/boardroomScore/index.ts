@@ -7,3 +7,4 @@ export { interpoler, type Knaek } from "./kurve";
 export * from "./soejler";
 export * from "./streak";
 export * from "./score";
+export { LOEFTER_MAKS, loefterMitTal } from "./loefter";
