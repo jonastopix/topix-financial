@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod 30/9-2026 ca. 20:10 via Lovable-MCP'en (i én transaktion). FØR: sektion 1–3 tomme, låsen «ikke sat → false», community_traade findes. EFTER: 3 tabeller · 3 SELECT-politikker (rådgivere) · 9 indeks · låsen «ikke sat → false».
 -- KØRES FØR nyhed-agent-cron og nyhed-udkast-afgoer udrulles, og FØR Update (fladen /nyheder læser nyhed_udkast).
 --
 -- NYHEDSAGENTEN, SKIVE 1 (Jonas 30/9-2026: «En agent der altid holder øje med hvad der
