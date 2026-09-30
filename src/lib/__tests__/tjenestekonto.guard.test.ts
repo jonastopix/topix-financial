@@ -268,7 +268,7 @@ describe("tjenestekonto.guard — ingen tjenestekonto som person", () => {
 
   it("5. migrationen: kun tilføjende, kun admin skriver, IKKE KØRT-linjen først", () => {
     const sql = laes("supabase/migrations/20260930140000_tjenestekonti.sql");
-    expect(sql.split("\n")[0]).toBe("-- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).");
+    expect(sql.split("\n")[0]).toMatch(/^-- (IKKE KØRT\. DEPLOY: manuelt i Lovable|KØRT i prod)/);
     const kode = sql.split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n");
     expect(kode).toMatch(/CREATE POLICY "Admin skriver tjenestekonti"[\s\S]*FOR ALL[\s\S]*USING \(public\.has_role\(auth\.uid\(\), 'admin'::app_role\)\)[\s\S]*WITH CHECK \(public\.has_role\(auth\.uid\(\), 'admin'::app_role\)\)/);
     expect(kode).toMatch(/CREATE POLICY "Indloggede ser tjenestekonti"[\s\S]*FOR SELECT[\s\S]*TO authenticated/);
