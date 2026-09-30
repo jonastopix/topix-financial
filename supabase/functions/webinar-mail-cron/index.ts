@@ -1,4 +1,5 @@
-// webinar-mail-cron — platformens syv før-webinar-mails (22/9-2026; den syvende 28/9).
+// webinar-mail-cron — platformens før-webinar-mails (22/9-2026; den syvende 28/9;
+// «tre_dage» og «dagen» taget ud af dommens PLANEN 30/9 — fem sendes, AKTIVE_ARTER).
 //
 // JONAS 22/9: platformen sender selv mailene før en session; Klaviyo beholder
 // efter-webinaret, og eWebinars danske bekræftelse (med sin rigtige invite.ics)
@@ -18,7 +19,7 @@
 // BEKRÆFTELSEN GÅR IKKE BAGUD (Jonas 22/9 ca. 19:05): dommens BEKRAEFTELSE_FRA
 // = 22/9-2026 17:03Z holder arten «bekraeftelse» til tilmeldinger, der er
 // kommet EFTER eWebinars egen bekræftelse blev slukket. De ældre tælles som
-// «for_tidlig_tilmelding». De seks påmindelser er urørte og går til alle.
+// «for_tidlig_tilmelding». Påmindelserne er urørte og går til alle.
 //
 // «FJORTEN_DAGE» (Jonas 28/9): de ~217, der tilmeldte sig 13/10 FØR 22/9 kl.
 // 19:03, har aldrig fået en kalenderinvitation — og bekræftelsen går ikke bagud.
@@ -96,7 +97,7 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateServiceRole, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { ukendteFelter, ukendteFelterBesked } from "../_shared/kendteFelter.ts";
-import { afsendelseUkendt, ARTER, baererInvitation, type MailArt, noegle, planlaegKoersel, type Sending, type Springgrund, type Tilmeldt } from "../_shared/webinarMailDom.ts";
+import { afsendelseUkendt, AKTIVE_ARTER, baererInvitation, type MailArt, noegle, planlaegKoersel, type Sending, type Springgrund, type Tilmeldt } from "../_shared/webinarMailDom.ts";
 import { AFSENDER, bygWebinarMail, SVAR_TIL } from "../_shared/webinarMailTekster.ts";
 import { MAILGUN_DOMAENE, MAILGUN_SECRET, PAUSE_MS, sendMailgun, sendMailgunMime } from "../_shared/mailgunAfsendelse.ts";
 import { beregnKoerselsLoft, erStopStatus, LOFT_VINDUE_MS, type LoftRaekke, MAILGUN_LOFT_PR_TIME } from "../_shared/webinarMailLoft.ts";
@@ -510,8 +511,10 @@ Deno.serve(async (req) => {
   const toerKoersel = raaBody.dry_run !== false;
   const email = typeof raaBody.email === "string" && raaBody.email.includes("@") ? raaBody.email.trim().toLowerCase() : null;
   const artRaa = typeof raaBody.art === "string" ? raaBody.art : null;
-  if (artRaa !== null && !(ARTER as readonly string[]).includes(artRaa)) {
-    return json({ error: "art_ugyldig", kendte: ARTER }, 400);
+  // AKTIVE_ARTER, ikke ARTER: en udgået art (UDGAAEDE_ARTER, 30/9) kan ikke prøves —
+  // planen ville alligevel ikke give den, og et 400 siger det tydeligt.
+  if (artRaa !== null && !(AKTIVE_ARTER as readonly string[]).includes(artRaa)) {
+    return json({ error: "art_ugyldig", kendte: AKTIVE_ARTER }, 400);
   }
   const nu = typeof raaBody.nu === "string" && Number.isFinite(Date.parse(raaBody.nu)) ? new Date(raaBody.nu) : new Date();
 

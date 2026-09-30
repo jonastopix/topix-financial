@@ -13,7 +13,13 @@
 
 export type MailArt = "bekraeftelse" | "fjorten_dage" | "syv_dage" | "tre_dage" | "en_dag" | "dagen" | "en_time";
 
-/** I den rækkefølge de sendes. Rækkefølgen er dommens, ikke fladens. */
+/**
+ * ALLE arter, databasen kender — ordret webinar_mails_art_check (webinarMail.guard
+ * dom 10), i den rækkefølge de blev planlagt. Det er ORDFORRÅDET, ikke det, der
+ * sendes: «tre_dage» og «dagen» står her, fordi sporet har rækker med dem
+ * (historik), og CHECK'en beholder dem. Det, der SENDES, er AKTIVE_ARTER (læst af
+ * PLANEN) — se UDGAAEDE_ARTER.
+ */
 export const ARTER: readonly MailArt[] = ["bekraeftelse", "fjorten_dage", "syv_dage", "tre_dage", "en_dag", "dagen", "en_time"];
 
 /**
@@ -69,6 +75,15 @@ export interface Plan {
    * «straks» betyder fra nu af, ikke bagud over alle gamle tilmeldinger.
    */
   straks?: boolean;
+  /**
+   * INDHENTNINGENS LOFT (30/9-2026): den SIDSTE danske kalenderdag — talt som
+   * kalenderdage før sessionens danske dato — hvor en FEJLET mail af arten må
+   * indhentes. Teksten afgør loftet, ikke PLANENs næste art: «om en uge» sendt to
+   * dage før er forkert, også selv om ingen anden art er planlagt imellem.
+   * Udeladt på en tidssat art = INGEN indhentning (fail-closed: for_sent_efter_fejl).
+   * Regnestykket pr. art står ved PLANEN; se indhentningSlut.
+   */
+  indhentesSenestDageFoer?: number;
   /** Må mailen først sendes, når sessionen IKKE er begyndt? */
   kraeverIkkeBegyndt: boolean;
 }
@@ -77,17 +92,54 @@ export const PLANEN: readonly Plan[] = [
   // Bekræftelsen FØRST — både i listen og i tid.
   { art: "bekraeftelse", straks: true, kraeverIkkeBegyndt: true },
   // «Om to uger» kl. 08:00 — påmindelsen MED invitationen (MED_INVITATION).
-  // Samme form og samme nåde som de tre næste: er tidspunktet passeret med mere
+  // Samme form og samme nåde som de to næste: er tidspunktet passeret med mere
   // end SEN_TILMELDING_NAADE_MS, sendes den aldrig — også for et helt hold.
-  { art: "fjorten_dage", dageFoer: 14, time: 8, minut: 0, kraeverIkkeBegyndt: false },
-  { art: "syv_dage", dageFoer: 7, time: 8, minut: 0, kraeverIkkeBegyndt: false },
-  { art: "tre_dage", dageFoer: 3, time: 8, minut: 0, kraeverIkkeBegyndt: false },
-  { art: "en_dag", dageFoer: 1, time: 8, minut: 0, kraeverIkkeBegyndt: false },
-  // «Det er i dag» kl. 07:30 — før arbejdsdagen, og før nogen har glemt det.
-  { art: "dagen", dageFoer: 0, time: 7, minut: 30, kraeverIkkeBegyndt: true },
+  //
+  // INDHENTNINGENS LOFT pr. art (indhentesSenestDageFoer, 30/9-2026). Regnestykket
+  // for en session tirsdag 13/10-2026 kl. 11:00 dansk (09:00Z):
+  //   fjorten_dage «om to uger» — planlagt 14 dage før (29/9 08:00). Loft 8 dage før
+  //     = 13/10 − 8 = 5/10, til og med 5/10 23:59 dansk (5/10 22:00Z er slut).
+  //     8 = 14 − 6: dagen før syv_dage (7 dage før) — senere ville «om to uger» og
+  //     «om en uge» komme på samme dag. Uændret fra 29/9. En indhentet
+  //     «om to uger» kan altså lande 8 dage før; den bærer invitationen (MED_INVITATION),
+  //     og hullet, den lukker, er vigtigere end ordet.
+  //   syv_dage «om en uge» — planlagt 7 dage før (6/10 08:00). Loft 4 dage før
+  //     = 13/10 − 4 = 9/10, til og med 9/10 23:59 dansk (9/10 22:00Z er slut).
+  //     4 = 3 + 1: dagen før det gamle tre_dage-tidspunkt (10/10 08:00, 3 dage før)
+  //     — præcis den grænse, Jonas sagde ja til 29/9, da tre_dage stod i PLANEN.
+  //     Uden loftet ville næste art (en_dag, 12/10) give 11/10 23:59 — to dage før,
+  //     hvor «om en uge» er forkert med fem dage.
+  //   en_dag «i morgen» — planlagt 1 dag før (12/10 08:00). Loft 1 dag før
+  //     = 12/10, til og med 12/10 23:59 dansk (12/10 22:00Z er slut). «I morgen»
+  //     er kun sandt på den dato. Uændret (en_time 13/10 gav det samme).
+  //   en_time: intet loft — ingen næste art; sessionen_begyndt afgør, som før.
+  { art: "fjorten_dage", dageFoer: 14, time: 8, minut: 0, indhentesSenestDageFoer: 8, kraeverIkkeBegyndt: false },
+  { art: "syv_dage", dageFoer: 7, time: 8, minut: 0, indhentesSenestDageFoer: 4, kraeverIkkeBegyndt: false },
+  { art: "en_dag", dageFoer: 1, time: 8, minut: 0, indhentesSenestDageFoer: 1, kraeverIkkeBegyndt: false },
   // «Om en time» — det er DEN, der bærer join-linket til en, der er på vej.
   { art: "en_time", minutterFoer: 60, kraeverIkkeBegyndt: true },
 ];
+
+/**
+ * FÆRRE PÅMINDELSER (besluttet af Jonas 30/9 kl. 06:06 (morgenlistens D1: "Ja det skal de. Drop de to"),
+ * mail-worstcase §4 P1-8). «tre_dage» (kl. 08:00 tre kalenderdage før) og «dagen» (kl. 07:30 på
+ * dagen) er taget ud af PLANEN. En deltager får nu: bekræftelse · 14 dage ·
+ * 7 dage · 1 dag · 1 time — plus eWebinars egen 10-minutters-mail. −2 pr. session.
+ *
+ * Ingen migration: CHECK'en beholder ordene (sporet har rækker med dem), og en
+ * art, der ikke sendes, kan ikke tabe en række. ARTER er derfor stadig syv
+ * (ordforrådet), og AKTIVE_ARTER + UDGAAEDE_ARTER = ARTER (webinarMail.guard dom 10).
+ * Teksterne bliver stående i webinarMailTekster.ts: EMNER er et Record<MailArt>,
+ * og en udgået art skal kunne tages ind igen ved at lægge dens linje i PLANEN.
+ */
+export const UDGAAEDE_ARTER: readonly MailArt[] = ["tre_dage", "dagen"];
+
+/**
+ * DE ARTER, DER SENDES — læst af PLANEN, i PLANENs rækkefølge, aldrig en
+ * håndskrevet liste. planlaegKoersel løber over den, og cronens prøve (`art` i
+ * bodyen) afviser alt uden for den.
+ */
+export const AKTIVE_ARTER: readonly MailArt[] = PLANEN.map((p) => p.art);
 
 /**
  * NÅDEN FOR EN SEN TILMELDING. Melder nogen sig til fire dage før, er
@@ -127,7 +179,7 @@ export const SEN_TILMELDING_NAADE_MS = 2 * 3_600_000;
  * Konstanten har ÉT hjem — her, i dommen, i begge spejle. Cronen kender den
  * ikke, og der er ingen parameter at sætte forkert.
  *
- * KUN bekræftelsen. De seks påmindelser er urørte og går til alle: ingen anden
+ * KUN bekræftelsen. Påmindelserne er urørte og går til alle: ingen anden
  * har sendt dem, og en påmindelse til en gammel tilmelding er stadig rigtig.
  * «fjorten_dage» (28/9) går netop TIL de gamle: den bærer den invitation,
  * bekræftelsen aldrig gav dem.
@@ -297,8 +349,10 @@ export function doemMail(i: {
 
   const plan = PLANEN.find((p) => p.art === art);
   if (!plan) return { send: false, art, grund: "ingen_session" };
-  // «Det er i dag» og «om en time» må ALDRIG gå efter starten — så er det ikke
-  // en påmindelse, det er en besked om noget, der allerede sker.
+  // «Om en time» (og bekræftelsen) må ALDRIG gå efter starten — så er det ikke
+  // en påmindelse, det er en besked om noget, der allerede sker. En art uden
+  // plads i PLANEN (UDGAAEDE_ARTER) er svaret ovenfor som ingen_session;
+  // planlaegKoersel spørger aldrig om den.
   if (plan.kraeverIkkeBegyndt && i.nu.getTime() >= sessionMs) {
     return { send: false, art, grund: "sessionen_begyndt" };
   }
@@ -323,9 +377,9 @@ export function doemMail(i: {
     // BEVISET for 2 er et fejlet forsøg i sporet: cronen forsøger KUN en mail,
     // dommen har kaldt forfalden — altså fandtes personen, og tidspunktet var nået,
     // da forsøget blev gjort. En sen tilmelding har intet fejlet forsøg.
-    // GRÆNSEN er den næste tidssatte art for samme session: når den er nået — eller
-    // når det er DENS danske kalenderdato — tager den over, og den indhentede mail
-    // ville komme samme dag som den næste («om to uger» og «om en uge» på én dag).
+    // GRÆNSEN er den TIDLIGSTE af to (indhentningSlut): den næste tidssatte arts
+    // danske kalenderdato (ellers kom «om to uger» og «om en uge» på én dag), og
+    // artens eget loft (indhentesSenestDageFoer — teksten skal stadig være sand).
     // Så udløber den med sin egen grund, så svaret viser, at det var en fejlet mail.
     // Teksten er uændret: en indhentet fjorten_dage siger stadig «om to uger».
     if (!(i.fejlede?.has(noegle(mail, i.sessionTid, art)) ?? false)) {
@@ -336,9 +390,9 @@ export function doemMail(i: {
     // Ingen næste art (en_time): uændret. «Om en time» mere end to timer forsinket
     // er efter starten, og sessionen_begyndt har allerede svaret ovenfor.
     if (naeste === null) return { send: false, art, grund: "for_sent" };
-    const naesteTid = planlagtTid(i.sessionTid, naeste);
-    if (naesteTid === null) return { send: false, art, grund: "for_sent_efter_fejl" };
-    if (i.nu.getTime() < naesteTid.getTime() && !sammeDanskeDato(i.nu, naesteTid)) {
+    const slut = indhentningSlut(i.sessionTid, art);
+    if (slut === null) return { send: false, art, grund: "for_sent_efter_fejl" };
+    if (i.nu.getTime() < slut.getTime()) {
       return { send: true, art, planlagt: tid, indhentning: true };
     }
     return { send: false, art, grund: "for_sent_efter_fejl" };
@@ -382,8 +436,8 @@ export function erPaamindelse(art: MailArt): boolean {
  *   gange — 1 synlig fejl, præcis den, der blev klaget over 22/9. Et kald, der
  *   når 10 s, har sendt hele kroppen, og Mailgun svarer normalt langt under ét
  *   sekund, så «tog imod» er det sandsynlige udfald, ikke undtagelsen.
- *   Gensender vi ikke, og mailen kom IKKE frem: personen mangler 1 af op til 7
- *   mails. For en påmindelse er det 1 af 6, og hver af de andre bærer den samme
+ *   Gensender vi ikke, og mailen kom IKKE frem: personen mangler 1 af op til 5
+ *   mails (7 før 30/9). For en påmindelse er det 1 af 4, og hver af de andre bærer den samme
  *   knap til join-linket og den samme kalenderrække (webinarMailTekster.ts), og
  *   eWebinar sender selv sin 10-minutters-mail — så tabet er et gentaget budskab.
  *   For BEKRÆFTELSEN (vurderet særskilt, fordi en manglende bekræftelse er værre):
@@ -401,12 +455,57 @@ export function afsendelseUkendt(forsoeg: { udfald: string; status: number | nul
   return false;
 }
 
-/** Den næste art i PLANEN med et tidspunkt (ikke «straks») — eller null for den sidste. */
+/**
+ * Den næste art i PLANEN med et tidspunkt (ikke «straks») — eller null for den sidste.
+ * Bruges af indhentningSlut som den ene af to grænser.
+ */
 export function naesteTidssatteArt(art: MailArt): MailArt | null {
   const i = PLANEN.findIndex((p) => p.art === art);
   if (i === -1) return null;
   const naeste = PLANEN.slice(i + 1).find((p) => p.straks !== true);
   return naeste ? naeste.art : null;
+}
+
+/** Dansk midnat (00:00) på den danske dato `dage` kalenderdage før `d`s danske dato. */
+function danskMidnatDageFoer(d: Date, dage: number): Date {
+  const p = kbhDele(d);
+  const dag = new Date(Date.UTC(p.aar, p.maaned - 1, p.dag) - dage * 86_400_000);
+  return kbhTilUtc(dag.getUTCFullYear(), dag.getUTCMonth() + 1, dag.getUTCDate(), 0, 0);
+}
+
+/**
+ * HVORNÅR SLUTTER INDHENTNINGEN af en fejlet mail? Det første instant, hvor den
+ * IKKE længere må sendes (eksklusivt): nu < slut → indhent. null = ingen
+ * indhentning (straks-arter, en_time, en art uden loft, ulæselig tid).
+ *
+ * slut = min(A, B):
+ *   A  dansk midnat på den næste tidssatte arts danske dato — «aldrig samme dag
+ *      som den næste» (Jonas 29/9). nu < A ⟺ nu < næste arts tidspunkt OG ikke på
+ *      dens dato, som reglen stod før 30/9.
+ *   B  dansk midnat DAGEN EFTER artens loft = midnat (indhentesSenestDageFoer − 1)
+ *      dage før sessionens danske dato. Loftet er INKLUSIVT: 4 dage før en session
+ *      13/10 er 9/10, og 9/10 23:59 dansk sendes; 10/10 00:00 dansk gør ikke.
+ *
+ * Session 13/10-2026 kl. 11:00 dansk (09:00Z) — slut (første dansk minut, hvor den
+ * IKKE sendes):
+ *   fjorten_dage  A = 6/10 00:00 (syv_dage)  B = 6/10 00:00  → 5/10 22:00Z
+ *   syv_dage      A = 12/10 00:00 (en_dag)   B = 10/10 00:00 → 9/10 22:00Z
+ *   en_dag        A = 13/10 00:00 (en_time)  B = 13/10 00:00 → 12/10 22:00Z
+ * webinarMailAlarm.fristFor læser SAMME funktion — alarmen og dommen kan ikke
+ * være uenige om, hvornår en ventende mail er tabt.
+ */
+export function indhentningSlut(sessionTid: string, art: MailArt): Date | null {
+  const ms = Date.parse(sessionTid);
+  if (!Number.isFinite(ms)) return null;
+  const plan = PLANEN.find((p) => p.art === art);
+  if (!plan || plan.straks === true || plan.indhentesSenestDageFoer === undefined) return null;
+  const naeste = naesteTidssatteArt(art);
+  if (naeste === null) return null;
+  const naesteTid = planlagtTid(sessionTid, naeste);
+  if (naesteTid === null) return null;
+  const a = danskMidnatDageFoer(naesteTid, 0);
+  const b = danskMidnatDageFoer(new Date(ms), plan.indhentesSenestDageFoer - 1);
+  return new Date(Math.min(a.getTime(), b.getTime()));
 }
 
 /** Ligger to instants på samme danske kalenderdato? */
@@ -545,7 +644,7 @@ export function planlaegKoersel(i: {
     const afmeldt = i.afmeldte.has(mail) || afmeldtIEwebinar.has(mail);
     const foersteKommende = naermeste.get(mail);
     const senereSession = foersteKommende !== undefined && Date.parse(r.session_tid as string) > foersteKommende;
-    for (const art of ARTER) {
+    for (const art of AKTIVE_ARTER) {
       const dom = doemMail({
         art,
         sessionTid: r.session_tid,

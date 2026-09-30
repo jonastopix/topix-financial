@@ -38,9 +38,10 @@
  * og omvendt.
  *
  * FRISTEN for en ventende mail er dommens (webinarMailDom.doemMail, INDHENTNING):
- * inden for nåden (2 t) sendes altid; derefter KUN indtil den næste arts tid —
- * og aldrig på den næste arts danske kalenderdato. Så fristen er
- *   max(planlagt + nåde, midnat dansk før den næste arts dato), dog aldrig efter
+ * inden for nåden (2 t) sendes altid; derefter KUN indtil indhentningSlut (den
+ * tidligste af: den næste arts danske dato, og artens eget loft
+ * indhentesSenestDageFoer — 30/9). Så fristen er
+ *   max(planlagt + nåde, indhentningSlut), dog aldrig efter
  *   sessionens start for arter, der kræver «ikke begyndt»; «straks» og «en_time»
  *   (ingen næste art): sessionens start. Se fristFor.
  *
@@ -53,7 +54,7 @@
  * (spejlet i src/lib/webinar/mailDom.ts). Tiden gives ind som `nu`.
  */
 import { kbhDele } from "./hverdage.ts";
-import { kbhTilUtc, type MailArt, naesteTidssatteArt, PLANEN, planlagtTid, SEN_TILMELDING_NAADE_MS } from "./webinarMailDom.ts";
+import { indhentningSlut, type MailArt, PLANEN, planlagtTid, SEN_TILMELDING_NAADE_MS } from "./webinarMailDom.ts";
 
 // ── Konstanterne ─────────────────────────────────────────────────────────────
 
@@ -156,17 +157,16 @@ export function andreFejl(fejl: readonly string[]): string[] {
 
 // ── Fristen og prognosen ─────────────────────────────────────────────────────
 
-/** Midnat dansk på det døgn, `d` ligger i. */
-function danskMidnat(d: Date): Date {
-  const p = kbhDele(d);
-  return kbhTilUtc(p.aar, p.maaned, p.dag, 0, 0);
-}
-
 /**
  * Den sidste stund, dommen stadig sender en ventende mail (webinarMailDom.doemMail):
  *   straks (bekraeftelse) og en_time (ingen næste art): sessionens start;
- *   ellers max(planlagt + nåde, midnat dansk før den næste arts tidspunkt) — og
- *   aldrig efter sessionens start for arter, der kræver «ikke begyndt» (dagen).
+ *   ellers max(planlagt + nåde, webinarMailDom.indhentningSlut) — SAMME funktion
+ *   som dommen, så alarmen og dommen er enige om, hvornår en mail er tabt — og
+ *   aldrig efter sessionens start for arter, der kræver «ikke begyndt» (i dag
+ *   kun bekræftelsen og en_time, som begge svarer ovenfor; «dagen» udgik 30/9).
+ *   Session 13/10 kl. 11 dansk: fjorten_dage 5/10 22:00Z · syv_dage 9/10 22:00Z
+ *   (loftet 4 dage før; uden det 11/10 22:00Z) · en_dag 12/10 22:00Z.
+ *   Uden indhentningSlut (en tidssat art uden loft): planlagt + nåde.
  * null, når tiden ikke kan læses.
  */
 export function fristFor(art: MailArt, sessionTid: string): Date | null {
@@ -176,14 +176,13 @@ export function fristFor(art: MailArt, sessionTid: string): Date | null {
   if (!plan) return null;
   const session = new Date(sessionMs);
   if (plan.straks === true) return session;
-  const naeste = naesteTidssatteArt(art);
   const planlagt = planlagtTid(sessionTid, art);
-  if (naeste === null || planlagt === null) return session;
-  const naesteTid = planlagtTid(sessionTid, naeste);
-  if (naesteTid === null) return session;
+  if (planlagt === null) return session;
   const efterNaade = new Date(planlagt.getTime() + SEN_TILMELDING_NAADE_MS);
-  const foerNaesteDag = danskMidnat(naesteTid);
-  const frist = new Date(Math.max(efterNaade.getTime(), foerNaesteDag.getTime()));
+  const slut = indhentningSlut(sessionTid, art);
+  // en_time (ingen næste art → ingen indhentning): sessionens start, som før.
+  if (slut === null && plan.minutterFoer !== undefined) return session;
+  const frist = slut === null ? efterNaade : new Date(Math.max(efterNaade.getTime(), slut.getTime()));
   if (plan.kraeverIkkeBegyndt && frist.getTime() > sessionMs) return session;
   return frist;
 }
