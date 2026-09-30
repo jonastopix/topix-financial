@@ -101,6 +101,7 @@ import { AFSENDER, bygWebinarMail, SVAR_TIL } from "../_shared/webinarMailTekste
 import { MAILGUN_DOMAENE, MAILGUN_SECRET, PAUSE_MS, sendMailgun, sendMailgunMime } from "../_shared/mailgunAfsendelse.ts";
 import { beregnKoerselsLoft, erStopStatus, LOFT_VINDUE_MS, type LoftRaekke, MAILGUN_LOFT_PR_TIME } from "../_shared/webinarMailLoft.ts";
 import { bygMime, hentInvitation, type InvitationUdfald } from "../_shared/mimeInvitation.ts";
+import { type BudgetBevis, budgetTillader, tomtBudgetBevis } from "../_shared/webinarMailBudget.ts";
 import { AFMELD_SECRET, afmeldUrl, byggAfmeldToken } from "../_shared/webinarAfmeldToken.ts";
 import { type Alarm, doemAlarm, WEBINAR_ALARM_KLOKKE_TYPE, WEBINAR_ALARM_MAIL_LABEL, WEBINAR_ALARM_REFERENCE, webinarAlarmTekst } from "../_shared/webinarMailAlarm.ts";
 import { skrivRaadgiverBesked } from "../_shared/raadgiverBesked.ts";
@@ -118,8 +119,12 @@ export const KENDTE_FELTER = ["dry_run", "email", "art", "nu"] as const;
 /** Låsen. Standard false — som meta_send_aktiv og ga_send_aktiv. */
 export const LAAS_NOEGLE = "webinar_mail_aktiv";
 
-/** Tidsbudget: cron-timeouten er 60 s (kald_edge); hver mail op til 10 s. */
-export const BUDGET_MS = 45_000;
+// TIDSBUDGETTET (30/9-2026) bor i _shared/webinarMailBudget.ts med hele
+// regnestykket: et forsøg startes kun, hvis dets VÆRSTE forløb (ics 8 s +
+// Mailgun 10 s + spor 5 s) kan nå at slutte før jobbets timeout (60 s) minus
+// 5 s margin — seneste start 32 s med invitation, 40 s uden. Det gamle
+// BUDGET_MS = 45_000 tjekkede kun FØR forsøget: 45 + 8 + 10 = 63 s > 60 s, og
+// en afbrudt kørsel efter Mailguns 200 gav en mail uden spor — og en dublet.
 const SIDE = 1000;
 const EKSEMPLER_MAKS = 10;
 
@@ -153,8 +158,10 @@ export interface MailResultat {
   indhentet: number;
   sendt: number;
   fejlede: number;
-  /** Ikke nået inden for budgettet — tages om fem minutter. */
+  /** Ikke nået inden for budgettet — tages af næste slot. */
   udsat: number;
+  /** Budgettets tal og dom (webinarMailBudget.ts) — beviset for, at den nye kode kører. */
+  budget: BudgetBevis;
   /** Den anden kørsel nåede det først (23505 på det unikke indeks). */
   dublet: number;
   /** Mails af en art i MED_INVITATION (bekraeftelse, fjorten_dage) sendt MED den vedhæftede invitation. */
@@ -212,7 +219,7 @@ const tomt = (a: { toer: boolean; laas: boolean; email: string | null; art: stri
   tilmeldinger_laest: 0, afmeldte_laest: 0, sendte_foer: 0, fejlede_foer: 0, ukendte_foer: 0, skal_sendes: 0,
   sprunget: { afmeldt: 0, ingen_session: 0, ingen_mail: 0, for_sent: 0, endnu_ikke: 0, sessionen_begyndt: 0, allerede_sendt: 0, for_tidlig_tilmelding: 0, for_sent_efter_fejl: 0, senere_session: 0, levering_ukendt: 0 },
   sprunget_senere_session: 0, ukendt_ikke_indhentet: 0,
-  indhentet: 0, sendt: 0, fejlede: 0, udsat: 0, dublet: 0, med_invitation: 0, uden_invitation: 0,
+  indhentet: 0, sendt: 0, fejlede: 0, udsat: 0, budget: tomtBudgetBevis(), dublet: 0, med_invitation: 0, uden_invitation: 0,
   loft: { forsoeg_60_min: 0, ok_60_min: 0, maks: MAILGUN_LOFT_PR_TIME, pause: null, stoppet_ved: null }, over_loft: 0, ventende: [],
   eksempler: [], fejl: [], alarm_mail: "ingen", alarm_klokke: "ingen",
 });
@@ -320,7 +327,17 @@ async function koer(a: { admin: SupabaseClient; toerKoersel: boolean; laas: bool
     const s = sendinger[i];
     // LOFTET FØRST: over maks forsøges intet — heller ikke ics-hentningen.
     if (forsoegt >= loft.maks) { r.over_loft++; r.ventende.push({ art: s.art, session_tid: s.sessionTid }); continue; }
-    if (Date.now() - a.startMs > BUDGET_MS) { r.udsat++; continue; }
+    // BUDGETTET (webinarMailBudget.ts): startes kun, hvis det VÆRSTE forløb af
+    // netop dette forsøg (ics + Mailgun + spor) når at slutte før jobbets
+    // timeout. Et nej er endeligt i kørslen — rækkefølgen holdes.
+    if (!r.budget.stoppet_af_budget) {
+      const forloebetMs = Date.now() - a.startMs;
+      if (!budgetTillader({ forloebetMs, medInvitation: baererInvitation(s.art) })) {
+        r.budget.stoppet_af_budget = true;
+        r.budget.forloebet_ved_stop_ms = forloebetMs;
+      }
+    }
+    if (r.budget.stoppet_af_budget) { r.udsat++; continue; }
     const token = await byggAfmeldToken(afmeldSecret, s.email);
     const link = afmeldUrl(a.basis, token);
     // BEKRÆFTELSEN OG «OM TO UGER» BÆRER INVITATIONEN (dommens MED_INVITATION)
@@ -511,7 +528,7 @@ Deno.serve(async (req) => {
     const alarmNu = new Date();
     const alarm = r.sender_rigtigt ? doemAlarm(r, alarmNu) : null;
     if (r.sender_rigtigt && alarm !== null) await skrivAlarm(admin, r, alarm, alarmNu);
-    console.log(`${LOG} ${r.dry_run ? "TØRKØRSEL" : r.sender_rigtigt ? "SENDER" : "LÅST"} — skal_sendes ${r.skal_sendes} (indhentet ${r.indhentet}), senere_session ${r.sprunget_senere_session}, ukendt_ikke_indhentet ${r.ukendt_ikke_indhentet}, sendt ${r.sendt}, fejlede ${r.fejlede}, udsat ${r.udsat}, over_loft ${r.over_loft} (maks ${r.loft.maks}${r.loft.pause ? ", PAUSE" : ""}), alarm ${r.alarm_mail}/${r.alarm_klokke}`);
+    console.log(`${LOG} ${r.dry_run ? "TØRKØRSEL" : r.sender_rigtigt ? "SENDER" : "LÅST"} — skal_sendes ${r.skal_sendes} (indhentet ${r.indhentet}), senere_session ${r.sprunget_senere_session}, ukendt_ikke_indhentet ${r.ukendt_ikke_indhentet}, sendt ${r.sendt}, fejlede ${r.fejlede}, udsat ${r.udsat}${r.budget.stoppet_af_budget ? ` (budget stop ved ${r.budget.forloebet_ved_stop_ms} ms)` : ""}, over_loft ${r.over_loft} (maks ${r.loft.maks}${r.loft.pause ? ", PAUSE" : ""}), alarm ${r.alarm_mail}/${r.alarm_klokke}`);
     return json(r);
   } catch (err) {
     const grund = err instanceof Error ? err.message : String(err);
