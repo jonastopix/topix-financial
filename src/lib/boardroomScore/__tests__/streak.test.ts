@@ -230,6 +230,21 @@ describe("streakDom", () => {
     expect(d).toMatchObject({ laengde: 0, status: "ingen", bedste: 0 });
   });
 
+  it("nyt medlem (start 20/8, august uploadet → første tællende måned september): «ingen», ikke «brudt» (rådets fund 1)", () => {
+    // August ligger FØR medlemskabet (starten er ikke den 1.) og er frosset; septembers frist (12/10) er
+    // ikke passeret 30/9. Der findes ingen tællende måned med passeret frist → der er intet at bryde.
+    const d = streakDom([m("2026-08", "2026-09-03T09:00:00Z")], "2026-08-20", NU);
+    expect(foersteTaellendeMaaned("2026-08-20")).toBe("2026-09");
+    expect(d).toMatchObject({ laengde: 0, status: "ingen", bedste: 0, aabenMaanedGodkendt: false });
+    expect(d.naesteFrist.key).toBe("2026-09");
+    // Samme medlem 13/10 uden september godkendt: nu ER der en tællende måned med passeret frist — men
+    // den er ikke målt, så der har aldrig været en flamme: stadig «ingen».
+    const efterFristen = new Date("2026-10-13T10:00:00Z");
+    expect(streakDom([m("2026-08", "2026-09-03T09:00:00Z")], "2026-08-20", efterFristen).status).toBe("ingen");
+    // Godkendt september for sent (14/10): en tællende, målt måned med passeret frist → «brudt».
+    expect(streakDom([m("2026-08", "2026-09-03T09:00:00Z"), m("2026-09", "2026-10-14T09:00:00Z")], "2026-08-20", new Date("2026-11-13T10:00:00Z")).status).toBe("brudt");
+  });
+
   it("estimater (årsregnskabet /12) tæller hverken med eller imod", () => {
     const d = streakDom([m("2026-08", "2026-09-01T00:00:00Z", "estimated"), tilTiden("2026-07")], START, NU);
     expect(d.laengde).toBe(0); // august er ikke målt → brudt

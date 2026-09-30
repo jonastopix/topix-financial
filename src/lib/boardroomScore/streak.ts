@@ -189,8 +189,13 @@ export function streakDom(maaneder: readonly ScoreMaaned[], kontraktStart: strin
     if (loeb > bedste) bedste = loeb;
   }
 
-  const harNogenMaalt = maalte.size > 0;
-  const status = laengde > 0 ? "aktiv" : harNogenMaalt ? "brudt" : "ingen";
+  // «brudt» kræver en TÆLLENDE måned med passeret frist, der er målt (netop
+  // `noegler`): der skal have været en flamme, som kunne gå ud. En målt måned
+  // FØR medlemskabet (fx august for et medlem, der startede 20/8 → første
+  // tællende måned september) er frosset (§2.4) og kan ikke bryde noget —
+  // uden en tællende måned med passeret frist er status «ingen» (rådets fund 1, 30/9).
+  const harTaellendeMaalt = noegler.length > 0;
+  const status = laengde > 0 ? "aktiv" : harTaellendeMaalt ? "brudt" : "ingen";
   // Næste frist at holde: den åbne måneds — eller den følgende, når den åbne allerede er i hus.
   const naeste = aabenGodkendt ? naesteMaaned(aaben) : aaben;
   return {

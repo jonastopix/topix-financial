@@ -286,8 +286,14 @@ fristen er passeret.
 
 **Status:** `aktiv` (laengde > 0 og seneste passerede frist holdt, eller
 den åbne måned er godkendt), `brudt` (laengde 0, men der FINDES en målt
-måned — flammen gik ud) og `ingen` (aldrig en målt måned: der er ikke
-noget at bryde). Dommen bærer også den næste frist (måned + tidspunkt +
+TÆLLENDE måned med passeret frist — `første tællende ≤ P ≤ seneste
+passerede` — flammen gik ud) og `ingen` (ingen sådan måned: der er ikke
+noget at bryde). **Rettet 30/9 (rådets fund 1):** før krævede `brudt` kun
+«en målt måned findes» — et nyt medlem (start 20/8, august uploadet →
+første tællende måned september, ingen tællende frist passeret) fik
+«Streaken er brudt», fordi augusts række ligger FØR medlemskabet. En
+frossen måned (§2.4) kan hverken tælle, bryde eller tænde en flamme, der
+kan gå ud (test i `streak.test.ts`). Dommen bærer også den næste frist (måned + tidspunkt +
 hverdage til fristen), og `bedste` (længste streak nogensinde i rækkerne),
 så fladen kan vise «din bedste: 7».
 
@@ -380,8 +386,9 @@ hukommelse 5/9 + ny række 20/9 → rettidig; uden hukommelsen → for sen.
 **Rækkefølgen ved udrulning (CLAUDE.md «Nye migrations»):** migrationen KØRT
 i prod og målt udefra (`GET /rest/v1/maaned_foerste_godkendelse?select=period_key&limit=0`
 med anon-nøglen → 200) FØR nogen flade, der bruger hooken, får Update.
-Hooken kaster `HentningsFejl("maaned_foerste_godkendelse")` på en manglende
-tabel — en fejl, ikke «ingen tal».
+Hooken svarer `{ tilstand: "afventer_migration" }` på en manglende tabel
+(PGRST205/42P01), og kortet står roligt «på vej» — ingen score regnet uden
+hukommelsen. Enhver ANDEN fejl kaster `HentningsFejl` (en fejl er ikke «ingen tal»).
 
 ---
 
@@ -464,6 +471,35 @@ skrives ud»).
 ---
 
 ## 7. Hvad der mangler til fladen (næste skive)
+
+**Bygget 30/9-2026 (grenen `feat/boardroom-score-flade`, oven på denne):**
+kortet på medlemmets forside — `components/hjemmebane/boardroom/ScoreKort.tsx`,
+ordene i `lib/hjemmebane/scoreKort.ts`, «Hvad løfter dit tal» som den rene
+dom `boardroomScore/loefter.ts:loefterMitTal` (1–3 handlinger med størst
+REGNET gevinst, ved lige disciplin → likviditet → indtjening → vækst; uden
+nogen gevinst > 0 én handling, der låser op; første = `loefterMest`).
+Placeringen: egen sektion i fuld bredde under toppens grid og over «Din
+plan» — toppens to kolonner (Jonas «A på alle», 17/9) er urørt. Hooken
+svarer `afventer_migration` (roligt «på vej») i stedet for at kaste, når
+`maaned_foerste_godkendelse` ikke findes (PGRST205/42P01,
+`lib/manglendeTabel.ts`); enhver anden fejl kaster stadig. **Rådgiverens
+tal på virksomhedskortet er IKKE bygget:** dette dokument placerer det
+ikke — det kræver en beslutning.
+
+**Rådets gennemsyn af fladen (30/9, motoren kørt på fem scenarier, rettet i
+samme PR):** (1) `brudt` for et nyt medlem — rettet i DOMMEN (§4 ovenfor);
+(2) «+400 point» under «Ikke nok tal endnu» → uden score siger en regnet
+gevinst «Giver dig din første score» (`effektTekst`); (3) «Låser en søjle op»
+kun, når søjlen mangler data — ellers «Tæller med i din score»; (4) tallet
+blinkede endeligt → 0 → optælling — før første ramme vises 0; (5) uden
+score vises disciplinens «0 af 6 måneder godkendt» ikke; (6) en løfter-linje
+uden link (motorens «mere i banken/margin/omsætning») mærkes «Mål» —
+rækkefølgen er stadig motorens størst-gevinst-først, så første linje =
+`loefterMest` (at sortere links først ville sætte en mindre gevinst over en
+større under «Hvad løfter dit tal»); (7) kortets egen «Din score» er fjernet
+(sektionens eyebrow «Boardroom Score» står), og søjlernes detaljetekst vises
+først fra `sm`. `udaekket`-linjen og klokken før fristen
+er stadig åbne (herunder).
 
 - Et kort på medlemmets forside (mellem «Din måned» og planen): tallet,
   fire søjler som hairline-barer med point, `daekning`-linjen,
