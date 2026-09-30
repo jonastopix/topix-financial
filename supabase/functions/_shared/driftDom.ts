@@ -36,8 +36,24 @@
  * «drift_agent», hører altid til agentens eget job. To jobs i samme minut kan
  * stadig fejltilskrives — tvetydige står i tal.tvetydige_svar, og sætningerne
  * siger «tilskrevet efter tid».
+ *
+ * TEKNISK RÅDS RETTELSER (30/9-2026, dom «RET FØRST»):
+ *   (2) Dublet med vagten: er vagtens seneste række rød (≤ 75 min) med
+ *       cron_koersel_fejlet / flere_jobs_ikke_200, bliver agentens sql_fejl /
+ *       http_fejl for en hændelse INDEN FOR vagtens vindue (60 min før dens række)
+ *       gule — vagten har ringet sin klokke. En hændelse EFTER vagtens række er
+ *       ny for vagten og dømmes som før.
+ *   (3) Tilskrivning efter tid giver falske røde: én ikke-200 er GUL, når
+ *       tilskrivningen var tvetydig eller status er 4xx. Rød kræver 5xx, timeout
+ *       eller transportfejl (entydigt tilskrevet) — eller to ikke-200 i træk for
+ *       et job med interval < 1 t (underEnTime).
+ *   (4) Loftet på læste kørsler ramt inden for 25 t → gult fund.
+ *   (5) Gule fund mailes i en daglig opsamling kl. 07 dansk på hverdage.
+ *   (7) Udsatte webinarmails (budgettet) står ikke i «ventende» — gult fund, når
+ *       udsat > 0 i to svar i træk.
+ *   (8) «error»/«errors» i et 200-svar tæller som fejl (fejlTal).
  */
-import { kbhDele } from "./hverdage.ts";
+import { erHverdag, kbhDele } from "./hverdage.ts";
 import { danskDatoKlokke, fristFor } from "./webinarMailAlarm.ts";
 import type { MailArt } from "./webinarMailDom.ts";
 
@@ -72,6 +88,17 @@ export const PG_NET_STANDARD_MS = 5_000;
 
 /** Vagten kører hvert kvarter over (7 * * * *): en time + 15 min uden en ny række i cron_vagt_log = tavs. */
 export const VAGT_TAVS_MS = 75 * 60_000;
+/** Vagtens vindue: den dømmer de seneste 60 min før sin række (20260916170000_vagtens_samlemail.sql). */
+export const VAGT_VINDUE_MS = 60 * 60_000;
+/**
+ * Vagtens grundkoder → agentens tilsvarende fund. Er vagten rød med koden (og
+ * frisk), er agentens fund for en hændelse i vagtens vindue GULT — vagten har
+ * alarmeret (fund 2, dublet).
+ */
+export const VAGT_DAEKKER: Readonly<Record<string, "sql_fejl" | "http_fejl">> = {
+  cron_koersel_fejlet: "sql_fejl",
+  flere_jobs_ikke_200: "http_fejl",
+};
 /**
  * Agenten kører hvert 15. min (10,25,40,55 * * * *). Er dens forrige RIGTIGE
  * kørsel ældre end to intervaller + 5 min, har den sprunget mindst én over:
@@ -111,6 +138,17 @@ export const WEBINAR_MAIL_FUNKTION = "webinar-mail-cron";
  */
 export const SVARTID_GUL_ANDEL = 0.8;
 
+/**
+ * Den daglige GULE opsamling (fund 5): gule fund mailes aldrig som alarm, men
+ * samles i én mail i timen kl. 07 dansk på en hverdag (hverdage.ts: mandag–fredag
+ * minus helligdage og husets lukkedage) — første kørsel i timen, der har gule
+ * fund; dedup pr. dansk DAG (nøglen «drift-agent-gul:<dato>» i email_send_log).
+ * Agenten kører :10/:25/:40/:55 → fire chancer i timen 07. Uden for timen, i
+ * weekenden og på helligdage mailes intet gult — et fund, der stadig står næste
+ * hverdag kl. 07, kommer med dér.
+ */
+export const GUL_OPSAMLING_TIME = 7;
+
 /** pg_crons fejlbesked citeres højst så langt, og altid gennem udenMail(). */
 export const BESKED_MAKS = 160;
 
@@ -125,8 +163,10 @@ export const BESKED_MAKS = 160;
  *   over_loft · udsat     tal (webinar-mail; udsat også meta/ga/klaviyo)
  *   ventende              webinar-mail: de DISTINKTE (art, session_tid) — ingen mails
  *   drift_agent           agentens egen markør
+ *   error                 (fund 8) tal → tallet; liste → længden; ikke-tom tekst eller objekt → 1
+ *   errors                (fund 8) liste → længden; tal → tallet; objekt → 1
  */
-export const KERNE_FELTER = ["ok", "dry_run", "fejlede", "fejlet", "fejl", "faktura_i_haanden", "over_loft", "udsat", "ventende", "drift_agent"] as const;
+export const KERNE_FELTER = ["ok", "dry_run", "fejlede", "fejlet", "fejl", "faktura_i_haanden", "over_loft", "udsat", "ventende", "drift_agent", "error", "errors"] as const;
 
 /**
  * Functions, der SELV mailer driftModtager ved fejl i rækker (klokkeMail.ts
@@ -215,6 +255,10 @@ export interface Kerne {
   udsat?: number;
   ventende?: { art: string; session_tid: string }[] | null;
   drift_agent?: string;
+  /** «error» i kroppen, talt (fund 8). */
+  error?: number;
+  /** «errors» i kroppen, talt (fund 8). */
+  errors?: number;
   /** Kroppen lignede JSON, men kunne ikke læses. */
   ulaeselig?: boolean;
 }
@@ -288,7 +332,8 @@ export type FundKode =
   | "svartid_naer_timeout"
   | "svar_ok_false" | "faktura_i_haanden" | "fejl_i_svar"
   | "spor_fejlrate"
-  | "mails_venter_frist";
+  | "mails_venter_frist" | "mails_udsat"
+  | "koersler_loft_ramt";
 
 export interface DriftFund {
   kode: FundKode;
@@ -425,6 +470,17 @@ export function sidsteFyring(s: Skema, foer: Date): Date | null {
   return null;
 }
 
+/**
+ * Fyrer skemaet oftere end én gang i timen? (fund 3: «to i træk» gælder kun
+ * sådanne jobs — et døgnjobs forrige svar er for længst ryddet af pg_net.)
+ *   «N seconds»      N < 3600
+ *   fem felter       mindst to minutter i minutfeltet (fx 10,25,40,55 eller hvert 5. minut)
+ * Et timejob («7 * * * *») har ét minut → false.
+ */
+export function underEnTime(s: Skema): boolean {
+  return s.art === "sekunder" ? s.sekunder < 3600 : s.minut.size >= 2;
+}
+
 // ── Tilskrivningen: svar → kørsel → job ─────────────────────────────────────
 
 /** Jobbets timeout: den eksplicitte, ellers standarden for kaldets form. null = ikke et HTTP-job. */
@@ -440,6 +496,8 @@ export interface Tilskrivning {
   /** svar-id → den tilskrevne kørsels start (ms) — svartidens nulpunkt. */
   start: Map<number, number>;
   tvetydige: number;
+  /** De svar-id'er, hvis tilskrivning var tvetydig (kandidater fra mere end ét job). */
+  tvetydigeSvar: Set<number>;
 }
 
 /**
@@ -460,6 +518,7 @@ export function tilskrivSvar(jobs: readonly CronJob[], koersler: readonly CronKo
   const job = new Map<number, number>();
   const start = new Map<number, number>();
   let tvetydige = 0;
+  const tvetydigeSvar = new Set<number>();
   for (const s of [...svar].sort((a, b) => ms(a.created) - ms(b.created) || a.id - b.id)) {
     const t = ms(s.created);
     if (!Number.isFinite(t)) continue;
@@ -469,13 +528,16 @@ export function tilskrivSvar(jobs: readonly CronJob[], koersler: readonly CronKo
       !taget.has(x.k.runid) && x.start <= t && t - x.start <= (jobTimeoutMs(x.j) as number) + SVAR_MARGIN_MS &&
       (egen ? agentensJob(x) : !(s.status === 200 && s.kerne !== null && agentensJob(x))));
     if (kandidater.length === 0) continue;
-    if (new Set(kandidater.map((x) => x.j.jobid)).size > 1) tvetydige++;
+    if (new Set(kandidater.map((x) => x.j.jobid)).size > 1) {
+      tvetydige++;
+      tvetydigeSvar.add(s.id);
+    }
     const valgt = kandidater[kandidater.length - 1];
     taget.add(valgt.k.runid);
     job.set(s.id, valgt.j.jobid);
     start.set(s.id, valgt.start);
   }
-  return { job, start, tvetydige };
+  return { job, start, tvetydige, tvetydigeSvar };
 }
 
 // ── De enkelte regler ────────────────────────────────────────────────────────
@@ -489,12 +551,12 @@ function kl(iso: string | Date, nu: Date): string {
 }
 
 /**
- * Fejltallet i en krop: det STØRSTE af fejlede, fejlet og fejl — ikke summen.
- * Felterne beskriver de samme fejl i forskellige former (webinar-mail-cron:
- * fejlede = 3 OG en fejl-liste med de samme 3 linjer → 3, ikke 6).
+ * Fejltallet i en krop: det STØRSTE af fejlede, fejlet, fejl, error og errors —
+ * ikke summen. Felterne beskriver de samme fejl i forskellige former
+ * (webinar-mail-cron: fejlede = 3 OG en fejl-liste med de samme 3 linjer → 3, ikke 6).
  */
 export function fejlTal(k: Kerne): number {
-  return Math.max(tal(k.fejlede), tal(k.fejlet), tal(k.fejl));
+  return Math.max(tal(k.fejlede), tal(k.fejlet), tal(k.fejl), tal(k.error), tal(k.errors));
 }
 
 function sporRegel(g: DriftGrundlag): DriftFund[] {
@@ -563,6 +625,18 @@ export function doemDrift(g: DriftGrundlag): DriftDom {
     }
   }
 
+  // 1b. Dublet med vagten (fund 2): er vagtens seneste række frisk (≤ VAGT_TAVS_MS)
+  // og rød med en grund i VAGT_DAEKKER, er agentens tilsvarende fund for en hændelse
+  // i vagtens vindue (60 min før dens række) GULT — vagten har ringet sin klokke.
+  const vagtRoedFrisk = g.vagt !== null && g.vagt.dom === "roed" && nuMs - ms(g.vagt.tid) <= VAGT_TAVS_MS;
+  const vagtensGrund = (kode: "sql_fejl" | "http_fejl", haendelse: string): string | null => {
+    if (!vagtRoedFrisk || g.vagt === null) return null;
+    const vagtTid = ms(g.vagt.tid), t = ms(haendelse);
+    if (!(t <= vagtTid && t > vagtTid - VAGT_VINDUE_MS)) return null;
+    return (g.vagt.grunde ?? []).find((gr) => VAGT_DAEKKER[gr] === kode) ?? null;
+  };
+  const vagtHar = (grund: string) => ` Vagten har meldt det (${grund} ${kl(g.vagt!.tid, nu)}) — derfor gult her.`;
+
   // 2. Agenten selv — dens forrige RIGTIGE kørsel.
   if (g.forrige !== null) {
     const alder = nuMs - ms(g.forrige.tid);
@@ -628,7 +702,11 @@ export function doemDrift(g: DriftGrundlag): DriftDom {
       if (erStartupFejl(seneste.besked)) {
         fund.push({ kode: "startup_fejl", alvor: "gul", emne: j.jobname, saetning: `${j.jobname} kom ikke i gang ${kl(seneste.start, nu)} (pg_cron: ${kortBesked(seneste.besked)}) — heler normalt sig selv.` });
       } else {
-        fund.push({ kode: "sql_fejl", alvor: "roed", emne: j.jobname, saetning: `${j.jobname} fejlede i sin seneste kørsel ${kl(seneste.start, nu)} med en SQL-fejl: ${kortBesked(seneste.besked) || "(ingen besked)"}.` });
+        const vagtGrund = vagtensGrund("sql_fejl", seneste.start);
+        fund.push({
+          kode: "sql_fejl", alvor: vagtGrund ? "gul" : "roed", emne: j.jobname,
+          saetning: `${j.jobname} fejlede i sin seneste kørsel ${kl(seneste.start, nu)} med en SQL-fejl: ${kortBesked(seneste.besked) || "(ingen besked)"}.${vagtGrund ? vagtHar(vagtGrund) : ""}`,
+        });
       }
     }
 
@@ -641,7 +719,21 @@ export function doemDrift(g: DriftGrundlag): DriftDom {
       const hvad = sidsteSvar.timeout
         ? `fik timeout (${Math.round((jobTimeoutMs(j) ?? 0) / 1000)} s)`
         : sidsteSvar.status === null ? "fik intet svar (transportfejl)" : `svarede ${sidsteSvar.status}`;
-      fund.push({ kode: "http_fejl", alvor: "roed", emne: j.jobname, saetning: `${navn} ${hvad} i sin seneste kørsel ${kl(sidsteSvar.created, nu)} (tilskrevet efter tid).` });
+      // Fund 3: tilskrivning efter tid kan tage fejl. Én ikke-200 er GUL, når
+      // tilskrivningen var tvetydig eller status er 4xx (en afvisning, ikke et nedbrud).
+      // RØD kræver 5xx/timeout/transportfejl, entydigt tilskrevet — ELLER to ikke-200
+      // i træk for et job, der kører oftere end hver time (underEnTime).
+      const tvetydig = tilskrivning.tvetydigeSvar.has(sidsteSvar.id);
+      const firehundrede = !sidsteSvar.timeout && sidsteSvar.status !== null && sidsteSvar.status >= 400 && sidsteSvar.status < 500;
+      const forrigeSvar = svarene[svarene.length - 2];
+      const iTraek = skema !== null && underEnTime(skema) && forrigeSvar !== undefined && forrigeSvar.status !== 200;
+      const vagtGrund = vagtensGrund("http_fejl", sidsteSvar.created);
+      const roed = (!tvetydig && !firehundrede) || iTraek;
+      const forbehold = [tvetydig ? "tvetydigt tilskrevet" : "", firehundrede && !iTraek ? "4xx — en afvisning, ikke et nedbrud" : ""].filter(Boolean).join("; ");
+      fund.push({
+        kode: "http_fejl", alvor: roed && !vagtGrund ? "roed" : "gul", emne: j.jobname,
+        saetning: `${navn} ${hvad} i sin seneste kørsel ${kl(sidsteSvar.created, nu)} (tilskrevet efter tid${forbehold ? `; ${forbehold}` : ""})${iTraek ? " — også i kørslen før" : ""}.${roed && vagtGrund ? vagtHar(vagtGrund) : ""}`,
+      });
       continue;
     }
     // Svartiden — også for agentens eget job.
@@ -677,22 +769,41 @@ export function doemDrift(g: DriftGrundlag): DriftDom {
       });
     }
 
-    // Webinarmails, der venter tæt på deres frist.
+    // Webinarmails, der venter tæt på deres frist. «ventende» bærer KUN dem over
+    // loftet (webinar-mail-cron lægger de UDSATTE — stoppet af tidsbudgettet — i
+    // tallet «udsat», ikke i listen), så fristen dømmes på over_loft alene.
     if (navn === WEBINAR_MAIL_FUNKTION) {
-      const venter = tal(k.over_loft) + tal(k.udsat);
+      const overLoft = tal(k.over_loft);
       const frister = (k.ventende ?? [])
         .map((v) => fristFor(v.art as MailArt, v.session_tid))
         .filter((d): d is Date => d !== null)
         .sort((a, b) => a.getTime() - b.getTime());
-      if (venter > 0 && frister.length > 0) {
+      if (overLoft > 0 && frister.length > 0) {
         const tilbage = frister[0].getTime() - nuMs;
         const alvor: Alvor | null = tilbage <= FRIST_ROED_MS ? "roed" : tilbage <= FRIST_GUL_MS ? "gul" : null;
         if (alvor) {
           const om = tilbage <= 0 ? "den er passeret" : `om ${timerOrd(tilbage / 3_600_000)}`;
-          fund.push({ kode: "mails_venter_frist", alvor, emne: j.jobname, saetning: `${venter} webinarmails venter (over loftet ${tal(k.over_loft)}, udsat ${tal(k.udsat)}); den tidligste frist er ${kl(frister[0], nu)} — ${om}.` });
+          fund.push({ kode: "mails_venter_frist", alvor, emne: j.jobname, saetning: `${overLoft} webinarmails venter over loftet; den tidligste frist er ${kl(frister[0], nu)} — ${om}.` });
         }
       }
+      // Fund 7: udsatte (tidsbudgettet) i to svar i træk — kørslerne når ikke bunken.
+      const forrigeKerne = svarene[svarene.length - 2]?.status === 200 ? svarene[svarene.length - 2].kerne : null;
+      if (tal(k.udsat) > 0 && forrigeKerne !== null && tal(forrigeKerne.udsat) > 0) {
+        fund.push({
+          kode: "mails_udsat", alvor: "gul", emne: j.jobname,
+          saetning: `${navn} har udsat webinarmails i to kørsler i træk (${tal(forrigeKerne.udsat)}, så ${tal(k.udsat)} ${kl(sidsteSvar.created, nu)}) — tidsbudgettet når ikke bunken i én kørsel.`,
+        });
+      }
     }
+  }
+
+  // 4b. Loftet på læste kørsler (fund 4): ramt inden for 25 t = der mangler kørsler
+  // bagerst, og hjerteslaget dømmes kun inden for det læste — det skal ses.
+  if (g.koersler_loft_ramt) {
+    fund.push({
+      kode: "koersler_loft_ramt", alvor: "gul", emne: "cron.job_run_details",
+      saetning: `Loftet på læste kørsler blev ramt inden for 25 t (ældste læste ${g.aeldste_koersel ? kl(g.aeldste_koersel, nu) : "ukendt"}) — ${kanIkke.length} job${kanIkke.length === 1 ? "" : "s"} kan derfor ikke afgøres. Loftet i drift_agent_laes skal hæves.`,
+    });
   }
 
   // 5. Sporene.
@@ -788,4 +899,46 @@ export function driftAlarmTekst(dom: DriftDom, nu: Date): DriftAlarmTekst {
     "Samme røde billede mailes højst én gang om dagen; et nyt rødt fund giver en ny mail. Tørkørsel i hånden: SELECT public.kald_edge('drift-agent-cron');",
   ];
   return { emne, titel, afsnit, tekst: afsnit.join("\n") };
+}
+
+// ── Den daglige gule opsamling (fund 5) ─────────────────────────────────────
+
+export const DRIFT_GUL_NOEGLE_PRAEFIKS = "drift-agent-gul:";
+export const DRIFT_GUL_MAIL_LABEL = "drift-agent-gul";
+
+/** «drift-agent-gul:2026-09-30» — én gul opsamling pr. dansk DAG. */
+export function driftGulNoegle(nu: Date): string {
+  return `${DRIFT_GUL_NOEGLE_PRAEFIKS}${driftDato(nu)}`;
+}
+
+export type GulValg =
+  | { mail: true }
+  | { mail: false; grund: "ingen_gule" | "sender_ikke" | "ikke_hverdag" | "uden_for_timen" | "fandtes_i_dag" };
+
+/**
+ * Skal de gule fund mailes som dagens opsamling? Kun i en rigtig kørsel (dry_run
+ * false OG låsen åben — samme lås som alarmen), kun på en dansk hverdag
+ * (hverdage.ts), kun i timen GUL_OPSAMLING_TIME dansk, kun når der ER gule fund,
+ * og højst én gang pr. dansk dag (nøglen fandtes i email_send_log).
+ * Rækkefølgen af afslagene er fast, så svaret altid siger den første grund.
+ */
+export function skalOpsamleGule(a: { dom: DriftDom; senderRigtigt: boolean; nu: Date; noegleFandtes: boolean }): GulValg {
+  if (!a.dom.fund.some((f) => f.alvor === "gul")) return { mail: false, grund: "ingen_gule" };
+  if (!a.senderRigtigt) return { mail: false, grund: "sender_ikke" };
+  if (!erHverdag(a.nu)) return { mail: false, grund: "ikke_hverdag" };
+  if (kbhDele(a.nu).time !== GUL_OPSAMLING_TIME) return { mail: false, grund: "uden_for_timen" };
+  if (a.noegleFandtes) return { mail: false, grund: "fandtes_i_dag" };
+  return { mail: true };
+}
+
+/** Opsamlingens tekst — kun de gule fund. Ren; rammen lægges på i functionen. */
+export function driftGulTekst(dom: DriftDom, nu: Date): { emne: string; afsnit: string[]; tekst: string } {
+  const gule = dom.fund.filter((f) => f.alvor === "gul");
+  const emne = `Driften i morges: ${gule.length} gul${gule.length === 1 ? "t fund" : "e fund"}`;
+  const afsnit = [
+    `Driftsagentens gule fund ${driftDato(nu)} kl. ${to(kbhDele(nu).time)}:${to(kbhDele(nu).minut)} — ikke alarmer, men det, der bør ses i dag.`,
+    ...gule.map((f) => `GUL · ${f.saetning}`),
+    "Gule fund samles i én mail kl. 07 på hverdage; røde fund mailes straks for sig.",
+  ];
+  return { emne, afsnit, tekst: afsnit.join("\n") };
 }

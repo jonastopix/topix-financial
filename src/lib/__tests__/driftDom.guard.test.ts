@@ -4,22 +4,32 @@ import { resolve } from "node:path";
 import { DRIFT_AGENT_MARKOER, KALD_EDGE_STANDARD_MS, KERNE_FELTER, SPOR } from "../../../supabase/functions/_shared/driftDom.ts";
 
 /**
- * Kildeværn for driftsagenten, skive 1 (30/9-2026). Syv domme, hver bevist på en
- * kopi med fejlen indsat:
+ * Kildeværn for driftsagenten, skive 1 (30/9-2026; rettet efter teknisk råd samme
+ * dag). Syv domme, hver bevist på en kopi med fejlen indsat:
  *   1. AUTH FØRST OG TØRKØRSEL SOM STANDARD: authenticateServiceRole før
  *      createClient; STRIKS body (kun dry_run); dry_run !== false; tørkørslen
  *      returnerer FØR enhver skrivning og afsendelse; verify_jwt = true.
  *   2. LÅSEN OG ALARMEN: låsen «driftsagent_aktiv» er fail-closed; der mailes kun
  *      inde i «rødt OG sender rigtigt»; email_send_log slås op FØR afsendelsen;
- *      ÉN sendManagedEmail til driftModtager() med nøglen som idempotencyKey (aldrig
- *      Mailgun); ÉN drift-klokke med reference «drift_agent_koersler».
- *   3. SELECT-ONLY: functionen skriver kun i sine egne to tabeller, læser
- *      app_config/email_send_log, kalder kun drift_agent_laes; SQL-læseren er
- *      SECURITY INVOKER uden INSERT/UPDATE/DELETE/kald_edge, og ingen af de tre
- *      migrationer opretter en SECURITY DEFINER eller rører en eksisterende funktion.
+ *      sendManagedEmail til driftModtager() med nøglen som idempotencyKey (aldrig
+ *      Mailgun); ÉN drift-klokke med reference «drift_agent_koersler». Den GULE
+ *      opsamling (fund 5) er den ANDEN og sidste sendManagedEmail: kun inde i
+ *      «if (gulValg.mail)», efter opslaget af dagens nøgle, med den som
+ *      idempotencyKey — og uden klokke.
+ *   3. SELECT-ONLY OG SNÆVER LÆSEVEJ: functionen skriver kun i sine egne to
+ *      tabeller, læser app_config/email_send_log, kalder kun drift_agent_laes;
+ *      SQL-læseren oprettes SECURITY INVOKER uden INSERT/UPDATE/DELETE/kald_edge.
+ *      Den ENESTE SECURITY DEFINER er 151000's ALTER af netop drift_agent_laes()
+ *      (search_path = public, pg_temp; EXECUTE kun service_role) — ingen GRANT på
+ *      skemaer, ingen GRANT til andre, ingen anden funktion eller politik røres
+ *      (teknisk råd fund 1: USAGE på cron er skriveret).
  *   4. BEVISET: markøren «skive-1» står i svaret.
- *   5. MIGRATIONERNE: første linje ordret, tidsstempler efter 20260930140000 og
- *      unikke, cron hvert 15. min gennem kald_edge med dry_run false, 60000 < 900000.
+ *   5. MIGRATIONERNE OG RÆKKEFØLGEN: 150000's første linje er husets «IKKE KØRT»;
+ *      151000 (grønt lys) og 152000 (efter udrulning) har en ANDEN første linje og
+ *      «IKKE KØRT» som anden (fund 9 — en scanning efter første linje tager dem
+ *      ikke med); tidsstempler efter 20260930140000 og unikke; cron hvert 15. min
+ *      gennem kald_edge med dry_run false, 60000 < 900000; OVERLEVERING bærer
+ *      rækkefølgen med de tre filer i orden.
  *   6. I TAKT: KERNE_FELTER = nøglerne i drift_agent_kerne; SPOR = værdilisten i
  *      drift_agent_laes; KALD_EDGE_STANDARD_MS = kald_edge_standard_ms().
  *   7. DOMMEN ER _shared's: functionen kalder doemDrift og skaber intet fund selv.
@@ -37,7 +47,10 @@ const MIG = `${MIGRATIONER}/20260930150000_driftsagent.sql`;
 const RET = `${MIGRATIONER}/20260930151000_driftsagent_rettigheder.sql`;
 const CRON = `${MIGRATIONER}/20260930152000_driftsagent_cron.sql`;
 const KALD_EDGE = `${MIGRATIONER}/20260910180000_kald_edge.sql`;
+const OVERLEVERING = "docs/OVERLEVERING.md";
 const FOERSTE_LINJE = "-- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).";
+const RET_FOERSTE = "-- KRÆVER JONAS' GRØNNE LYS (ny SECURITY DEFINER) — IKKE i en samlet kørsel.";
+const CRON_FOERSTE = "-- KØRES FØRST EFTER UDRULNING OG TØRKØRSEL — IKKE i en samlet kørsel";
 
 export const authOgToerkoersel = (fn: string, config: string): boolean => {
   const f = udenKommentarer(fn);
@@ -69,20 +82,54 @@ export const laasOgAlarm = (fn: string): boolean => {
     f.includes('.eq("config_key", LAAS_NOEGLE)') &&
     f.includes('return v === true || v === "true";') &&
     f.includes("const senderRigtigt = !a.toerKoersel && a.laas;") &&
-    (f.match(/sendManagedEmail\(/g) ?? []).length === 1 &&
+    (f.match(/sendManagedEmail\(/g) ?? []).length === 2 &&
     (f.match(/skrivRaadgiverBesked\(/g) ?? []).length === 1 &&
     foer(f, gren, '.from("email_send_log").select("message_id").eq("message_id", noegle)') &&
     foer(f, '.from("email_send_log").select("message_id").eq("message_id", noegle)', "sendManagedEmail(") &&
     foer(f, "if (valg.mail) {", "sendManagedEmail(") &&
-    f.includes("to: driftModtager(),") &&
+    (f.match(/to: driftModtager\(\),/g) ?? []).length === 2 &&
     f.includes("idempotencyKey: noegle,") &&
+    gulOpsamling(f) &&
     f.includes('type: "drift",') &&
     f.includes('reference_type: "drift_agent_koersler" satisfies typeof DRIFT_ALARM_REFERENCE,') &&
     !/mailgun/i.test(f)
   );
 };
 
+/** Den gule opsamling (fund 5): anden sendManagedEmail, efter dagens nøgle er slået op, med den som nøgle. */
+const gulOpsamling = (f: string): boolean => {
+  const i = f.indexOf("let gulValg: GulValg = skalOpsamleGule(");
+  if (i === -1) return false;
+  const gul = f.slice(i);
+  const opslag = '.from("email_send_log").select("message_id").eq("message_id", gulNoegle)';
+  const anden = f.indexOf("sendManagedEmail(", f.indexOf("sendManagedEmail(") + 1);
+  return (
+    anden > i &&
+    gul.includes("const gulNoegle = driftGulNoegle(nu);") &&
+    foer(gul, "if (gulValg.mail) {", opslag) &&
+    foer(gul, opslag, "gulValg = skalOpsamleGule({ dom, senderRigtigt, nu, noegleFandtes:") &&
+    foer(gul, "gulValg = skalOpsamleGule({ dom, senderRigtigt, nu, noegleFandtes:", "if (gulValg.mail) { const gul = driftGulTekst(dom, nu);") &&
+    foer(gul, "if (gulValg.mail) { const gul = driftGulTekst(dom, nu);", "sendManagedEmail(") &&
+    gul.includes("idempotencyKey: gulNoegle,") &&
+    gul.includes("label: DRIFT_GUL_MAIL_LABEL,") &&
+    !gul.includes("skrivRaadgiverBesked(")
+  );
+};
+
 const SKRIVER = /\.(insert|upsert|update|delete)\(/;
+/** 151000's kode, ordret (uden kommentarer, blanktegn samlet) — den ENESTE SECURITY DEFINER. */
+const RET_KODE = [
+  "alter function public.drift_agent_laes() security definer;",
+  "alter function public.drift_agent_laes() set search_path = public, pg_temp;",
+  "revoke all on function public.drift_agent_laes() from public, anon, authenticated;",
+  "grant execute on function public.drift_agent_laes() to service_role;",
+];
+export const snaeverLaesevej = (ret: string): boolean => {
+  const kode = sqlUdenKommentarer(ret).toLowerCase().replace(/\s+/g, " ").trim();
+  const udenKommentar = kode.replace(/comment on function public\.drift_agent_laes\(\) is '(?:[^']|'')*';/, "").trim();
+  return udenKommentar === RET_KODE.join(" ");
+};
+
 export const kunLaesning = (fn: string, migrationer: readonly string[]): boolean => {
   const f = udenKommentarer(fn).replace(/\s+/g, " ");
   const tabeller = [...f.matchAll(/\.from\("([a-z_]+)"\)/g)].map((m) => ({ navn: m[1], efter: f.slice(m.index! + m[0].length, m.index! + m[0].length + 20) }));
@@ -100,9 +147,12 @@ export const kunLaesning = (fn: string, migrationer: readonly string[]): boolean
     laeser.length > 0 &&
     laeser.includes("security invoker") && laeser.includes("stable") &&
     !/\b(insert|update|delete|truncate)\b|public\.kald_edge\(|net\.http_post\(|cron\.schedule/.test(laeser) &&
-    sql.every((s) => !s.includes("security definer")) &&
+    // Kun 151000 (migrationer[1]) må nævne SECURITY DEFINER og ALTER FUNCTION — og kun sådan.
+    [sql[0], sql[2]].every((s) => !s.includes("security definer")) &&
+    snaeverLaesevej(migrationer[1]) &&
     funktioner.length === 2 && funktioner.every((n) => n.startsWith("drift_agent_")) &&
-    sql.every((s) => !/\b(drop|alter)\s+(function|policy)\b/.test(s))
+    [sql[0], sql[2]].every((s) => !/\b(drop|alter)\s+(function|policy)\b/.test(s)) &&
+    sql.every((s) => !/\bgrant\s+(usage|select|all|insert|update|delete)\b|\bon\s+schema\b/.test(s))
   );
 };
 
@@ -115,13 +165,21 @@ export const beviset = (fn: string): boolean => {
   );
 };
 
-export const migrationerneErRigtige = (filer: readonly { navn: string; sql: string }[], navne: readonly string[]): boolean => {
+export const migrationerneErRigtige = (filer: readonly { navn: string; sql: string }[], navne: readonly string[], overlevering: string): boolean => {
   const cron = filer.find((f) => f.navn.includes("driftsagent_cron"))?.sql ?? "";
+  const linjer = (i: number) => (filer[i]?.sql ?? "").split("\n");
+  const afsnit = overlevering.slice(overlevering.indexOf("### Driftsagenten, skive 1 — rækkefølgen"));
   const kode = cron.split("\n").filter((l) => !/^\s*--/.test(l)).map((l) => l.replace(/\s*--.*$/, "")).join("\n").replace(/\s+/g, " ");
   const stempler = navne.map((n) => n.slice(0, 14));
   return (
     filer.length === 3 &&
-    filer.every((f) => f.sql.split("\n")[0] === FOERSTE_LINJE) &&
+    linjer(0)[0] === FOERSTE_LINJE &&
+    linjer(1)[0] === RET_FOERSTE && linjer(1)[1] === FOERSTE_LINJE &&
+    linjer(2)[0] === CRON_FOERSTE && linjer(2)[1] === FOERSTE_LINJE &&
+    overlevering.includes("### Driftsagenten, skive 1 — rækkefølgen") &&
+    foer(afsnit, "20260930150000_driftsagent.sql", "20260930151000_driftsagent_rettigheder.sql") &&
+    foer(afsnit, "20260930151000_driftsagent_rettigheder.sql", "drift-agent-cron") &&
+    foer(afsnit, "drift-agent-cron", "20260930152000_driftsagent_cron.sql") &&
     filer.every((f) => f.navn.slice(0, 14) > "20260930140000") &&
     filer.every((f) => stempler.filter((s) => s === f.navn.slice(0, 14)).length === 1) &&
     /cron\.schedule\( 'drift-agent', '10,25,40,55 \* \* \* \*', \$job\$ SELECT public\.kald_edge\( 'drift-agent-cron', '\{"dry_run": false\}'::jsonb, 60000, 900000 \); \$job\$ \);/.test(kode) &&
@@ -166,13 +224,13 @@ describe("driftDom.guard", () => {
     expect(DRIFT_AGENT_MARKOER).toBe("skive-1");
     expect(beviset(laes(FN))).toBe(true);
   });
-  it("5. migrationernes hoveder, tidsstempler og cron-jobbet", () => expect(migrationerneErRigtige(egneMig(), migNavne)).toBe(true));
+  it("5. migrationernes hoveder, rækkefølgen, tidsstempler og cron-jobbet", () => expect(migrationerneErRigtige(egneMig(), migNavne, laes(OVERLEVERING))).toBe(true));
   it("6. kernefelter, spor og kald_edge-standarden i takt med SQL'en", () => expect(iTakt(laes(MIG), laes(KALD_EDGE))).toBe(true));
   it("7. dommen er _shared's", () => expect(dommenErShared(laes(FN))).toBe(true));
 });
 
 describe("driftDom.guard — dommene fælder på en kopi", () => {
-  const fn = laes(FN), config = laes(CONFIG), mig = laes(MIG), ret = laes(RET), cron = laes(CRON), kaldEdge = laes(KALD_EDGE);
+  const fn = laes(FN), config = laes(CONFIG), mig = laes(MIG), ret = laes(RET), cron = laes(CRON), kaldEdge = laes(KALD_EDGE), overl = laes(OVERLEVERING);
   const byt = (k: string, a: string, b: string) => { expect(k.split(a).length - 1, a).toBe(1); return k.split(a).join(b); };
 
   it("auth fjernet, dry_run som opt-in, et ekstra body-felt, skrivning før tørkørslens return eller verify_jwt false fælder dom 1", () => {
@@ -188,9 +246,18 @@ describe("driftDom.guard — dommene fælder på en kopi", () => {
     expect(laasOgAlarm(byt(fn, 'if (dom.alvor === "roed" && senderRigtigt) {', "if (senderRigtigt) {"))).toBe(false);
     expect(laasOgAlarm(byt(fn, "const senderRigtigt = !a.toerKoersel && a.laas;", "const senderRigtigt = !a.toerKoersel;"))).toBe(false);
     expect(laasOgAlarm(byt(fn, ".eq(\"message_id\", noegle)", ".eq(\"message_id\", \"x\")"))).toBe(false);
-    expect(laasOgAlarm(byt(fn, "to: driftModtager(),", 'to: "kontakt@theboardroom.dk",'))).toBe(false);
+    expect(laasOgAlarm(byt(fn, "to: driftModtager(),\n          subject: tekst.emne,", 'to: "kontakt@theboardroom.dk",\n          subject: tekst.emne,'))).toBe(false);
+    expect(laasOgAlarm(byt(fn, "to: driftModtager(),\n          subject: gul.emne,", 'to: "kontakt@theboardroom.dk",\n          subject: gul.emne,'))).toBe(false);
     expect(laasOgAlarm(byt(fn, "idempotencyKey: noegle,", "idempotencyKey: crypto.randomUUID(),"))).toBe(false);
     expect(laasOgAlarm(byt(fn, 'reference_type: "drift_agent_koersler" satisfies', 'reference_type: "drift_agent" satisfies'))).toBe(false);
+  });
+
+  it("den gule opsamling uden dagens opslag, med en anden nøgle, uden for sin gren eller en tredje mail fælder dom 2", () => {
+    expect(laasOgAlarm(byt(fn, '.eq("message_id", gulNoegle)', '.eq("message_id", "x")'))).toBe(false);
+    expect(laasOgAlarm(byt(fn, "idempotencyKey: gulNoegle,", "idempotencyKey: crypto.randomUUID(),"))).toBe(false);
+    expect(laasOgAlarm(byt(fn, "gulValg = skalOpsamleGule({ dom, senderRigtigt, nu, noegleFandtes: (gulFandtes ?? []).length > 0 });", "gulValg = { mail: true };"))).toBe(false);
+    expect(laasOgAlarm(byt(fn, "label: DRIFT_GUL_MAIL_LABEL,", "label: DRIFT_ALARM_MAIL_LABEL,"))).toBe(false);
+    expect(laasOgAlarm(`${fn}\nawait sendManagedEmail({ adminClient: admin, to: driftModtager(), subject: "", html: "", text: "", label: "x", idempotencyKey: "x" });\n`)).toBe(false);
   });
 
   it("en skrivning i en fremmed tabel, en ny SECURITY DEFINER, en skrivning i læseren eller et andet RPC fælder dom 3", () => {
@@ -202,6 +269,16 @@ describe("driftDom.guard — dommene fælder på en kopi", () => {
     expect(kunLaesning(fn, [`${mig}\ncreate or replace function public.has_role(uuid, text) returns boolean language sql as $$ select true $$;\n`, ret, cron])).toBe(false);
   });
 
+  it("GRANT USAGE på cron, en DEFINER uden pg_temp, EXECUTE til authenticated, en anden funktion gjort til DEFINER eller en DEFINER i 150000 fælder dom 3 (fund 1)", () => {
+    expect(kunLaesning(fn, [mig, `${ret}\ngrant usage on schema cron to service_role;\n`, cron])).toBe(false);
+    expect(kunLaesning(fn, [mig, `${ret}\ngrant select on cron.job to service_role;\n`, cron])).toBe(false);
+    expect(kunLaesning(fn, [mig, byt(ret, "set search_path = public, pg_temp;", "set search_path = public;"), cron])).toBe(false);
+    expect(kunLaesning(fn, [mig, byt(ret, "grant execute on function public.drift_agent_laes() to service_role;", "grant execute on function public.drift_agent_laes() to service_role, authenticated;"), cron])).toBe(false);
+    expect(kunLaesning(fn, [mig, `${ret}\nalter function public.has_role(uuid, app_role) security definer;\n`, cron])).toBe(false);
+    expect(kunLaesning(fn, [`${mig}\nalter function public.drift_agent_laes() security definer;\n`, ret, cron])).toBe(false);
+    expect(kunLaesning(fn, [mig, byt(ret, "alter function public.drift_agent_laes() security definer;", ""), cron])).toBe(false);
+  });
+
   it("en manglende markør fælder dom 4", () => {
     expect(beviset(byt(fn, "    drift_agent: DRIFT_AGENT_MARKOER,\n    dry_run: a.toerKoersel,", "    dry_run: a.toerKoersel,"))).toBe(false);
   });
@@ -209,12 +286,23 @@ describe("driftDom.guard — dommene fælder på en kopi", () => {
   it("et hoved med forklaringen først, et genbrugt tidsstempel, et andet skema eller en timeout ≥ interval fælder dom 5", () => {
     const filer = egneMig();
     const med = (i: number, sql: string) => filer.map((f, j) => (j === i ? { ...f, sql } : f));
-    expect(migrationerneErRigtige(med(0, mig.split("\n").slice(1).join("\n")), migNavne)).toBe(false);
-    expect(migrationerneErRigtige(filer, [...migNavne, "20260930150000_andet.sql"])).toBe(false);
-    expect(migrationerneErRigtige(filer.map((f, j) => (j === 1 ? { ...f, navn: "20260930120000_driftsagent_rettigheder.sql" } : f)), migNavne)).toBe(false);
-    expect(migrationerneErRigtige(med(2, byt(cron, "'10,25,40,55 * * * *'", "'*/5 * * * *'")), migNavne)).toBe(false);
-    expect(migrationerneErRigtige(med(2, byt(cron, "    60000,       -- timeout", "    900000,      -- timeout")), migNavne)).toBe(false);
-    expect(migrationerneErRigtige(med(2, byt(cron, "'{\"dry_run\": false}'::jsonb", "'{}'::jsonb")), migNavne)).toBe(false);
+    expect(migrationerneErRigtige(med(0, mig.split("\n").slice(1).join("\n")), migNavne, overl)).toBe(false);
+    expect(migrationerneErRigtige(filer, [...migNavne, "20260930150000_andet.sql"], overl)).toBe(false);
+    expect(migrationerneErRigtige(filer.map((f, j) => (j === 1 ? { ...f, navn: "20260930120000_driftsagent_rettigheder.sql" } : f)), migNavne, overl)).toBe(false);
+    expect(migrationerneErRigtige(med(2, byt(cron, "'10,25,40,55 * * * *'", "'*/5 * * * *'")), migNavne, overl)).toBe(false);
+    expect(migrationerneErRigtige(med(2, byt(cron, "    60000,       -- timeout", "    900000,      -- timeout")), migNavne, overl)).toBe(false);
+    expect(migrationerneErRigtige(med(2, byt(cron, "'{\"dry_run\": false}'::jsonb", "'{}'::jsonb")), migNavne, overl)).toBe(false);
+  });
+
+  it("cron-jobbet eller DEFINER'en med husets «IKKE KØRT» som FØRSTE linje, eller en overlevering uden rækkefølgen, fælder dom 5 (fund 9)", () => {
+    const filer = egneMig();
+    const med = (i: number, sql: string) => filer.map((f, j) => (j === i ? { ...f, sql } : f));
+    expect(migrationerneErRigtige(med(2, cron.split("\n").slice(1).join("\n")), migNavne, overl)).toBe(false);
+    expect(migrationerneErRigtige(med(1, ret.split("\n").slice(1).join("\n")), migNavne, overl)).toBe(false);
+    expect(migrationerneErRigtige(filer, migNavne, byt(overl, "### Driftsagenten, skive 1 — rækkefølgen", "### Driftsagenten"))).toBe(false);
+    const afsnitStart = overl.indexOf("### Driftsagenten, skive 1 — rækkefølgen");
+    const ombyttet = overl.slice(0, afsnitStart) + overl.slice(afsnitStart).replace("20260930152000_driftsagent_cron.sql", "XX").replace("20260930150000_driftsagent.sql", "20260930152000_driftsagent_cron.sql");
+    expect(migrationerneErRigtige(filer, migNavne, ombyttet)).toBe(false);
   });
 
   it("et kernefelt mere i SQL'en, et spor med forkert kolonne eller en anden kald_edge-standard fælder dom 6", () => {

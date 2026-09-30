@@ -16,7 +16,9 @@
 // meta_send_aktiv / webinar_mail_aktiv).
 //
 // DOMMEN bor i _shared/driftDom.ts (ren, testet). Her hentes kun data:
-//   public.drift_agent_laes()   SECURITY INVOKER, SELECT-only: cron.job,
+//   public.drift_agent_laes()   SELECT-only (SECURITY DEFINER efter 20260930151000,
+//                               som kræver Jonas' grønne lys — ellers INVOKER og et
+//                               rødt «kan ikke læse»-fund): cron.job,
 //                               cron.job_run_details (seneste 3000 gennem runid),
 //                               net._http_response (25 t, kun kernefelterne af
 //                               kroppen), sporenes udfald (time/døgn), cron_vagt_log
@@ -30,6 +32,11 @@
 // billede (aftrykket, drift_agent_koersler). Klokken er type «drift» med
 // reference_type «drift_agent_koersler», som står på klokkeMail.ts
 // SELVMAILENDE_REFERENCER (én alarm, én mail).
+//
+// DEN GULE OPSAMLING (fund 5, 30/9): gule fund er aldrig en alarm, men samles i
+// ÉN mail til driftModtager() kl. 07 dansk på hverdage (skalOpsamleGule) — samme
+// lås, dedup pr. dansk dag (nøglen «drift-agent-gul:<dato>» slås op i
+// email_send_log FØR afsendelsen). Ingen klokke: den gule er en morgenliste.
 //
 // BEVISET (CLAUDE.md trin 4): svaret bærer drift_agent: "skive-1" — kun den nye
 // kode svarer med det.
@@ -53,13 +60,18 @@ import {
   DRIFT_AGENT_MARKOER,
   DRIFT_ALARM_MAIL_LABEL,
   DRIFT_ALARM_REFERENCE,
+  DRIFT_GUL_MAIL_LABEL,
   driftAlarmNoegle,
+  driftGulNoegle,
+  driftGulTekst,
   driftAlarmTekst,
   driftDato,
   type DriftDom,
   doemDrift,
+  type GulValg,
   type HttpSvar,
   skalAlarmere,
+  skalOpsamleGule,
   type SporTal,
   type VagtRaekke,
 } from "../_shared/driftDom.ts";
@@ -109,6 +121,10 @@ export interface DriftAgentResultat {
   alarm_mail: string;
   /** «ingen» · «skrevet» · «fandtes» · «fejlet: …» */
   alarm_klokke: string;
+  /** Den gule opsamlings afgørelse (fund 5): «mail» eller grunden til at lade være. */
+  gul_valg: string;
+  /** «ingen» · «sendt» · «fejlet: …» */
+  gul_mail: string;
   /** «ingen» (tørkørsel) · «skrevet» · «fejlet: …» */
   log: string;
   varighed_ms: number;
@@ -194,12 +210,16 @@ export async function koerDriftAgent(admin: SupabaseClient, a: { toerKoersel: bo
     alarm_valg: "ingen",
     alarm_mail: "ingen",
     alarm_klokke: "ingen",
+    gul_valg: "ingen",
+    gul_mail: "ingen",
     log: "ingen",
     varighed_ms: 0,
   };
   // TØRKØRSEL: intet skrives, intet sendes.
   if (a.toerKoersel) {
     r.alarm_valg = dom.alvor === "roed" ? "sender_ikke" : "ikke_roed";
+    const g = skalOpsamleGule({ dom, senderRigtigt, nu, noegleFandtes: false });
+    r.gul_valg = g.mail ? "mail" : g.grund;
     r.varighed_ms = Date.now() - a.startMs;
     return r;
   }
@@ -261,6 +281,36 @@ export async function koerDriftAgent(admin: SupabaseClient, a: { toerKoersel: bo
   }
   r.alarm_valg = valg.mail ? "mail" : valg.grund;
 
+  // 5b. Den gule opsamling — kun rigtigt, kun hverdag kl. 07 dansk, én gang pr. dag.
+  let gulValg: GulValg = skalOpsamleGule({ dom, senderRigtigt, nu, noegleFandtes: false });
+  if (gulValg.mail) {
+    const gulNoegle = driftGulNoegle(nu);
+    try {
+      const { data: gulFandtes, error: gulOpslagFejl } = await admin.from("email_send_log").select("message_id").eq("message_id", gulNoegle).limit(1);
+      if (gulOpslagFejl) throw new Error(`email_send_log: ${gulOpslagFejl.message}`);
+      gulValg = skalOpsamleGule({ dom, senderRigtigt, nu, noegleFandtes: (gulFandtes ?? []).length > 0 });
+      if (gulValg.mail) {
+        const gul = driftGulTekst(dom, nu);
+        const res = await sendManagedEmail({
+          adminClient: admin,
+          to: driftModtager(),
+          subject: gul.emne,
+          html: indgangsMailHtml({ eyebrow: "Drift · Driftsagenten", overskrift: gul.emne, afsnit: gul.afsnit, hilsen: "The Boardroom" }),
+          text: gul.tekst,
+          label: DRIFT_GUL_MAIL_LABEL,
+          idempotencyKey: gulNoegle,
+          metadata: { gule: dom.fund.filter((f) => f.alvor === "gul").length, nu: nu.toISOString() },
+        });
+        r.gul_mail = res.sent ? "sendt" : `fejlet: ${res.reason}`;
+        if (!res.sent) console.error(`${LOG} den gule opsamling blev ikke sendt: ${res.reason}`);
+      }
+    } catch (e) {
+      r.gul_mail = `fejlet: ${besked(e)}`;
+      console.error(`${LOG} den gule opsamling kastede:`, besked(e));
+    }
+  }
+  r.gul_valg = gulValg.mail ? "mail" : gulValg.grund;
+
   // 6. Nye jobs noteres (første gang set) — kun i en rigtig kørsel.
   try {
     const jobs = laest?.jobs ?? [];
@@ -288,6 +338,7 @@ export async function koerDriftAgent(admin: SupabaseClient, a: { toerKoersel: bo
       alarm_valg: r.alarm_valg,
       alarm_mail: r.alarm_mail,
       alarm_klokke: r.alarm_klokke,
+      gul_mail: r.gul_mail,
       varighed_ms: r.varighed_ms,
     });
     r.log = error ? `fejlet: ${error.message}` : "skrevet";
@@ -330,6 +381,6 @@ Deno.serve(async (req) => {
     console.error(`${LOG} kørslen væltede:`, besked(err));
     return new Response(JSON.stringify({ ok: false, drift_agent: DRIFT_AGENT_MARKOER, dry_run: toerKoersel, fejl: besked(err) }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
-  console.log(`${LOG} ${resultat.dry_run ? "TØRKØRSEL" : resultat.sender_rigtigt ? "RIGTIG (lås åben)" : "RIGTIG (lås lukket)"} — ${resultat.alvor}, ${resultat.fund.length} fund (aftryk «${resultat.aftryk}»), alarm ${resultat.alarm_valg}/${resultat.alarm_mail}/${resultat.alarm_klokke}, log ${resultat.log}, ${resultat.varighed_ms} ms`);
+  console.log(`${LOG} ${resultat.dry_run ? "TØRKØRSEL" : resultat.sender_rigtigt ? "RIGTIG (lås åben)" : "RIGTIG (lås lukket)"} — ${resultat.alvor}, ${resultat.fund.length} fund (aftryk «${resultat.aftryk}»), alarm ${resultat.alarm_valg}/${resultat.alarm_mail}/${resultat.alarm_klokke}, gul ${resultat.gul_valg}/${resultat.gul_mail}, log ${resultat.log}, ${resultat.varighed_ms} ms`);
   return new Response(JSON.stringify(resultat), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 });

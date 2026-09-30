@@ -6,16 +6,20 @@
 -- KUN TILFØJENDE: to nye tabeller, én ny nøgle i app_config, to nye funktioner.
 -- Ingen eksisterende funktion, tabel, politik eller SECURITY DEFINER røres.
 --
--- RÆKKEFØLGEN (CLAUDE.md «Deployment af edge functions»):
+-- RÆKKEFØLGEN — HVER FIL FOR SIG, ALDRIG I EN SAMLET KØRSEL (docs/OVERLEVERING.md
+-- DEL 3 «Driftsagenten, skive 1 — rækkefølgen»; CLAUDE.md «Deployment af edge functions»):
 --   1. DENNE migration (FØR-SQL → kørsel → EFTER-SQL).
---   2. 20260930151000_driftsagent_rettigheder.sql — KUN hvis FØR-SQL'ens sektion 4
---      viser false (service_role kan ikke læse cron/net). Læs dens hoved.
+--   2. 20260930151000_driftsagent_rettigheder.sql — KRÆVER JONAS' GRØNNE LYS (den
+--      gør drift_agent_laes() til SECURITY DEFINER). Uden den læser agenten som
+--      service_role og svarer med et RØDT «kan ikke læse»-fund.
 --   3. merge → EKSPLICIT deploy af drift-agent-cron fra build-chat (bed den KØRE
 --      deploy-værktøjet og vise resultatet).
 --   4. Tørkørsel i hånden: SELECT public.kald_edge('drift-agent-cron', '{}'::jsonb, 60000);
 --      og svaret: SELECT id, status_code, left(content, 3000) FROM net._http_response ORDER BY id DESC LIMIT 1;
---      Beviset: "drift_agent":"skive-1" i svaret, og «tal.jobs» > 0.
---   5. FØRST DA 20260930152000_driftsagent_cron.sql (cron-jobbet).
+--      Beviset: "drift_agent":"skive-1" i svaret, «tal.jobs» > 0 og «laesefejl» tom.
+--   5. FØRST DA 20260930152000_driftsagent_cron.sql (cron-jobbet) — dens FØRSTE
+--      linje er med vilje en anden, så den ikke tages med i en scanning efter
+--      «IKKE KØRT».
 --   6. Låsen åbnes separat, når svaret er læst (se «LÅSEN»).
 --
 -- ── HVAD DER OPRETTES ───────────────────────────────────────────────────────
@@ -36,7 +40,12 @@
 -- (c) drift_agent_jobs — hvornår agenten FØRST så hvert cron-job. Et job, der er
 --     yngre end sin seneste forventede fyring, dømmes ikke «stille» (ellers giver
 --     et nyt døgnjob, planlagt kl. 18:46 med skema 06:15, en falsk alarm hele
---     natten). Service-role-only som (b).
+--     natten). Service-role-only som (b). FYLDES HER med alle nuværende jobs
+--     (foerst_set = nu, teknisk råd 30/9 fund 6): en tom tabel ville functionen
+--     læse som «ukendt» og dømme ALLE jobs som kendte — også et job, der blev
+--     planlagt for en time siden. Indsættelsen kører som postgres i SQL editor —
+--     samme rolle og vej som vagt_cron læser cron.job med (SECURITY DEFINER,
+--     ejet af postgres).
 --
 -- (d) public.drift_agent_kerne(text) — tager KUN kernefelterne ud af et
 --     HTTP-svars krop (tal og sandhedsværdier; ordlisten er driftDom.ts
@@ -44,10 +53,14 @@
 --     bære navne og mails. IMMUTABLE, SECURITY INVOKER.
 --
 -- (e) public.drift_agent_laes() — agentens ENESTE læsning af cron og net.
---     SECURITY INVOKER (kører som kalderen, service_role — ingen ny SECURITY
---     DEFINER), STABLE, kun SELECT. Hver sektion i sin egen BEGIN/EXCEPTION, så
---     en sektion, service_role ikke må læse, bliver en linje i «fejl» (og et rødt
---     fund i dommen) i stedet for at vælte de andre. Læser:
+--     OPRETTES HER SECURITY INVOKER (kører som kalderen, service_role — denne fil
+--     skaber ingen SECURITY DEFINER). 20260930151000 (kræver Jonas' grønne lys)
+--     gør den til SECURITY DEFINER med search_path = public, pg_temp — i stedet
+--     for at give service_role USAGE på skemaet cron (teknisk råd 30/9 fund 1:
+--     USAGE på cron åbner også cron.schedule/unschedule, hvis EXECUTE står til
+--     PUBLIC). STABLE, kun SELECT. Hver sektion i sin egen BEGIN/EXCEPTION, så en
+--     sektion, der ikke kan læses, bliver en linje i «fejl» (og et rødt fund i
+--     dommen) i stedet for at vælte de andre. Læser:
 --       cron.job                 alle jobs: navn, skema, active, mål (funktionsnavnet
 --                                i kald_edge('…') / …/functions/v1/…), timeout.
 --                                KOMMANDOEN returneres IKKE.
@@ -68,11 +81,14 @@
 -- ── RETTIGHEDERNE (UMÅLT — derfor FØR-SQL'ens sektion 4) ────────────────────
 -- En SECURITY INVOKER-funktion kan kun læse det, service_role må. Ingen migration
 -- i repoet giver service_role adgang til skemaerne cron eller net (grep 30/9), og
--- cron.job har RLS (username = current_user) — service_role ser kun alle jobs,
--- hvis rollen har BYPASSRLS. Alt det er UMÅLT. Sektion 4 måler det; er noget
--- false, køres 20260930151000_driftsagent_rettigheder.sql (kun GRANT, intet andet).
--- Uden rettighederne svarer agenten med et RØDT fund («kan ikke læse
--- cron.job …» / «ser 0 cron-jobs») — den tier ikke.
+-- cron.job har RLS (username = current_user). Vejen er IKKE en GRANT på skemaet
+-- cron (den første udgave af 20260930151000 gjorde det — teknisk råd 30/9 fund 1:
+-- USAGE på cron giver også adgang til cron.schedule/unschedule, hvis EXECUTE står
+-- til PUBLIC, og det er skriveret). Vejen er vagtens: læseren køres som postgres
+-- (SECURITY DEFINER, 20260930151000, kræver Jonas' grønne lys). Sektion 4 måler
+-- udgangspunktet, så EFTER kan vise, at intet i cron er ændret. Uden 151000
+-- svarer agenten med et RØDT fund («kan ikke læse cron.job …» / «ser 0
+-- cron-jobs») — den tier ikke.
 --
 -- ── FØR-SQL (ét resultatsæt — gem CSV) ──────────────────────────────────────
 --   select '1 tabeller' as sektion, table_name as noegle, 'findes' as vaerdi
@@ -89,6 +105,8 @@
 --   select '4 rettigheder', x.hvad, x.svar::text from (values
 --     ('service_role rolbypassrls', (select rolbypassrls from pg_roles where rolname = 'service_role')),
 --     ('USAGE schema cron',         has_schema_privilege('service_role', 'cron', 'USAGE')),
+--     ('EXECUTE cron.schedule',     has_function_privilege('service_role', 'cron.schedule(text,text,text)', 'EXECUTE')),
+--     ('EXECUTE cron.unschedule',   has_function_privilege('service_role', 'cron.unschedule(text)', 'EXECUTE')),
 --     ('SELECT cron.job',           has_table_privilege('service_role', 'cron.job', 'SELECT')),
 --     ('SELECT cron.job_run_details', has_table_privilege('service_role', 'cron.job_run_details', 'SELECT')),
 --     ('USAGE schema net',          has_schema_privilege('service_role', 'net', 'USAGE')),
@@ -98,16 +116,24 @@
 --   union all
 --   select '5 cron.job', j.jobname, concat(j.schedule, ' · active=', j.active) from cron.job j
 --    where j.jobname in ('drift-agent', 'vagt-cron')
+--   union all
+--   -- Kørsler de seneste 25 t mod læserens loft (3000, teknisk råd 30/9 fund 4):
+--   -- er tallet over 3000, rammer drift_agent_laes loftet, og agenten melder gult
+--   -- «koersler_loft_ramt» i hver kørsel — hæv v_koersler_loft FØR migrationen køres.
+--   select '6 koersler 25 t', 'antal (loft 3000)', count(*)::text
+--     from cron.job_run_details where start_time > now() - interval '25 hours'
 --   order by 1, 2;
 --   FACIT FØR: sektion 1, 2 TOMME; sektion 3 «ikke sat → false»; sektion 4 = SVARET
---   PÅ DET UMÅLTE (skriv det ind her); sektion 5 = kun vagt-cron.
+--   PÅ DET UMÅLTE (skriv det ind her — «USAGE schema cron» og «EXECUTE
+--   cron.schedule» skal stå ENS i 151000's EFTER); sektion 5 = kun vagt-cron;
+--   sektion 6 = et tal under 3000 (ellers STOP og hæv loftet).
 --   FØR (indsættes her): [ikke målt endnu]
 --
 -- ── EFTER-SQL: nederst i filen (kør med det samme, gem CSV) ────────────────
 --   FACIT EFTER: sektion 1 = 2 tabeller; sektion 2 = 2 funktioner med
 --   prosecdef=false; sektion 3 = false; sektion 4 = ingen politikker (RLS uden
---   politikker); sektion 5 = en linje med «jobs=N» (N > 0, hvis rettighederne
---   holder) og «fejl=» tom — ELLER fejl-linjerne, der afgør trin 2.
+--   politikker); sektion 5 = en linje med «jobs=N» (N > 0 — kaldt som postgres) og
+--   «fejl=» tom; sektion 6 = drift_agent_jobs har lige så mange rækker som cron.job.
 --
 -- ── ROLLBACK ────────────────────────────────────────────────────────────────
 --   drop function if exists public.drift_agent_laes();
@@ -140,6 +166,8 @@ create table if not exists public.drift_agent_koersler (
   -- ingen · sendt · fejlet: …
   alarm_mail    text not null default 'ingen',
   alarm_klokke  text not null default 'ingen',
+  -- Den gule opsamling kl. 07 på hverdage (fund 5): ingen · sendt · fejlet: …
+  gul_mail      text not null default 'ingen',
   varighed_ms   integer,
   constraint drift_agent_koersler_alvor_check check (alvor in ('groen', 'gul', 'roed'))
 );
@@ -163,9 +191,22 @@ comment on table public.drift_agent_jobs is
 
 alter table public.drift_agent_jobs enable row level security;
 
+-- Fyldes med de jobs, der findes NU (fund 6). Kører som postgres i SQL editor —
+-- vagtens vej til cron.job. Et job, der er planlagt før denne linje, men hvis
+-- seneste forventede fyring ligger efter, dømmes normalt; et, hvis fyring ligger
+-- før, er «nyt» indtil sin næste fyring (driftDom: foerst_set > forventet).
+insert into public.drift_agent_jobs (jobid, jobname, foerst_set)
+select j.jobid, j.jobname, now()
+  from cron.job j
+on conflict (jobid) do nothing;
+
 -- ── (d) Kernen af et svar ────────────────────────────────────────────────────
 -- Tager KUN disse felter (driftDom.ts KERNE_FELTER): ok · dry_run · fejlede ·
--- fejlet · fejl · faktura_i_haanden · over_loft · udsat · ventende · drift_agent.
+-- fejlet · fejl · faktura_i_haanden · over_loft · udsat · ventende · drift_agent ·
+-- error · errors.
+--   error              tal → tallet; liste → længden; objekt → 1; ikke-tom tekst → 1
+--   errors             tal → tallet; liste → længden; objekt → 1
+--                      (fund 8: functions, der svarer 200 med {"error": …} eller {"errors": [...]})
 --   fejl               tal → tallet; liste → længden; tekst → 1 (500-svarets «fejl: grund»)
 --   faktura_i_haanden  liste → længden
 --   ventende           de DISTINKTE {art, session_tid} — ingen mails
@@ -209,7 +250,18 @@ begin
                            (select jsonb_agg(distinct jsonb_build_object('art', v->>'art', 'session_tid', v->>'session_tid'))
                               from jsonb_array_elements(j->'ventende') v)
                          end,
-    'drift_agent',       case when jsonb_typeof(j->'drift_agent') = 'string' then j->'drift_agent' end
+    'drift_agent',       case when jsonb_typeof(j->'drift_agent') = 'string' then j->'drift_agent' end,
+    'error',             case jsonb_typeof(j->'error')
+                           when 'number' then j->'error'
+                           when 'array'  then to_jsonb(jsonb_array_length(j->'error'))
+                           when 'object' then to_jsonb(1)
+                           when 'string' then case when length(j->>'error') > 0 then to_jsonb(1) end
+                         end,
+    'errors',            case jsonb_typeof(j->'errors')
+                           when 'number' then j->'errors'
+                           when 'array'  then to_jsonb(jsonb_array_length(j->'errors'))
+                           when 'object' then to_jsonb(1)
+                         end
   ));
 end;
 $$;
@@ -366,7 +418,7 @@ revoke all on function public.drift_agent_laes() from public, anon, authenticate
 grant execute on function public.drift_agent_laes() to service_role;
 
 comment on function public.drift_agent_laes() is
-  'Driftsagenten (30/9-2026, skive 1): agentens ENESTE læsning af cron.job, cron.job_run_details (seneste 3000 gennem runid, 25 t), net._http_response (25 t, kun kernen af 200-svar), sporenes udfald (time/døgn) og cron_vagt_log. SECURITY INVOKER, STABLE, kun SELECT; hver sektion i egen EXCEPTION-blok → «fejl». EXECUTE kun til service_role. Dommen bor i supabase/functions/_shared/driftDom.ts.';
+  'Driftsagenten (30/9-2026, skive 1): agentens ENESTE læsning af cron.job, cron.job_run_details (seneste 3000 gennem runid, 25 t), net._http_response (25 t, kun kernen af 200-svar), sporenes udfald (time/døgn) og cron_vagt_log. Oprettet SECURITY INVOKER (20260930151000 gør den til DEFINER, kræver grønt lys), STABLE, kun SELECT; hver sektion i egen EXCEPTION-blok → «fejl». EXECUTE kun til service_role. Dommen bor i supabase/functions/_shared/driftDom.ts.';
 
 -- ── EFTER-tjek (kør og gem CSV) ──────────────────────────────────────────────
 select '1 tabeller' as sektion, table_name as noegle, 'findes' as vaerdi
@@ -388,4 +440,7 @@ select '5 laes (som postgres)', 'jobs/koersler/svar/spor/fejl',
                       ' · svar=', jsonb_array_length(l->'svar'), ' · spor=', jsonb_array_length(l->'spor'),
                       ' · fejl=', l->>'fejl')
           from (select public.drift_agent_laes() as l) x)
+union all
+select '6 drift_agent_jobs', 'raekker/cron.job',
+       concat((select count(*) from public.drift_agent_jobs), '/', (select count(*) from cron.job))
 order by 1, 2;

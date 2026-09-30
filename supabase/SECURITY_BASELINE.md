@@ -159,6 +159,7 @@ to the entire access-control model.
 - `cron_vagt_log`: RLS enabled; SELECT for advisors only; no client write policies (only the function writes).
 - Rules and thresholds are documented in the migration header; the paused-queue case is yellow, not red, by decision 9/9.
 - Five versions 9–10/9 (`20260910100000` alias, `20260910120000` join + PK-only read of `cron.job_run_details`, `20260910130000` `array_append`, `20260910140000` messenger): `advisor_notifications.company_id` is now **nullable** — a drift message is not about a company (previously `NOT NULL` since `20260226070216`; every other writer still sets it). The notification insert runs in its own EXCEPTION block so a messenger failure never rolls back the log row.
+- **Driftsagentens læser `drift_agent_laes()`** (udkast 30/9-2026, `20260930151000_driftsagent_rettigheder.sql` — **a NEW SECURITY DEFINER, requires Jonas' explicit go-ahead before it is run; not run**): takes the vagt's road to `cron`/`net` (definer owned by `postgres`) instead of granting `service_role` USAGE on schema `cron` (which, with pg_cron's functions' EXECUTE possibly left to PUBLIC — unmeasured — would let `service_role` call `cron.schedule`/`cron.unschedule`). `ALTER FUNCTION … SECURITY DEFINER` + `SET search_path = public, pg_temp`; no parameters; STABLE; SELECT-only (no INSERT/UPDATE/DELETE, `kald_edge`, `net.http_post`, `cron.schedule` — `driftDom.guard` dom 3); dynamic SQL only over a constant list of spor tables; never returns `cron.job.command` or a response body (only `drift_agent_kerne`'s numbers/booleans). EXECUTE revoked from PUBLIC, anon and authenticated; granted to `service_role` only. The header's FØR/EFTER SQL measures owner, `prosecdef`, `proconfig`, EXECUTE per role and `has_schema_privilege('service_role','cron','USAGE')` / `has_function_privilege('service_role','cron.schedule(text,text,text)'|'cron.unschedule(text)','EXECUTE')` — the cron/net lines must be unchanged. Rollback: back to SECURITY INVOKER.
 - Ninth version 16/9 (`20260916170000_vagtens_samlemail.sql`, explicit go-ahead from Jonas 16/9 — SECURITY DEFINER functions are on the CLAUDE.md FORBIDDEN list): the samlemail types (`event_published`, `community_opslag`, mirrored from `_shared/samlemail.ts`) are kept out of `usendte_30m` and only count as overdue once the latest samlemail window (17:00 Copenhagen, open ≥ 30 min) opened after the row was ready; waiting rows are reported in `tal.samlemail_venter`. Header, grants (revoked from PUBLIC/anon/authenticated) and everything else unchanged — enforced by `src/lib/__tests__/vagtSamlemail.guard.test.ts`, which strips the marked `-- NIENDE` lines and requires the remaining body to equal the eighth version byte for byte, and requires the type list and hour to match `samlemail.ts`.
 
 ### Member-visibility RPCs: `get_member_profile(p_user_id uuid)`, `get_event_participants(p_event_id uuid)`, `get_member_directory()`
@@ -744,14 +745,17 @@ skrivende edge functions bruger `SUPABASE_SERVICE_ROLE_KEY`.
   «første gang set» pr. cron-job, skrevet KUN af `drift-agent-cron` (Bucket B).
   RLS slået til UDEN policies. Ingen persondata: fundenes sætninger bygges af
   job-/spornavne, tal og klokkeslæt, og pg_crons fejlbesked føres gennem
-  `udenMail()`. Læsningen `public.drift_agent_laes()` og
-  `public.drift_agent_kerne(text)` er SECURITY INVOKER (ingen ny SECURITY
-  DEFINER), EXECUTE kun til `service_role`; af et HTTP-svar tages kun tal og
-  sandhedsværdier. `20260930151000_driftsagent_rettigheder.sql` giver — KUN
-  hvis FØR-målingen viser, at rollen mangler det — `service_role` USAGE/SELECT
-  på `cron.job`, `cron.job_run_details` og `net._http_response` (læseret, ingen
-  skriveret; `cron.job.command` returneres aldrig af læseren). Migration
-  `20260930150000_driftsagent.sql`, udkast 30/9-2026 (værn `driftDom.guard`).
+  `udenMail()`. `public.drift_agent_kerne(text)` er SECURITY INVOKER;
+  `public.drift_agent_laes()` oprettes SECURITY INVOKER og gøres til SECURITY
+  DEFINER af `20260930151000` (se «Driftsagentens læser» under Cron-vagten —
+  KRÆVER Jonas' grønne lys); begge EXECUTE kun til `service_role`; af et
+  HTTP-svar tages kun tal og sandhedsværdier, og `cron.job.command` returneres
+  aldrig. **Ingen GRANT på skemaerne `cron` eller `net` til `service_role`**
+  (første udgave af `20260930151000` gav USAGE på `cron` — det kan åbne
+  `cron.schedule`/`cron.unschedule`, altså skriveret; fjernet efter teknisk råd
+  30/9). `drift_agent_jobs` fyldes i migrationen med de eksisterende jobs.
+  Migration `20260930150000_driftsagent.sql`, udkast 30/9-2026 (værn
+  `driftDom.guard`).
 - `company_actions` — afviger fra de øvrige: klienter HAR SELECT
   (medlem company-scoped, rådgiver bredt); kun skrivning er
   service-role-only, se afsnittet ovenfor

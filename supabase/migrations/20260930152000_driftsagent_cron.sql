@@ -1,8 +1,16 @@
+-- KØRES FØRST EFTER UDRULNING OG TØRKØRSEL — IKKE i en samlet kørsel
 -- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
 --
--- KØRES ALLERSIDST — efter 20260930150000 (og evt. 20260930151000), efter at
+-- FØRSTE LINJE ER MED VILJE EN ANDEN end husets «IKKE KØRT»-linje (teknisk råd
+-- 30/9 fund 9): den, der scanner mappen efter første linje «IKKE KØRT» og kører
+-- det fundne i én omgang, må IKKE få dette job med — et cron-job mod en function,
+-- der ikke er udrullet, svarer 404 hvert kvarter. Rækkefølgen står i
+-- docs/OVERLEVERING.md DEL 3 «Driftsagenten, skive 1 — rækkefølgen».
+--
+-- KØRES ALLERSIDST — efter 20260930150000 og 20260930151000 (grønt lys), efter at
 -- drift-agent-cron er UDRULLET eksplicit fra build-chat, og efter at en
--- tørkørsel i hånden har svaret med "drift_agent":"skive-1" og «tal.jobs» > 0:
+-- tørkørsel i hånden har svaret med "drift_agent":"skive-1", «tal.jobs» > 0 og
+-- «laesefejl» tom:
 --   SELECT public.kald_edge('drift-agent-cron', '{}'::jsonb, 60000);
 --   SELECT id, status_code, left(content, 3000) FROM net._http_response ORDER BY id DESC LIMIT 1;
 --
