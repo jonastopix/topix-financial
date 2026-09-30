@@ -1,3 +1,4 @@
+-- KØRT i prod 30/9-2026 ca. 19:00 via Lovable-MCP'en efter tørkørslen (kald 26601: 200, "drift_agent":"skive-1", laesefejl []). cron.schedule gav jobid 575. Låsen driftsagent_aktiv er false.
 -- KØRES FØRST EFTER UDRULNING OG TØRKØRSEL — IKKE i en samlet kørsel
 -- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
 --

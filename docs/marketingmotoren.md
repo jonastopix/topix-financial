@@ -275,6 +275,8 @@ Udkast: `~/Downloads/udkast-klaviyo-motor/`, `udkast-klaviyo-motor-2/`.
 
 ## 4. Lag 4 — agenten: IKKE BYGGET
 
+**DOM 30/9 aften (værdivurdering af marketinganalytikeren): LÆG FREM — IKKE BYGGET.** Målt: 3 sessioner (25/8 og 22/9 afholdt; 13/10 kommende). Tilmeldinger pr. uge: 102 · 72 · 116 · 201 · 155 · 137 · 40. Kilder: fb 489 · facebook 179 · ig 99 · ingen 26 · fbclid 15 · klaviyo 6. **11 indsendte ansøgninger i alt** (webinar 5, andet 5, direkte 1); trin: lukket 8, indkaldt 2, underskrevet 1. Tragt 25/8: 91 → 19 så ≥ 75 % → 1 ansøgte → 0 møde; 22/9: 384 → 113 → 5 → 0. `/webinar` viser allerede tragten; den mangler «møde»-leddet og Wilson. **Genvurderes efter 13/10** (3 sessioner = «mønster»-tærsklen); enheden er sessionen. Hvis noget nu: Wilson + «for få» på fremmødeandel pr. annonce i `/webinar` (ingen agent). Samme dom for adfærdsagenten: `docs/agentarkitektur.md` §4.3.
+
 Ikke skitseret. Det, den skal stå på, er bygget: grundlaget (lag 1), evnen
 (lag 3), dommen (lag 6) og mindet (lag 6, §6). Det, den mangler, er lag 5.
 Dommens `maaForeslaas(felter, dom)` er den ene funktion, en agent skal kalde,

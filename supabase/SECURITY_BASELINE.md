@@ -252,7 +252,7 @@ to the entire access-control model.
 
 Mirror of `protect_aftale_spor` (same body, same rule): UPDATE always raises; DELETE raises only when direct (`pg_trigger_depth() <= 1` inside the trigger) — the cascade from `webinar_delinger` runs inside the RI trigger (depth 2) and passes, so a share and its trail can be deleted together (`oprettet_af` is `on delete restrict`). The trail (`webinar_deling_spor`) is append-only for every role including `service_role`. No SECURITY DEFINER; `search_path = public`. Not exercised in a real Postgres in the draft (no local/WASM Postgres) — the migration header carries the transaction-and-rollback probe; the SQL is locked by `webinarDeling.guard` dom 4.
 
-### `companies_medlem_kolonnevaern()` on `companies BEFORE UPDATE` (udkast 29/9-2026, migration `20260930090000` — IKKE KØRT)
+### `companies_medlem_kolonnevaern()` on `companies BEFORE UPDATE` (udkast 29/9-2026, migration `20260930090000` — KØRT i prod 30/9-2026)
 - Sikkerhedsanalysen 29/9 fund 1 (KRITISK): «Members can update own company» har ingen kolonnebegrænsning, så et medlem kunne selv sætte `contract_end_date`, `is_legat`, `*_session_used_at`, prisfelter, `stripe_customer_id`, `status` … Kolonne-GRANTs duer ikke (rådgivere deler rollen `authenticated`).
 - Når kalderen er et medlem — `current_user` eller JWT-rollen er `authenticated`/`anon`, og `has_role(auth.uid(), 'advisor')` er falsk — afvises (42501) enhver ændret kolonne UDEN for hvidlisten: `name, cvr_number, contact_email, website, contact_phone, industry_code, industry_label, logo_url, weekly_focus_enabled, description, offboarding_requested_at, onboarding_completed` (målt i `src/` 29/9). Fail-closed: en ny kolonne er beskyttet, til nogen åbner den.
 - Rådgivere/admin, `service_role` (edge functions) og `postgres` uden JWT (SQL editor, migrationer, pg_cron) passerer. SECURITY INVOKER, `search_path = public`; ingen eksisterende funktion eller companies-policy er rørt.
@@ -431,7 +431,7 @@ overlevende tabellers politikker med koncern-referencer fandt kun denne
 ene ramt (pulse_checkins' gruppe-politik var eksplicit erstattet).
 Fremtidige CASCADE-drops skal efterfølges af `pg_policies`-diff i prod.
 
-**Addendum (2026-09-29, sikkerhedsanalysen fund 6 og 7 — migration `20260930090000`, IKKE KØRT)**:
+**Addendum (2026-09-29, sikkerhedsanalysen fund 6 og 7 — migration `20260930090000`, KØRT i prod 30/9-2026)**:
 - **Fund 7:** «Members can insert own notifications» på `advisor_notifications` (WITH CHECK `member_id = auth.uid()` alene; `type`, `advisor_id`, `title`, `body` frie) droppes. Ingen klient brugte den (eneste klient-insert, `src/lib/advisorNotifications.ts`, havde ingen kaldere og er slettet); alle skrivere er edge functions med service role. `advisor_notifications` har derefter ingen klient-INSERT.
 - **Fund 6 — ÅBENT:** «Users can insert own reports/milestones/kpi targets/benchmarks» tjekker stadig kun `user_id` (BACKLOG [P4] ovenfor). En WITH CHECK på `company_id = user_company_id(auth.uid())` er ikke skrevet, fordi `user_company_id` tager én vilkårlig række (LIMIT 1) og `company_members` ikke er unik på `user_id` — et medlem i to virksomheder ville miste skriveadgang. Migrationens FØR-SELECT sektion 5–6 måler antallet af brugere i flere virksomheder og eksisterende rækker uden for skribentens virksomhed; stramningen skrives, når tallene er læst.
 

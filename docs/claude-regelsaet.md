@@ -101,6 +101,9 @@ Jonas: «Lav et teknisk råd: Lav en CTO og en der kigger på UX og design på p
 - **(æ) Bed aldrig Jonas teste noget, før forudsætningerne er læst.** Testen af «Online nu» med kontakt@topix.dk kunne aldrig vise noget, fordi testvirksomheden er sorteret fra med vilje. Det stod i bogføringen fra 16/9.
 - **(ø) At se er ikke altid at læse.** Når en side åbnes, kan den skrive, fx `read_at`, `last_seen` og `log_user_login`. En konto, der kun skal se, skal springe de skrivninger over.
 - **(å) `gh` findes ikke i skyen.** PR-nummeret gives eksplicit til merge.sh.
+- **(bb) Læs grenens hoved med `git ls-remote`, ikke den lokale tracking-ref, før en migration køres fra en gren.** Målt 30/9: en forældet `origin/<gren>` gav den forkerte udgave af `drift_agent_laes` (`left(return_message,300)` i stedet for 160); funktionen måtte genskabes ordret fra PR-hovedet i én transaktion og måles igen.
+- **(cc) Push aldrig i samme kæde som en rebase, der kan fejle — brug `&&` hele vejen.** Målt 30/9: en kæde med `;` pushede main's commit til en PR-gren efter en fejlet rebase, og GitHub lukkede #1174 (0 commits). Den blev genåbnet via API'et; intet gik tabt.
+- **(dd) Kør `npx vitest run guard` efter hvert header-flip.** Samme fejl to gange 30/9: kildeværn (`driftDom.guard` dom 5, `webinarMail.guard` dom 19) krævede «IKKE KØRT» som første linje og fældede CI, da hovedet blev vendt til KØRT. Værnene tillader nu «IKKE KØRT|KØRT i prod».
 
 ## 5. Modelvalg
 
@@ -135,7 +138,8 @@ Jonas forbandt Lovables officielle MCP-server (`https://mcp.lovable.dev`, [dokum
   - Migrationer kun fra en fil på main (eller en PR-gren, der merges straks efter) med «IKKE KØRT» i hovedet; kør filens krop ordret, mål, og vend hovedet til KØRT i samme PR/opfølgning.
   - `kald_edge(...)` (tørkørsler, beviser) er en skrivning i `net`-køen, men ikke af data: må uden at spørge, når body er en tørkørsel eller functionen er godkendt i drift.
 - **`send_message` til build-chatten** bruges KUN til deploy af edge functions og kun med den faste tekst: «Rør ingen kode, og commit intet. Kør deploy-værktøjet for …, og vis mig værktøjets resultat ordret.» Svaret læses med `get_message`, og `get_diff` på beskeden skal være TOM (ingen kodeændring). Viser diffen en ændring: stop og meld til Jonas. Deployen er først bevist ved et kald, der svarer med noget kun den nye kode kan (CLAUDE.md, «Deployment af edge functions»). `send_message` koster credits — én besked pr. deploy-runde, ikke én pr. function.
-- **`deploy_project` (= Update)** først når den nye commit er målt i Lovables kopi (`list_edits`/`read_file` på en ændret fil), og når `§1a` holder (alle migrationer, frontenden læser, er kørt og målt).
+- **`deploy_project` er IKKE Update (målt 30/9 ~19:10):** kaldet gav status pending og url `topix.lovable.app`; 8 minutter senere var `app.theboardroom.dk` uændret (`index-BFHfhh9b.js`, ingen score-kode i 232 chunks). Claude kalder den derfor ikke som erstatning for Update — **Update-klikket bliver hos Jonas**, først når den nye commit er målt i Lovables kopi (`list_edits`/`read_file` på en ændret fil), og når `§1a` holder (alle migrationer, frontenden læser, er kørt og målt).
+- **Underagenter arver Lovable-MCP'en (målt 30/9):** en recon-agent kørte en SELECT i prod. Derfor skal HVER agent-prompt udtrykkeligt forbyde skrivning i prod og `send_message`/`deploy_project` — at en agent «plejer» kun at læse er ikke et værn.
 - **Aldrig:** `create_project`, `remix_project`, `enable_database`, `set_project_visibility`, `set_*_knowledge`, workspace-skills, connectors — uden Jonas' særskilte ja.
 
 ## 7. Arbejdsgangen for én opgave
