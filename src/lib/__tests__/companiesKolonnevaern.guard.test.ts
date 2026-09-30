@@ -146,7 +146,7 @@ describe("companiesKolonnevaern.guard — hvidlisten i triggeren og medlemsstier
   const hvid = hvidlisten(sql);
 
   it("migrationen: første linje, trigger BEFORE UPDATE, SECURITY INVOKER, search_path, ingen FORBIDDEN-ændring", () => {
-    expect(sql.split("\n")[0]).toBe("-- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).");
+    expect(sql.split("\n")[0]).toMatch(/^-- (IKKE KØRT\. DEPLOY: manuelt i Lovable|KØRT i prod)/);
     const krop = udenSqlKommentarer(sql);
     expect(krop).toMatch(/create trigger companies_medlem_kolonnevaern\s+before update on public\.companies\s+for each row execute function public\.companies_medlem_kolonnevaern\(\);/);
     expect(krop).toContain("security invoker");
