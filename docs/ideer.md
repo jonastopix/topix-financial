@@ -18,3 +18,15 @@ Claudes første noter (30/9, ikke en vurdering endnu):
 - Åbne spørgsmål: hvem er brugerne (ikke-medlemmer?), login, persondata/GDPR for et åbent forum, ansvar for brugerindhold, og om det skal leve i Boardroom-platformen eller i topix.dk-projektet.
 
 Status: **idé** — ikke vurderet, ikke planlagt.
+
+## 2. Anbefalingsprogram (affiliate) på platformen (Jonas 30/9-2026 17:47)
+
+«… et stort upside for medlemmerne til at hverve nye medlemmer. Selvfølgelig medlemmer der stadig skal igennem ansøgningsprocessen … egne links til vi kan tracke fra ende til anden.» Status: **designpapir** — `docs/affiliate-design.md` (8 beslutninger til Jonas).
+
+## 3. The Boardroom som app (Jonas 30/9-2026 17:56)
+
+«… få lavet det hele som app … måske et afgørende moment til at hæve prisen i det nye år og engagere endnu flere medlemmer.» Status: **beslutningspapir** — `docs/app-beslutning.md` (A1–A7; anbefaling: PWA-først med web push på klokkerne).
+
+## 4. Tag prod hjem fra Lovable Cloud (Jonas 30/9-2026 17:33)
+
+Status: **beslutningspapir** — `docs/prod-hjem.md` (B1–B9).
