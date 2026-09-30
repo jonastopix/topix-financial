@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { mailtoKontakt } from "@/lib/kontaktadresse";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -12,6 +12,12 @@ import {
   afgoerBookSession,
   visMortenKolonne,
 } from "@/lib/hjemmebane/bookSessionTilstand";
+import {
+  BOOKING_LINK_FRIST_MS,
+  BOOKING_LINK_VENTER_TEKST,
+  bookingLinkInterval,
+  bookingLinkTilstand,
+} from "@/lib/hjemmebane/bookingLinkVent";
 
 /** Book session i Hb-udtryk (BookSession-GO 2026-08-13). Logikken er
     flyttet ORDRET fra src/pages/BookSession.tsx: samme tre queries, samme
@@ -116,20 +122,46 @@ export const BookSessionView = () => {
   const success = searchParams.get("success") === "true";
   const sessionId = searchParams.get("session_id");
 
-  const { data: booking } = useQuery({
+  // Ventetiden på linket (bookingLinkVent.ts): start ved mount, genstart ved
+  // «Prøv igen». Pollingen stopper ved link, fejl eller efter fristen.
+  const [ventStart, setVentStart] = useState(() => Date.now());
+  const [fristNaaet, setFristNaaet] = useState(false);
+  useEffect(() => {
+    if (!sessionId || !success) return;
+    setFristNaaet(false);
+    const t = setTimeout(() => setFristNaaet(true), BOOKING_LINK_FRIST_MS);
+    return () => clearTimeout(t);
+  }, [ventStart, sessionId, success]);
+
+  const { data: booking, isError: bookingFejlet, refetch: hentBookingIgen } = useQuery({
     queryKey: ["session-booking", sessionId],
     queryFn: async () => {
       if (!sessionId) return null;
-      const { data } = await (supabase as any)
+      const { data, error } = await (supabase as any)
         .from("session_bookings")
         .select("*")
         .eq("stripe_session_id", sessionId)
         .maybeSingle();
+      if (error) throw error;
       return data;
     },
     enabled: !!sessionId && success,
-    refetchInterval: (query) => (!query.state.data?.calendly_booking_url ? 2000 : false),
+    refetchInterval: (query) =>
+      bookingLinkInterval({
+        harLink: !!query.state.data?.calendly_booking_url,
+        fejlet: query.state.status === "error",
+        forloebetMs: Date.now() - ventStart,
+      }),
   });
+  const linkTilstand = bookingLinkTilstand({
+    harLink: !!booking?.calendly_booking_url,
+    fejlet: bookingFejlet,
+    forloebetMs: fristNaaet ? BOOKING_LINK_FRIST_MS : 0,
+  });
+  const proevLinkIgen = () => {
+    setVentStart(Date.now());
+    void hentBookingIgen();
+  };
 
   // Begge rettigheder + contract_end_date, saa kortenes gating kan matche backend'ens
   // "full" praecist (kontrakt i fremtiden), uafhaengigt af at useAuth remapper no_date
@@ -338,8 +370,15 @@ export const BookSessionView = () => {
           <p className="text-hb-ink-soft mb-8">
             Vi genererer dit personlige booking-link — det tager et øjeblik.
           </p>
-          {!booking?.calendly_booking_url ? (
+          {linkTilstand === "henter" ? (
             <p className="text-sm text-hb-ink-soft">Henter dit booking-link...</p>
+          ) : linkTilstand !== "klar" ? (
+            <div className="space-y-4" role="alert">
+              <p className="text-sm text-hb-ink">{BOOKING_LINK_VENTER_TEKST}</p>
+              <HbButton variant="secondary" className="w-full" onClick={proevLinkIgen}>
+                Prøv igen
+              </HbButton>
+            </div>
           ) : (
             <div className="space-y-4">
               <div className="bg-hb-evergreen/5 border border-hb-evergreen/20 rounded-hb p-4">
