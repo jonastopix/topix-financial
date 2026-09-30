@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowDown, ArrowUp, FileText, Link2, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { adminHentefejlTekst } from "@/lib/hjemmebane/adminListeTekst";
 import {
   buildAssetPath,
   createAttachment,
@@ -224,6 +225,11 @@ export const HbMaterials = ({ itemId }: { itemId: string }) => {
 
   return (
     <div className="space-y-2">
+      {/* Tom og fejlet er to beskeder (30/9, «Tavse queryFn'er»): uden linjen
+          så en fejlet hentning ud som «intet materiale». */}
+      {query.isError && (
+        <p className="text-xs text-hb-rust">{adminHentefejlTekst("materialet")}</p>
+      )}
       {attachments.map((attachment, index) => (
         <MaterialRow
           key={attachment.id}
