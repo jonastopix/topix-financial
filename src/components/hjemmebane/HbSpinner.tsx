@@ -25,3 +25,15 @@ export const HbSpinner = () => {
     </div>
   );
 };
+
+/**
+ * Indholds-spinneren — samme ring som HbSpinner, men uden fuld skærm og
+ * uden at male lærredet: den står INDE i en Hb-skal (Suspense omkring en
+ * lazy forside, Index.tsx), så sidebaren bliver stående, og kun
+ * indholdsfeltet venter.
+ */
+export const HbIndholdSpinner = () => (
+  <div className="flex items-center justify-center py-24" aria-busy>
+    <div className="h-6 w-6 animate-spin rounded-full border-2 border-hb-line border-t-hb-ink-soft" />
+  </div>
+);

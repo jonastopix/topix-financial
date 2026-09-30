@@ -38,7 +38,7 @@ import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useQuery } from "@tanstack/react-query";
-import topixIconWhite from "@/assets/topix-icon-white.png";
+import topixIconWhite from "@/assets/topix-icon-white-96.png";
 
 const baseNavItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
