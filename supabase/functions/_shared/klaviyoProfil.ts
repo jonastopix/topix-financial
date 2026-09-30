@@ -34,6 +34,7 @@
 import { kald, type KlaviyoSpor } from "./klaviyo.ts";
 import { erKlaviyoDato, PROFIL_FELT_DATO, PROFIL_FELT_TEKST, PROFIL_FELTER, type Profilvaerdier } from "./klaviyoDato.ts";
 import { kbhDato } from "./hverdage.ts";
+import { bygMedlemKrop, MEDLEM_FELT } from "./klaviyoMedlem.ts";
 
 export const PROFIL_STI = "/profile-import/";
 
@@ -159,6 +160,8 @@ export interface FejletSkrivning {
   email: string;
   udfald: string;
   grund: string | null;
+  /** Hvilket felt skrivningen gjaldt. Udeladt = webinarparret (sådan var det før 30/9). */
+  felt?: "webinar" | "medlem";
 }
 
 /** Hvad der typisk er galt — pr. udfald (klaviyo.ts' udfald). */
@@ -168,7 +171,7 @@ export const PROFIL_ALARM_AARSAG: Record<string, string> = {
   loft: "Klaviyos loft for /profile-import (75/s, 750/m) — næste time tager resten",
   timeout: "Klaviyo svarede ikke inden for 3 s — næste time prøver igen",
   fejl: "Klaviyo svarede 5xx, eller netværket faldt — næste time prøver igen",
-  ugyldig: "datoformen blev afvist FØR kaldet (kildeværnet) — en kodefejl i klaviyoDato.ts, ikke et Klaviyo-svar",
+  ugyldig: "værdien blev afvist FØR kaldet (kildeværnet: datoformen eller tb_medlem som boolean) — en kodefejl i klaviyoDato.ts/klaviyoMedlem.ts, ikke et Klaviyo-svar",
 };
 
 export interface ProfilAlarmTekst {
@@ -192,15 +195,21 @@ export function profilAlarmTekst(fejlede: readonly FejletSkrivning[], nu: Date):
   const dato = kbhDato(nu);
   const n = fejlede.length;
   const hvad = n === 1 ? "1 profilskrivning" : `${n} profilskrivninger`;
-  const emne = `${hvad} til Klaviyo fejlede — webinarets tidspunkt står ikke på profilen`;
+  // Medlemsfeltet (30/9) deler alarmen: emnet siger, HVILKE felter der mangler.
+  const medlem = fejlede.some((f) => f.felt === "medlem");
+  const webinar = fejlede.some((f) => f.felt !== "medlem");
+  const mangler = medlem && webinar
+    ? `webinarets tidspunkt eller medlemsfeltet (${MEDLEM_FELT}) står ikke på profilen`
+    : medlem ? `medlemsfeltet (${MEDLEM_FELT}) står ikke på profilen` : "webinarets tidspunkt står ikke på profilen";
+  const emne = `${hvad} til Klaviyo fejlede — ${mangler}`;
   const titel = `Klaviyo: ${hvad} fejlede (${dato})`;
   const udfald = taelUdfald(fejlede);
   const afsnit = [
-    `klaviyo-profil-cron skriver webinarets tidspunkt (tb_naeste_webinar) på Klaviyo-profilen hver time. I den seneste kørsel fejlede ${hvad}. Udfald: ${udfald.map((u) => `${u.udfald} ${u.antal}`).join(" · ")}.`,
+    `klaviyo-profil-cron skriver webinarets tidspunkt (tb_naeste_webinar) og medlemsfeltet (${MEDLEM_FELT}) på Klaviyo-profilen hver time. I den seneste kørsel fejlede ${hvad}. Udfald: ${udfald.map((u) => `${u.udfald} ${u.antal}`).join(" · ")}.`,
     "Cronen prøver igen næste time for dem, der fejlede. Denne mail sendes højst én gang i døgnet.",
   ];
   const blokke = [
-    ...fejlede.slice(0, PROFIL_ALARM_EKSEMPLER).map((f) => ({ overskrift: f.email, tekst: `${f.udfald}${f.grund ? ` — ${f.grund}` : ""}` })),
+    ...fejlede.slice(0, PROFIL_ALARM_EKSEMPLER).map((f) => ({ overskrift: f.felt === "medlem" ? `${f.email} (${MEDLEM_FELT})` : f.email, tekst: `${f.udfald}${f.grund ? ` — ${f.grund}` : ""}` })),
     ...udfald.map((u) => ({ overskrift: `Hvad der typisk er galt ved «${u.udfald}»`, tekst: PROFIL_ALARM_AARSAG[u.udfald] ?? "ukendt udfald — læs klaviyo_profil" })),
   ];
   const tekst = [
@@ -209,6 +218,108 @@ export function profilAlarmTekst(fejlede: readonly FejletSkrivning[], nu: Date):
     ...blokke.map((b) => `${b.overskrift}: ${b.tekst}`),
     "",
     "Tabellen: select email, udfald, status, grund, forsoegt_at from public.klaviyo_profil where udfald <> 'ok' order by forsoegt_at desc;",
+    ...(medlem ? ["Medlemsfeltet: select email, medlem_udfald, medlem_status, medlem_grund, medlem_forsoegt_at from public.klaviyo_profil where medlem_udfald <> 'ok' order by medlem_forsoegt_at desc;"] : []),
   ].join("\n");
   return { emne, titel, afsnit, blokke, tekst };
+}
+
+// ── Medlemsfeltet tb_medlem (30/9-2026, klaviyoMedlem.ts) ─────────────────────
+//
+// SAMME ENDEPUNKT, SAMME NØGLE, SAMME TABEL — ANDRE KOLONNER. Webinarparret ovenfor
+// røres aldrig herfra: kroppen bærer KUN tb_medlem (bygMedlemKrop), og tilstanden
+// skrives i medlemskolonnerne (migration 20260930110000_klaviyo_profil_medlem.sql):
+//   tb_medlem · tb_medlem_skrevet_at · medlem_forsoegt_at · medlem_udfald ·
+//   medlem_status · medlem_grund
+//
+// RÆKKEN FINDES ELLER FINDES IKKE. En række skrevet af webinarpasset opdateres
+// KUN i medlemskolonnerne (update … eq email), så webinarets sidste forsøg
+// (udfald/status/grund) står urørt. Findes rækken ikke, indsættes den — og da
+// `udfald` og `forsoegt_at` er NOT NULL uden standard (migration 20260921190000),
+// bærer den nye række medlemsforsøget også i de fælles kolonner: de betyder
+// «sidste forsøg på profilen», og der var intet andet. Migrationen er kun
+// tilføjende; NOT NULL røres ikke.
+//
+// INGEN RETURN FØR RÆKKEN ER SKREVET (klaviyo.guard dom 7's regel, klaviyoMedlem.guard).
+
+/** Så lidt af Supabase-klienten som medlemstilstanden behøver. */
+export interface MedlemSkriver {
+  from(tabel: string): {
+    update(raekke: unknown): {
+      eq(kolonne: string, vaerdi: string): {
+        select(kolonner: string): PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>;
+      };
+    };
+    upsert(raekke: unknown, valg: { onConflict: string }): PromiseLike<{ error: { message: string } | null }>;
+  };
+}
+
+/** Medlemskolonnerne efter ét forsøg. Ved fejl røres tb_medlem ikke — så prøves igen næste time. */
+export function medlemTilstand(medlem: boolean, spor: KlaviyoSpor, nu: Date): Record<string, unknown> {
+  const r: Record<string, unknown> = {
+    medlem_forsoegt_at: nu.toISOString(),
+    medlem_udfald: spor.udfald,
+    medlem_status: spor.status,
+    medlem_grund: spor.grund,
+  };
+  if (spor.udfald === "ok") {
+    r.tb_medlem = medlem === true;
+    r.tb_medlem_skrevet_at = nu.toISOString();
+  }
+  return r;
+}
+
+async function skrivMedlemTilstand(skriver: MedlemSkriver | null, email: string, medlem: boolean, spor: KlaviyoSpor, nu: Date): Promise<void> {
+  if (!skriver) return;
+  const kolonner = medlemTilstand(medlem, spor, nu);
+  try {
+    const opd = await skriver.from("klaviyo_profil").update(kolonner).eq("email", email).select("email");
+    if (opd.error) { console.error(`[klaviyo] klaviyo_profil (medlem) kunne ikke opdateres for ${email}:`, opd.error.message); return; }
+    if ((opd.data ?? []).length > 0) return;
+    const ny = {
+      email,
+      ...kolonner,
+      forsoegt_at: nu.toISOString(),
+      udfald: spor.udfald,
+      status: spor.status,
+      varighed_ms: spor.varighed_ms,
+      svar: spor.svar,
+      grund: spor.grund,
+    };
+    const { error } = await skriver.from("klaviyo_profil").upsert(ny, { onConflict: "email" });
+    if (error) console.error(`[klaviyo] klaviyo_profil (medlem) kunne ikke indsættes for ${email}:`, error.message);
+  } catch (e) {
+    console.error(`[klaviyo] klaviyo_profil (medlem) kastede for ${email}:`, e);
+  }
+}
+
+/**
+ * Skriv tb_medlem (true/false) på profilen for én mail, og skriv tilstanden.
+ * KASTER IKKE SELV — det sidste værn ligger i klaviyoAfsendelse.skrivMedlemHvisNoegle.
+ */
+export async function skrivMedlem(
+  skriver: MedlemSkriver | null,
+  noegle: string | null | undefined,
+  email: string,
+  medlem: boolean,
+  valg: Parameters<typeof kald>[2] & { nuDato?: Date } = {},
+): Promise<ProfilSkrivning> {
+  const mail = email.trim().toLowerCase();
+  const nu = valg.nuDato ?? new Date();
+  const krop = bygMedlemKrop(mail, medlem);
+  // Værdien dømmes FØR kaldet: kun en ægte boolean må type feltet hos Klaviyo.
+  if (typeof medlem !== "boolean") {
+    const spor: KlaviyoSpor = {
+      udfald: "ugyldig", metode: "POST", sti: PROFIL_STI, status: null, svar: null,
+      grund: `${MEDLEM_FELT} skal være boolean, fik ${typeof medlem}`, varighed_ms: 0,
+    };
+    await skrivMedlemTilstand(skriver, mail, false, spor, nu);
+    return { sendt: false, spor, krop };
+  }
+  const { nuDato: _nuDato, ...kaldValg } = valg;
+  const svar = await kald(noegle, PROFIL_STI, { ...kaldValg, metode: "POST", krop });
+  await skrivMedlemTilstand(skriver, mail, medlem, svar.spor, nu);
+  if (!svar.ok && svar.spor.udfald !== "ingen_noegle") {
+    console.error(`[klaviyo] ${MEDLEM_FELT} for ${mail} blev ikke skrevet (${svar.spor.udfald}): ${svar.spor.grund ?? ""}`);
+  }
+  return { sendt: svar.ok, spor: svar.spor, krop };
 }
