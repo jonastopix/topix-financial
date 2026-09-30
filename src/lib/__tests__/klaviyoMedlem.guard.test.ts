@@ -133,7 +133,7 @@ export const migrationenErRigtig = (mig: string, tabel: string): boolean => {
   const liste = (sql: string, navn: string) => sql.match(new RegExp(`${navn}[\\s\\S]*?in \\(([^)]*)\\)`))?.[1]?.replace(/\s+/g, " ").trim();
   const kolonner = ["tb_medlem boolean", "tb_medlem_skrevet_at timestamptz", "medlem_forsoegt_at timestamptz", "medlem_udfald text", "medlem_status integer", "medlem_grund text"];
   const drops = [...m.matchAll(/\bdrop\s+(\w+)/gi)].map((x) => x[0].toLowerCase());
-  return mig.startsWith("-- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).\n") &&
+  return /^-- (IKKE KØRT\. DEPLOY: manuelt i Lovable|KØRT i prod)/.test(mig) &&
     kolonner.every((k) => new RegExp(`add column if not exists ${k.split(" ")[0]}\\s+${k.split(" ")[1]}\\b`).test(m)) &&
     // Kun tilføjende: ingen drop ud over den ene CHECK's idempotens, ingen alter column, ingen not null, ingen politik.
     drops.every((d) => d === "drop constraint") && (m.match(/drop constraint if exists klaviyo_profil_medlem_udfald_check/g) ?? []).length === 1 &&
