@@ -1012,6 +1012,18 @@ skrivende edge functions bruger `SUPABASE_SERVICE_ROLE_KEY`.
   veje kan ikke skabe dubletter, og importen kan aldrig sænke en kendt
   procent. `EWEBINAR_API_KEY` er team-scoped («equivalent to a user login»)
   og må kun stå i Lovable-secrets. Kildeværn `ewebinarImport.guard`.
+- `webinar-video` (udkast 30/9-2026) — offentlig, `verify_jwt = false`
+  (bevidst: et klik i en indbakke bærer hverken Authorization eller apikey).
+  Legitimationen er mail-rækkens id i URL'en (`?m=<webinar_mails.id>`, uuid
+  trukket af `webinar-mail-cron` før mailen bygges): formen dømmes FØR
+  opslaget (`laesKlikId`), og `verifyVideoKlik` (`_shared/webinarVideo.ts`,
+  registreret prædikat) slår en SENDT `en_dag`-række op. Kun et kendt id
+  logges — i `webinar_video_klik` (migration `20260930181000`: mail_id +
+  tidspunkt, ingen IP/user agent/adresse; FK on delete cascade; service_role
+  ALL, advisor SELECT). **Ingen åben viderestilling:** målet bygges af
+  `app_config.webinar_en_dag_video` (library = cifre, video = GUID) på den
+  faste vært `iframe.mediadelivery.net` (`bunnyAfspilUrl`), aldrig af URL'en.
+  Kildeværn `webinarMail.guard` dom 19.
 - `send-report-reminder` — service-role-only gate
 - `manage-advisor` — admin role gate + service-role operations
 - `process-pending-invitation` — self-only guard + server-verified email
