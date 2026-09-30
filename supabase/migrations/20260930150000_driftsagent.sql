@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod 30/9-2026 ca. 17:50 via Lovable-MCP'en (i én transaktion). FØR: tabeller/funktioner ingen · låsen ikke sat · service_role: bypassrls true, USAGE cron false, EXECUTE cron.schedule/unschedule true (fandtes i forvejen), SELECT cron.job/job_run_details/net._http_response/cron_vagt_log true, USAGE net true · vagt-cron «7 * * * *» · 1916 kørsler på 25 t (3000 rækker rækker tilbage til 29/9 00:35). EFTER: 2 tabeller · 2 funktioner prosecdef=f · låsen false · ingen politikker · laes som postgres: jobs=30, koersler=1916, svar=395, spor=5, fejl=[] · drift_agent_jobs 30/30. NB: første kørsel brugte en forældet kopi med left(return_message, 300); funktionen er genskabt ordret fra denne fil (160) samme aften, målt har_160 = true.
 --
 -- DRIFTSAGENTEN, skive 1 (30/9-2026; Jonas: «den overvåger cron-jobs, fejl,
 -- mailudsendelser og svartider og skriver til dig, før noget går galt»).

@@ -1,5 +1,4 @@
--- KRÆVER JONAS' GRØNNE LYS (ny SECURITY DEFINER) — IKKE i en samlet kørsel.
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod 30/9-2026 ca. 17:52 via Lovable-MCP'en efter Jonas' grønne lys («Ja til begge», 16:57). FØR: prosecdef false · ejer postgres · search_path=public · EXECUTE laes: service_role true, authenticated false, anon false · service_role USAGE cron false · EXECUTE cron.schedule true · cron.unschedule true · SELECT cron.job true · SELECT net._http_response true. EFTER: prosecdef TRUE · ejer postgres · search_path=public, pg_temp · de øvrige linjer UÆNDREDE.
 --
 -- DRIFTSAGENTENS LÆSEVEJ (30/9-2026, rettet efter teknisk råd samme dag, fund 1).
 --
