@@ -58,7 +58,7 @@ export function ejefald(navn: string): string {
     ISO-uge — søndag er sidste dag). Uden navn: «medlemmets forside». */
 export function ugefokusForklaring(virksomhedsnavn: string | null | undefined): string {
   const hvor = virksomhedsnavn && virksomhedsnavn.trim() ? `${ejefald(virksomhedsnavn)} forside` : "medlemmets forside";
-  return `Godkend, så står det som ugens fokus på ${hvor} denne uge. Forslaget udløber søndag.`;
+  return `Godkend, så erstatter det ugens fokus på ${hvor}. Forslaget udløber søndag.`;
 }
 
 /** Linjen ved et forslag, der kun kan forkastes (ikke et udløbet — det har

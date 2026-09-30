@@ -288,7 +288,9 @@ export default function AgentForslagPanel({ companyId, virksomhedsnavn }: AgentF
                 },
               });
               if (agentError) throw agentError;
-              if (agentData?.dry_run === true && agentData?.ok === false && agentData?.run_id && agentData?.diagnostics?.produced_output === false) {
+              if (agentData?.dry_run === true && agentData?.ok === false && agentData?.run_id && agentData?.diagnostics?.produced_output === false && agentData?.diagnostics?.stop_reason === "finish") {
+                // Kun et REGULÆRT slut (modellen kaldte finish) er «intet at foreslå»; en gateway-fejl,
+                // timeout eller et loft er en fejl og går til toast.error nedenfor (rådets fund 1, 30/9).
                 // Et lovligt udfald (design §9): agenten fandt intet medlemsrettet
                 // fokus at foreslå. Kørslen står i loggen — det er ikke en fejl.
                 toast("Agenten fandt ikke et fokus at foreslå denne gang", {

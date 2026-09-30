@@ -105,7 +105,7 @@ describe("AgentForslagPanel — forståeligt for en rådgiver", () => {
   const panel = readFileSync(resolve(process.cwd(), "src/components/AgentForslagPanel.tsx"), "utf8");
 
   it("ugefokusForklaring siger hvad godkendelse gør og at forslaget udløber søndag", () => {
-    expect(ugefokusForklaring("Carma")).toBe("Godkend, så står det som ugens fokus på Carmas forside denne uge. Forslaget udløber søndag.");
+    expect(ugefokusForklaring("Carma")).toBe("Godkend, så erstatter det ugens fokus på Carmas forside. Forslaget udløber søndag.");
     expect(ugefokusForklaring("Topix")).toContain("på Topix' forside");
     expect(ugefokusForklaring(null)).toContain("på medlemmets forside");
     expect(ejefald("Bland Selv Frø")).toBe("Bland Selv Frøs");
@@ -124,5 +124,12 @@ describe("AgentForslagPanel — forståeligt for en rådgiver", () => {
     const kald = panel.slice(panel.indexOf('invoke("run-company-agent"'));
     expect(kald.slice(0, 300)).toContain('trigger: "company_review"');
     expect(kald.slice(0, 300)).toContain("dry_run: true");
+  });
+});
+
+describe("AgentForslagPanel — «fandt intet» er kun et regulært slut (rådets fund 1, 30/9)", () => {
+  const panelTekst = readFileSync("src/components/AgentForslagPanel.tsx", "utf8");
+  it("den rolige besked kræver stop_reason === finish", () => {
+    expect(panelTekst).toContain('agentData?.diagnostics?.stop_reason === "finish"');
   });
 });

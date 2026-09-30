@@ -262,3 +262,6 @@ Kørsel `5da0a17a-2c5a-4e36-aa60-cf1dbbaa5de4` (25/8 kl. 14:47) foreslog `write_
 **9.5 Udrulning.** Ingen migration. `run-company-agent` ruller IKKE med merge: eksplicit deploy fra build-chatten, derefter én tør `company_review` og læs `annoncerede_vaerktoejer` i svaret (må ikke indeholde `write_company_action`). Frontend (`src/`): Update.
 
 **9.6 Værn.** `agentToerkoersel.test.ts` (tør-tilstand annoncerer kun godkendbare skrivetools for hver trigger; live er uændret; fælles blokering for annoncering og afvisning; beviset i alle fire svar; onboarding-prompten beder ikke om en opgave) og `agentforslagVenter.guard.test.ts` (begge hentninger tæller med `kraeverAfgoerelse` og henter `tool`; dommen selv; panelets linje og knap).
+
+
+**Rådets fund til #1191 (30/9 nat):** (1) den rolige besked «fandt intet» kræver nu `stop_reason === "finish"` — gateway-fejl, timeout og lofter er fejl; (2) onboarding-prompten er FÆLLES for tør og live, så en live onboarding mister også punktet om en opgave — målt: eneste kalder (`useAuth.tsx:315`) kører `dry_run: true`, ingen kalder onboarding live; (3) panelteksten siger «erstatter», fordi godkend overskriver et fokus, som en live-kørsel eller `generate-weekly-focus` allerede har sat (§9.4).
