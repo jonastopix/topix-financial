@@ -91,10 +91,10 @@ const PushEditor = forwardRef<
   const dirty = Object.keys(draft).length > 0;
   const metadata = (form.metadata as Record<string, unknown>) ?? {};
 
-  // Afsender-vælgeren (bølge 1, PR 2): rådgiverlisten hentes m. SAMME
-  // to-trins-query som chat-tildelingens dropdown (CompanyChatPane:
-  // "Cached advisor list for assignment dropdown (two-step: roles then
-  // profiles)") — RLS-policyen "Advisors can view all roles" bærer den.
+  // Afsender-vælgeren (bølge 1, PR 2): rådgiverlisten hentes to-trins
+  // (roller, derefter profiler) — samme form som chattens tidligere
+  // tildelings-dropdown, der blev fjernet 1/10 — RLS-policyen "Advisors
+  // can view all roles" bærer den.
   const { data: advisors = [] } = useQuery({
     queryKey: ["admin-push", "advisor-profiles"],
     queryFn: async () => {

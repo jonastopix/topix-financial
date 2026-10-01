@@ -287,7 +287,9 @@ blok 6.
 `/chat` viser, samme skrivevej. Med i tråden: **rapport-kommentarer**
 skrevet med `context_type: "report"` (`MemberDetail.tsx:545–575`) som
 kontekst-beskeder, og **«Tildelt: {rådgiver}»** (`conversations.
-assigned_advisor_id`, l. 481–495, 981–986).
+assigned_advisor_id`, l. 481–495, 981–986). *Fjernet 1/10-2026 (Jonas:
+«Tildeling af rådgiver skal helt fjernes fra platformen … Rådgiverne er
+sammen om alle medlemmer.») — se `docs/chat-design.md` §9.*
 
 **5. Tallene.** Finansielt snapshot med **afvigelserne fremhævet frem
 for alle tal**. Det MemberDetail i dag viser som «Finansielt
@@ -554,7 +556,7 @@ til:
 | 9 | «Godkend rapport →» | `MemberDetail.tsx:1587–1594`, `<a href="/admin/review-queue">` | link ud til review queue, **uændret** |
 | 10 | «Se original fil» (`openReportFile`) | `MemberDetail.tsx:577–579, 1607–1616` | **blok 6** |
 | 11 | Deep-link-ankre `?reportId=`, `?handout=`, `?section=` | `MemberDetail.tsx:207–223, 289–319`; skrives af `AdvisorNotifications.tsx:89, 104` | **skal bevares på den nye rute** (`/virksomhed/:companyId?reportId=…` osv.) |
-| 12 | «Tildelt: {rådgiver}» (`conversations.assigned_advisor_id` → `profiles`) | `MemberDetail.tsx:486–495, 981–986` | **blok 4** |
+| 12 | «Tildelt: {rådgiver}» (`conversations.assigned_advisor_id` → `profiles`) | `MemberDetail.tsx:486–495, 981–986` | **blok 4** — *fjernet 1/10-2026 (chat-design.md §9)* |
 | 13 | «Invitation sendt til {email}»-advarslen (invitations-email ≠ profil-email) | `MemberDetail.tsx:417–452, 987–992` | **blok 7** |
 | 14 | Quick stats (rapporter / aktive milestones / handouts) | `MemberDetail.tsx:894–912` | **blok 6** |
 | 15 | Tilknyt eksisterende bruger (`attach-user-to-company`) | `Members.tsx:199–236`, inde i import-dialogen | **blok 7**, tilføjes som **niende handling** (§3.6) |

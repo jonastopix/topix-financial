@@ -82,7 +82,6 @@ const KLIENT_UNDTAGET: Readonly<Record<string, string>> = {
   "src/components/hjemmebane/events/EventDetailView.tsx": "OPSLAG pr. id: eventets værter — værtsvælgeren (EventEditor) tilbyder aldrig en tjenestekonto",
   "src/components/hjemmebane/ansoegninger/AnsoegningView.tsx": "OPSLAG pr. id: navnet på den rådgiver, der tog beslutningen i sporet",
   "src/hooks/trofaeer.ts": "ROLLE: «Hjalp et andet medlem» — en tråd fra en rådgiver eller tjenestekonto er ikke et medlems; kontoen skal MED i mængden",
-  "src/hooks/useVirksomhed.ts": "OPSLAG pr. id: «Tildelt» — tildelings-vælgeren (CompanyChatPane) tilbyder aldrig en tjenestekonto",
 };
 
 /** Edge-steder, der BEVIDST ikke filtrerer — med grunden. */
@@ -97,11 +96,13 @@ const EDGE_UNDTAGET: Readonly<Record<string, string>> = {
   "supabase/functions/send-notification-email/index.ts": "ROLLE: rådgivere undtages fra medlemsmails",
 };
 
-/** Steder, der viser rådgivere (eller netværket) som personer — skal filtrere. */
+/** Steder, der viser rådgivere (eller netværket) som personer — skal filtrere.
+    1/10: CompanyChatPane (tildelings-vælgeren), AdvisorDashboard (bunkernes
+    «tildelt»-navn) og useVirksomhed («Tildelt:» — stod på KLIENT_UNDTAGET)
+    er taget af listerne: tildeling af rådgiver er fjernet (Jonas 1/10), og de
+    henter ikke længere rådgiverne. Værn: ingenTildeling.guard. */
 const PERSON_STEDER = [
   "src/components/MemberChatPane.tsx", // «Dine rådgivere: Jonas, Morten»
-  "src/components/CompanyChatPane.tsx", // tildelings-vælgeren
-  "src/components/AdvisorDashboard.tsx", // tildelings-vælgeren i køen (AdvisorQueueRow)
   "src/components/hjemmebane/opgaver/OpgavelisteView.tsx", // «Mig/Jonas/Morten»
   "src/components/hjemmebane/admin/views/PushView.tsx", // pushets afsender
   "src/components/hjemmebane/admin/editors/EventEditor.tsx", // værtsvælgeren

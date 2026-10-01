@@ -6,8 +6,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
-import { hentTjenestekonti } from "@/hooks/tjenestekonti";
-import { synligeRaadgivere } from "@/lib/tjenestekonto";
 import { kraevRaekker } from "@/lib/kraevRaekker";
 import { notifyChatMessage } from "@/lib/chatNotify";
 import { uploadChatAttachments } from "@/lib/chatAttachments";
@@ -33,7 +31,7 @@ import {
   Send, MessageCircle, CheckCheck, FileText, Sparkles, Target, Quote,
   Search, Inbox, Clock, AlertCircle, Filter, Calculator, BookOpen, MessageSquare,
   BarChart3, Pin, Maximize2, Minimize2, ArrowLeft, ExternalLink, Eye,
-  UserCheck, Users as UsersIcon, ChevronDown, ChevronLeft, ChevronRight, Check, ArrowRightLeft,
+  UserCheck, Users as UsersIcon, ChevronDown, ChevronLeft, ChevronRight, ArrowRightLeft, ListPlus,
   CalendarIcon, MoreHorizontal, Building2, Loader2, AlertTriangle,
   TrendingUp, TrendingDown, Minus,
 } from "lucide-react";
@@ -49,6 +47,8 @@ import { ChatVideoSendeLinje } from "@/components/ChatVideoSendeLinje";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 import { HbTag } from "@/components/hjemmebane/HbTag";
 import { hbControlClasses } from "@/components/hjemmebane/admin/HbField";
+import { HbPopover } from "@/components/hjemmebane/milestones/HbOverlejring";
+import { cn } from "@/lib/utils";
 import {
   Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose,
 } from "@/components/ui/drawer";
@@ -66,7 +66,6 @@ import { da } from "date-fns/locale";
 // ren flytning, samme indhold som før.
 import {
   dateSeparatorLabel,
-  getInitials as getInitialsLocal,
   MAX_MESSAGE_LENGTH,
   TOPIC_COLORS,
   type ConversationWithProfile,
@@ -98,7 +97,7 @@ import {
  * («ADVISOR INBOX SIDEBAR») er husets listeform: papir, hairlines
  * (divide/border-hb-line), søgefelt i hbControlClasses, grupperne som
  * eyebrow-overskrifter, én række pr. samtale med ForfatterAvatar, navn,
- * tid, status og rådgiver — HbTag til statusser (Legat, Udløbet, tæller).
+ * tid og status (rådgiver-mærket udgik 1/10 med tildelingen) — HbTag til statusser (Legat, Udløbet, tæller).
  * Ordet siger hvad rækken er; tonen siger kun om noget haster: rust for
  * «Kræver svar», blæk for «Tjek ind» (før amber — en påmindelse, ikke en
  * fejl), ink-soft for resten. «SE TAL»-SKUFFEN beholder vaul-Draweren
@@ -128,8 +127,10 @@ import {
     lukker ved mousedown udenfor og ved Escape (capture), fokus tilbage til
     triggeren. Samme regler som HbOverlejring.HbPopover, som er venstre-
     forankret — en `align`-prop dér er det naturlige næste skridt, så denne
-    kan udgå. Klik INDE i panelet (tildel, foreslå opgave med felter) lukker
-    ikke; kalderen lukker selv efter en handling, som før. */
+    kan udgå. Klik INDE i panelet lukker ikke; kalderen lukker selv efter
+    en handling, som før. Siden 1/10 kun på mobil («Se tal», forrige/næste);
+    tildelingen er fjernet, og «Kræver ikke svar»/«Foreslå skridt» står
+    synligt i headeren (HbPopover — panelClassName gør den højre-forankret). */
 const HbMenu = ({
   open, onOpenChange, trigger, children,
 }: {
@@ -278,9 +279,15 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
   const [showMessages, setShowMessages] = useState(false);
   const [participants, setParticipants] = useState<{ user_id: string; full_name: string; avatar_url: string | null; isAdvisor: boolean }[]>([]);
   const [companyMembers, setCompanyMembers] = useState<{ user_id: string; full_name: string; avatar_url: string | null }[]>([]);
-  const [assignmentPopoverOpen, setAssignmentPopoverOpen] = useState(false);
+  // ⋯-menuen findes KUN på mobil (1/10): den bærer «Se tal» og forrige/næste.
+  // Tildeling er fjernet (Jonas 1/10), og «Kræver ikke svar»/«Foreslå skridt»
+  // står synligt i headeren — på desktop var menuen tom og er derfor væk.
+  const [mobilMenuAaben, setMobilMenuAaben] = useState(false);
+  // «Foreslå skridt»-popoveren i headeren (1/10, Jonas: «Vi får det ikke
+  // brugt, hvis det gemmer sig oppe i hjørnet bag tre streger»).
+  const [forslagAaben, setForslagAaben] = useState(false);
   const [showCompanyDrawer, setShowCompanyDrawer] = useState(false);
-  // Foreslå skridt fra chatten (rådgiver, ⋯-menuen) — B1: et forslag,
+  // Foreslå skridt fra chatten (rådgiver, headerens knap) — B1: et forslag,
   // ikke en opgave, før medlemmet siger ja i "Dine skridt" på forsiden.
   // Fase 3 («Én plan») — JONAS 16/9 (ordret: «B»): målvælgeren er VALGFRI.
   // Standard = det ældste aktive mål (aktiveMaalQuery er sorteret ældst
@@ -299,36 +306,6 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
   // rådgiver). Modtageren er nu virksomheden: dens navn når panelet er
   // låst til én virksomhed (blok 4), ellers neutralt «virksomheden».
   // `modtagerLabel` regnes nedenfor, når activeConv kendes.
-
-
-  // Cached advisor list for assignment dropdown (two-step: roles then profiles)
-  const { data: advisorUsers, isError: advisorUsersError } = useQuery({
-    queryKey: ["advisor-users-for-assignment"],
-    queryFn: async () => {
-      const { data: roles, error: rolesErr } = await supabase
-        .from("user_roles")
-        .select("user_id, role")
-        .in("role", ["advisor", "admin"]);
-      if (rolesErr) throw rolesErr;
-      if (!roles?.length) return [];
-      const uniqueIds = [...new Set(roles.map((r) => r.user_id))];
-      const { data: profiles, error: profErr } = await supabase
-        .from("profiles")
-        .select("user_id, full_name, avatar_url")
-        .in("user_id", uniqueIds);
-      if (profErr) throw profErr;
-      // Tjenestekonti (claude@topix.dk) kan ikke få en samtale tildelt — de er ingen person.
-      return synligeRaadgivere(profiles || [], await hentTjenestekonti())
-        .map((p) => ({
-          user_id: p.user_id,
-          full_name: p.full_name || "Unavngivet",
-          avatar_url: p.avatar_url,
-        }))
-        .sort((a, b) => a.full_name.localeCompare(b.full_name, "da"));
-    },
-    enabled: !!isAdvisor,
-    staleTime: 5 * 60_000,
-  });
 
 
   // Deep linking. To nøgler til samtalen: ?conversationId= (notifications'
@@ -438,7 +415,7 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
       // som ingen læser her (perf/chatpane-nyttelast). Join uændret.
       let convsQuery = supabase
         .from("conversations")
-        .select("id, member_id, company_id, last_message_at, created_at, awaiting_reply_from, assigned_advisor_id, last_member_message_at, last_advisor_reply_at, companies:company_id(id, name, logo_url, is_legat, contract_end_date, subscription_status, subscription_current_period_end)")
+        .select("id, member_id, company_id, last_message_at, created_at, awaiting_reply_from, last_member_message_at, last_advisor_reply_at, companies:company_id(id, name, logo_url, is_legat, contract_end_date, subscription_status, subscription_current_period_end)")
         .order("last_message_at", { ascending: false });
       
       if (laastTilCompanyId) {
@@ -545,7 +522,6 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
           recentReportName: report?.name,
           recentReportIds: report?.ids,
           awaiting_reply_from: c.awaiting_reply_from || null,
-          assigned_advisor_id: c.assigned_advisor_id || null,
           last_member_message_at: c.last_member_message_at || null,
           last_advisor_reply_at: c.last_advisor_reply_at || null,
         };
@@ -589,7 +565,6 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
               ? {
                   ...c,
                   awaiting_reply_from: updated.awaiting_reply_from || null,
-                  assigned_advisor_id: updated.assigned_advisor_id || null,
                   last_member_message_at: updated.last_member_message_at || null,
                   last_advisor_reply_at: updated.last_advisor_reply_at || null,
                   last_message_at: updated.last_message_at || c.last_message_at,
@@ -1189,19 +1164,10 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
     return { table: "conversations", id: activeConvId! };
   }, [activeConvId]);
 
-  // Advisor actions
-  const handleAssignAdvisor = async (advisorId: string | null) => {
-    if (!activeConvId) return;
-    const { table, id } = getOpsTarget();
-    await supabase
-      .from(table as any)
-      .update({ assigned_advisor_id: advisorId } as any)
-      .eq("id", id);
-    setConversations(prev => prev.map(c =>
-      c.id === activeConvId ? { ...c, assigned_advisor_id: advisorId } : c
-    ));
-  };
-
+  // Advisor actions. Tildeling af rådgiver er fjernet (Jonas 1/10: «Det
+  // arbejder vi ikke med. Rådgiverne er sammen om alle medlemmer.») —
+  // kolonnen conversations.assigned_advisor_id står i databasen, men
+  // klienten hverken læser eller skriver den (værn: ingenTildeling.guard).
   const handleNoReplyNeeded = async () => {
     if (!activeConvId || !user) return;
     const { table, id } = getOpsTarget();
@@ -1261,7 +1227,7 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
       setForslagTitel("");
       setForslagBegrundelse("");
       setForslagMaalValg("");
-      setAssignmentPopoverOpen(false);
+      setForslagAaben(false);
       // INGEN manuel genindlæsning af beskederne: realtime-abonnementet
       // på messages INSERT henter allerede den nye systembesked, og en
       // genindlæsning oveni gav to kopier i state. Målt 31/8: én række
@@ -1275,17 +1241,107 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
   const showSidebar = !laast && isAdvisor && (!isMobile || !showMessages);
   const showMessageArea = laast || !isMobile || showMessages || !isAdvisor;
 
-  // Get assigned advisor name for display
-  const getAdvisorName = (advisorId: string | null | undefined) => {
-    if (!advisorId || !advisorUsers) return null;
-    const a = advisorUsers.find((u: any) => u.user_id === advisorId);
-    return a ? a.full_name : null;
-  };
-
-  const getAdvisorInitials = (advisorId: string | null | undefined) => {
-    const name = getAdvisorName(advisorId);
-    return name ? getInitialsLocal(name) : null;
-  };
+  // Samtalens to handlinger, SYNLIGE i headeren (1/10 — Jonas: «Kræver ikke
+  // svar, skal være meget mere let tilgængeligt … foreslå skridt skal også
+  // være lettere tilgængelig. Vi får det ikke brugt, hvis det gemmer sig oppe
+  // i hjørnet bag tre streger.»). Samme handlinger og samme kald som før i
+  // ⋯-menuen: handleNoReplyNeeded og handleForeslaaOpgave. Desktop: i rækken
+  // efter «Afventer dit svar». Mobil (375 px): egen række under navnet, så
+  // navnets 227 px (regnestykket ved avataren) ikke krymper; «Foreslå skridt»
+  // står først dér, så popoveren kan folde ud mod højre inden for skærmen.
+  // Sekundære pills (HbButton secondary, evergreen-fokus) — den primære
+  // handling i chatten er stadig at skrive. Værn: ingenTildeling.guard.
+  const samtaleHandlinger = (
+    <>
+      {activeConv?.awaiting_reply_from === "advisor" && (
+        <HbButton
+          type="button"
+          variant="secondary"
+          onClick={() => void handleNoReplyNeeded()}
+          title="Fjern samtalen fra «Kræver svar» uden at skrive"
+          className="h-8 flex-shrink-0 gap-1.5 px-3 text-xs"
+          data-kraever-ikke-svar
+        >
+          <CheckCheck className="h-3.5 w-3.5" />
+          Kræver ikke svar
+        </HbButton>
+      )}
+      <HbPopover
+        open={forslagAaben}
+        onOpenChange={setForslagAaben}
+        className={cn("flex-shrink-0", isMobile && "order-first")}
+        panelClassName={cn(
+          "absolute top-full mt-2 w-72 max-w-[calc(100vw-1.5rem)] p-3",
+          isMobile ? "left-0" : "right-0",
+        )}
+        trigger={(p) => (
+          <HbButton
+            type="button"
+            variant="secondary"
+            {...p}
+            className="h-8 gap-1.5 px-3 text-xs"
+            data-foreslaa-skridt-knap
+          >
+            <ListPlus className="h-3.5 w-3.5" />
+            Foreslå skridt
+          </HbButton>
+        )}
+      >
+        {/* Foreslå skridt — rådgiverens ikke-besked-handling. Forslaget
+            lander i medlemmets "Dine skridt" (B1: intet er en opgave før
+            medlemmet siger ja; B6: medlemmet vælger datoen ved accept).
+            Fase 3 (Jonas «B»): målvælgeren er valgfri — standard er det
+            ældste aktive mål, «Uden mål» er et tydeligt valg; uden aktive
+            mål vises intet valg, og skridtet sendes uden mål. */}
+        <form
+          data-foreslaa-skridt
+          onSubmit={(e) => { e.preventDefault(); void handleForeslaaOpgave(); }}
+        >
+          <p className="text-[10px] text-hb-rust font-medium uppercase tracking-[0.14em] mb-2">Foreslå skridt</p>
+          {aktiveMaalQuery.isError ? (
+            <p className="mb-1.5 text-xs text-hb-rust">Virksomhedens mål kunne ikke hentes — skridtet sendes uden mål.</p>
+          ) : aktiveMaal.length > 0 ? (
+            <select
+              value={valgtMaalId ?? "uden"}
+              onChange={(e) => setForslagMaalValg(e.target.value)}
+              aria-label="Målet skridtet hører til"
+              className={`${hbControlClasses} mb-1.5 px-2 py-1.5 text-xs max-md:text-[16px]`}
+              data-maalvaelger
+            >
+              {aktiveMaal.map((m) => (
+                <option key={m.id} value={m.id}>Mod målet: {m.title}</option>
+              ))}
+              <option value="uden">Uden mål</option>
+            </select>
+          ) : null}
+          <input
+            value={forslagTitel}
+            onChange={(e) => setForslagTitel(e.target.value)}
+            maxLength={200}
+            placeholder="Hvad er skridtet?"
+            aria-label="Hvad er skridtet?"
+            autoFocus
+            className={`${hbControlClasses} mb-1.5 px-2 py-1.5 text-xs max-md:text-[16px]`}
+          />
+          <textarea
+            value={forslagBegrundelse}
+            onChange={(e) => setForslagBegrundelse(e.target.value)}
+            placeholder="Hvorfor? (valgfrit)"
+            aria-label="Hvorfor? (valgfrit)"
+            rows={2}
+            className={`${hbControlClasses} mb-1.5 resize-none px-2 py-1.5 text-xs max-md:text-[16px]`}
+          />
+          <HbButton
+            type="submit"
+            disabled={foreslaarOpgave || !forslagTitel.trim()}
+            className="h-8 w-full px-2 text-xs"
+          >
+            {foreslaarOpgave ? "Sender…" : "Foreslå skridt"}
+          </HbButton>
+        </form>
+      </HbPopover>
+    </>
+  );
 
   // Reactions hook
   const reactionMessageTable = "messages" as const;
@@ -1421,8 +1477,6 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                 // «Kræver svar»; «Tjek ind» er en påmindelse og står i blæk.
                 const renderConvCard = (conv: ConversationWithProfile, urgency: 'reply' | 'checkin' | 'normal') => {
                   const isActive = activeConvId === conv.id;
-                  const assignedInitials = getAdvisorInitials(conv.assigned_advisor_id);
-                  const assignedName = getAdvisorName(conv.assigned_advisor_id);
                   return (
                     <button
                       key={conv.id}
@@ -1478,14 +1532,6 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                               <span className="ml-auto flex-shrink-0">
                                 <FileText className="h-3 w-3 text-hb-evergreen" />
                               </span>
-                            )}
-                            {assignedInitials && (
-                              <HbTag
-                                className="bg-hb-sage/40 px-1.5 py-0.5 text-[9px] text-hb-ink-soft flex-shrink-0 ml-auto"
-                                title={assignedName || ""}
-                              >
-                                {assignedName?.split(" ")[0] || assignedInitials}
-                              </HbTag>
                             )}
                           </div>
                         </div>
@@ -1643,26 +1689,26 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                           <span className="hidden sm:inline">Afventer dit svar</span>
                         </span>
                       )}
-                      {/* ⋯ secondary actions menu — HbMenu i DOM-træet (etape 2),
-                          ingen portal. Samme tre handlinger, samme kald. */}
+                      {/* Desktop: de to handlinger synligt i rækken (se samtaleHandlinger). */}
+                      {!isMobile && samtaleHandlinger}
+                      {/* ⋯-menuen — KUN mobil (1/10): «Se tal» og forrige/næste, som
+                          rækken ikke har plads til. HbMenu i DOM-træet, ingen portal.
+                          På desktop var den tom, da tildelingen forsvandt og de to
+                          handlinger kom frem i lyset, og er derfor fjernet. */}
+                      {isMobile && (
                       <HbMenu
-                        open={assignmentPopoverOpen}
-                        onOpenChange={setAssignmentPopoverOpen}
+                        open={mobilMenuAaben}
+                        onOpenChange={setMobilMenuAaben}
                         trigger={(p) => (
-                          <button type="button" {...p} className="p-1.5 rounded-full text-hb-ink-soft hover:text-hb-ink hover:bg-hb-sage/30 transition-colors flex-shrink-0">
+                          <button type="button" {...p} aria-label="Flere handlinger" className="p-1.5 rounded-full text-hb-ink-soft hover:text-hb-ink hover:bg-hb-sage/30 transition-colors flex-shrink-0">
                             <MoreHorizontal className="h-4 w-4" />
                           </button>
                         )}
                       >
-                            {/* MOBIL: det, der er flyttet ud af headerrækken (se avatar-
-                                kommentaren). «Se tal» åbner skuffen som før; prev/next
-                                skifter samtale som pilene på desktop. */}
-                            {isMobile && (
-                              <>
-                                <div className="px-1 pb-1" data-mobil-handlinger>
+                                <div className="px-1" data-mobil-handlinger>
                                   <button
                                     type="button"
-                                    onClick={() => { setShowCompanyDrawer(true); setAssignmentPopoverOpen(false); }}
+                                    onClick={() => { setShowCompanyDrawer(true); setMobilMenuAaben(false); }}
                                     className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-xs text-hb-ink transition-colors hover:bg-hb-sage/30"
                                   >
                                     <BarChart3 className="h-4 w-4 text-hb-ink-soft" />
@@ -1672,7 +1718,7 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                                     <>
                                       <button
                                         type="button"
-                                        onClick={() => { if (prevConv) { setActiveConvId(prevConv.id); setAssignmentPopoverOpen(false); } }}
+                                        onClick={() => { if (prevConv) { setActiveConvId(prevConv.id); setMobilMenuAaben(false); } }}
                                         disabled={!prevConv}
                                         className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-xs text-hb-ink transition-colors hover:bg-hb-sage/30 disabled:opacity-30"
                                       >
@@ -1681,7 +1727,7 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                                       </button>
                                       <button
                                         type="button"
-                                        onClick={() => { if (nextConv) { setActiveConvId(nextConv.id); setAssignmentPopoverOpen(false); } }}
+                                        onClick={() => { if (nextConv) { setActiveConvId(nextConv.id); setMobilMenuAaben(false); } }}
                                         disabled={!nextConv}
                                         className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-xs text-hb-ink transition-colors hover:bg-hb-sage/30 disabled:opacity-30"
                                       >
@@ -1691,104 +1737,8 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                                     </>
                                   )}
                                 </div>
-                                <div className="border-t border-hb-line my-1" />
-                              </>
-                            )}
-                            {/* Assign */}
-                            <div className="px-2 py-1 mb-1">
-                              <p className="text-[10px] text-hb-ink-soft font-medium uppercase tracking-[0.14em] mb-1.5">Tildel rådgiver</p>
-                              {(advisorUsers || []).map((a: any) => {
-                                const isCurrent = activeConv?.assigned_advisor_id === a.user_id;
-                                return (
-                                  <button
-                                    key={a.user_id}
-                                    onClick={() => { handleAssignAdvisor(a.user_id); setAssignmentPopoverOpen(false); }}
-                                    className={`flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs transition-colors text-hb-ink ${isCurrent ? "bg-hb-sage/40 font-medium" : "hover:bg-hb-sage/30"}`}
-                                  >
-                                    <div className="h-5 w-5 rounded-full border border-hb-line bg-hb-sage/40 flex items-center justify-center overflow-hidden flex-shrink-0">
-                                      {a.avatar_url ? (
-                                        <img src={a.avatar_url} alt="" className="h-5 w-5 object-cover" />
-                                      ) : (
-                                        <span className="text-[8px] font-medium text-hb-ink-soft">{getInitialsLocal(a.full_name)}</span>
-                                      )}
-                                    </div>
-                                    <span className="truncate">{a.full_name}</span>
-                                    {isCurrent && <Check className="h-3 w-3 text-hb-evergreen ml-auto flex-shrink-0" />}
-                                  </button>
-                                );
-                              })}
-                              {activeConv?.assigned_advisor_id && (
-                                <button
-                                  onClick={() => { handleAssignAdvisor(null); setAssignmentPopoverOpen(false); }}
-                                  className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs text-hb-ink-soft hover:text-hb-rust hover:bg-hb-rust/5 transition-colors mt-1"
-                                >
-                                  Fjern tildeling
-                                </button>
-                              )}
-                            </div>
-                            {activeConv?.awaiting_reply_from === "advisor" && (
-                              <>
-                                <div className="border-t border-hb-line my-1" />
-                                <button
-                                  onClick={() => { handleNoReplyNeeded(); setAssignmentPopoverOpen(false); }}
-                                  className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs text-hb-ink-soft hover:text-hb-ink hover:bg-hb-sage/30 transition-colors"
-                                >
-                                  <CheckCheck className="h-3.5 w-3.5" />
-                                  Kræver ikke svar
-                                </button>
-                              </>
-                            )}
-                            {/* Foreslå skridt — rådgiverens ikke-besked-handling.
-                                Forslaget lander i medlemmets "Dine skridt"
-                                (B1: intet er en opgave før medlemmet siger ja;
-                                B6: medlemmet vælger datoen ved accept).
-                                Fase 3 (Jonas «B»): målvælgeren er valgfri —
-                                standard er det ældste aktive mål, «Uden mål» er
-                                et tydeligt valg; uden aktive mål vises intet
-                                valg, og skridtet sendes uden mål. */}
-                            <div className="border-t border-hb-line my-1" />
-                            <div className="px-2 py-1.5" data-foreslaa-skridt>
-                              <p className="text-[10px] text-hb-ink-soft font-medium uppercase tracking-[0.14em] mb-1.5">Foreslå skridt</p>
-                              {aktiveMaalQuery.isError ? (
-                                <p className="mb-1.5 text-xs text-hb-rust">Virksomhedens mål kunne ikke hentes — skridtet sendes uden mål.</p>
-                              ) : aktiveMaal.length > 0 ? (
-                                <select
-                                  value={valgtMaalId ?? "uden"}
-                                  onChange={(e) => setForslagMaalValg(e.target.value)}
-                                  aria-label="Målet skridtet hører til"
-                                  className={`${hbControlClasses} mb-1.5 px-2 py-1.5 text-xs max-md:text-[16px]`}
-                                  data-maalvaelger
-                                >
-                                  {aktiveMaal.map((m) => (
-                                    <option key={m.id} value={m.id}>Mod målet: {m.title}</option>
-                                  ))}
-                                  <option value="uden">Uden mål</option>
-                                </select>
-                              ) : null}
-                              <input
-                                value={forslagTitel}
-                                onChange={(e) => setForslagTitel(e.target.value)}
-                                maxLength={200}
-                                placeholder="Hvad er skridtet?"
-                                className={`${hbControlClasses} mb-1.5 px-2 py-1.5 text-xs max-md:text-[16px]`}
-                              />
-                              <textarea
-                                value={forslagBegrundelse}
-                                onChange={(e) => setForslagBegrundelse(e.target.value)}
-                                placeholder="Hvorfor? (valgfrit)"
-                                rows={2}
-                                className={`${hbControlClasses} mb-1.5 resize-none px-2 py-1.5 text-xs max-md:text-[16px]`}
-                              />
-                              <HbButton
-                                type="button"
-                                onClick={handleForeslaaOpgave}
-                                disabled={foreslaarOpgave || !forslagTitel.trim()}
-                                className="h-8 w-full px-2 text-xs"
-                              >
-                                {foreslaarOpgave ? "Sender…" : "Foreslå skridt"}
-                              </HbButton>
-                            </div>
                       </HbMenu>
+                      )}
                       {/* Prev/next — desktop; på mobil bor de i ⋯-menuen */}
                       {!isMobile && advisorConvList.length > 1 && (
                         <div className="flex items-center gap-0.5 flex-shrink-0">
@@ -1809,6 +1759,12 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                         </div>
                       )}
                     </div>
+                    {/* Mobil: handlingerne på egen række under navnet (se samtaleHandlinger). */}
+                    {isMobile && (
+                      <div className="mt-2 flex items-center gap-2" data-samtale-handlinger>
+                        {samtaleHandlinger}
+                      </div>
+                    )}
                   </div>
                 ) : null}
 

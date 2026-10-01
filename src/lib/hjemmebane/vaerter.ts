@@ -138,3 +138,74 @@ export function flyt<T>(liste: readonly T[], fra: number, retning: -1 | 1): T[] 
 export function tilUdkast(r: VaertRaekke): VaertUdkast {
   return { user_id: r.user_id, gaest_navn: r.gaest_navn, gaest_titel: r.gaest_titel, gaest_foto_path: r.gaest_foto_path };
 }
+
+/** En ny række til insert (uden id; event_id sættes af kalderen). */
+export interface VaertIndsaet {
+  user_id: string | null;
+  gaest_navn: string | null;
+  gaest_titel: string | null;
+  gaest_foto_path: string | null;
+  raekkefoelge: number;
+}
+
+/** Hvad saveVaerter skal gøre — i den rækkefølge: indsaet, opdater, slet. */
+export interface VaertPlan {
+  /** Eksisterende rådgiver-rækker, der bliver stående, men skifter plads. */
+  opdater: { id: string; raekkefoelge: number }[];
+  /** Nye rådgivere og ALLE gæsteværter (gæster genindsættes, som før). */
+  indsaet: VaertIndsaet[];
+  /** Gamle rækker, der ikke er med i udkastet (fjernede rådgivere, gamle gæsterækker). */
+  slet: string[];
+}
+
+/**
+ * Gem-planen for et events værter (værtsfejlen 1/10-2026, målt i prod 09:00:
+ * Admin → Events → et event med Morten som vært → tilføj Jonas → Gem →
+ * «duplicate key value violates unique constraint "event_vaerter_event_user_uidx"»).
+ * Årsag: saveVaerter indsatte HELE listen, før den slettede de gamle, så en
+ * rådgiver, der allerede var vært, blev indsat en gang til — indekset
+ * UNIQUE (event_id, user_id) WHERE user_id IS NOT NULL afviste den.
+ *
+ * Planen: en rådgiver, der allerede står på eventet (match på user_id),
+ * BEHOLDER sin række — kun raekkefoelge opdateres, og kun hvis den er ændret.
+ * Nye rådgivere og alle gæsteværter indsættes (gæster har ingen nøgle at
+ * matche på og genindsættes som i dag: nye først). Rækker, der ikke er med,
+ * slettes TIL SIDST — en fejl undervejs efterlader aldrig eventet uden værter.
+ * Samme rådgiver to gange i udkastet tæller én gang (den første plads);
+ * formularen afviser det allerede (validerVaerter), men planen må ikke selv
+ * kunne ramme indekset. raekkefoelge er pladsen i det deduplikerede udkast.
+ * REN — ingen Supabase; testet i __tests__/vaerter.test.ts.
+ */
+export function vaertPlan(
+  gamle: readonly Pick<VaertRaekke, "id" | "user_id" | "raekkefoelge">[],
+  udkast: readonly VaertUdkast[],
+): VaertPlan {
+  const set = new Set<string>();
+  const unikke = udkast.filter((v) => {
+    if (!v.user_id) return true;
+    if (set.has(v.user_id)) return false;
+    set.add(v.user_id);
+    return true;
+  });
+  const gamleRaadgivere = new Map<string, Pick<VaertRaekke, "id" | "raekkefoelge">>();
+  for (const r of gamle) if (r.user_id && !gamleRaadgivere.has(r.user_id)) gamleRaadgivere.set(r.user_id, r);
+  const beholdt = new Set<string>();
+  const plan: VaertPlan = { opdater: [], indsaet: [], slet: [] };
+  unikke.forEach((v, i) => {
+    const gammel = v.user_id ? gamleRaadgivere.get(v.user_id) : undefined;
+    if (gammel) {
+      beholdt.add(gammel.id);
+      if (gammel.raekkefoelge !== i) plan.opdater.push({ id: gammel.id, raekkefoelge: i });
+      return;
+    }
+    plan.indsaet.push({
+      user_id: v.user_id,
+      gaest_navn: v.user_id ? null : (v.gaest_navn ?? "").trim() || null,
+      gaest_titel: v.user_id ? null : (v.gaest_titel ?? "").trim() || null,
+      gaest_foto_path: v.user_id ? null : v.gaest_foto_path || null,
+      raekkefoelge: i,
+    });
+  });
+  plan.slet = gamle.filter((r) => !beholdt.has(r.id)).map((r) => r.id);
+  return plan;
+}

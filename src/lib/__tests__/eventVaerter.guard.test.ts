@@ -137,6 +137,22 @@ export const tomPatchNaarAldrigUpdate = (editor: string, gemDom: string): boolea
     !/supabase|@tanstack|from "react"/.test(gemDom);
 };
 
+/** Dom 7 (værtsfejlen 1/10, «duplicate key … event_vaerter_event_user_uidx»):
+    saveVaerter følger den rene vaertPlan — beholdte rådgivere indsættes ikke
+    igen — og rækkefølgen er indsæt → opdatér → slet (sletningen TIL SIDST, så
+    eventet aldrig står uden værter). Den gamle form, der indsatte HELE
+    udkastet før sletningen, må ikke komme tilbage. */
+export const saveVaerterFoelgerPlanen = (api: string): boolean => {
+  const krop = api.slice(api.indexOf("export async function saveVaerter("), api.indexOf("export async function uploadGaestFoto("));
+  const ind = krop.indexOf("tabel().insert(plan.indsaet.map(");
+  const op = krop.indexOf("tabel().update({ raekkefoelge: o.raekkefoelge }).eq(\"id\", o.id)");
+  const slet = krop.indexOf("tabel().delete().in(\"id\", plan.slet)");
+  return krop.includes("const plan = vaertPlan(gamle, udkast);") &&
+    krop.includes('.select("id, user_id, raekkefoelge")') &&
+    ind > -1 && op > ind && slet > op &&
+    !/udkast\.map\(/.test(krop);
+};
+
 describe("eventVaerter.guard — PR 4b: migrationen, ren dom, admin gemmer sammen, fotoet først, foto-kravet, gem-fejlen", () => {
   const sql = udenSqlKommentarer(laes(MIGRATION));
   const dom = udenKommentarer(laes(DOM));
@@ -175,6 +191,20 @@ describe("eventVaerter.guard — PR 4b: migrationen, ren dom, admin gemmer samme
 
   it("dom 6: mutationFn kalder aldrig updateEvent — gem-vejen går gennem gemEventOgVaerter med gemEventEllerFlyt (event kun ved ikke-tom patch, værter kun ved ændring, eventet først)", () => {
     expect(tomPatchNaarAldrigUpdate(editor, gemDom)).toBe(true);
+  });
+
+  it("dom 7: saveVaerter følger vaertPlan (beholdte rådgivere indsættes ikke igen) — indsæt → opdatér → slet", () => {
+    expect(saveVaerterFoelgerPlanen(api)).toBe(true);
+  });
+  it("selvbevis 7: den gamle form (hele udkastet indsat), sletningen før indsættelsen, eller uden planen, falder", () => {
+    expect(saveVaerterFoelgerPlanen(api.replace("tabel().insert(plan.indsaet.map((r) => ({ event_id: eventId, ...r })))", "tabel().insert(udkast.map((v, i) => ({ event_id: eventId, ...v, raekkefoelge: i })))"))).toBe(false);
+    const sletFoerst = api
+      .replace('    const { error } = await tabel().delete().in("id", plan.slet);', "    SLET")
+      .replace("    const { error } = await tabel().insert(plan.indsaet.map((r) => ({ event_id: eventId, ...r })));", '    const { error } = await tabel().delete().in("id", plan.slet);')
+      .replace("    SLET", "    const { error } = await tabel().insert(plan.indsaet.map((r) => ({ event_id: eventId, ...r })));");
+    expect(sletFoerst).not.toBe(api);
+    expect(saveVaerterFoelgerPlanen(sletFoerst)).toBe(false);
+    expect(saveVaerterFoelgerPlanen(api.replace("const plan = vaertPlan(gamle, udkast);", "const plan = { indsaet: [], opdater: [], slet: [] };"))).toBe(false);
   });
 
   it("selvbevis 1: SET NULL på event_id, en SECURITY DEFINER, eller en læseregel uden EXISTS mod events falder", () => {

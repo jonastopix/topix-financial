@@ -75,7 +75,6 @@ export interface VirksomhedsSamtale {
   id: string;
   last_message_at: string | null;
   awaiting_reply_from: string | null;
-  assigned_advisor_id: string | null;
 }
 
 /** company_traek — ALLE betalinger (betalte og fejlede) til «Betaling»-linjen.
@@ -191,8 +190,6 @@ export interface VirksomhedsData {
     context_id: string | null;
     created_at: string;
   }[];
-  /** Rådgivernavne pr. user_id (get_all_advisor_profiles) — til «Tildelt» i blok 4. */
-  raadgiverNavne: Record<string, string>;
   /** KPI-mål pr. nøgle med oprindelse (kilde «aftalt»/«standard») — fletKpiMaal (lib/kpiMaal), samme som useKpiTargets. */
   kpiMaal: ResolvedTargets;
   /** company_actions der venter: open/proposed/active (BoardroomView:1686). */
@@ -238,7 +235,7 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
   const [
     companyRes, membersRes, invitationsRes, convsRes, budgetRes, milestonesRes,
     handoutsRes, actionsRes, skridtRes, proposalsRes, traekRes, perioderRes, linkRes, fornyelseRes,
-    rapporterRes, kpiMaalRes, refleksionRes, kommentarRes, raadgivereRes, udloebneRes,
+    rapporterRes, kpiMaalRes, refleksionRes, kommentarRes, udloebneRes,
   ] = await Promise.all([
     supabase
       .from("companies")
@@ -253,7 +250,7 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
       .order("created_at", { ascending: false }),
     supabase
       .from("conversations")
-      .select("id, last_message_at, awaiting_reply_from, assigned_advisor_id")
+      .select("id, last_message_at, awaiting_reply_from")
       .eq("company_id", companyId),
     // Budgettet gennem hentAlleSider (17/9, recon-tal-der-ikke-kan-passe.md
     // §5 B): PostgREST giver højst 1.000 rækker stille, og remm. har 1.378
@@ -372,12 +369,6 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
       .eq("conversations.company_id", companyId)
       .order("created_at", { ascending: true })
       .limit(500),
-    // Rådgivernes navne til «Tildelt: {rådgiver}» (blok 4). conversations
-    // har ingen FK på assigned_advisor_id at embedde over, og id'et kendes
-    // først når samtalerne er hentet — så alle rådgivere hentes i SAMME
-    // runde via RPC'en forsiden bruger (AdvisorDashboard:370), og navnet
-    // slås op i kode. Få rækker (rådgivere + admins).
-    supabase.rpc("get_all_advisor_profiles"),
     // Forslag der udløb uden svar — tallet OG de seneste fem titler (fase 0b,
     // «Én plan»: udløbne synlige for rådgiveren). Udløb er bogført af cronen
     // opgave-udloeb som status 'expired' (20260901090000). accepted_at IS
@@ -430,11 +421,6 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
     }
   }
 
-  const raadgiverNavne: Record<string, string> = {};
-  for (const r of (kraevRaekker(raadgivereRes, "get_all_advisor_profiles") as { user_id: string; full_name: string | null }[])) {
-    if (r.user_id && r.full_name) raadgiverNavne[r.user_id] = r.full_name;
-  }
-
   // «Vejen ind» (18/9 aften): ansøgningen bag virksomheden — eget opslag, fail-soft (ansøgningerne må
   // aldrig vælte virksomhedssiden). Rådgivere har SELECT på ansoegninger.
   const ansoegningRes = await supabase
@@ -449,7 +435,6 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
   return {
     ansoegning: ansoegningRes.error ? null : ((ansoegningRes.data as unknown) as VirksomhedsData["ansoegning"]),
     company: companyRes.data,
-    raadgiverNavne,
     refleksion: kraevRaekke(refleksionRes, "pulse_checkins"),
     medlemmer: memberRows.map((m) => ({
       user_id: m.user_id,

@@ -184,7 +184,7 @@ const MemberChatPane = () => {
       // som ingen læser her (perf/chatpane-nyttelast). Join uændret.
       let convsQuery = supabase
         .from("conversations")
-        .select("id, member_id, company_id, last_message_at, created_at, awaiting_reply_from, assigned_advisor_id, last_member_message_at, last_advisor_reply_at, companies:company_id(id, name, logo_url, is_legat, contract_end_date, subscription_status, subscription_current_period_end)")
+        .select("id, member_id, company_id, last_message_at, created_at, awaiting_reply_from, last_member_message_at, last_advisor_reply_at, companies:company_id(id, name, logo_url, is_legat, contract_end_date, subscription_status, subscription_current_period_end)")
         .order("last_message_at", { ascending: false });
 
       // Medlems-grenene fra CompanyChatPane, kollapset (isAdvisor var
@@ -260,7 +260,6 @@ const MemberChatPane = () => {
           lastContextType: lastMsg?.context_type,
           hasRecentReport: false,
           awaiting_reply_from: c.awaiting_reply_from || null,
-          assigned_advisor_id: c.assigned_advisor_id || null,
           last_member_message_at: c.last_member_message_at || null,
           last_advisor_reply_at: c.last_advisor_reply_at || null,
         };

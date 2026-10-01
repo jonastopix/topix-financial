@@ -10,7 +10,7 @@
  *
  *   erSynligRaadgiver / synligeRaadgivere — kontoen kan SE alt, en rådgiver
  *     ser, men OPTRÆDER aldrig som en person: ikke i netværket, ikke i «Dine
- *     rådgivere», ikke i vælgere (tildeling, opgaver, værter, pushets
+ *     rådgivere», ikke i vælgere (opgaver, værter, pushets
  *     afsender), ikke i @-nævnelser. Filtret sker i klienten, fordi kilderne
  *     (get_all_advisor_profiles, get_member_directory, get_community_medlemmer)
  *     er SECURITY DEFINER og ikke må ændres (CLAUDE.md FORBIDDEN).
