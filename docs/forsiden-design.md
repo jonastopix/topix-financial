@@ -608,9 +608,12 @@ noget mindre presserende» er ikke en opgave, det er et overblik.
   Dommen (§13) skal derfor definere vinduesporten pr. slags ud fra tre
   eksisterende dagtal (fornyelse, indgang, opgave) og lade de øvrige gå
   gennem alvorsporten alene.
-- **Samtaletildelingen** (`assigned_advisor_id`) ved siden af
+- ~~**Samtaletildelingen** (`assigned_advisor_id`) ved siden af
   opgavetildelingen (§9): består, afløses, eller bliver en standard for
-  «hvem tager først».
+  «hvem tager først».~~ **Løst 1/10-2026 (Jonas):** samtaletildelingen er
+  fjernet fra platformen — «Rådgiverne er sammen om alle medlemmer.»
+  Kolonnen står i databasen; ingen flade læser eller skriver den
+  (`docs/chat-design.md` §9).
 - **Parameterens form** for «derfor er du her» på virksomhedssiden (§6).
 
 ### Afgjort 4/9 — målt i koden (`~/Downloads/recon-forsidens-dom.md`)

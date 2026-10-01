@@ -6,8 +6,6 @@ import { budgetOmsaetningFor, type BudgetRaekke } from "@/lib/budgetSignalInput"
 import { afgoerForsidensDom, type OpgaveTilDom, type VirksomhedTilDom, type BetaltIkkeOprettet, type AnsoegningTilForside, type VentelisteTilDom } from "@/lib/forsidensDom";
 import { virksomhedsnavnAf } from "@/lib/ansoegninger/ansoegningVisning";
 import { kraevRaekker } from "@/lib/kraevRaekker";
-import { synligeRaadgivere } from "@/lib/tjenestekonto";
-import { hentTjenestekonti } from "@/hooks/tjenestekonti";
 import { hentAlleSider } from "@/lib/budgetEngine";
 import type { MaalRaekke } from "@/lib/hjemmebane/planen";
 import { fletKvitteringer, laesKvittering, type Kvittering } from "@/lib/opgaveLukning";
@@ -43,7 +41,6 @@ interface ConversationRow {
   id: string;
   company_id: string | null;
   awaiting_reply_from: string | null;
-  assigned_advisor_id: string | null;
   last_member_message_at: string | null;
   last_message_at: string | null;
   /** Seneste menneskebesked fra en rådgiver (trigger, kun message_type 'user') — «venter på velkomst» (10/9). */
@@ -148,10 +145,9 @@ export const ADVISOR_DASHBOARD_QUERY_KEY = (userId: string | undefined) =>
 export const hentAdvisorDashboard = () =>
       Sentry.startSpan({ name: "advisor-dashboard.load", op: "advisor.query" }, async (span) => {
       const svarGraense = new Date(Date.now() - SVAR_VINDUE_DAGE * 86400000).toISOString();
-      // Tjenestekonti (claude@topix.dk) er ingen person i tildelings-vælgeren
-      // (AdvisorQueueRow) — hentes parallelt med resten, afventes ved brugen.
-      const tjenestekontiLoefte = hentTjenestekonti();
-      tjenestekontiLoefte.catch(() => {});
+      // Rådgivernes profiler (get_all_advisor_profiles) og tjenestekontiene
+      // hentes ikke længere her (1/10): de bar KUN bunkernes «tildelt»-navn,
+      // og tildeling af rådgiver er fjernet (Jonas 1/10). Ingen aftager uden for.
       const twoWeeksAgo = new Date(Date.now() - 14 * 86400000).toISOString();
       // Paginerede hentninger (PR 1, 17/9): hentAlleSider kaster den rå fejl;
       // her oversættes den til { data: null, error: { message } }, så
@@ -172,7 +168,7 @@ export const hentAdvisorDashboard = () =>
       const [
         convRes, companiesRes, factsRes,
         pulseRes,
-        milestonesRes, companyMembersRes, advisorProfilesRes,
+        milestonesRes, companyMembersRes,
         companyInvitationsRes,
         agentProposalsRes,
         // Forsidens dom (docs/forsiden-design.md, src/lib/forsidensDom.ts):
@@ -203,7 +199,7 @@ export const hentAdvisorDashboard = () =>
         sider<ConversationRow>((fra, til) =>
           supabase
             .from("conversations")
-            .select("id, company_id, awaiting_reply_from, assigned_advisor_id, last_member_message_at, last_message_at, last_advisor_reply_at")
+            .select("id, company_id, awaiting_reply_from, last_member_message_at, last_message_at, last_advisor_reply_at")
             .order("last_message_at", { ascending: false })
             .order("id")
             .range(fra, til),
@@ -295,7 +291,6 @@ export const hentAdvisorDashboard = () =>
             .order("id")
             .range(fra, til),
         ),
-        supabase.rpc("get_all_advisor_profiles"),
         // Pending-gate: virksomheder med hængende (ikke-accepterede) invitationer.
         (supabase
           .from("company_invitations")
@@ -458,11 +453,6 @@ export const hentAdvisorDashboard = () =>
         .slice(0, 20);
       // 10/9: ingen af forsidens hentninger må fejle stille — dommen får
       // færre linjer, og forsiden ser normal ud. Alt går gennem kraevRaekker.
-      const advisorProfiles = synligeRaadgivere(kraevRaekker(advisorProfilesRes, "get_all_advisor_profiles") as any[], await tjenestekontiLoefte).map((advisor) => ({
-        user_id: advisor.user_id,
-        full_name: advisor.full_name || "Ukendt",
-      }));
-
       const companyMap = new Map(companies.map(c => [c.id, c]));
       const legatCompanyIds = new Set(
         companies
@@ -726,8 +716,6 @@ export const hentAdvisorDashboard = () =>
       type BucketItem = {
         company: { company_id: string; company_name: string; logo_url: string | null };
         subtext: string;
-        assigned_advisor_id: string | null;
-        assigned_advisor_name: string | null;
         sortValue: number;
       };
       const bWaiting: BucketItem[] = [];
@@ -760,8 +748,6 @@ export const hentAdvisorDashboard = () =>
         const conv = convByCompany.get(c.company_id)?.[0];
         const base = {
           company: { company_id: c.company_id, company_name: c.company_name, logo_url: c.logo_url },
-          assigned_advisor_id: conv?.assigned_advisor_id ?? null,
-          assigned_advisor_name: advisorProfiles.find(a => a.user_id === conv?.assigned_advisor_id)?.full_name ?? null,
         };
 
         // ── Bunke 1–4 kommer fra motoren (src/lib/virksomhedsSignaler.ts, #589):
@@ -1071,7 +1057,7 @@ export const hentAdvisorDashboard = () =>
 
       const svarBytes = [
         convRes, companiesRes, factsRes, pulseRes,
-        milestonesRes, companyMembersRes, advisorProfilesRes,
+        milestonesRes, companyMembersRes,
         companyInvitationsRes, agentProposalsRes,
         fornyelseRes, betalingslinkRes, aktiveOpgaverRes, kvitteringerRes, svarRes, uploadsRes, budgetRes, ansoegningerRes,
       ].reduce((sum, res) => {
@@ -1090,7 +1076,7 @@ export const hentAdvisorDashboard = () =>
 
       return {
         investorSummaries, companyMap, convByCompany, expiredCompanyIds, pendingCompanyIds,
-        buckets, dom, pulsen, advisorProfiles,
+        buckets, dom, pulsen,
         allConversations, companyToUser, companies, legatCompanyIds,
       };
       });

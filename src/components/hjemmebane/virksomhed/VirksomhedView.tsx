@@ -899,11 +899,11 @@ type ForecastPunkt = { period_key: string; period_label: string; revenue: number
 const CHAT_HOEJDE = "h-[70dvh] min-h-[440px] lg:h-[calc(100dvh-7rem)] lg:min-h-[480px]";
 
 const Blok4 = ({ d }: { d: VirksomhedsData }) => {
-  // Samtalestatus + «Tildelt» over chatten (MemberDetail:924-950, samme fire
+  // Samtalestatus over chatten (MemberDetail:924-950, samme fire
   // tilstande). Samtalen er den med seneste besked; flere pr. virksomhed er
-  // muligt. Rådgiverens navn kommer fra hookens raadgiverNavne — ingen ny
-  // query. Rolig tone: ingen rust; «afventer rådgiver» er en tilstand, og
-  // blok 1 bærer allerede signalet.
+  // muligt. «Tildelt: …» er fjernet (1/10, Jonas: rådgiverne er sammen om
+  // alle medlemmer). Rolig tone: ingen rust; «afventer rådgiver» er en
+  // tilstand, og blok 1 bærer allerede signalet.
   const samtale = [...d.samtaler].sort((a, b) => (b.last_message_at ?? "").localeCompare(a.last_message_at ?? ""))[0] ?? null;
   const status = !samtale
     ? "Ingen samtale"
@@ -912,17 +912,11 @@ const Blok4 = ({ d }: { d: VirksomhedsData }) => {
       : samtale.awaiting_reply_from === "company"
         ? "Afventer medlem"
         : "Åben";
-  const tildelt = samtale?.assigned_advisor_id ? d.raadgiverNavne[samtale.assigned_advisor_id] ?? null : null;
   return (
     // id="section-chat": ankeret for «derfor er du her» (§6) — svar og «skriv til» lander her.
     <HbSection id="section-chat" eyebrow="Chatten" hairline linkLabel="Åbn i /chat" linkTo={`/chat?companyId=${d.company.id}`} className="mt-12 scroll-mt-24 lg:scroll-mt-4">
       <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
         <HbTag className={cn("px-2 py-0.5 text-[11px]", samtale ? "border border-hb-line bg-hb-paper text-hb-ink" : "bg-hb-line/60 text-hb-ink-soft")}>{status}</HbTag>
-        {samtale && (
-          <span className="text-hb-ink-soft">
-            Tildelt: <span className="text-hb-ink">{tildelt ?? "ingen"}</span>
-          </span>
-        )}
       </div>
       <div className={cn("flex flex-col overflow-hidden rounded-hb border border-hb-line chat-hoejde-vh", CHAT_HOEJDE)}>
         <CompanyChatPane laastTilCompanyId={d.company.id} />

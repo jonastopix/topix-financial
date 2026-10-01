@@ -423,3 +423,48 @@ intet skrives, intet markeres læst (læst sker i chatten som før).
 medlemmer på sider uden Hb-skallen (AppLayout) får intet banner; en
 rådgiver der skriver flere beskeder i træk erstatter banneret med den
 seneste.
+
+---
+
+## 9. Ingen tildeling — og chattens handlinger i lyset (1/10-2026)
+
+Jonas 1/10 09:32: «Tildeling af rådgiver skal helt fjernes fra platformen.
+Det arbejder vi ikke med. Rådgiverne er sammen om alle medlemmer.» Og om
+virksomhedschattens hoved: «Kræver ikke svar, skal være meget mere let
+tilgængeligt … foreslå skridt skal også være lettere tilgængelig. Vi får
+det ikke brugt, hvis det gemmer sig oppe i hjørnet bag tre streger.»
+
+**Fjernet (klienten):** ⋯-menuens «TILDEL RÅDGIVER» og «Fjern tildeling»
+og rådgiverlisten bag den (`CompanyChatPane`); rådgiver-mærket på
+indbakkens rækker; «Tildelt: …» over chatten på virksomhedssiden
+(`VirksomhedView` blok 4, `useVirksomhed.raadgiverNavne` og dens
+`get_all_advisor_profiles`-hentning); bunkernes «tildelt»-felter og
+rådgiverprofilerne i `hentAdvisorDashboard` (ingen læste dem); sidebarens
+«mine + utildelte»-filter (`AppSidebar` tæller nu alle samtaler, der
+afventer en rådgiver); `assigned_advisor_id` i alle klientens selects.
+**Kolonnen står i databasen** — ingen migration.
+
+**Bevidst ikke rørt:** edge functions, der læser tildelingen —
+`run-company-agent` (`write_chat_message` som rådgiver vælger den
+tildelte, ellers den første rådgiver; `notify_advisor` klokker KUN den
+tildelte), `send-welcome-message` (velkomstens afsender, samme fallback)
+og `nudge-report-no-reflection` (slukket 1/9, migration
+`20260901110000`). Ifølge migrationshistorikken (`20260316074924` m.fl.)
+sætter en trigger på `messages` stadig `assigned_advisor_id =
+COALESCE(assigned_advisor_id, NEW.sender_id)`, når en rådgiver svarer —
+**umålt i prod** (`pg_get_functiondef` er ikke læst). Konsekvens indtil
+det afgøres: kolonnen fyldes stadig af databasen og læses af de tre
+functions, men ingen kan se eller ændre den. Forsidens «Mig/…»-vælger i
+opgavelisten (`OpgavelisteView`) er en OPGAVES ejer, ikke tildeling af
+medlemmer, og er urørt.
+
+**I lyset:** «Kræver ikke svar» (kun når samtalen afventer dit svar) og
+«Foreslå skridt» står som synlige, sekundære pills i headeren — desktop
+i rækken efter «Afventer dit svar», mobil på egen række under navnet (så
+navnets 227 px ved 375 bevares). «Foreslå skridt» åbner den samme
+formular (mål valgfrit · «Hvad er skridtet?» · «Hvorfor? (valgfrit)») i
+en `HbPopover`; samme kald som før (`foreslaa-opgave`). ⋯-menuen var tom
+på desktop og er fjernet dér; på mobil bærer den «Se tal» og
+forrige/næste. Værn: `ingenTildeling.guard.test.ts` (fælder også, hvis
+«Tildel rådgiver» kommer tilbage), `mobilChat.guard.test.ts` uændret
+grøn, `tjenestekonto.guard.test.ts` (de tre steder er taget af listerne).
