@@ -49,6 +49,7 @@
  */
 
 import { erKunde } from "@/lib/raadgiverensKunder";
+import { CHAT_STI } from "@/lib/hjemmebane/klokke";
 
 /** Tabellen og læsefunktionen (migration 20260930120000_online_hjerteslag.sql). */
 export const ONLINE_TABEL = "online_hjerteslag";
@@ -129,6 +130,8 @@ export interface OnlineMedlem {
   avatar_url: string | null;
   /** Første kunde-virksomheds navn; null uden virksomhed. */
   virksomhed: string | null;
+  /** Samme virksomheds id (company_members → companies) — chattens nøgle; null uden virksomhed. */
+  company_id: string | null;
   legat: boolean;
 }
 
@@ -152,6 +155,7 @@ export function onlineMedlemmer(i: OnlineDomInput): OnlineMedlem[] {
       navn: p?.full_name?.trim() || null,
       avatar_url: p?.avatar_url || null,
       virksomhed: foerste?.name ?? null,
+      company_id: foerste?.id ?? null,
       legat: foerste?.is_legat === true,
     });
   }
@@ -172,4 +176,22 @@ export function onlineOverskrift(antal: number): string {
 export function onlineTitel(m: Pick<OnlineMedlem, "navn" | "legat">): string {
   const navn = m.navn ?? "Medlem";
   return m.legat ? `${navn} · ${LEGAT_MAERKE}` : navn;
+}
+
+/* KLIKBARE BILLEDER (Jonas 1/10 09:20: «De små "online" billeder på
+   rådgivernes forside skal være klikbare, så vi kommer ind på medlemmets
+   chat»). Vejen er den samme som rådgiverens klokke (klokke.chatSti):
+   /chat?companyId=<id> — CompanyChatPane slår samtalen op på virksomheden
+   (én samtale pr. virksomhed). Koblingen user → company er dommens egen
+   (company_members → første KUNDE-virksomhed, samme som navnet under
+   billedet) — ingen ny tabel, intet nyt opslag. Uden virksomhed er der
+   ingen samtale at pege på: null, og billedet står uden link. */
+export function onlineChatSti(m: Pick<OnlineMedlem, "company_id">): string | null {
+  return m.company_id ? `${CHAT_STI}?companyId=${encodeURIComponent(m.company_id)}` : null;
+}
+
+/** Linkets navn for skærmlæsere: «Skriv til {navn} ({virksomhed}) — online nu». */
+export function onlineLinkEtiket(m: Pick<OnlineMedlem, "navn" | "virksomhed">): string {
+  const navn = m.navn ?? "Medlem";
+  return m.virksomhed ? `Skriv til ${navn} (${m.virksomhed}) — online nu` : `Skriv til ${navn} — online nu`;
 }

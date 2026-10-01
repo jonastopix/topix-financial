@@ -11,6 +11,9 @@ import { useHbDokumentGrund } from "@/hooks/useHbDokumentGrund";
 import { erErfarentMedlem, onboardingBoksMonteres, pillenTraekkerSig } from "@/lib/hjemmebane/ankomst";
 import { HbVisningSom } from "./HbVisningSom";
 import { HbFeedbackDialog } from "./HbFeedbackDialog";
+import { HbRaadgiverSkrev } from "./HbRaadgiverSkrev";
+import { useRaadgiverSkrev } from "@/hooks/raadgiverSkrev";
+import { useLocation, useNavigate } from "react-router-dom";
 import { bygHbNav, type HbAktiv } from "@/lib/hjemmebane/hbNav";
 import { PODCAST_SPOTIFY_TEKST, PODCAST_SPOTIFY_URL } from "@/lib/hjemmebane/podcastSpotify";
 import { useQuery } from "@tanstack/react-query";
@@ -77,6 +80,13 @@ export const HbMemberShell = ({
      medlemmer i skallen); om de vises afgør rådgiverens dom.
      Hook i topblokken, før enhver betinget return. */
   useOnlineTracking(!!user && !isAdvisor, user?.id);
+  /* «EN RÅDGIVER HAR LIGE SKREVET» (Jonas 1/10, hooks/raadgiverSkrev): en ny
+     rådgiverbesked, mens medlemmet er i appen og IKKE i chatten, giver et
+     roligt kort med uddrag og «Åbn chatten». Samme gate som hjerteslaget
+     (RÅ isAdvisor). Markerer intet læst. Hooks i topblokken. */
+  const location = useLocation();
+  const navigate = useNavigate();
+  const raadgiverSkrev = useRaadgiverSkrev(!!user && !isAdvisor, user?.id, location.pathname);
   const avatarSrc = profile?.avatar_url || undefined;
   const userName = profile?.full_name || "Medlem";
 
@@ -264,6 +274,7 @@ export const HbMemberShell = ({
         />
       )}
       {!isAdvisor && <HbFeedbackDialog open={feedbackAaben} onClose={() => setFeedbackAaben(false)} />}
+      {!isAdvisor && <HbRaadgiverSkrev banner={raadgiverSkrev.banner} onLuk={raadgiverSkrev.luk} onAabn={(sti) => navigate(sti)} />}
     </div>
   );
 };

@@ -10,7 +10,9 @@ import {
   ONLINE_OVERSKRIFT,
   ONLINE_TABEL,
   ONLINE_VINDUE_S,
+  onlineChatSti,
   onlineIds,
+  onlineLinkEtiket,
   onlineMedlemmer,
   onlineOverskrift,
   onlineTitel,
@@ -102,7 +104,7 @@ describe("skalSlaa — hvornår medlemmet slår hjerteslag", () => {
 
 describe("onlineMedlemmer — hvem vises", () => {
   it("et kunde-medlem med profil: navn, billede, virksomhed, ikke legat", () => {
-    expect(onlineMedlemmer(dom())).toEqual([{ user_id: U1, navn: "Anna Andersen", avatar_url: "https://x/a.png", virksomhed: "Anna ApS", legat: false }]);
+    expect(onlineMedlemmer(dom())).toEqual([{ user_id: U1, navn: "Anna Andersen", avatar_url: "https://x/a.png", virksomhed: "Anna ApS", company_id: "c1", legat: false }]);
   });
   it("rådgivere vises ikke — også selv om de er medlemmer af en virksomhed", () => {
     const r = onlineMedlemmer(dom({ ids: [U1, RAADGIVER], medlemskaber: [{ user_id: U1, company_id: "c1" }, { user_id: RAADGIVER, company_id: "c1" }] }));
@@ -119,7 +121,7 @@ describe("onlineMedlemmer — hvem vises", () => {
   });
   it("uden virksomhed vises med virksomhed null; uden profil med navn null", () => {
     const r = onlineMedlemmer(dom({ ids: [U2], profiler: [], medlemskaber: [] }));
-    expect(r).toEqual([{ user_id: U2, navn: null, avatar_url: null, virksomhed: null, legat: false }]);
+    expect(r).toEqual([{ user_id: U2, navn: null, avatar_url: null, virksomhed: null, company_id: null, legat: false }]);
     expect(onlineTitel(r[0])).toBe("Medlem");
   });
   it("medlem af to virksomheder: første kunde-virksomhed tæller; en ikke-kunde ved siden af udelukker ikke", () => {
@@ -160,5 +162,24 @@ describe("ordene og udsnittet", () => {
     expect(ONLINE_LOFT).toBe(12);
     expect(onlineUdsnit(liste)).toEqual({ viste: liste.slice(0, 12), flere: 3 });
     expect(onlineUdsnit([1, 2])).toEqual({ viste: [1, 2], flere: 0 });
+  });
+});
+
+describe("klikbare billeder (Jonas 1/10) — vejen til medlemmets chat", () => {
+  it("hver online med virksomhed får /chat?companyId=<første kunde-virksomhed> — samme vej som klokken", () => {
+    const r = onlineMedlemmer(dom({
+      medlemskaber: [{ user_id: U1, company_id: "egen" }, { user_id: U1, company_id: "c1" }],
+      virksomheder: [{ id: "egen", name: "Topix.dk ApS", is_legat: false, er_kunde: false }, { id: "c1", name: "Anna ApS", is_legat: false, er_kunde: true }],
+    }));
+    expect(r.map(onlineChatSti)).toEqual(["/chat?companyId=c1"]);
+  });
+  it("uden virksomhed: ingen samtale at pege på → null (billedet står uden link)", () => {
+    const r = onlineMedlemmer(dom({ ids: [U2], profiler: [], medlemskaber: [] }));
+    expect(onlineChatSti(r[0])).toBeNull();
+  });
+  it("linkets navn: «Skriv til {navn} ({virksomhed}) — online nu»", () => {
+    const [m] = onlineMedlemmer(dom());
+    expect(onlineLinkEtiket(m)).toBe("Skriv til Anna Andersen (Anna ApS) — online nu");
+    expect(onlineLinkEtiket({ navn: null, virksomhed: null })).toBe("Skriv til Medlem — online nu");
   });
 });
