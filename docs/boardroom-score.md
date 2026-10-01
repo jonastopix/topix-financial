@@ -611,3 +611,24 @@ statussen gentages da ikke i detaljerne (`streakKortLinje` → `erStatus`).
 (3) Skelettet har kortets opbygning (ringkolonne, fire barer, streaklinje,
 løfter, bundlinje) i stedet for en fast `min-h-[200px]`. (4) §4's påstand om
 påmindelsernes dato er rettet til det målte.
+
+**Designgennemsynet efter drift (1/10-2026 ~02, kortet set live som medlem
+via «Visning som», desktop 1440 og mobil 375; uafhængig design-/UX-agent):**
+(1) Løfterens disciplintekst er «Upload og godkend {måned} …» — kortet bad
+om at godkende en måned, der ikke var uploadet. (2) Statussen uden streak er
+«Ingen streak endnu» (`STREAK_INGEN_TEKST`) — før sagde kortet «senest den
+20.» tre gange på 60 px (status, fristlinje, løfter); fristen står i
+fristlinjen, handlingen i løfteren. (3) Retningen («Op fra …/Ned fra … for en
+måned siden») vises først fra 30/10-2026 (`RETNING_VISES_FRA`): `forrige`
+regnes baglæns på data, ingen har set som tal, og «Op fra 0» (Brick Works:
+alle fire søjler stod på 0 i marts) var et artefakt. (4) Disciplin med 0
+godkendte måneder: «Ingen godkendte måneder i de seneste 6 endnu», ikke «0
+af 6 … 0 til tiden». (5) Mobil: søjlenavnet «INDTJENING» blev afkortet —
+mindre mellemrum og sporing under `sm`. Chattens «Formater:» i 9 px er fjernet
+(under designsprogets mindste mikrolabel). **SENERE (ikke rettet):** løfteren
+peger på den åbne måned, mens «Dit næste skridt» peger på den ældste manglende
+— to handlinger på samme forside (fund 1, én stemme); grunden til en søjle på
+0 står kun bag «Se hvad der tæller»; chatlisten er ikke bundforankret; mobilens
+tomme avatar-cirkel. **Data:** Brick Works' april 2026 (godkendt 17/9) har løn
+28.003 mod 475.373 i marts og resultat 1.258.469 på omsætning 1.349.013 — det
+ligner en ufuldstændig rapport, og den bærer indtjeningssøjlens 188 point.

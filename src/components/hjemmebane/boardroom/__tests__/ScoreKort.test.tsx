@@ -147,12 +147,12 @@ describe("ScoreKort", () => {
     // Rådets gennemsyn af #1189: linjen er den opmuntrende status, ikke «0 måneder i træk», og fristen står stadig.
     const linje = container.querySelector("[data-score-streak]")!;
     expect(linje.textContent).not.toMatch(/0 måneder i træk/);
-    expect(linje.querySelector('[data-score-streak-tal="status"]')!.textContent).toBe("Godkend dine tal senest den 20. og start din streak");
+    expect(linje.querySelector('[data-score-streak-tal="status"]')!.textContent).toBe("Ingen streak endnu");
     expect(linje.querySelector("[data-score-frist]")!.textContent).toMatch(/^Næste frist: /);
     // Statussen gentages ikke i detaljerne.
     aabnDetaljer();
     expect(container.querySelector("[data-score-streak-status]")).toBeNull();
-    expect(container.textContent!.split("start din streak")).toHaveLength(2);
+    expect(container.textContent!.split("Ingen streak endnu")).toHaveLength(2);
   });
 
   it("rådets fund 4: med bevægelse viser første frame 0, ikke det endelige tal", () => {

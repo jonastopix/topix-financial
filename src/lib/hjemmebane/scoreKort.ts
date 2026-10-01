@@ -11,7 +11,7 @@
  * (§5 pkt. 2) står på kortet.
  */
 import { krTekst } from "@/lib/boardroomScore/score";
-import { flytMaaned, fristDato, STREAK_FRIST_DAG } from "@/lib/boardroomScore/streak";
+import { flytMaaned, fristDato } from "@/lib/boardroomScore/streak";
 import { loefterMitTal } from "@/lib/boardroomScore/loefter";
 import type { Handling, ScoreDom, Soejler, SoejleNavn, StreakDom } from "@/lib/boardroomScore/typer";
 import { maanedsnavn } from "@/lib/maanedsnoegle";
@@ -58,6 +58,21 @@ function datoKort(dato: string): string {
 
 const maaned = (key: string): string => maanedsnavn(key) ?? key;
 const storForbogstav = (s: string): string => (s ? s[0].toUpperCase() + s.slice(1) : s);
+
+/** Statussen uden streak (designgennemsynet 1/10 fund 2): fristen står i fristlinjen og handlingen i løfteren —
+ *  før sagde kortet «senest den 20.» tre gange på 60 px. */
+export const STREAK_INGEN_TEKST = "Ingen streak endnu";
+
+/** Retningen («Op fra …/Ned fra … for en måned siden») vises først, når scoren har FANDTES i en måned.
+ *  Scoren gik i drift 30/9-2026; `forrige` regnes baglæns på data, ingen har set som et tal, så
+ *  «Op fra 0» (alle søjler stod på 0) eller et «Ned fra 540» ved første visning er et artefakt af
+ *  dataene, ikke noget medlemmet har gjort (designgennemsynet 1/10 fund 3).
+ *  Regnestykket: 30/9 + én måned = 30/10. Sommertiden slutter søndag 25/10-2026, så 30/10 er dansk
+ *  tid UTC+1: 30/10 00:00 UTC = 30/10 kl. 01:00 dansk. */
+export const RETNING_VISES_FRA = new Date("2026-10-30T00:00:00Z");
+export function retningVises(nu: Date): boolean {
+  return nu.getTime() >= RETNING_VISES_FRA.getTime();
+}
 
 /** Retningen mod `forrige` i ord — ingen procent, ingen farve. null når den ikke kan siges. */
 export function retningTekst(score: number | null, forrige: number | null): string | null {
@@ -109,6 +124,8 @@ function detaljeTekst(soejler: Soejler, navn: SoejleNavn, score: number | null):
   // Uden score (nyt medlem) er «0 af 6 måneder godkendt, 0 til tiden» en anklage, ikke en oplysning —
   // streaken ved siden af siger allerede, hvad der skal ske (rådets fund 5). Tom detalje = ingen linje.
   if (score === null) return null;
+  // «0 af 6 måneder godkendt, 0 til tiden» lyder som en anklage (designgennemsynet 1/10 fund 4) — sig det roligt.
+  if (s.detaljer.maalte === 0) return `Ingen godkendte måneder i de seneste ${s.detaljer.vindue.length} endnu`;
   return `${s.detaljer.maalte} af ${s.detaljer.vindue.length} måneder godkendt, ${s.detaljer.rettidige} til tiden`;
 }
 
@@ -139,7 +156,7 @@ export function streakLinjer(streak: StreakDom): StreakLinjer {
       ? "Dine tal er godkendt til tiden"
       : streak.status === "brudt"
         ? "Streaken er brudt — næste frist starter en ny"
-        : `Godkend dine tal senest den ${STREAK_FRIST_DAG}. og start din streak`;
+        : STREAK_INGEN_TEKST;
   const n = streak.naesteFrist;
   const hverdage = n.hverdageTil === 0 ? "i dag" : n.hverdageTil === 1 ? "1 hverdag" : `${n.hverdageTil} hverdage`;
   const fristLinje = `Næste frist: ${maaned(n.key)} senest ${datoKort(fristDato(n.key))} (${hverdage})`;
@@ -238,7 +255,7 @@ export function ringBue(vaerdi: number | null, max: number = 1000, radius: numbe
  * Streaken som ÉN linje ved siden af flammen: «7 måneder i træk» + fristen.
  * Uden streak (længde 0 — nyt medlem eller brudt) er «0 måneder i træk» en
  * anklage, ikke en opmuntring (rådets gennemsyn af #1189): linjen bærer da
- * statussen selv («Godkend dine tal senest den 20. og start din streak» /
+ * statussen selv («Ingen streak endnu» /
  * «Streaken er brudt — næste frist starter en ny»), stadig med næste frist.
  * `erStatus` fortæller kortet, at statussen allerede står i linjen, så den
  * ikke gentages i detaljerne.

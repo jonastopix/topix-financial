@@ -94,7 +94,7 @@ describe("boardroomScore — det fulde grundlag", () => {
   it("handlinger: én pr. søjle med gevinsten i samlet score", () => {
     const pr = Object.fromEntries(d.handlinger.map((h) => [h.soejle, h])) as Record<SoejleNavn, Handling>;
     // Godkend september: uden = 225 (rytme 125 + rettidig 50 + 25 + 25) → 708; med = 250 → 733.
-    expect(pr.disciplin).toEqual({ soejle: "disciplin", tekst: "Godkend september senest 20/10.", gevinst: 25, sti: "/reports" });
+    expect(pr.disciplin).toEqual({ soejle: "disciplin", tekst: "Upload og godkend september senest 20/10.", gevinst: 25, sti: "/reports" });
     // Runway 3,33 → 4,33: 183,3 − 158,3 = +25.
     expect(pr.likviditet.gevinst).toBe(25);
     expect(pr.likviditet.tekst).toBe("Én måneds omkostninger mere i banken (60.000 kr.).");
@@ -114,7 +114,7 @@ describe("boardroomScore — kanter", () => {
     expect(d.soejler.disciplin.status === "ok" && d.soejler.disciplin.point).toBe(0);
     expect(d.streak.status).toBe("ingen");
     // Gevinsten kan ikke regnes, når scoren ikke findes på nogen side — men handlingen står.
-    expect(d.loefterMest).toMatchObject({ soejle: "disciplin", tekst: "Godkend september senest 20/10.", gevinst: null });
+    expect(d.loefterMest).toMatchObject({ soejle: "disciplin", tekst: "Upload og godkend september senest 20/10.", gevinst: null });
   });
 
   it("helt nyt medlem (kontraktstart i denne måned): alle fire søjler mangler, ingen NaN", () => {
@@ -137,7 +137,7 @@ describe("boardroomScore — kanter", () => {
   it("den åbne måned allerede godkendt: disciplin-handlingen bliver «måneden mangler» for et hul, ellers budget/mål", () => {
     const rows = [...keys("2026-03", 5).map((k) => sund(k)), sund("2026-09", {}, { foersteGodkendtAt: "2026-09-30T08:00:00Z" })];
     const d = boardroomScore(grundlag(rows), NU); // august mangler
-    expect(d.handlinger.find((h) => h.soejle === "disciplin")?.tekst).toBe("Godkend august — måneden mangler.");
+    expect(d.handlinger.find((h) => h.soejle === "disciplin")?.tekst).toBe("Upload og godkend august — måneden mangler.");
     const d2 = boardroomScore(grundlag([...keys("2026-03", 6).map((k) => sund(k)), sund("2026-09")], { harBudgetForAaret: false }), NU);
     expect(d2.handlinger.find((h) => h.soejle === "disciplin")?.tekst).toBe("Læg et budget for 2026.");
     const d3 = boardroomScore(grundlag([...keys("2026-03", 6).map((k) => sund(k)), sund("2026-09")], { harMaal: false }), NU);

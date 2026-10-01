@@ -140,7 +140,6 @@ function Toolbar({ editor, onAttach, hb, videoKnap }: { editor: Editor; onAttach
       "flex items-center gap-0.5 px-2 py-1 border-b",
       hb ? "border-hb-line bg-hb-sage/10" : "border-border bg-muted/30"
     )}>
-      <span className={cn("text-[9px] mr-1 select-none", hb ? "text-hb-ink-soft/60" : "text-muted-foreground/60")}>Formater:</span>
       <ToolbarBtn
         hb={hb}
         active={editor.isActive("bold")}
