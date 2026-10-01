@@ -80,7 +80,8 @@ handler om udover label.
 classroom="Fundamentet" (Jonas'/Mortens egen undervisning),
 academy="Kurser" (eksterne eksperter), talks="Optagelser" (ren beholder, ingen
 medlemsflade — optagelsen vises på sit event), quick_wins="Quick Wins"
-("Korte, hurtige videoer"), push/ugens_video/redaktionelt/evergreen er
+("Korte, hurtige videoer"; skjult for medlemmer 1/10-2026, se
+`docs/OVERLEVERING.md` «1. oktober aften — Quick Wins skjult»), push/ugens_video/redaktionelt/evergreen er
 forside-kuratering med egne admin-views.
 
 ---

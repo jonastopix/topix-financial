@@ -16,9 +16,11 @@ import { sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
     Ingen covers: ingen samling har et cover_path i dag (målt 12.
     august: 0 af 13), så siden bæres af typografi og struktur. */
 
+/* Et område uden for Akademiet (push, eller et skjult område siden
+   1/10-2026) må hverken nævnes eller linkes: så går linket til /akademiet. */
 const BackLink = ({ areaKey, label }: { areaKey: string; label: string }) => (
   <Link
-    to={`/akademiet/${areaKey}`}
+    to={AREAS.find((a) => a.key === areaKey)?.akademi ? `/akademiet/${areaKey}` : "/akademiet"}
     className="flex items-center gap-2 text-sm text-hb-ink-soft transition-colors hover:text-hb-ink"
   >
     <ArrowLeft className="h-4 w-4" />
@@ -29,7 +31,7 @@ const BackLink = ({ areaKey, label }: { areaKey: string; label: string }) => (
 export const KursusView = ({ areaKey, slug }: { areaKey: string; slug: string }) => {
   const data = useAkademiData();
   const area = AREAS.find((a) => a.key === areaKey);
-  const areaLabel = area?.label ?? areaKey;
+  const areaLabel = area?.akademi ? area.label : "Akademiet";
   const collection = data.collectionBySlug.get(slug);
 
   if (data.loading) return <p className="text-sm text-hb-ink-soft">Henter…</p>;
