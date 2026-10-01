@@ -945,6 +945,28 @@ skrivende edge functions bruger `SUPABASE_SERVICE_ROLE_KEY`.
 ### Shared auth helper: `_shared/edgeFunctionAuth.ts`
 - `authenticateUser(req)` — Bucket A (user-triggered)
 - `authenticateServiceRole(req)` — Bucket B (cron/internal)
+  - **Fase 3a, trin 1 (udkast 1/10-2026, `docs/prod-hjem-plan.md`; built, NOT
+    deployed):** two roads in, judged by the pure `domServiceRole` in
+    `_shared/serviceNoegle.ts` (vitest `src/lib/__tests__/serviceNoegle.test.ts`):
+    (1) the KEY — `apikey` (or `Authorization: Bearer sb_secret_…`) equal in
+    constant time to the runtime's `SUPABASE_SERVICE_ROLE_KEY`, with the
+    `sb_secret_…` form required on BOTH sides (a missing/legacy runtime key
+    closes the road); (2) the role claim, UNCHANGED, which is only safe behind
+    `verify_jwt = true`. A wrong key never rejects on its own — it falls
+    through to (2), so trin 1 changes no answer for today's callers. The
+    `check-verify-jwt-invariant` rule (authenticateServiceRole ⇒ `verify_jwt =
+    true`) still holds unchanged. **Trin 2 (not built):** per function,
+    `verify_jwt = false` ONLY together with a «key only» mode that refuses the
+    role claim, and the invariant script rewritten to enforce exactly that —
+    without it the role claim is forgeable by anyone.
+  - `public.kald_edge` (SECURITY DEFINER, migration `20261001200000_kald_edge_apikey.sql`,
+    **not run; needs Jonas' explicit go-ahead to run**): still sends the legacy
+    `Authorization: Bearer` from vault `email_queue_service_role_key`
+    unchanged, and additionally `apikey` from the NEW vault entry
+    `kald_edge_sb_secret` when it exists and has the `sb_secret_…` form —
+    otherwise exactly as before, never an error. No GRANT/REVOKE: `CREATE OR
+    REPLACE` keeps owner and ACL (measured by the header's FØR/EFTER SQL).
+    Rollback without SQL: delete the vault entry.
 - Bucket C (webhooks) — per-function signature verification
 
 ### Security-sensitive functions requiring extra care:

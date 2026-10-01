@@ -21,6 +21,15 @@
  * role-claimet uverificeret og kan forfalskes af hvem som helst.
  * Håndhæves af scripts/check-verify-jwt-invariant.ts.
  *
+ * FASE 3a, TRIN 1 (1/10-2026, docs/prod-hjem-plan.md): legacy-nøglerne
+ * slettes «Late 2026, TBC». authenticateServiceRole har derfor fået en
+ * ANDEN vej ind: `apikey` (eller `Authorization: Bearer sb_secret_…`), der
+ * i KONSTANT TID er lig runtimens SUPABASE_SERVICE_ROLE_KEY og har formen
+ * sb_secret_… Role-claim-vejen er UÆNDRET, og invarianten ovenfor gælder
+ * stadig fuldt ud: trin 1 ændrer ingen verify_jwt. Dommen bor ren i
+ * _shared/serviceNoegle.ts (vitest: src/lib/__tests__/serviceNoegle.test.ts).
+ * Trin 2 (verify_jwt = false + «kun nøgle», pr. function) er IKKE bygget.
+ *
  * THREE AUTH BUCKETS:
  *
  * Bucket A — User-triggered functions:
@@ -54,6 +63,11 @@
  */
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
+import { domServiceRole, parseJwtClaims } from "./serviceNoegle.ts";
+
+// parseJwtClaims bor nu i serviceNoegle.ts (ren, testbar) — re-eksporteret
+// her uændret, så eksisterende imports (generate-weekly-focus) står.
+export { parseJwtClaims };
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -113,61 +127,42 @@ export async function authenticateUser(
   return { callerId, authHeader, callerClient };
 }
 
-/**
- * Læser claims ud af en JWT UDEN at verificere signaturen.
- * Må kun bruges bag verify_jwt = true. Se INVARIANT i fil-headeren.
- */
-export function parseJwtClaims(token: string): Record<string, unknown> | null {
-  const parts = token.split(".");
-  if (parts.length < 2) return null;
+/** Runtimens SUPABASE_SERVICE_ROLE_KEY — eller undefined, hvis den ikke kan
+ *  læses (fx `deno test` uden --allow-env). undefined lukker nøglevejen
+ *  (fail-closed); role-claim-vejen er upåvirket. */
+function laesRuntimeNoegle(): string | undefined {
   try {
-    const payload = parts[1]
-      .replaceAll("-", "+")
-      .replaceAll("_", "/")
-      .padEnd(Math.ceil(parts[1].length / 4) * 4, "=");
-    return JSON.parse(atob(payload)) as Record<string, unknown>;
+    return Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   } catch {
-    return null;
+    return undefined;
   }
 }
 
 /**
  * Bucket B: Autentificér et service-role-/cron-/internt kald.
  *
- * Kræver et Bearer-token hvis role-claim er "service_role".
- * Signaturen verificeres af gatewayen — se INVARIANT i fil-headeren.
+ * To veje (dommen: domServiceRole i serviceNoegle.ts):
+ *   1. Nøglen (fase 3a, trin 1): `apikey` eller `Bearer sb_secret_…`,
+ *      konstant-tids-lig runtimens SUPABASE_SERVICE_ROLE_KEY (sb_secret-form
+ *      på begge sider).
+ *   2. Role-claimet (uændret): Bearer-token med role = "service_role".
+ *      Signaturen verificeres af gatewayen — se INVARIANT i fil-headeren.
+ * En forkert nøgle afvises ikke i sig selv; den falder igennem til vej 2,
+ * så trin 1 ikke ændrer svaret for nogen kalder, der virker i dag.
  *
- * 401 = intet eller ugyldigt Bearer-token.
+ * 401 = intet eller ugyldigt Bearer-token (og ingen gyldig nøgle).
  * 403 = gyldigt token, forkert rolle. Adskillelsen er bevidst: en
  *       tvetydig 401 kostede en times fejlsøgning 10-08-2026.
  *
  * @returns true ved succes, ellers en 401/403 Response.
  */
 export function authenticateServiceRole(req: Request): true | Response {
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    return new Response(
-      JSON.stringify({ error: "Unauthorized — service-role key required" }),
-      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-  }
-
-  const claims = parseJwtClaims(authHeader.slice("Bearer ".length).trim());
-  if (!claims) {
-    return new Response(
-      JSON.stringify({ error: "Unauthorized — service-role key required" }),
-      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-  }
-
-  if (claims.role !== "service_role") {
-    return new Response(
-      JSON.stringify({ error: "Forbidden — service-role required" }),
-      { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-  }
-
-  return true;
+  const dom = domServiceRole(req.headers, laesRuntimeNoegle());
+  if (dom.ok) return true;
+  return new Response(
+    JSON.stringify({ error: dom.error }),
+    { status: dom.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+  );
 }
 
 /** Re-export corsHeaders for convenience */
