@@ -19,12 +19,10 @@ import { join, resolve } from "node:path";
 //   4. Medlemmet ejer sine mål: DineMaalView bruger useMilestones' opret, slet,
 //      opdaterFelt og markerNaaet; og INGEN migration i repoet hedder
 //      «maal_skrives_af_raadgiveren» (planens RLS-migration UDGÅR).
-//   5. RETTET 1/10-2026 (før: Jonas «B» 16/9, maalId valgfrit): har
-//      virksomheden AKTIVE mål, KRÆVER foreslaa-opgave maalId — 400 med grund
-//      «maal_kraeves» (kraeverMaalValg, _shared/maalValg.ts), lagt EFTER
-//      rolletjekket; et VALGT mål valideres stadig (404/409). Begge kaldere —
-//      chatten og Planen — dømmer med forslagMaalDom (lib/maalValg) og har
-//      INTET «Uden mål»-valg; chatten har ingen standard (valget kræves).
+//   5. JONAS 16/9 (ordret: «B»): maalId er VALGFRIT i foreslaa-opgave — ingen
+//      400 «Målet mangler»; et VALGT mål valideres stadig (404/409). Begge
+//      kaldere — chatten og Planen — sender maalId kun når et mål er valgt, og
+//      har et tydeligt «Uden mål»-valg.
 //   8. Fulde titler i Planen (Jonas 16/9: «Vi kan ikke se hele opgaveskriften
 //      på virksomhedssiden»): ingen truncate/line-clamp i VirksomhedPlanen.
 //   6. «Måske relevant»: MODUL_FOR_KATEGORI kender præcis milestoneCategories'
@@ -153,31 +151,18 @@ export const medlemmetEjer = (view: string, migrationer: readonly string[]): boo
   !/functions\.invoke\("maal-skriv"/.test(view) &&
   !migrationer.some((m) => /maal_skrives_af_raadgiveren/.test(m));
 
-/** Dom 5 (1/10-2026): målet kræves, når der er aktive mål — serveren efter rolletjekket, kalderne gennem forslagMaalDom, intet «Uden mål». */
-export const maaletKraeves = (fn: string, chat: string, planen: string): boolean => {
-  const rolle = fn.indexOf('_role: "advisor"');
-  const kraev = fn.indexOf("if (kraeverMaalValg(aktiveMaal ?? [])) {");
-  const insert = fn.indexOf('.from("company_actions")\n    .insert(');
-  return !/Målet mangler/.test(fn) &&
-    fn.includes('import { kraeverMaalValg, MAAL_KRAEVES_GRUND, MAAL_KRAEVES_TEKST } from "../_shared/maalValg.ts";') &&
-    fn.includes('if (maalId !== undefined && maalId !== null && (typeof maalId !== "string" || maalId.trim() === "")) {') &&
-    /if \(!oensketMaalId\) \{\s*const \{ data: aktiveMaal, error: aktiveErr \} = await adminClient\s*\.from\("milestones"\)\s*\.select\("id"\)\s*\.eq\("company_id", companyId\)\s*\.eq\("status", "active"\);/.test(fn) &&
-    fn.includes("return jsonResponse({ error: MAAL_KRAEVES_TEKST, grund: MAAL_KRAEVES_GRUND }, 400);") &&
-    rolle > 0 && kraev > rolle && insert > kraev &&
-    fn.includes("if (oensketMaalId) {") &&
-    /status !== "active"/.test(fn) && /Målet findes ikke hos denne virksomhed/.test(fn) &&
-    /const forslagDom = forslagMaalDom\(/.test(chat) &&
-    /!forslagDom\.kanSendes\) return;/.test(chat) &&
-    /disabled=\{foreslaarOpgave \|\| !forslagTitel\.trim\(\) \|\| !forslagDom\.kanSendes\}/.test(chat) &&
-    /\.\.\.\(maalId \? \{ maalId \} : \{\}\),/.test(chat) &&
-    !/aktiveMaal\[0\]\?\.id/.test(chat) &&
-    !/>Uden mål</.test(chat) &&
-    /functions\.invoke\("foreslaa-opgave"/.test(planen) &&
-    /const maalDom = forslagMaalDom\("klar", dom\.aktive\.map/.test(planen) &&
-    /if \(!maalDom\.kanSendes\)/.test(planen) &&
-    /\.\.\.\(maalId \? \{ maalId \} : \{\}\) \}\);/.test(planen) &&
-    !/>Uden mål</.test(planen);
-};
+/** Dom 5 (Jonas «B»): maalId valgfrit — det valgte mål valideres; kalderne sender kun et valgt mål og har «Uden mål». */
+export const maaletErValgfrit = (fn: string, chat: string, planen: string): boolean =>
+  !/Målet mangler/.test(fn) &&
+  fn.includes('if (maalId !== undefined && maalId !== null && (typeof maalId !== "string" || maalId.trim() === "")) {') &&
+  fn.includes("if (oensketMaalId) {") &&
+  /status !== "active"/.test(fn) && /Målet findes ikke hos denne virksomhed/.test(fn) &&
+  /\.\.\.\(valgtMaalId \? \{ maalId: valgtMaalId \} : \{\}\),/.test(chat) &&
+  !/\|\| !forslagMaalId\) return;/.test(chat) &&
+  /<option value="uden">Uden mål<\/option>/.test(chat) &&
+  /functions\.invoke\("foreslaa-opgave"/.test(planen) &&
+  /\.\.\.\(maalId \? \{ maalId \} : \{\}\) \}\);/.test(planen) &&
+  /<option value="uden">Uden mål<\/option>/.test(planen);
 
 /** Dom 8: fulde titler i Planen — ingen klipning. */
 export const fuldeTitler = (planen: string): boolean => !/\b(truncate|line-clamp-\d+)\b/.test(planen);
@@ -233,8 +218,8 @@ describe("dineMaal.guard — fase 3: medlemmets mål, uden milepæls-slot, skyde
   it("dom 4: medlemmet ejer sine mål — opret/omdøb/parkér/slet/nået gennem useMilestones; ingen RLS-migration «maal_skrives_af_raadgiveren»", () => {
     expect(medlemmetEjer(view, migrationer)).toBe(true);
   });
-  it("dom 5 (1/10-2026): har virksomheden aktive mål, kræver foreslaa-opgave maalId (400 maal_kraeves efter rolletjekket); chatten og Planen dømmer med forslagMaalDom og har intet «Uden mål»", () => {
-    expect(maaletKraeves(fn, chat, planen)).toBe(true);
+  it("dom 5 (Jonas «B»): maalId er valgfrit i foreslaa-opgave, et valgt mål valideres; chatten og Planen sender kun et valgt mål og har «Uden mål»", () => {
+    expect(maaletErValgfrit(fn, chat, planen)).toBe(true);
   });
   it("dom 8: fulde titler i Planen — ingen truncate/line-clamp", () => {
     expect(fuldeTitler(planen)).toBe(true);
@@ -272,15 +257,11 @@ describe("dineMaal.guard — fase 3: medlemmets mål, uden milepæls-slot, skyde
     expect(medlemmetEjer(view + '\nawait supabase.functions.invoke("maal-skriv", {});', migrationer)).toBe(false);
     expect(medlemmetEjer(view, [...migrationer, "supabase/migrations/20260917160000_maal_skrives_af_raadgiveren.sql"])).toBe(false);
   });
-  it("selvbevis 5: kravet væk i functionen, kravet før rolletjekket, et værn der er væk, en standard eller «Uden mål» i en kalder, falder", () => {
-    expect(maaletKraeves(fn.replace("if (kraeverMaalValg(aktiveMaal ?? [])) {", "if (false) {"), chat, planen)).toBe(false);
-    expect(maaletKraeves(fn.replace('_role: "advisor"', '_role: "advisor_x"') + '\n_role: "advisor"', chat, planen)).toBe(false);
-    expect(maaletKraeves(fn.replace("if (oensketMaalId) {", "{"), chat, planen)).toBe(false);
-    expect(maaletKraeves(fn, chat + '\n<option value="uden">Uden mål</option>', planen)).toBe(false);
-    expect(maaletKraeves(fn, chat + "\nconst std = aktiveMaal[0]?.id;", planen)).toBe(false);
-    expect(maaletKraeves(fn, chat.replace("|| !forslagDom.kanSendes}", "}"), planen)).toBe(false);
-    expect(maaletKraeves(fn, chat, planen + '\n<option value="uden">Uden mål</option>')).toBe(false);
-    expect(maaletKraeves(fn, chat, planen.replace("if (!maalDom.kanSendes)", "if (false)"))).toBe(false);
+  it("selvbevis 5: «Målet mangler» tilbage i functionen, et værn der er væk, eller en kalder uden «Uden mål» falder", () => {
+    expect(maaletErValgfrit(fn + '\n  return jsonResponse({ error: "Målet mangler" }, 400);', chat, planen)).toBe(false);
+    expect(maaletErValgfrit(fn.replace("if (oensketMaalId) {", "{"), chat, planen)).toBe(false);
+    expect(maaletErValgfrit(fn, chat.replace('<option value="uden">Uden mål</option>', ""), planen)).toBe(false);
+    expect(maaletErValgfrit(fn, chat, planen.replace("...(maalId ? { maalId } : {}) });", "maalId });"))).toBe(false);
   });
   it("selvbevis 8: en truncate på en titel i Planen falder", () => {
     expect(fuldeTitler(planen.replace("min-w-0 break-words text-hb-ink", "min-w-0 truncate text-hb-ink"))).toBe(false);

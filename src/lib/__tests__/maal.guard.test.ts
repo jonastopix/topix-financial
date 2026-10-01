@@ -80,12 +80,7 @@ export const lukHolder = (kode: string): boolean => {
 /** Dom 2 for foreslaa-opgave: værnet (opslaget på milestones med id OG
     company_id, og kravet om aktivt mål) står FØR insert'en med maal_id. */
 export const foreslaaHolder = (kode: string): boolean => {
-  // 1/10-2026: functionen har nu TO opslag på milestones — kravet om et mål
-  // (aktive mål, «maal_kraeves») og værnet for det valgte. Værnet er det
-  // opslag, der bærer id'et; før: kode.indexOf('.from("milestones")').
-  const idOpslag = kode.indexOf('.eq("id", oensketMaalId)');
-  if (idOpslag === -1) return false;
-  const fra = kode.lastIndexOf('.from("milestones")', idOpslag);
+  const fra = kode.indexOf('.from("milestones")');
   if (fra === -1) return false;
   const opslag = kode.slice(fra, kode.indexOf(".maybeSingle()", fra));
   return opslag.includes('.eq("id", oensketMaalId)') &&
