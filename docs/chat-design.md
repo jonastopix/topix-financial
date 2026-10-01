@@ -468,3 +468,37 @@ på desktop og er fjernet dér; på mobil bærer den «Se tal» og
 forrige/næste. Værn: `ingenTildeling.guard.test.ts` (fælder også, hvis
 «Tildel rådgiver» kommer tilbage), `mobilChat.guard.test.ts` uændret
 grøn, `tjenestekonto.guard.test.ts` (de tre steder er taget af listerne).
+
+## 10. Nummererede lister viste «1. 1. 1.» (1/10-2026)
+
+**Fejlen** (Jonas 1/10 13:09, skærmbillede fra et medlems besked): tre punkter,
+hver med fed overskrift og en tekst under, blev vist «1. … 1. … 1.».
+
+**Målt i koden** (genskabt med en rigtig Tiptap-editor i
+`src/lib/__tests__/chatHtml.test.tsx`): sendefeltets OrderedList (StarterKit
+2.27.2) har input-reglen `^(\d+)\.\s$` → `start: +tal`, og den slår kun
+sammen med en liste LIGE FØR. Står teksten under overskriften som et afsnit
+mellem punkterne, laver «2. » en ny `<ol start="2">`. Det gemte er derfor
+rigtigt (`<ol>…</ol><p>…</p><ol start="2">…</ol><p>…</p><ol start="3">…</ol>`)
+— fejlen var visningen: `ChatBeskedTekst`s DOMPurify-liste tillod kun
+`href/target/rel` og smed `start` væk, og dokument-vejen
+(`parseCommunityDokument`) kendte ikke `attrs.start`.
+
+**Rettet i visningen, så også gamle beskeder bliver rigtige**
+(`src/lib/chatHtml.ts`): `renskChatHtml` bevarer `start` KUN på `<ol>` og
+kun som helt tal 2..9999 (`listeStart`, samme dom som parseren); en `<ol>`
+uden eget start, der kun er skilt fra den forrige af tomme afsnit/`<br>`,
+fortsætter dens tælling (`nummererLister` gør det samme i dokument-vejen).
+Et afsnit med tekst imellem bryder ikke en eksplicit start, men fortsætter
+heller ikke en liste uden. `parseCommunityDokument` bærer nu `start` på
+`orderedList`, og Community's `CommunityDokument` tegner den også.
+Punktlister og alle andre attributter er urørte (værn
+`chatHenvisningFlade.guard` c: `start` er den eneste ekstra attribut).
+Skrivningen er ikke ændret — serialiseringen var rigtig.
+
+**Umålt:** prod-rækken bag skærmbilledet er ikke læst. Er beskeden skrevet
+med værktøjslinjens «Nummereret liste» i stedet for at taste «2. », får hvert
+punkt sin egen liste med start 1 (det så forfatteren også i editoren), og
+står der tekst imellem, viser visningen stadig «1. 1. 1.». De to
+systembesked-renderere i panerne (centrerede) har deres egen DOMPurify-liste
+og er ikke ændret.

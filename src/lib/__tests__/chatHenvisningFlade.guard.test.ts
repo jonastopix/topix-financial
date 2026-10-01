@@ -16,7 +16,8 @@ import { join, resolve } from "node:path";
  *      SAMMEN fra byggChatBesked.
  *   c. INGEN dangerouslySetInnerHTML AF DOKUMENTET: boblen tegner dokumentet som
  *      træ; den eneste innerHTML i ChatBeskedTekst er content gennem den gamle
- *      DOMPurify-liste; panerne har ingen egen kopi af boblens innerHTML, og intet
+ *      DOMPurify-liste (siden 1/10 i src/lib/chatHtml.ts: renskChatHtml, med
+ *      `start` som ENESTE ekstra attribut — «1. 1. 1.»-rettelsen); panerne har ingen egen kopi af boblens innerHTML, og intet
  *      sted i src sætter indhold_json som HTML.
  *   d. AFTALENS ADRESSE FRA rabataftaleAdresse: chattens og Community's visning
  *      får aftalens href fra hjælperen, og ingen anden fil bygger
@@ -47,6 +48,7 @@ const flad = (k: string) => k.replace(/\s+/g, " ");
 const INPUT = "src/components/ChatRichInput.tsx";
 const DIALOG = "src/components/MessageEditDialog.tsx";
 const TEKST = "src/components/ChatBeskedTekst.tsx";
+const HTML = "src/lib/chatHtml.ts";
 const HOOK = "src/hooks/useMessageActions.ts";
 const MOTOR = "src/lib/chatDokument.ts";
 const COMMUNITY = "src/components/hjemmebane/community/CommunityDokument.tsx";
@@ -108,16 +110,23 @@ export const redigeringOpdatererBegge = (k: { hook: string; dialog: string; pane
 };
 
 // ── c ──────────────────────────────────────────────────────────────────────
-const BOBLE_HTML =
-  "dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(content, { ALLOWED_TAGS: TILLADTE_TAGS, ALLOWED_ATTR: TILLADTE_ATTR }) }}";
+const BOBLE_HTML = "dangerouslySetInnerHTML={{ __html: renskChatHtml(content) }}";
 const innerHtmlUdtryk = (k: string) => [...k.matchAll(/dangerouslySetInnerHTML=\{\{([\s\S]*?)\}\}\s*\/>/g)].map((m) => m[1]);
-export const ingenInnerHtmlAfDokumentet = (k: { tekst: string; paner: readonly string[]; alle: ReadonlyMap<string, string> }): boolean => {
+export const ingenInnerHtmlAfDokumentet = (k: { tekst: string; html: string; paner: readonly string[]; alle: ReadonlyMap<string, string> }): boolean => {
   const tekst = udenKommentarer(k.tekst);
+  const html = udenKommentarer(k.html);
+  const listeOk =
+    html.includes('export const CHAT_TILLADTE_TAGS = ["b", "strong", "i", "em", "ul", "ol", "li", "a", "p", "br"];') &&
+    html.includes('export const CHAT_TILLADTE_ATTR = ["href", "target", "rel"];') &&
+    antal(html, "ALLOWED_ATTR:") === 1 &&
+    html.includes('ALLOWED_ATTR: [...CHAT_TILLADTE_ATTR, "start"],') &&
+    antal(html, "ALLOWED_TAGS:") === 1 &&
+    html.includes("ALLOWED_TAGS: CHAT_TILLADTE_TAGS,") &&
+    !/ADD_ATTR|ADD_TAGS|addHook/.test(html);
   const tekstOk =
+    listeOk &&
     antal(tekst, "dangerouslySetInnerHTML") === 1 &&
     tekst.includes(BOBLE_HTML) &&
-    tekst.includes('const TILLADTE_TAGS = ["b", "strong", "i", "em", "ul", "ol", "li", "a", "p", "br"];') &&
-    tekst.includes('const TILLADTE_ATTR = ["href", "target", "rel"];') &&
     foer(tekst, "if (noder.length > 0) {", BOBLE_HTML) &&
     krop(tekst, "if (noder.length > 0) {", "\n  }\n").includes("{renderIndhold(noder)}");
   const panerOk = k.paner.every((raa) => {
@@ -203,7 +212,7 @@ describe("chatHenvisningFlade.guard", () => {
   it("b. redigering opdaterer content og indhold_json sammen", () =>
     expect(redigeringOpdatererBegge({ hook: laes(HOOK), dialog: laes(DIALOG), paner })).toBe(true));
   it("c. ingen dangerouslySetInnerHTML af dokumentet", () =>
-    expect(ingenInnerHtmlAfDokumentet({ tekst: laes(TEKST), paner, alle: kildefiler() })).toBe(true));
+    expect(ingenInnerHtmlAfDokumentet({ tekst: laes(TEKST), html: laes(HTML), paner, alle: kildefiler() })).toBe(true));
   it("d. aftalens href fra rabataftaleAdresse — ingen bygger den selv", () =>
     expect(aftalensAdresseFraHjaelperen({ motor: laes(MOTOR), tekst: laes(TEKST), community: laes(COMMUNITY), alle: kildefiler() })).toBe(true));
 });
@@ -245,14 +254,21 @@ describe("chatHenvisningFlade.guard — dommene fælder på en kopi", () => {
   });
 
   it("c: dokumentet som innerHTML — i boblen, i et pane eller et andet sted — eller en bredere DOMPurify-liste, fælder", () => {
-    const ok = { tekst, paner: [member, company], alle };
+    const html = laes(HTML);
+    const ok = { tekst, html, paner: [member, company], alle };
     expect(ingenInnerHtmlAfDokumentet(ok)).toBe(true);
     const boble = byt(tekst, "{renderIndhold(noder)}</div>", "<div dangerouslySetInnerHTML={{ __html: String(dokument) }} /></div>");
     expect(ingenInnerHtmlAfDokumentet({ ...ok, tekst: boble })).toBe(false);
     const udenTrae = byt(tekst, "{renderIndhold(noder)}</div>", "{content}</div>");
     expect(ingenInnerHtmlAfDokumentet({ ...ok, tekst: udenTrae })).toBe(false);
-    const bred = byt(tekst, '"a", "p", "br"];', '"a", "p", "br", "img"];');
-    expect(ingenInnerHtmlAfDokumentet({ ...ok, tekst: bred })).toBe(false);
+    const bred = byt(html, '"a", "p", "br"];', '"a", "p", "br", "img"];');
+    expect(ingenInnerHtmlAfDokumentet({ ...ok, html: bred })).toBe(false);
+    const bredAttr = byt(html, 'ALLOWED_ATTR: [...CHAT_TILLADTE_ATTR, "start"],', 'ALLOWED_ATTR: [...CHAT_TILLADTE_ATTR, "start", "style"],');
+    expect(ingenInnerHtmlAfDokumentet({ ...ok, html: bredAttr })).toBe(false);
+    const tilfoejet = byt(html, "    RETURN_DOM_FRAGMENT: true,\n", '    RETURN_DOM_FRAGMENT: true,\n    ADD_ATTR: ["style"],\n');
+    expect(ingenInnerHtmlAfDokumentet({ ...ok, html: tilfoejet })).toBe(false);
+    const udenom = byt(tekst, "renskChatHtml(content)", "DOMPurify.sanitize(content)");
+    expect(ingenInnerHtmlAfDokumentet({ ...ok, tekst: udenom })).toBe(false);
     const pane = company.replace(
       "<ChatBeskedTekst content={msg.content} dokument={msg.indhold_json} />",
       "<div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(JSON.stringify(msg.indhold_json)) }} />",
