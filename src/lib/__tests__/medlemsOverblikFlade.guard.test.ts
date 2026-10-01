@@ -16,7 +16,8 @@ import { SORTERINGER, STANDARD_SORTERING } from "@/lib/hjemmebane/branchefilter"
  *   3. /VIRKSOMHEDER ER TILBAGE (som før #1122): listen nævner hverken
  *      useMedlemsOverblik, motoren, overblikOrd eller ?maerke=; standard-
  *      sorteringen er navn, og branchefilter kender ingen «overblik».
- *   4. FORSIDEBLOKKEN TÆLLER GENNEM manglerAtBooke: forsiden henter med
+ *   4. FORSIDEBLOKKEN TÆLLER GENNEM manglerAtBooke (Jonas-porten = nyt medlem
+ *      ELLER tilbudt, omfattetAfJonas, 1/10-2026): forsiden henter med
  *      useMedlemsOverblik og giver hentningen til ManglerAtBooke; linjerne
  *      bygges af manglerAtBookeLinjer, som spørger motorens manglerAtBooke —
  *      ingen af de tre filer har en egen sessionsregel (ingen statusord, ingen
@@ -50,9 +51,9 @@ export const hookenBrugerMotoren = (hook: string, motor: string): boolean => {
     (m.match(/sessionStatus\(\{ raadgiver: "(morten|jonas)"/g) ?? []).length === 2 &&
     m.includes("if (c.is_demo === true) return false;") &&
     m.includes("if (!iUniverset(c)) continue;") &&
-    m.includes('ud.set(c.id, { companyId: c.id, navn: c.name || "", medlemSiden: medlemSidenByCompany.get(c.id) ?? null, sessioner });') &&
+    m.includes('ud.set(c.id, { companyId: c.id, navn: c.name || "", medlemSiden: medlemSidenByCompany.get(c.id) ?? null, jonasTilbudtAt: c.jonas_session_tilbudt_at ?? null, sessioner });') &&
     // is_demo og name hentes — ellers er filtret tomt og navnene tomme.
-    h.includes('select("id, name, status, is_legat, er_kunde, is_demo, intro_session_used_at, jonas_session_used_at")')
+    h.includes('select("id, name, status, is_legat, er_kunde, is_demo, intro_session_used_at, jonas_session_used_at, jonas_session_tilbudt_at")')
   );
 };
 
@@ -97,7 +98,9 @@ export const forsidenTaellerGennemMotoren = (k: { forside: string; blok: string;
     l.includes("const mangler = manglerAtBooke(r);") &&
     !STATUSORD.test(l) &&
     krop.includes("const mangler = (s: SessionStatus) => MANGLER_STATUSSER.includes(s);") &&
-    krop.includes("jonas: erNytMedlem(raekke.medlemSiden) && mangler(raekke.sessioner.jonas.status),")
+    krop.includes("jonas: omfattetAfJonas(raekke) && mangler(raekke.sessioner.jonas.status),") &&
+    // Porten (1/10-2026): nyt medlem ELLER tilbudt — ét sted.
+    m.includes("return erNytMedlem(raekke.medlemSiden) || !!raekke.jonasTilbudtAt;")
   );
 };
 
@@ -118,7 +121,7 @@ describe("medlemsOverblikFlade.guard — dommene fanger fejlen på en kopi", () 
     expect(hookenBrugerMotoren(`${hook}\nconst x = rk[0]?.status === "booked" ? "afholdt" : "booket";\n`, motor)).toBe(false);
     expect(hookenBrugerMotoren(hook.replace("return byggOverblik({ companies, medlemmer, bookinger }, nu);", "return new Map();"), motor)).toBe(false);
     expect(hookenBrugerMotoren(`${hook}\nconst brugereByCompany = new Map<string, string[]>();\n`, motor)).toBe(false);
-    expect(hookenBrugerMotoren(hook.replace('select("id, name, status, is_legat, er_kunde, is_demo, intro_session_used_at, jonas_session_used_at")', 'select("id, name, status, is_legat, er_kunde, intro_session_used_at, jonas_session_used_at")'), motor)).toBe(false);
+    expect(hookenBrugerMotoren(hook.replace('select("id, name, status, is_legat, er_kunde, is_demo, intro_session_used_at, jonas_session_used_at, jonas_session_tilbudt_at")', 'select("id, name, status, is_legat, er_kunde, intro_session_used_at, jonas_session_used_at, jonas_session_tilbudt_at")'), motor)).toBe(false);
     expect(hookenBrugerMotoren(hook.replace('select("id, name, status,', 'select("id, status,'), motor)).toBe(false);
     expect(hookenBrugerMotoren(hook, motor.replace("if (c.is_demo === true) return false;", ""))).toBe(false);
   });
@@ -162,8 +165,11 @@ describe("medlemsOverblikFlade.guard — dommene fanger fejlen på en kopi", () 
     // Blokken uden forsidens hentning.
     const udenBlok = byt(ok.forside, "<ManglerAtBooke hentning={overblikQuery} virksomhedsLink={virksomhedsLink} linkKlasse={TEKSTLINK} />", "");
     expect(forsidenTaellerGennemMotoren({ ...ok, forside: udenBlok })).toBe(false);
-    // Motoren glemmer, at Jonas kun gælder nye.
-    const alleJonas = byt(ok.motor, "jonas: erNytMedlem(raekke.medlemSiden) && mangler(raekke.sessioner.jonas.status),", "jonas: mangler(raekke.sessioner.jonas.status),");
+    // Motoren glemmer, at Jonas kun gælder nye eller tilbudte.
+    const alleJonas = byt(ok.motor, "jonas: omfattetAfJonas(raekke) && mangler(raekke.sessioner.jonas.status),", "jonas: mangler(raekke.sessioner.jonas.status),");
     expect(forsidenTaellerGennemMotoren({ ...ok, motor: alleJonas })).toBe(false);
+    // Porten mister tilbuddet (1/10) — ANLA-fejlen tilbage.
+    const udenTilbud = byt(ok.motor, "return erNytMedlem(raekke.medlemSiden) || !!raekke.jonasTilbudtAt;", "return erNytMedlem(raekke.medlemSiden);");
+    expect(forsidenTaellerGennemMotoren({ ...ok, motor: udenTilbud })).toBe(false);
   });
 });

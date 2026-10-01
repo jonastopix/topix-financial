@@ -52,6 +52,8 @@ export const FORBUDTE = [
   "fornyelsespris_oere",
   "intro_session_used_at",
   "jonas_session_used_at",
+  // 1/10-2026 (20261001110000): rådgiverens «tilbudt» — aldrig medlemsskrivbar.
+  "jonas_session_tilbudt_at",
   "intro_reminder_last_sent_at",
   "slack_channel",
   "application_context",

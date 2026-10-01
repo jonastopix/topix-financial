@@ -10,6 +10,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { erNytMedlem } from "@/lib/medlemsOverblik";
 
 interface EditCompanyDialogProps {
   open: boolean;
@@ -31,6 +32,13 @@ interface CompanyEditForm {
       søster til intro_session_used_at (Mortens). Samme mønster: afkrydsning
       ↔ timestamp, hentet tidspunkt bevares ved gem. */
   jonas_session_used: boolean;
+  /** «Session med Jonas · tilbudt» (1/10-2026, migration 20261001110000):
+      companies.jonas_session_tilbudt_at — et ældre medlem (fra før 14/9) er
+      tilbudt Jonas-sessionen og tæller da i forsidens «Mangler at booke»
+      (lib/medlemsOverblik omfattetAfJonas). Samme mønster: afkrydsning ↔
+      timestamp, hentet tidspunkt bevares ved gem. Kun rådgivere skriver den —
+      kolonnen står ikke på companies_medlem_kolonnevaern's hvidliste. */
+  jonas_session_tilbudt: boolean;
   /** Gæst (kort #174, 10/9): companies.vis_i_netvaerk = false. Feltet blev
       før kun sat med SQL (migration 20260902110000). Vendt i formularen:
       «gæst» = ikke i Netværket. RLS: «Advisors can update all companies»
@@ -48,6 +56,7 @@ const EMPTY_FORM: CompanyEditForm = {
   slack_channel: "",
   intro_session_used: false,
   jonas_session_used: false,
+  jonas_session_tilbudt: false,
   gaest: false,
 };
 
@@ -59,6 +68,10 @@ const EditCompanyDialog = ({ open, onOpenChange, companyId, onSaved }: EditCompa
   // Bevar den hentede intro-timestamp, saa en almindelig gem aldrig flytter "hvornaar brugt".
   const [originalIntroAt, setOriginalIntroAt] = useState<string | null>(null);
   const [originalJonasAt, setOriginalJonasAt] = useState<string | null>(null);
+  const [originalJonasTilbudtAt, setOriginalJonasTilbudtAt] = useState<string | null>(null);
+  // Første company_members.created_at — samme «ny»-port som forsiden (erNytMedlem).
+  // null (ingen medlemmer, eller hentningen fejlede) = ikke ny → fluebenet vises.
+  const [medlemSiden, setMedlemSiden] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -68,12 +81,22 @@ const EditCompanyDialog = ({ open, onOpenChange, companyId, onSaved }: EditCompa
     let cancelled = false;
     setLoading(true);
     (async () => {
-      const { data, error } = await supabase
-        .from("companies")
-        .select("contract_start_date, contract_end_date, subscription_status, cvr_number, industry_label, website, slack_channel, intro_session_used_at, jonas_session_used_at, vis_i_netvaerk")
-        .eq("id", companyId)
-        .maybeSingle();
+      const [{ data, error }, foersteMedlem] = await Promise.all([
+        supabase
+          .from("companies")
+          .select("contract_start_date, contract_end_date, subscription_status, cvr_number, industry_label, website, slack_channel, intro_session_used_at, jonas_session_used_at, jonas_session_tilbudt_at, vis_i_netvaerk")
+          .eq("id", companyId)
+          .maybeSingle(),
+        supabase
+          .from("company_members")
+          .select("created_at")
+          .eq("company_id", companyId)
+          .order("created_at", { ascending: true })
+          .limit(1),
+      ]);
       if (cancelled) return;
+      // Fejler medlemsopslaget, er porten ukendt: fluebenet vises (fail-open for VISNINGEN, aldrig for skrivningen).
+      setMedlemSiden(foersteMedlem.error ? null : ((foersteMedlem.data?.[0] as { created_at?: string | null } | undefined)?.created_at ?? null));
       if (error || !data) {
         toast.error("Kunne ikke hente virksomhedsdata", { description: error?.message });
         setLoading(false);
@@ -82,6 +105,7 @@ const EditCompanyDialog = ({ open, onOpenChange, companyId, onSaved }: EditCompa
       const c = data as any;
       setOriginalIntroAt(c.intro_session_used_at ?? null);
       setOriginalJonasAt(c.jonas_session_used_at ?? null);
+      setOriginalJonasTilbudtAt(c.jonas_session_tilbudt_at ?? null);
       setForm({
         contract_start_date: c.contract_start_date?.slice(0, 10) || "",
         contract_end_date: c.contract_end_date?.slice(0, 10) || "",
@@ -92,6 +116,7 @@ const EditCompanyDialog = ({ open, onOpenChange, companyId, onSaved }: EditCompa
         slack_channel: c.slack_channel || "",
         intro_session_used: !!c.intro_session_used_at,
         jonas_session_used: !!c.jonas_session_used_at,
+        jonas_session_tilbudt: !!c.jonas_session_tilbudt_at,
         gaest: c.vis_i_netvaerk === false,
       });
       setLoading(false);
@@ -100,6 +125,10 @@ const EditCompanyDialog = ({ open, onOpenChange, companyId, onSaved }: EditCompa
       cancelled = true;
     };
   }, [open, companyId]);
+
+  // Fluebenet «tilbudt» vises for et ældre medlem (ikke erNytMedlem) — og altid,
+  // når det allerede er sat, så det kan ryddes.
+  const visTilbudt = !erNytMedlem(medlemSiden) || form.jonas_session_tilbudt;
 
   const handleSave = async () => {
     if (!companyId) return;
@@ -127,6 +156,12 @@ const EditCompanyDialog = ({ open, onOpenChange, companyId, onSaved }: EditCompa
         updates.jonas_session_used_at = originalJonasAt || new Date().toISOString();
       } else {
         updates.jonas_session_used_at = null;
+      }
+      // «Tilbudt» (1/10): samme moenster — et eksisterende tidspunkt bevares.
+      if (form.jonas_session_tilbudt) {
+        updates.jonas_session_tilbudt_at = originalJonasTilbudtAt || new Date().toISOString();
+      } else {
+        updates.jonas_session_tilbudt_at = null;
       }
       const { error } = await (supabase.from("companies").update(updates as any).eq("id", companyId) as any);
       if (error) throw error;
@@ -229,6 +264,22 @@ const EditCompanyDialog = ({ open, onOpenChange, companyId, onSaved }: EditCompa
               Session med Morten · inkluderet — brugt
             </label>
           </div>
+          {visTilbudt && (
+            <div>
+              <label className="flex items-center gap-2 text-xs font-medium text-foreground">
+                <input
+                  type="checkbox"
+                  checked={form.jonas_session_tilbudt}
+                  onChange={(e) => setForm(f => ({ ...f, jonas_session_tilbudt: e.target.checked }))}
+                  className="h-4 w-4 rounded border-border"
+                />
+                Session med Jonas · tilbudt (ældre medlem)
+              </label>
+              <p className="mt-1 pl-6 text-xs text-muted-foreground">
+                Kun for medlemmer fra før 14/9 — for nyere er sessionen altid med.
+              </p>
+            </div>
+          )}
           <div>
             <label className="flex items-center gap-2 text-xs font-medium text-foreground">
               <input

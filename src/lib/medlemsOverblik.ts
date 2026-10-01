@@ -129,6 +129,18 @@ export function erNytMedlem(medlemSiden: string | null | undefined): boolean {
   return Number.isFinite(ms) && ms >= Date.parse(IKKE_OMFATTET_FRA);
 }
 
+/**
+ * Er Jonas-sessionen en del af medlemskabet? Nyt medlem (erNytMedlem) ELLER
+ * tilbudt (companies.jonas_session_tilbudt_at sat, 1/10-2026). MÅLT 1/10:
+ * ANLA GLAS A/S (medlem fra maj) fik fjernet «… brugt», men stod ikke under
+ * «Mangler at booke» — porten var kun «nyt». Tilbuddet er rådgiverens
+ * afkrydsning i EditCompanyDialog; et medlem kan ikke sætte det
+ * (companies_medlem_kolonnevaern — kolonnen står ikke på hvidlisten).
+ */
+export function omfattetAfJonas(raekke: { medlemSiden: string | null | undefined; jonasTilbudtAt?: string | null }): boolean {
+  return erNytMedlem(raekke.medlemSiden) || !!raekke.jonasTilbudtAt;
+}
+
 // ── Sammenkoblingen: fra rå rækker til én række pr. virksomhed ───────────────
 
 /** Én virksomheds række — det, forsidens «Mangler at booke» læser. */
@@ -138,6 +150,12 @@ export interface OverbliksRaekke {
   navn: string;
   /** Første company_members.created_at — «ny»-porten for Jonas-sessionen (erNytMedlem). */
   medlemSiden: string | null;
+  /**
+   * companies.jonas_session_tilbudt_at (1/10-2026, migration 20261001110000):
+   * rådgiveren har TILBUDT et ældre medlem (fra før IKKE_OMFATTET_FRA) Jonas-
+   * sessionen. Sat = sessionen tæller med i «Mangler at booke», som for et nyt.
+   */
+  jonasTilbudtAt: string | null;
   sessioner: { morten: SessionDom; jonas: SessionDom };
 }
 
@@ -147,7 +165,7 @@ export interface OverbliksRaekke {
  * filtret amount_dkk = 0 er hookens.
  */
 export interface OverbliksKilder {
-  companies: readonly { id: string; name?: string | null; status: string | null; is_legat: boolean | null; er_kunde: boolean | null; is_demo: boolean | null; intro_session_used_at: string | null; jonas_session_used_at: string | null }[];
+  companies: readonly { id: string; name?: string | null; status: string | null; is_legat: boolean | null; er_kunde: boolean | null; is_demo: boolean | null; intro_session_used_at: string | null; jonas_session_used_at: string | null; jonas_session_tilbudt_at: string | null }[];
   medlemmer: readonly { company_id: string; user_id: string; created_at: string | null }[];
   /** session_bookings med amount_dkk = 0 (de inkluderede) — alle rådgivere; fordeles her. */
   bookinger: readonly (SessionRaekke & { company_id: string | null; advisor: string })[];
@@ -185,7 +203,7 @@ export function byggOverblik(k: OverbliksKilder, nu: Date): Map<string, Overblik
       morten: sessionStatus({ raadgiver: "morten", retAt: c.intro_session_used_at, raekker: rk.filter((b) => b.advisor === "morten"), nu }),
       jonas: sessionStatus({ raadgiver: "jonas", retAt: c.jonas_session_used_at, raekker: rk.filter((b) => b.advisor === "jonas"), nu }),
     };
-    ud.set(c.id, { companyId: c.id, navn: c.name || "", medlemSiden: medlemSidenByCompany.get(c.id) ?? null, sessioner });
+    ud.set(c.id, { companyId: c.id, navn: c.name || "", medlemSiden: medlemSidenByCompany.get(c.id) ?? null, jonasTilbudtAt: c.jonas_session_tilbudt_at ?? null, sessioner });
   }
   return ud;
 }
@@ -195,17 +213,19 @@ export function byggOverblik(k: OverbliksKilder, nu: Date): Map<string, Overblik
 /**
  * JONAS 29/9: «Jeg skal bare vide hvor mange der mangler.» Én dom pr. rådgiver:
  *   morten mangler — sessionen er ikke_brugt, link_sendt eller aflyst.
- *   jonas mangler  — KUN for et nyt medlem (erNytMedlem), og sessionen er
+ *   jonas mangler  — KUN for et nyt medlem (erNytMedlem) ELLER et ældre medlem,
+ *                    som rådgiveren har tilbudt sessionen (jonasTilbudtAt sat —
+ *                    Jonas 1/10 10:35: «ja tilbudt»), og sessionen er
  *                    ikke_brugt, link_sendt eller aflyst.
  *   booket, afholdt, markeret_uden_booking og ikke_omfattet = mangler ikke.
  * Forsidens blok tæller KUN gennem denne (værn: medlemsOverblikFlade.guard).
  */
 export const MANGLER_STATUSSER: readonly SessionStatus[] = ["ikke_brugt", "link_sendt", "aflyst"];
 
-export function manglerAtBooke(raekke: Pick<OverbliksRaekke, "sessioner" | "medlemSiden">): { morten: boolean; jonas: boolean } {
+export function manglerAtBooke(raekke: Pick<OverbliksRaekke, "sessioner" | "medlemSiden" | "jonasTilbudtAt">): { morten: boolean; jonas: boolean } {
   const mangler = (s: SessionStatus) => MANGLER_STATUSSER.includes(s);
   return {
     morten: mangler(raekke.sessioner.morten.status),
-    jonas: erNytMedlem(raekke.medlemSiden) && mangler(raekke.sessioner.jonas.status),
+    jonas: omfattetAfJonas(raekke) && mangler(raekke.sessioner.jonas.status),
   };
 }
