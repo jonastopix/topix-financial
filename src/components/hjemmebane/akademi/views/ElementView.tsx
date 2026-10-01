@@ -154,14 +154,20 @@ export const ElementView = ({ areaKey, slug }: { areaKey: string; slug: string }
 
   if (data.loading) return <p className="text-sm text-hb-ink-soft">Henter…</p>;
 
-  const areaLabel = AREAS.find((a) => a.key === areaKey)?.label ?? areaKey;
+  // Tilbage-linket peger kun på et område, medlemmet kan se: et område
+  // uden for Akademiet (push, eller et skjult område siden 1/10-2026) må
+  // hverken nævnes eller linkes — så går linket til /akademiet.
+  const rutensOmraade = AREAS.find((a) => a.key === areaKey);
+  const tilbage = rutensOmraade?.akademi
+    ? { to: `/akademiet/${areaKey}`, label: rutensOmraade.label }
+    : { to: "/akademiet", label: "Akademiet" };
 
   // Fejlet FØR «findes ikke» (de nitten, 10/9): et element der ikke kunne
   // hentes er ikke et element der ikke er publiceret.
   if (data.fejlede) {
     return (
       <div>
-        <BackLink areaKey={areaKey} label={areaLabel} />
+        <BackLink to={tilbage.to} label={tilbage.label} />
         <p className="mt-8 text-sm text-hb-ink-soft">{sektionsfejlTekst("akademiet")} Prøv igen om lidt.</p>
       </div>
     );
@@ -173,7 +179,7 @@ export const ElementView = ({ areaKey, slug }: { areaKey: string; slug: string }
   if (!entry || !entryArea?.akademi) {
     return (
       <div>
-        <BackLink areaKey={areaKey} label={areaLabel} />
+        <BackLink to={tilbage.to} label={tilbage.label} />
         <p className="mt-8 text-sm text-hb-ink-soft">Elementet findes ikke (eller er ikke publiceret).</p>
       </div>
     );
@@ -184,7 +190,7 @@ export const ElementView = ({ areaKey, slug }: { areaKey: string; slug: string }
   if (!drip.unlocked) {
     return (
       <div>
-        <BackLink areaKey={areaKey} label={areaLabel} />
+        <BackLink to={tilbage.to} label={tilbage.label} />
         <div className="mt-8 flex max-w-2xl items-center gap-3 rounded-hb border border-hb-line bg-hb-sage/30 px-6 py-5 text-sm leading-relaxed text-hb-ink">
           <Lock className="h-4 w-4 shrink-0" />
           Dette element åbner om {drip.daysUntil} dag{drip.daysUntil === 1 ? "" : "e"} — det
@@ -224,7 +230,7 @@ export const ElementView = ({ areaKey, slug }: { areaKey: string; slug: string }
 
   return (
     <div>
-      <BackLink areaKey={areaKey} label={areaLabel} />
+      <BackLink to={tilbage.to} label={tilbage.label} />
 
       <article className="mt-6 max-w-3xl">
         <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">
@@ -360,9 +366,9 @@ export const ElementView = ({ areaKey, slug }: { areaKey: string; slug: string }
   );
 };
 
-const BackLink = ({ areaKey, label }: { areaKey: string; label: string }) => (
+const BackLink = ({ to, label }: { to: string; label: string }) => (
   <Link
-    to={`/akademiet/${areaKey}`}
+    to={to}
     className="flex items-center gap-2 text-sm text-hb-ink-soft transition-colors hover:text-hb-ink"
   >
     <ArrowLeft className="h-4 w-4" />

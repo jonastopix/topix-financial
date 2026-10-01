@@ -5,6 +5,7 @@ import { Check, Undo2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   AREAS,
+  MEDLEM_SKJULTE_OMRAADER,
   batchAcknowledge,
   clearAcknowledge,
   listAllMemberProgress,
@@ -52,7 +53,7 @@ function buildAreaBlocks(collections: ContentCollection[], tracked: ContentItem[
   const blocks: AreaBlock[] = [];
 
   // Kun forløbsområder — et evt. bunny-push må aldrig optræde som modul.
-  for (const area of AREAS.filter((a) => a.akademi)) {
+  for (const area of AREAS.filter((a) => a.akademi || MEDLEM_SKJULTE_OMRAADER.has(a.key))) {
     const areaItems = tracked.filter((i) => i.area === area.key).sort(byPosition);
     if (areaItems.length === 0) continue;
     const areaCollections = collections.filter((c) => c.area === area.key).sort(byPosition);
@@ -188,8 +189,15 @@ export const ProgressView = () => {
   const stateFor = (userId: string, itemId: string): ItemProgressState =>
     itemProgressState(rowByKey.get(keyOf(userId, itemId)));
 
+  // «N af M videoer» tæller kun det, medlemmet KAN se: skjulte områder
+  // (Quick Wins, 1/10-2026) står stadig i blokkene til højre, men ikke i
+  // tallet — ellers kan intet medlem nå M.
+  const synligeTracked = useMemo(
+    () => trackedItems.filter((item) => !MEDLEM_SKJULTE_OMRAADER.has(item.area)),
+    [trackedItems],
+  );
   const doneCount = (userId: string) =>
-    trackedItems.filter((item) => stateFor(userId, item.id) === "done").length;
+    synligeTracked.filter((item) => stateFor(userId, item.id) === "done").length;
 
   // ── Optimistisk skrivning (PR #166-formen på den samlede nøgle) ─────────
   const patchCache = (
@@ -326,7 +334,7 @@ export const ProgressView = () => {
           )}
         </span>
         <span className="shrink-0 text-xs text-hb-ink-soft">
-          {doneCount(member.userId)} af {trackedItems.length}
+          {doneCount(member.userId)} af {synligeTracked.length}
         </span>
       </button>
     );
@@ -344,7 +352,7 @@ export const ProgressView = () => {
           <p className="mt-1.5 text-sm text-hb-ink-soft">
             {[
               selectedMember.companyName,
-              detalje.art === "klar" ? `${doneCount(selectedMember.userId)} af ${trackedItems.length} videoer gennemført` : null,
+              detalje.art === "klar" ? `${doneCount(selectedMember.userId)} af ${synligeTracked.length} videoer gennemført` : null,
             ]
               .filter(Boolean)
               .join(" · ")}

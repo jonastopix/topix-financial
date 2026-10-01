@@ -16,6 +16,7 @@ import {
   type LeverMilestone,
 } from "@/lib/handoutEngine";
 import { listPublishedItems } from "@/lib/hjemmebane/akademiApi";
+import { MEDLEM_SKJULTE_OMRAADER } from "@/lib/hjemmebane/adminContentApi";
 import { hoererTilTekst, lektionerForModul, lektionsSti } from "@/lib/hjemmebane/lektionerForModul";
 import { sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
 import { HbSection } from "../HbSection";
@@ -68,7 +69,12 @@ export const HbHandoutDetail = ({ config, onBack, userId, onModuleSelect }: HbHa
   // og dermed intet link — ikke en fejl. Hooken står i topblokken, før
   // `if (loading)` (React #310).
   const lektionerQuery = useQuery({ queryKey: ["akademi", "items"], queryFn: listPublishedItems });
-  const lektioner = lektionerForModul(lektionerQuery.data ?? [], config.module);
+  // Skjulte områder (Quick Wins, 1/10-2026) må ikke blive et «Hører til»-link:
+  // cachen deles med admin-fladerne og er ufiltreret, så filtret står her.
+  const lektioner = lektionerForModul(
+    (lektionerQuery.data ?? []).filter((i) => !MEDLEM_SKJULTE_OMRAADER.has(i.area)),
+    config.module,
+  );
   const hoererTil = hoererTilTekst(lektioner.length);
 
   // Load handout data (H1a + H1b i motoren)

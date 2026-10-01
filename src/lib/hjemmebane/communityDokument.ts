@@ -242,6 +242,7 @@ function sikkertUuid(raw: unknown): string | null {
     Listen spejler content_items' area-CHECK minus push og minus
     'ugens_video', 'redaktionelt', 'evergreen' — de tre sidste er
     forsidens egne områder uden element-rute. */
+// 'quick_wins' udgik 1/10-2026 (skjult for medlemmer, jf. MEDLEM_SKJULTE_OMRAADER).
 // 'talks' og 'skabeloner' udgik 13-08-2026: talks er indholdsbeholder uden
 // medlemsflade (optagelser vises på deres event), og skabeloner er nedlagt
 // som område (vedhæftninger på lektionen i stedet). Eksisterende
@@ -250,7 +251,6 @@ export const TILLADTE_OMRAADER: ReadonlySet<string> = new Set([
   "classroom",
   "academy",
   "rabataftaler",
-  "quick_wins",
   "start_her",
 ]);
 

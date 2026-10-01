@@ -27,7 +27,7 @@ export function detaljeUdsnit(kilde: string): string {
 /** Tallet vises kun ved «klar»: literalen «videoer gennemført» står i en `detalje.art === "klar" ? … : null`-gren. */
 export function talletKunVedKlar(kilde: string): boolean {
   const k = udenKommentarer(detaljeUdsnit(kilde));
-  const re = /detalje\.art === "klar"\s*\?\s*`\$\{doneCount\(selectedMember\.userId\)\} af \$\{trackedItems\.length\} videoer gennemført`\s*:\s*null/;
+  const re = /detalje\.art === "klar"\s*\?\s*`\$\{doneCount\(selectedMember\.userId\)\} af \$\{synligeTracked\.length\} videoer gennemført`\s*:\s*null/;
   const antal = (k.match(/videoer gennemført/g) ?? []).length;
   return antal === 1 && re.test(k);
 }
@@ -71,8 +71,8 @@ describe("fremdriftDetalje.guard — medlemsdetaljen dømmer på detaljeTilstand
   it("VÆRNET VIRKER: kopier uden dommen fejler (filen er ikke rørt)", () => {
     // tallet uden betingelse — som før 16/9
     const udenBetingelse = kilde.replace(
-      'detalje.art === "klar" ? `${doneCount(selectedMember.userId)} af ${trackedItems.length} videoer gennemført` : null,',
-      "`${doneCount(selectedMember.userId)} af ${trackedItems.length} videoer gennemført`,",
+      'detalje.art === "klar" ? `${doneCount(selectedMember.userId)} af ${synligeTracked.length} videoer gennemført` : null,',
+      "`${doneCount(selectedMember.userId)} af ${synligeTracked.length} videoer gennemført`,",
     );
     expect(udenBetingelse).not.toBe(kilde);
     expect(talletKunVedKlar(udenBetingelse)).toBe(false);
@@ -87,7 +87,7 @@ describe("fremdriftDetalje.guard — medlemsdetaljen dømmer på detaljeTilstand
     const udenDom = kilde.replace("fremdrift: progressQuery,", "fremdrift: { isError: false, isSuccess: true },");
     expect(dommenErFremdriftDetalje(udenDom)).toBe(false);
     // et andet tal ved siden af (fx i en kommentar-fri kopi med tallet gentaget uden betingelse) fanges
-    const toTal = kilde.replace("{error && <p", "{`${doneCount(selectedMember.userId)} af ${trackedItems.length} videoer gennemført`}{error && <p");
+    const toTal = kilde.replace("{error && <p", "{`${doneCount(selectedMember.userId)} af ${synligeTracked.length} videoer gennemført`}{error && <p");
     expect(talletKunVedKlar(toTal)).toBe(false);
   });
 });

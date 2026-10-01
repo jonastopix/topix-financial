@@ -87,10 +87,22 @@ export const AREAS = [
   },
   {
     key: "quick_wins",
+    /* Produktbeslutning 1/10-2026 (Jonas: «Quick Wins skal væk fra
+       Akademiet»): området er SKJULT for medlemmer — akademi: false gater
+       ForsideView/OmraadeView/KursusView/ElementView og forløbsdommen, og
+       medlemSkjult: true lægger nøglen i MEDLEM_SKJULTE_OMRAADER, som
+       medlemsfladerne filtrerer på (useAkademiData m.fl.). Det er en
+       FLADEBESLUTNING, ikke adgangsbeskyttelse: RLS på content_items er
+       uændret, så et medlem kan stadig hente rækkerne direkte fra API'et.
+       Intet er slettet: rækkerne og nøglen 'quick_wins' (CHECK-constraints,
+       RLS) står, og admin-fanen (adminFane: true) kan stadig se og redigere
+       indholdet. Tages området ind igen: slet medlemSkjult og sæt
+       akademi: true (quickWinsSkjult.guard dom 1 holder de to i takt). */
     label: "Quick Wins",
-    akademi: true,
+    akademi: false,
     adminFane: true,
-    hint: "Korte, hurtige videoer",
+    medlemSkjult: true,
+    hint: "Korte, hurtige videoer — skjult i medlemmets flader siden 1/10-2026 (ikke adgangsbeskyttet; RLS er uændret)",
   },
   {
     key: "push",
@@ -121,6 +133,15 @@ export const AREAS = [
     hint: "Forsidens tidløse bibliotek (5-10 indslag UDEN udløb) — roterer deterministisk pr. ISO-uge; kræver migration 20260809170000 kørt i Lovable",
   },
 ] as const;
+
+/** Områder, medlemmets flader ikke tegner (1/10-2026, Jonas) — AFLEDT af
+    AREAS' flag `medlemSkjult`, så der er ÉN kilde. Klienten filtrerer dem
+    fra; det er ikke adgangsbeskyttelse (RLS er uændret). Indholdsrækkerne
+    og admin-fanerne er uberørte; rådgiveren ser indholdet gennem admin
+    (listItems). */
+export const MEDLEM_SKJULTE_OMRAADER: ReadonlySet<string> = new Set(
+  AREAS.filter((a) => "medlemSkjult" in a && a.medlemSkjult).map((a) => a.key),
+);
 
 export type AreaKey = (typeof AREAS)[number]["key"];
 

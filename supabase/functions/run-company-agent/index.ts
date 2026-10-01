@@ -871,7 +871,6 @@ const INDHOLDS_OMRAADER: Array<{ key: string; label: string }> = [
   { key: "start_her", label: "Start her" },
   { key: "classroom", label: "Fundamentet" },
   { key: "academy", label: "Kurser" },
-  { key: "quick_wins", label: "Quick Wins" },
 ];
 
 /** Whitespace-normaliseret enkeltlinje (beskrivelser kan indeholde linjeskift). */
