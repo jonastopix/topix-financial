@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod (målt 1/10-2026: filens markørobjekter findes i prod; hovedet vendt efterfølgende). DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
 --
 -- Betalinger uden for Stripe-abonnementer i company_traek (16/9-2026, aften;
 -- Jonas: «Jeg vil hellere vi får styr på det i aften, inden bogføring.»).

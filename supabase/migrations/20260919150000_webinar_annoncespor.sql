@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge.
+-- KØRT i prod (målt 1/10-2026: filens markørobjekter findes i prod; hovedet vendt efterfølgende). DEPLOY: manuelt i Lovable → SQL editor efter merge.
 -- KØRES EFTER 20260919130000_webinar_tilmeldinger.sql (opretter tabellen) og
 -- 20260919140000_webinar_haendelser_kilde.sql. Rækkefølgen er 130000 → 140000
 -- → 150000.

@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge — FØR
+-- KØRT i prod (målt 1/10-2026: filens markørobjekter findes i prod; hovedet vendt efterfølgende). DEPLOY: manuelt i Lovable → SQL editor efter merge — FØR
 -- indgangs-paamindelser-cron og ansøgningsflowets functions udrulles.
 --
 -- DØD PÅ DAG 60 (Jonas 18/9 aften): en underskrevet, ubetalt aftale er død 60

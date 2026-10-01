@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod (målt 1/10-2026: filens markørobjekter findes i prod; hovedet vendt efterfølgende). DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
 --
 -- AFKLARINGSSAMTALEN VÆLGES I PLATFORMEN OG OPRETTES I CALENDLY (udkast
 -- 18/9-2026, rev. 2 efter Jonas: Calendly er synkroniseret med hans Google-

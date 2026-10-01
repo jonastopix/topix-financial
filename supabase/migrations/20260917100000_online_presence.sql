@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (før Update-klik).
+-- KØRT i prod (målt 1/10-2026: filens markørobjekter findes i prod; hovedet vendt efterfølgende). DEPLOY: manuelt i Lovable → SQL editor efter merge (før Update-klik).
 --
 -- Online-medlemmer i realtid på rådgiverens forside (16/9-2026) — to
 -- RLS-politikker på realtime.messages (Supabase Realtime Authorization for

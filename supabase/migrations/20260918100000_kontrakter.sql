@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod (målt 1/10-2026: filens markørobjekter findes i prod; hovedet vendt efterfølgende). DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
 --
 -- Kontrakterne: én række pr. KONTRAKTÅR med prisen ekskl. moms — kilden
 -- til det økonomiske overblik for Jonas og Morten (Ø1, 18/9-2026,
