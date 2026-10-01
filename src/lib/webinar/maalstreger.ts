@@ -1,13 +1,13 @@
 /**
- * MÅLSTREGERNE (udkast 1/10-2026) — de fire tal, marketingkonsulenten Nicklas
- * skrev, at «det styrer vi efter» (hans dokument 1/10, «mål ved start»):
+ * MÅLSTREGERNE (udkast 1/10-2026) — VORES fire mål (Jonas 1/10 kl. 20:13:
+ * «Hvis vi har nogen mål, så er det VORES mål»):
  *
  *   Fremmøde på webinaret                       over 55 %
  *   Ansøgere blandt dem, der ser det færdigt    over 10 %
  *   Pris pr. ansøgning                          under 2.500 kr.
- *   Pris pr. nyt medlem                         under 15.000 kr.
+ *   Pris pr. nyt medlem                         under 7.500 kr. (= 3 × 2.500)
  *
- * Hans egne tal (25/8 + 22/9): 469 tilmeldt · 189 mødte · 132 så færdigt
+ * Tallene ved start (25/8 + 22/9): 469 tilmeldt · 189 mødte · 132 så færdigt
  * (≥ 75 %) · 6 ansøgte · 0 medlemmer. Tragten knækker EFTER webinaret.
  *
  * ÉN DOM, TO FLADER. Rådgiverens /webinar og den delte /delt/webinar tegner
@@ -59,7 +59,7 @@
  *      medlemskabet af en ansøgning, hun sendte EFTER sin første tilmelding?
  *
  * VINDUET STÅR FAST PÅ «HELE PERIODEN». Prisafsnittets periodevælger flytter
- * IKKE målstregerne: målene er Nicklas' styretal for hele forløbet, og en
+ * IKKE målstregerne: målene er vores styretal for hele forløbet, og en
  * målstreg, der skifter med en knap længere nede, er to tal for ét mål. Den
  * delte side regner samme vindue, uanset hvilket `valg` den eksterne har.
  *
@@ -95,20 +95,24 @@ import { intervalOrd, wilson } from "@/lib/marketing/statistik";
 
 // ── Målene — ÉT sted ───────────────────────────────────────────────────────
 
-/** Hvem der satte målene, og hvornår. Står på fladen ved overskriften. */
-export const MAAL_KILDE = "Nicklas, 1/10";
-
 /**
- * Nicklas' fire mål (marketingkonsulenten, dokumentet «Det styrer vi efter —
- * mål ved start», 1/10-2026). Andele som 0–1, beløb i ØRE (som forbruget).
- * Ændres et mål, ændres det HER og intet andet sted.
+ * VORES fire mål (1/10-2026; rettet af Jonas 1/10 kl. 20:13: «Hvis vi har nogen
+ * mål, så er det VORES mål» — ingen persons navn på målene). Andele som 0–1,
+ * beløb i ØRE (som forbruget). Ændres et mål, ændres det HER og intet andet sted.
  */
 export const MAAL_FREMMOEDE = 0.55;
 export const MAAL_ANSOEGERE_BLANDT_SET = 0.1;
 /** 2.500 kr. = 250.000 øre. */
 export const MAAL_PRIS_PR_ANSOEGNING_OERE = 250_000;
-/** 15.000 kr. = 1.500.000 øre. */
-export const MAAL_PRIS_PR_MEDLEM_OERE = 1_500_000;
+/**
+ * 7.500 kr. = 750.000 øre (Jonas 1/10 kl. 20:13; var 15.000 kr.).
+ * Regnestykket: 7.500 kr. = 3 × 2.500 kr. — vi lukker ca. hver tredje ansøger,
+ * og målet pr. ansøgning er 2.500 kr. (MAAL_PRIS_PR_ANSOEGNING_OERE):
+ * 3 × 250.000 øre = 750.000 øre.
+ * Målet gælder ANNONCEKRONERNE alene. Bureauets faste fee (4.000 kr./md.) og
+ * 8 % pr. medlem kommer OVENI og er IKKE regnet med i tallet.
+ */
+export const MAAL_PRIS_PR_MEDLEM_OERE = 750_000;
 
 /** Den eneste valuta, et kronemål kan holdes op mod. */
 export const MAAL_VALUTA = "DKK";
@@ -165,9 +169,7 @@ export interface Maallinje {
 }
 
 export interface Maalstreger {
-  /** «Nicklas, 1/10». */
-  kilde: string;
-  /** Altid fire, i Nicklas' rækkefølge. */
+  /** Altid fire, i samme rækkefølge: fremmøde · ansøgere · pris pr. ansøgning · pris pr. medlem. */
   linjer: Maallinje[];
   /** Prisernes vindue i ord — «12.–30. september» — eller null uden forbrug. */
   prisvindueOrd: string | null;
@@ -176,7 +178,7 @@ export interface Maalstreger {
 // ── Ordene ─────────────────────────────────────────────────────────────────
 
 export const MAAL_EYEBROW = "Målene";
-export const MAAL_TITEL = `Det styrer vi efter (${MAAL_KILDE})`;
+export const MAAL_TITEL = "Vores mål";
 export const MAAL_FOR_FAA_ORD = "for få";
 export const MAAL_INGEN_DATA_ORD = "ingen data";
 /** R2: ét ord for alle fire mål — om målet er NÅET, ikke hvilken side af stregen tallet står. */
@@ -445,7 +447,7 @@ function prisHarData(p: Annoncepriser | null): boolean {
   return v.length === 1 && v[0].toUpperCase() === MAAL_VALUTA;
 }
 
-/** Ét kald, ét svar — fire linjer i Nicklas' rækkefølge. Fladen regner intet. */
+/** Ét kald, ét svar — fire linjer i fast rækkefølge. Fladen regner intet. */
 export function maalstreger(ind: MaalstregerInput, nu: Date): Maalstreger {
   const t = maalTaelling(ind.tilmeldinger, ind.ansoegninger, nu);
   // VINDUET STÅR FAST: «Hele perioden» — se filhovedet. Annoncepriserne giver
@@ -462,7 +464,6 @@ export function maalstreger(ind: MaalstregerInput, nu: Date): Maalstreger {
   const sessioner = sessionGrundlag(t);
   const prisGrundlag = vindueOrd === null ? "intet annoncevindue med forbrug" : `annoncevinduet ${vindueOrd}`;
   return {
-    kilde: MAAL_KILDE,
     prisvindueOrd: vindueOrd,
     linjer: [
       procentmaal(

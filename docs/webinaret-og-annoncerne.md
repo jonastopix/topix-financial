@@ -666,13 +666,54 @@ Målingen, før telefonen kobles på (Lovable SQL editor):
 
 ---
 
-## 7j. Målstregerne og de varme leads (udkast 1/10-2026)
+## 7j. Vores mål (målstregerne) — og de varme leads, der blev fjernet (1/10-2026)
 
-**Kilden:** Nicklas' dokument 1/10, «Det styrer vi efter — mål ved start»:
+**RETTET 1/10 kl. 20:13 (Jonas, ordret uddrag):** «Jeg gider ikke se en lang liste
+med emailadresser der har set mere end 75%. Det gør hele siden og overblikket
+pisseligegyldigt.» · «For jeg vil ikke betale mere end 7.500 kr. for et medlem.
+Det passer også med, at vi skal lukke ca. hver tredje der ansøger, som vi har et
+mål om 2500 kr. på.» · «Nicklas skal ikke stå på skrift. Hvis vi har nogen mål,
+så er det VORES mål» · «Det næste webinar sektionen vil jeg gerne have øverst
+faktisk.» · «Jeg kommer ikke til at sidde og ringe til folk. Punktum.»
+
+Det ændrede:
+
+1. **Varme leads er FJERNET** — komponenten, dommen, testene og brugen på
+   /webinar. Begrundelsen: vi ringer ikke til folk, og en liste med mails gør
+   overblikket ligegyldigt; segmentering af dem, der så færdigt, hører til i
+   Klaviyo, ikke på platformens overblik. Afsnit B nedenfor står som historik.
+   `varmeLeads` står tilbage i `FORBUDTE_NOEGLER` som harmløst forsvar, og værn
+   nr. 2 (`findMailVaerdier`) er urørt.
+2. **Målene er VORES** — ikke en persons. Overskriften er «Vores mål» (eyebrow
+   «Målene»); navnet er fjernet fra UI, svaret (feltet `kilde` findes ikke
+   længere), konstanter og kommentarer i begge spejle.
+3. **Pris pr. nyt medlem: under 7.500 kr.** (var 15.000). Regnestykket:
+   7.500 kr. = 3 × 2.500 kr. — vi lukker ca. hver tredje ansøger, og målet pr.
+   ansøgning er 2.500 kr.; i øre 3 × 250.000 = 750.000 (`MAAL_PRIS_PR_MEDLEM_OERE`).
+   Målet gælder ANNONCEKRONERNE alene: bureauets faste fee (4.000 kr./md.) og
+   8 % pr. medlem kommer OVENI og er IKKE regnet med i tallet.
+4. **Rækkefølgen på /webinar** (og /delt/webinar — samme `WebinarVisning`):
+   «Det næste webinar» ØVERST → «Vores mål» → «Afholdt» (session for session)
+   → tragten «Fra tilmeldt til medlem» (Hele vejen) → resten som før (Hvor kom
+   de fra · Hvad det koster · Tiden · Ansøgningerne · Del med et privat link).
+   Låst af `WebinarVisning.maalstreger.test.tsx`.
+
+**Udrulning af rettelsen:** `_shared/webinarMaalstreger.ts` og
+`_shared/webinarDelingSvar.ts` er ændret → **eksplicit udrulning af
+`webinar-delt` FØR Update**. Beviset: et delt-svar, hvis
+`maalstreger.linjer[3].maalOrd` er «under 7.500 kr.», og hvor `maalstreger`
+ikke har feltet `kilde` — kun den nye kode svarer sådan. Ingen migration.
+
+---
+
+*Historik — teksten herunder er skrevet før rettelsen 1/10 kl. 20:13.*
+
+**Udgangspunktet (1/10):** målene kom fra marketingkonsulentens dokument 1/10:
 fremmøde over 55 % · ansøgere blandt dem, der ser det færdigt, over 10 % · pris
-pr. ansøgning under 2.500 kr. · pris pr. nyt medlem under 15.000 kr. Hans egne
-tal (25/8 + 22/9): 469 tilmeldt · 189 mødte · 132 så færdigt · 6 ansøgte · 0
-medlemmer — tragten knækker efter webinaret.
+pr. ansøgning under 2.500 kr. · pris pr. nyt medlem under 15.000 kr. (rettet til
+7.500 kr., se ovenfor). Tallene ved start (25/8 + 22/9): 469 tilmeldt · 189
+mødte · 132 så færdigt · 6 ansøgte · 0 medlemmer — tragten knækker efter
+webinaret.
 
 **A. Målstregerne** (`src/lib/webinar/maalstreger.ts`, spejlet ordret som
 `_shared/webinarMaalstreger.ts`, paritet i `webinarDashboard.paritet.test.ts`).
@@ -697,7 +738,7 @@ udækket vindue eller anden valuta end DKK. Hver linje bærer `grundlagOrd`
 skrevet af dommen og tegnet under rækken på begge flader. **Vinduet står fast på
 «Hele perioden»** — prisafsnittets periodevælger flytter ikke målstregerne.
 
-Fladen (`WebinarView.tsx`, sektionen «Målene» under tragten) skriver kun
+Fladen (`WebinarView.tsx`, sektionen «Vores mål» — fra 1/10 20:13 under «Det næste webinar») skriver kun
 dommens ord og tegner dommens bar-positioner; kildeværn i `maalstreger.test.ts`.
 `WebinarView`s `nu` tikker hvert minut (som `HbMemberShell` og
 `useBoardroomScore`); et `nu` udefra står stille. Den delte side får dommen
@@ -705,8 +746,8 @@ gennem `webinar-delt` → `bygDeltSvar` som feltet `maalstreger` (tal, ingen
 rækker); uden feltet (gammel function) tegnes intet. Den delte sides `nu` er
 serverens ved hvert kald.
 
-**B. Varme leads** (`src/lib/webinar/varmeLeads.ts`, KUN rådgiveren; INTET
-spejl): «set» på en afholdt session med tidspunkt inden for 14 dage (inklusiv),
+**B. Varme leads — FJERNET 1/10 kl. 20:13 (se øverst i §7j); historik:**
+(`src/lib/webinar/varmeLeads.ts`, KUN rådgiveren; INTET spejl): «set» på en afholdt session med tidspunkt inden for 14 dage (inklusiv),
 én linje pr. person (nyeste session), nyeste først. Ude er: (a) den, der har
 indsendt en ansøgning SKARPT efter sin FØRSTE «set»-session i vinduet (tragtens
 grænse; en gammel ansøgning holder hende ikke ude); (b) medlemmer —
