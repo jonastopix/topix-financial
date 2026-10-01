@@ -11470,6 +11470,63 @@ Medlemmerne var netop bedt om at arbejde aktivt med målene; to fejl rettet samm
 
 
 
+### 1. oktober eftermiddag — Update 14:35, designtjek i drift, Dine mål skive 1, bogholderi og mailplan
+
+#### 1. Merget og i drift
+| PR | Hvad | Drift |
+|---|---|---|
+| #1203 | Tildeling af rådgiver fjernet («Rådgiverne er sammen om alle medlemmer»); «Kræver ikke svar» og «Foreslå skridt» synlige i chatten | Update 14:35. Set på mobil 375 px: begge knapper øverst i chatten, ingen «tildel», ingen vandret scroll |
+| #1204 + #1210 | «Session med Jonas · tilbudt»; tilbuddet overtrumfer en ældre «brugt» (`jonasRetEfterTilbud`) | Update 14:35. Forsiden: «Jonas-session 8», ANLA GLAS og BR Roset står på listen. Data: 5 tilbudte, alle med `brugt ≤ tilbudt` |
+| #1205 | Score uden opskalering (Σ point, søjle uden data = 0) | Update 14:35 (markør «søjler giver point endnu») |
+| #1206 | Dine mål: «Gjort» lukker ikke målet; skridtets frist ≤ målets | Update 14:35 + `skridt-tilfoej` udrullet 14:3x («Successfully deployed edge functions: skridt-tilfoej, webinar-delt»). **Kald-bevis mangler:** den nye 400 nås kun af et medlem af virksomheden, og Claude har ingen medlemskonto. Formularen afviser det samme før kaldet |
+| #1208 | Talrækker i chatten («1. 1. 1.») | Update 14:35 |
+| #1209 | Webinarkoblingen: forslag + klik | Update 14:35 + `webinar-delt` udrullet. Set på Zanco: mailen matcher (81 %), intet forslag, ingen hentefejl. **Kald-bevis for `webinar-delt` (`koblinger_talt`) afventer** delingslinket til Nicklas |
+| #1207 | Fase 3a trin 1 (kald_edge + sb_secret) | Merget 14:31 (`c69be02f`). Migrationen `20261001200000` **IKKE KØRT** (kræver Jonas' ja + vault-post). `_shared/edgeFunctionAuth.ts` er ændret: næste udrulning af en hvilken som helst function tager den med (legacy-nøglen virker uændret) |
+| #1211 | /engagement: sandt sprog, mobilvisning (stablede kort under `sm`), trofænavne brækkes ikke midt i ordet | Merget `98db936c`. **Venter på Update** |
+| #1213 | Docs: Mortens bogholderagent (§7) + `docs/mailplan-14-dage-og-sms.md` | Kun docs |
+
+Bundlen målt i en FRISK fane 14:37: `index-BwUVZgTc.js`, 248 chunks, alle markører fra #1193/#1204/#1205/#1206/#1209 fundet.
+
+Build-chattens udrulning af de to functions lavede commit `28a89bae` («Lovable update»). Diffen er KUN typegenerering i `types.ts` (`ansoegning_webinar_kobling`, `jonas_session_tilbudt_at`), ingen kode.
+
+#### 2. Dine mål — skive 1 (#1212, åben)
+Målt i prod 1/10 (kunder: ikke slettet/demo/gæst, `er_kunde`):
+- 36 aktive mål hos 14 af 30;
+- **0 med både måltal og dato**, 23 med dato;
+- 6 med ≥ 1 skridt;
+- efter kilde: 15 agent, 5 ai, 9 handout, 7 manual;
+- 2 «fangede» (active, progress ≥ 100);
+- 0 skridt med frist efter målets;
+- 3 mål oprettet de seneste 30 dage.
+
+Beslutningspapiret er vist i chatten med fem spørgsmål (bekræftelse, «bagud mod sporet», kvartalstjek, de gamle mål, pejlemærker). Udkastene ligger uden for repoet. De bogføres i `docs/dine-maal-design.md`, når Jonas har svaret.
+
+#1212:
+- **A.** Forsidens «Dit næste skridt» peger på målet (`maalFokus.ts`, slot (e)). Kun skridtet står over medlemmets egne hastende skridt.
+- **B.** «Foreslå skridt» kræver et mål, når virksomheden har aktive mål. **B vender Jonas' «B» fra 16/9 — merges først efter hans ja.**
+
+Teknisk råd: 2 RET FØRST, 5 BØR, 7 KAN. Alle er rettet af en anden agent i `aefd7980`. Udrulning: merge → `foreslaa-opgave` → Update.
+
+#### 3. Fund, der ikke er rettet
+- **`run-company-agent` `notify_advisor` ringer kun hos `conversations.assigned_advisor_id`** og ringer slet ikke uden. 25 af 28 samtaler har stadig en tildeling i databasen, fra før tildelingen blev fjernet i fladen. Det er målt, at der er sendt 0 `agent_insight`-klokker de seneste 30 dage, så ingen er ramt lige nu. Rettelsen er at ringe hos alle rådgivere. Tjenestekontoen skal også have klokken (CLAUDE.md «Tjenestekonti»). Står på nattens liste.
+- `send-welcome-message` og `nudge-report-no-reflection` bruger også `assigned_advisor_id` som afsender. Det er ikke en fejl i sig selv: en afsender skal være en person, og der er fallback. Men begrebet «tildelt» lever videre i databasen og i triggeren `trg_validate_advisor_assignment`. Om kolonnen skal ryddes, er en sag for Jonas, fordi `validate_advisor_assignment` er en trigger.
+
+#### 4. Rettelser af egne påstande
+- **`deploy_project` «UPÅLIDELIG» trukket tilbage → UAFKLARET.** Målingen ~06 blev taget i en gammel fane. CLAUDE.md og regelsættet §6a er rettet, ny lærestreg (jj).
+- CLAUDE.md's løftertekst («ellers én, der låser op») er rettet til #1205's regel.
+
+#### 5. Åbne punkter (eftermiddag)
+- **Jonas:**
+  - ja/nej til B i #1212;
+  - de fem spørgsmål i Dine mål-papiret;
+  - Nicklas' PDF igen (hans fire KPI-mål og «varme leads»; Claudes kopi forsvandt med komprimeringen);
+  - Update for #1211 (og #1212 efter merge);
+  - beslutningerne i `docs/mailplan-14-dage-og-sms.md` §5 og bogholderi-designets §7.5.
+- **Claude:**
+  - kald-bevis for `webinar-delt` ved delingslinket til Nicklas;
+  - klokken til alle rådgivere i `run-company-agent`;
+  - designtjek af #1211 efter Update.
+
 ---
 
 ## DEL 3 · Det der venter
