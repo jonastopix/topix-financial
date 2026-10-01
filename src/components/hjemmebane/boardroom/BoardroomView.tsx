@@ -1751,7 +1751,9 @@ export const BoardroomView = () => {
     queryFn: async () => {
       const skridtRes = await supabase
         .from("company_actions")
-        .select("id, title, status, due_date, maal_id, closed_at")
+        // expires_at (1/10): fokusmotorens slot (e) tæller et udløbet forslag
+        // som «intet i gang» (maalFokus) — samme hentning, én kolonne mere.
+        .select("id, title, status, due_date, maal_id, closed_at, expires_at")
         .eq("company_id", companyId!)
         .not("maal_id", "is", null)
         .order("created_at", { ascending: true })
@@ -1962,7 +1964,10 @@ export const BoardroomView = () => {
   // stadig — men med en rolig linje under om hvad der manglede, så et
   // manglende punkt ikke bliver læst som «der er intet». Ordene i
   // lib/hjemmebane/hentefejl; kilden bæres af HentningsFejl.
-  const fejledeKilder = [processedQuery, milestonesQuery, pulseQuery, refleksionAntalQuery, leversQuery, ownProfileQuery, contractStartQuery]
+  // skridtQuery (rådets fund 2, 1/10): slot (e) læser den — en fejl giver intet
+  // målpunkt (maalPlan = null), og det skal siges, ikke ligne «intet at gøre».
+  // Kilden er "company_actions" (kraevRaekker) → «dine aftaler» i hentefejl.
+  const fejledeKilder = [processedQuery, milestonesQuery, skridtQuery, pulseQuery, refleksionAntalQuery, leversQuery, ownProfileQuery, contractStartQuery]
     .filter((q) => q.isError)
     .map((q) => kildeAf(q.error));
   const hentefejlLinje = hentefejlTekst(fejledeKilder);
@@ -2008,8 +2013,14 @@ export const BoardroomView = () => {
       // Erfarent medlem (30/9): > 30 døgn siden profiles.created_at →
       // tjeklisten slipper kortet (tjeklistenStyrerForsiden, ankomst.ts).
       medlemSiden: tjeklisteData.medlemSiden,
+      // Slot (e), målet (1/10): de mål og skridt «Din plan» allerede henter —
+      // ingen ny hentning. Kun når BEGGE er hentet: et halvt billede (mål uden
+      // skridt) ville give et forkert «Tilføj det første skridt».
+      maalPlan: milestonesQuery.data && skridtQuery.data
+        ? { maal: milestonesQuery.data, skridt: skridtQuery.data as (SkridtTilDineMaal & { expires_at?: string | null })[] }
+        : null,
     });
-  }, [companyId, processedQuery.data, committedKeys, pulseQuery.data, unreadQuery.data, weeklyFocusQuery.data, actionsQuery.data, leversQuery.data, ownProfileQuery.data, contractStartQuery.data, tjeklisteData.tjekliste, tjeklisteData.medlemSiden]);
+  }, [companyId, processedQuery.data, committedKeys, pulseQuery.data, unreadQuery.data, weeklyFocusQuery.data, actionsQuery.data, leversQuery.data, ownProfileQuery.data, contractStartQuery.data, tjeklisteData.tjekliste, tjeklisteData.medlemSiden, milestonesQuery.data, skridtQuery.data]);
 
   // Markér ugens fokus som SET når punktet faktisk vises — samme mekanik
   // som DashboardActionCenter:87-98 (mutation + engangs-ref).
@@ -2110,6 +2121,10 @@ export const BoardroomView = () => {
       // Rækken kan være ændret imens (409-låsen) — hent den faktiske
       // tilstand frem for at lade fladen stå med et forældet punkt.
       void queryClient.invalidateQueries({ queryKey: ["boardroom", "company-actions", companyId] });
+      // Også skridtene under målene (rådets fund 9): slot (e) og «Din plan»
+      // læser skridtQuery (queryKey ["boardroom", "skridt", companyId]) —
+      // samme nøgle som onSuccess.
+      void queryClient.invalidateQueries({ queryKey: ["boardroom", "skridt", companyId] });
     },
   });
 
@@ -2117,6 +2132,9 @@ export const BoardroomView = () => {
     !!companyId &&
     (processedQuery.isPending ||
       milestonesQuery.isPending ||
+      // Slot (e) (rådets fund 2): uden skridtene ville kortet først vise
+      // «Tilføj det første skridt» og så skifte, når de lander.
+      skridtQuery.isPending ||
       pulseQuery.isPending ||
       weeklyFocusQuery.isPending ||
       actionsQuery.isPending ||
@@ -2209,7 +2227,9 @@ export const BoardroomView = () => {
   // proposed_by) — dommen er raadgiverAnsigt; fokus-motoren er urørt.
   const fokusAnsigt = useMemo<Ansigt | null>(() => {
     const primaer = focus[0];
-    if (!primaer || primaer.kind !== "company-action" || !primaer.sourceId) return null;
+    // Også målets punkt, når det er et skridt (slot (e) «skridt», 1/10).
+    const erSkridt = primaer?.kind === "company-action" || primaer?.key.startsWith("maal:skridt:");
+    if (!primaer || !erSkridt || !primaer.sourceId) return null;
     const raekke = aftaleRaekker.find((r) => r.id === primaer.sourceId);
     return raekke ? raadgiverAnsigt(raekke, raadgivere) : null;
   }, [focus, aftaleRaekker, raadgivere]);

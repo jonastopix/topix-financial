@@ -8,9 +8,12 @@ import { join, resolve } from "node:path";
 // opgaver selv»; «A» — 100 % = alle skridt gjort, målet vises som færdigt;
 // fladen får «Marker som nået». Syv ting låses:
 //   1. Menuen: «Dine mål» på stien /milestones (hbNav), og siden er DineMaalView.
-//   2. Fokusmotoren har INGEN milepæls-kilde (slot (e) ude): hverken
-//      `milestones:` i inputtet, kind "milestone-deadline" eller "/milestones"
-//      som ctaHref — og BoardroomView giver deriveFocus ingen `milestones:`.
+//   2. Fokusmotoren har INGEN gammel milepæls-kilde: hverken `milestones:` i
+//      inputtet, kind "milestone-deadline" eller en hårdkodet "/milestones"
+//      som ctaHref. RETTET 1/10-2026: slot (e) er genindført som MÅLET — men
+//      KUN gennem den rene dom maalFokus (maalFokus.ts, tiden = now), og
+//      forsiden giver den `maalPlan` af milestonesQuery + skridtQuery (ingen
+//      ny hentning), kun når begge er hentet.
 //   3. Skyderen kun for mål UDEN skridt: HbMaalRaekke's klikbare bar er
 //      låst til dommens kanSaetteFremdrift, og dommen sætter den fra `!x.beregnet`.
 //   4. Medlemmet ejer sine mål: DineMaalView bruger useMilestones' opret, slet,
@@ -116,14 +119,18 @@ export const menuenHolder = (nav: string, side: string): boolean =>
   side.includes('import { DineMaalView } from "@/components/hjemmebane/milestones/DineMaalView";') &&
   side.includes("<DineMaalView />");
 
-/** Dom 2: ingen milepæls-kilde i fokusmotoren; forsiden giver ingen. */
+/** Dom 2: ingen gammel milepæls-kilde i fokusmotoren; målet (slot (e), 1/10) kun gennem maalFokus. */
 export const motorenUdenMilepaele = (motor: string, forside: string): boolean => {
   const focusKald = forside.slice(forside.indexOf("return deriveFocus({"), forside.indexOf("});", forside.indexOf("return deriveFocus({")));
   return !/milestone-deadline/.test(motor) &&
     !/^\s*milestones:/m.test(motor) &&
     !/ctaHref: "\/milestones"/.test(motor) &&
     !/NextStepMilestone/.test(motor) &&
-    focusKald.length > 0 && !/milestones:/.test(focusKald);
+    /const maalPunkt = inputs\.maalPlan \? maalFokus\(inputs\.maalPlan\.maal, inputs\.maalPlan\.skridt, now\) : null;/.test(motor) &&
+    (motor.match(/maalFokus\(/g) ?? []).length === 1 &&
+    !/Date\.now\(\)/.test(motor) &&
+    focusKald.length > 0 && !/milestones:/.test(focusKald) &&
+    /maalPlan: milestonesQuery\.data && skridtQuery\.data\s*\?\s*\{ maal: milestonesQuery\.data, skridt: skridtQuery\.data/.test(focusKald);
 };
 
 /** Dom 3: skyderen kun uden skridt. */
@@ -202,7 +209,7 @@ describe("dineMaal.guard — fase 3: medlemmets mål, uden milepæls-slot, skyde
   it("dom 1: menuen siger «Dine mål» på /milestones, og siden er DineMaalView", () => {
     expect(menuenHolder(nav, side)).toBe(true);
   });
-  it("dom 2: fokusmotoren har ingen milepæls-kilde, og forsiden giver den ingen", () => {
+  it("dom 2: fokusmotoren har ingen gammel milepæls-kilde; målet (slot (e), 1/10) kun gennem maalFokus med forsidens egne rækker", () => {
     expect(motorenUdenMilepaele(motor, forside)).toBe(true);
   });
   it("dom 3: skyderen (klik på baren) kun når dommen siger kanSaetteFremdrift — og dommen siger det kun uden tællende skridt", () => {
@@ -234,9 +241,12 @@ describe("dineMaal.guard — fase 3: medlemmets mål, uden milepæls-slot, skyde
     expect(menuenHolder(nav.replace('label: "Dine mål"', 'label: "Milestones"'), side)).toBe(false);
     expect(menuenHolder(nav, side.replace("<DineMaalView />", "<MilestonesView />"))).toBe(false);
   });
-  it("selvbevis 2: slot (e) tilbage i motoren, eller `milestones:` i forsidens deriveFocus-kald, falder", () => {
+  it("selvbevis 2: den gamle kilde tilbage, `milestones:` i forsidens kald, målet uden om maalFokus, eller et halvt billede, falder", () => {
     expect(motorenUdenMilepaele(motor + '\n  items.push({ kind: "milestone-deadline" });', forside)).toBe(false);
     expect(motorenUdenMilepaele(motor, forside.replace("return deriveFocus({", "return deriveFocus({\n      milestones: milestonesQuery.data ?? [],"))).toBe(false);
+    expect(motorenUdenMilepaele(motor.replace("const maalPunkt = inputs.maalPlan ? maalFokus(", "const maalPunkt = inputs.maalPlan ? egenDom("), forside)).toBe(false);
+    expect(motorenUdenMilepaele(motor + "\nconst t = Date.now();", forside)).toBe(false);
+    expect(motorenUdenMilepaele(motor, forside.replace("maalPlan: milestonesQuery.data && skridtQuery.data", "maalPlan: milestonesQuery.data"))).toBe(false);
   });
   it("selvbevis 3: en bar der er klikbar uanset skridt, eller en dom der giver skyderen til mål med skridt, falder", () => {
     expect(skyderenHolder(raekke.replace("const klikbarBar = h.kanSaetteFremdrift && !maalbar;", "const klikbarBar = !maalbar;"), dom)).toBe(false);

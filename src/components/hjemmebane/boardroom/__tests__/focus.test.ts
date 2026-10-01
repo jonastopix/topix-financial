@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deriveFocus, deriveNextStep, filtrerUdloebneForslag, foersteRapportPeriode, type FocusInputs, type NextStepInputs } from "../nextStep";
+import { deriveFocus, deriveNextStep, erHastendeSkridt, filtrerUdloebneForslag, foersteRapportPeriode, maalFristTillaeg, type FocusInputs, type NextStepInputs } from "../nextStep";
 import { byggTjekliste, TJEKLISTE_RAEKKEFOELGE, type TjeklisteInput } from "@/lib/onboardingTjekliste";
 
 /** Fokus-motoren (forside PR 1): hver kilde, rækkefølgen ved samtidige
@@ -90,11 +90,133 @@ describe("deriveFocus — hver kilde for sig", () => {
     expect(deriveFocus(base({ weeklyFocus: null })).some((i) => i.kind === "weekly-focus")).toBe(false);
   });
 
-  it("(e) UDGÅET (fase 3, 16/9): ingen milepæls-kilde i fokusmotoren — inputtet findes ikke, og ingen kind hedder milestone-deadline", () => {
-    // Målet står i forsidens «Dine mål» (dineMaal.ts); fokuskortet nævner det ikke.
+  it("(e) den gamle milepæls-kilde er stadig væk: et `milestones`-input og kind «milestone-deadline» findes ikke", () => {
     const items = deriveFocus({ ...base(), ...({ milestones: [{ title: "x", deadline: daysFromNow(2), progress: 10, status: "active" }] } as object) });
     expect(items.some((i) => (i.kind as string) === "milestone-deadline")).toBe(false);
     expect(items).toEqual([]);
+  });
+
+  // (e) MÅLET (1/10-2026): ét punkt fra maalFokus — dommen selv testes i
+  // src/lib/hjemmebane/__tests__/maalFokus.test.ts; her placeringen og formen.
+  const maalRaekke = (o: Record<string, unknown>) => ({ id: "m1", title: "Ny sælger", status: "active", progress: 0, deadline: null, created_at: "2026-07-01T00:00:00Z", ...o });
+  const skridtRaekke = (o: Record<string, unknown>) => ({ id: "s1", title: "Skriv jobopslag", status: "active", due_date: "2026-08-20", maal_id: "m1", ...o });
+
+  it("(e) mål uden skridt → «Tilføj det første skridt mod …» til forsidens anker #dine-maal (rådets fund 13)", () => {
+    const items = deriveFocus(base({ maalPlan: { maal: [maalRaekke({})], skridt: [] } }));
+    expect(items).toEqual([
+      expect.objectContaining({ kind: "maal", priority: 5, title: "Tilføj det første skridt mod Ny sælger", ctaHref: "#dine-maal", sourceId: "m1" }),
+    ]);
+  });
+
+  it("(e) aktivt skridt under målet → «mod målet: …», og (f) nævner ikke samme skridt igen", () => {
+    const items = deriveFocus(base({
+      maalPlan: { maal: [maalRaekke({})], skridt: [skridtRaekke({})] },
+      openActions: [
+        { id: "s1", title: "Skriv jobopslag", priority: "high", status: "active", due_date: "2026-08-20" },
+        { id: "s9", title: "Løst skridt", priority: "low", status: "active", due_date: "2026-08-12" },
+      ],
+    }));
+    expect(items.map((i) => i.key)).toEqual(["maal:skridt:s1", "action:s9"]);
+    expect(items[0]).toMatchObject({ kind: "maal", title: "Skriv jobopslag", ctaHref: "#dine-skridt", sourceId: "s1" });
+    expect(items[0].description).toBe("Skal være gjort senest 20. august — mod målet: Ny sælger.");
+  });
+
+  it("(e) målets frist ≤ 30 dage står i skridtets linje", () => {
+    const items = deriveFocus(base({ maalPlan: { maal: [maalRaekke({ deadline: "2026-08-30" })], skridt: [skridtRaekke({})] } }));
+    expect(items[0].description).toBe("Skal være gjort senest 20. august — mod målet: Ny sælger. Målets frist: 20 dage tilbage.");
+  });
+
+  it("(e)(1) tillægget siger «passeret» og «i dag» som sætninger (rådets fund 12)", () => {
+    const tekst = (deadline: string) =>
+      deriveFocus(base({ maalPlan: { maal: [maalRaekke({ deadline })], skridt: [skridtRaekke({})] } }))[0].description;
+    expect(tekst("2026-08-05")).toBe("Skal være gjort senest 20. august — mod målet: Ny sælger. Fristen for målet er passeret.");
+    expect(tekst("2026-08-10")).toBe("Skal være gjort senest 20. august — mod målet: Ny sælger. Fristen for målet er i dag.");
+    expect(tekst("2026-08-11")).toBe("Skal være gjort senest 20. august — mod målet: Ny sælger. Målets frist: 1 dag tilbage.");
+    expect(maalFristTillaeg(null)).toBe("");
+  });
+
+  it("(e) (2)/(3) lægges UNDER et hastende aktivt (f)-skridt — forfaldent eller frist ≤ 7 danske dage (rådets fund 6)", () => {
+    const loest = (id: string, due_date: string) => ({ id, title: `Løst ${id}`, priority: "high", status: "active", due_date });
+    // (2) under et skridt med frist om 7 dage (17/8) — grænsen er med.
+    const syv = deriveFocus(base({ maalPlan: { maal: [maalRaekke({})], skridt: [] }, openActions: [loest("x", "2026-08-17")] }));
+    expect(syv.map((i) => i.key)).toEqual(["action:x", "maal:foerste:m1"]);
+    // Prioriteten følger pladsen, så listen stadig er sorteret.
+    expect(syv.map((i) => i.priority)).toEqual([6, 6]);
+    // Forfaldent (9/8) — også under.
+    expect(deriveFocus(base({ maalPlan: { maal: [maalRaekke({})], skridt: [] }, openActions: [loest("x", "2026-08-09")] })).map((i) => i.kind))
+      .toEqual(["company-action", "maal"]);
+    // (3) under det SIDSTE hastende; et ikke-hastende bliver under målpunktet.
+    const frist = deriveFocus(base({
+      maalPlan: { maal: [maalRaekke({ deadline: "2026-08-25" })], skridt: [skridtRaekke({ status: "proposed", due_date: null })] },
+      openActions: [loest("a", "2026-08-12"), loest("b", "2026-09-30"), loest("c", "2026-08-14")],
+    }));
+    expect(frist.map((i) => i.key)).toEqual(["action:a", "action:b", "action:c", "maal:frist:m1"]);
+    expect(frist.filter((i) => i.kind === "maal")).toHaveLength(1);
+  });
+
+  it("(e) (2)/(3) står OVER (f), når intet (f)-skridt haster — 8 dage, forslag og arve-open tæller ikke", () => {
+    const items = deriveFocus(base({
+      maalPlan: { maal: [maalRaekke({})], skridt: [] },
+      openActions: [
+        { id: "otte", title: "Om 8 dage", priority: "high", status: "active", due_date: "2026-08-18" },
+        { id: "forslag", title: "Forslag", priority: "high", status: "proposed", due_date: "2026-08-11" },
+        { id: "arv", title: "Arv", priority: "high" },
+      ],
+    }));
+    expect(items.map((i) => i.key)).toEqual(["maal:foerste:m1", "action:otte", "action:arv"]);
+    expect(items[0].priority).toBe(5);
+  });
+
+  it("(e)(1) — skridtet under et mål — står over (f), også når et løst skridt haster", () => {
+    const items = deriveFocus(base({
+      maalPlan: { maal: [maalRaekke({})], skridt: [skridtRaekke({})] },
+      openActions: [{ id: "x", title: "Haster", priority: "high", status: "active", due_date: "2026-08-09" }],
+    }));
+    expect(items.map((i) => i.key)).toEqual(["maal:skridt:s1", "action:x"]);
+  });
+
+  it("erHastendeSkridt: dansk dag, kun aktive med frist", () => {
+    // 10/8 kl. 23:30 UTC = 11/8 01:30 dansk → «i dag» = 11/8; 18/8 er 7 dage væk.
+    const sent = new Date("2026-08-10T23:30:00Z");
+    expect(erHastendeSkridt({ status: "active", due_date: "2026-08-18" }, sent)).toBe(true);
+    expect(erHastendeSkridt({ status: "active", due_date: "2026-08-19" }, sent)).toBe(false);
+    expect(erHastendeSkridt({ status: "proposed", due_date: "2026-08-11" }, sent)).toBe(false);
+    expect(erHastendeSkridt({ status: "active", due_date: null }, sent)).toBe(false);
+  });
+
+  it("(e) står UNDER rapport og beskeder og OVER løse skridt, pulse og profil", () => {
+    const items = deriveFocus(base({
+      processedPeriodKeys: new Set([JUNI]),
+      committedPeriodKeys: new Set([JUNI]),
+      unreadUserMessages: 1,
+      askMeAboutMissing: true,
+      // Ikke hastende (frist om 20 dage) — ellers lægges (2) under skridtet (fund 6, testet nedenfor).
+      openActions: [{ id: "x", title: "Løst", priority: "high", status: "active", due_date: "2026-08-30" }],
+      maalPlan: { maal: [maalRaekke({})], skridt: [] },
+    }));
+    expect(items.map((i) => i.kind)).toEqual(["missing-report", "unread-messages", "maal", "company-action", "empty-profile"]);
+  });
+
+  it("(e) ét punkt, aldrig flere — også med tre mål", () => {
+    const items = deriveFocus(base({ maalPlan: { maal: [maalRaekke({ id: "a" }), maalRaekke({ id: "b" }), maalRaekke({ id: "c" })], skridt: [] } }));
+    expect(items.filter((i) => i.kind === "maal")).toHaveLength(1);
+  });
+
+  it("(e) uden maalPlan (fx en fejlet hentning) → intet målpunkt", () => {
+    expect(deriveFocus(base({ maalPlan: null }))).toEqual([]);
+  });
+
+  it("(e) én stemme med Score-kortet: målets punkt siger aldrig Score-løfterens «Sæt dit første mål.» og peger aldrig på /kpis", () => {
+    for (const maalPlan of [
+      { maal: [maalRaekke({})], skridt: [] },
+      { maal: [maalRaekke({})], skridt: [skridtRaekke({})] },
+      { maal: [maalRaekke({ deadline: "2026-08-15" })], skridt: [skridtRaekke({ status: "proposed", due_date: null })] },
+    ]) {
+      const [punkt] = deriveFocus(base({ maalPlan }));
+      expect(punkt.kind).toBe("maal");
+      expect(punkt.title).not.toMatch(/Sæt dit første mål/);
+      expect(punkt.ctaHref).not.toBe("/kpis");
+    }
   });
 
   it("(f) company_actions: kalderens orden bevares, sourceId følger med", () => {

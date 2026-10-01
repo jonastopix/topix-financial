@@ -1021,8 +1021,20 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
     staleTime: 60_000,
   });
   const aktiveMaal = aktiveMaalQuery.data ?? [];
+  // Det effektive valg (rådets fund 1, 1/10 — beholdt, da kravet om et mål
+  // blev trukket tilbage samme aften): et valgt id, der ikke (længere) er
+  // blandt de aktive mål — en anden virksomhed, eller et mål, der er
+  // nået/parkeret siden — behandles som urørt (standarden). Ellers stod
+  // <select>'en med en value uden <option>, og forslaget blev sendt med et
+  // mål, serveren afviser (404/409), igen og igen.
+  const effektivtMaalValg = forslagMaalValg === "" || forslagMaalValg === "uden" || aktiveMaal.some((m) => m.id === forslagMaalValg) ? forslagMaalValg : "";
+  // Nulstil valget ved skift af virksomhed (samtalen kan skifte, mens
+  // popoveren er lukket). Hooken står i topblokken (React #310-reglen).
+  useEffect(() => {
+    setForslagMaalValg("");
+  }, [forslagCompanyId]);
   // Det mål forslaget sendes med: standarden (ældste aktive) når vælgeren er urørt; null = uden mål.
-  const valgtMaalId: string | null = forslagMaalValg === "" ? (aktiveMaal[0]?.id ?? null) : forslagMaalValg === "uden" ? null : forslagMaalValg;
+  const valgtMaalId: string | null = effektivtMaalValg === "" ? (aktiveMaal[0]?.id ?? null) : effektivtMaalValg === "uden" ? null : effektivtMaalValg;
 
   // Modtageren i skrivefeltet (og den tomme tilstand): rådgiveren skriver
   // TIL virksomheden. Låst (blok 4): virksomhedens navn, samme tone som
@@ -1224,6 +1236,10 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
           const svar = await (error as any).context?.json?.();
           if (svar?.error) besked = svar.error;
         } catch { /* behold error.message */ }
+        // Enhver serverfejl (rådets fund 10, 1/10 — beholdt): hent målene
+        // igen. Et valgt mål kan være nået, parkeret eller slettet (404/409),
+        // og vælgeren skal vise den faktiske liste.
+        void aktiveMaalQuery.refetch();
         toast.error("Forslaget blev ikke sendt", { description: besked });
         return;
       }
@@ -1308,7 +1324,19 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
         >
           <p className="text-[10px] text-hb-rust font-medium uppercase tracking-[0.14em] mb-2">Foreslå skridt</p>
           {aktiveMaalQuery.isError ? (
-            <p className="mb-1.5 text-xs text-hb-rust">Virksomhedens mål kunne ikke hentes — skridtet sendes uden mål.</p>
+            <p className="mb-1.5 text-xs text-hb-rust" data-maal-hentefejl>
+              Virksomhedens mål kunne ikke hentes — skridtet sendes uden mål.{" "}
+              {/* Rådets fund 4 (1/10 — beholdt): en vej ud uden at lukke og genåbne. */}
+              <button
+                type="button"
+                onClick={() => void aktiveMaalQuery.refetch()}
+                disabled={aktiveMaalQuery.isFetching}
+                className="underline underline-offset-2 hover:no-underline disabled:opacity-50"
+                data-maal-proev-igen
+              >
+                {aktiveMaalQuery.isFetching ? "Henter …" : "Prøv igen"}
+              </button>
+            </p>
           ) : aktiveMaal.length > 0 ? (
             <select
               value={valgtMaalId ?? "uden"}

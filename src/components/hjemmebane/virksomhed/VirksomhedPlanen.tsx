@@ -124,6 +124,11 @@ export function VirksomhedPlanen({
       const r = await kaldForeslaaOpgave({ companyId, conversationId: samtaleId, titel: t, ...(skridtBegrundelse.trim() ? { begrundelse: skridtBegrundelse.trim() } : {}), ...(maalId ? { maalId } : {}) });
       if (r.ok === false) {
         toast.error("Skridtet blev ikke foreslået", { description: r.fejl });
+        // Rådets fund 11 (1/10 — beholdt): en serverfejl (404/409 — målet er
+        // nået/parkeret/slettet) betyder, at kortets mål kan være forældede.
+        // Hent dem igen, så vælgeren viser den faktiske liste. Fejler
+        // genhentningen, står den første fejl alene.
+        void onOpdateret().catch(() => undefined);
         return;
       }
       await onOpdateret();
