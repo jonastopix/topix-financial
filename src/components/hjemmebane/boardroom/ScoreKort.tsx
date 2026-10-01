@@ -10,6 +10,7 @@ import {
   LOEFTER_MAAL_MAERKE,
   loefterLinjer,
   retningTekst,
+  retningVises,
   RING_RADIUS,
   ringBue,
   SCORE_AFVENTER_OVERSKRIFT,
@@ -178,7 +179,7 @@ export const ScoreKort = ({ dom, afventerMigration, isLoading, isError, onProevI
               </div>
             </div>
             <div className="min-w-0 flex-1 space-y-4">
-              <div className="grid grid-cols-2 gap-x-6 gap-y-3 lg:grid-cols-4" data-skelet-soejler>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:gap-x-6 lg:grid-cols-4" data-skelet-soejler>
                 {[0, 1, 2, 3].map((i) => (
                   <div key={i} className="min-w-0">
                     <div className="flex items-baseline justify-between gap-2">
@@ -226,7 +227,8 @@ export const ScoreKort = ({ dom, afventerMigration, isLoading, isError, onProevI
     );
   }
 
-  const retning = retningTekst(dom.score, dom.forrige);
+  // Retningen først, når scoren har fandtes en måned (scoreKort.RETNING_VISES_FRA). Kortet gentegnes hvert minut (hooken tikker).
+  const retning = retningVises(new Date()) ? retningTekst(dom.score, dom.forrige) : null;
   const daekning = daekningTekst(dom);
   const mangler = ikkeNokDataTekst(dom);
   const streak = streakLinjer(dom.streak);
@@ -290,11 +292,11 @@ export const ScoreKort = ({ dom, afventerMigration, isLoading, isError, onProevI
 
         {/* Søjlerne, streaken og den øverste løfter */}
         <div className="min-w-0 flex-1 space-y-4">
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-3 lg:grid-cols-4" data-score-soejler>
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:gap-x-6 lg:grid-cols-4" data-score-soejler>
             {soejler.map((s) => (
               <div key={s.navn} className="min-w-0" data-soejle={s.navn} data-soejle-point={s.point ?? "ingen"}>
                 <div className="flex items-baseline justify-between gap-2">
-                  <dt className={cn(mikro, "truncate")}>{s.label}</dt>
+                  <dt className={cn(mikro, "truncate tracking-[0.1em] sm:tracking-[0.14em]")}>{s.label}</dt>
                   <dd className="shrink-0 text-xs tabular-nums text-hb-ink">
                     {s.point !== null ? (
                       <>

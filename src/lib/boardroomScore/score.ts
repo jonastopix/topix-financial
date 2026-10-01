@@ -92,12 +92,12 @@ function handlingerFor(g: ScoreGrundlag, nu: Date, soejler: Soejler): Handling[]
     const med = alleSoejler({ ...g, maaneder: [...g.maaneder, simuleret] }, efterFrist).disciplin;
     const basis = { ...soejler, disciplin: uden };
     const gevinst = uden.status === "ok" && med.status === "ok" && samlet(basis).score !== null ? gevinstVed(basis, med) : null;
-    ud.push({ soejle: "disciplin", tekst: `Godkend ${maanedsnavn(aaben)} senest ${datoTekst(fd)}.`, gevinst, sti: "/reports" });
+    ud.push({ soejle: "disciplin", tekst: `Upload og godkend ${maanedsnavn(aaben)} senest ${datoTekst(fd)}.`, gevinst, sti: "/reports" });
   } else if (!erMaalt(maalte.get(passeret))) {
     const simuleret: ScoreMaaned = { key: passeret, basis: "measured", foersteGodkendtAt: nu.toISOString(), metrics: {} };
     const med = alleSoejler({ ...g, maaneder: [...g.maaneder, simuleret] }, nu);
     const gevinst = med.disciplin.status === "ok" ? gevinstVed(soejler, med.disciplin) : null;
-    ud.push({ soejle: "disciplin", tekst: `Godkend ${maanedsnavn(passeret)} — måneden mangler.`, gevinst, sti: "/reports" });
+    ud.push({ soejle: "disciplin", tekst: `Upload og godkend ${maanedsnavn(passeret)} — måneden mangler.`, gevinst, sti: "/reports" });
   } else if (!g.harBudgetForAaret) {
     const med = alleSoejler({ ...g, harBudgetForAaret: true }, nu);
     ud.push({ soejle: "disciplin", tekst: `Læg et budget for ${kbhDele(nu).aar}.`, gevinst: gevinstVed(soejler, med.disciplin), sti: "/budget" });

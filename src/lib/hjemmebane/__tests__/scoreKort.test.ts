@@ -12,6 +12,8 @@ import {
   ikkeNokDataTekst,
   loefterLinjer,
   retningTekst,
+  retningVises,
+  RETNING_VISES_FRA,
   RING_RADIUS,
   ringBue,
   soejleLinjer,
@@ -51,6 +53,15 @@ const NYT_AUGUST = boardroomScore(grundlag([sund("2026-08", {}, { foersteGodkend
 const TOM = boardroomScore(grundlag([], { kontraktStart: "2026-01-01" }), NU);
 /** Én måned uden omkostninger og uden kontraktstart: ingen søjle har data. */
 const EN_UDEN_START = boardroomScore(grundlag([sund("2026-08", { gross_profit: null, payroll: null, admin_costs: null }, { foersteGodkendtAt: "2026-09-03T09:00:00Z" })], { kontraktStart: null }), NU);
+
+describe("retningVises — først når scoren har fandtes en måned (designgennemsynet 1/10 fund 3)", () => {
+  it("skjult til 30/10-2026 00:00 UTC, vist fra da", () => {
+    expect(RETNING_VISES_FRA.toISOString()).toBe("2026-10-30T00:00:00.000Z");
+    expect(retningVises(new Date("2026-10-01T09:00:00Z"))).toBe(false);
+    expect(retningVises(new Date("2026-10-29T23:59:59Z"))).toBe(false);
+    expect(retningVises(new Date("2026-10-30T00:00:00Z"))).toBe(true);
+  });
+});
 
 describe("retningTekst — i ord, aldrig procent", () => {
   it("op, ned, samme, ukendt", () => {
@@ -99,6 +110,14 @@ describe("soejleLinjer", () => {
     expect(disciplin.point).not.toBeNull();
     expect(soejleLinjer(FULD)[3].detalje).toBe("6 af 6 måneder godkendt, 6 til tiden");
   });
+  it("med score og 0 godkendte måneder: rolig tekst, aldrig «0 af 6 … 0 til tiden» (designgennemsynet 1/10 fund 4)", () => {
+    const d = FULD.soejler.disciplin;
+    if (d.status !== "ok") throw new Error("fixture");
+    const dom = { ...FULD, soejler: { ...FULD.soejler, disciplin: { ...d, detaljer: { ...d.detaljer, maalte: 0, rettidige: 0 } } } };
+    const linje = soejleLinjer(dom).find((x) => x.navn === "disciplin")!;
+    expect(linje.detalje).toBe(`Ingen godkendte måneder i de seneste ${d.detaljer.vindue.length} endnu`);
+    expect(linje.detalje).not.toMatch(/0 af|0 til tiden/);
+  });
   it("uden data: point null, andel 0, motorens egen grund", () => {
     const d = boardroomScore(grundlag(keys("2025-06", 15).map((k) => sund(k, { cash: null }))), NU);
     const likv = soejleLinjer(d)[0];
@@ -137,8 +156,10 @@ describe("streakLinjer", () => {
   it("en weekend-frist står som den rykkede hverdag: august 2026 (20/9 er søndag) → 21/9", () => {
     expect(streakLinjer({ ...base, naesteFrist: { ...base.naesteFrist, key: "2026-08", hverdageTil: 3 } }).frist).toBe("Næste frist: august senest 21/9 (3 hverdage)");
   });
-  it("status uden streak nævner den 20. — samme frist som påmindelserne", () => {
-    expect(streakLinjer({ ...base, laengde: 0, status: "ingen" }).status).toBe("Godkend dine tal senest den 20. og start din streak");
+  it("status uden streak er rolig — fristen (den 20.) står i fristlinjen, handlingen i løfteren (designgennemsynet 1/10)", () => {
+    const l = streakLinjer({ ...base, laengde: 0, status: "ingen" });
+    expect(l.status).toBe("Ingen streak endnu");
+    expect(l.frist).toMatch(/senest 20\/10/);
   });
   it("streakKortLinje: tallet med enhed og fristen på én linje", () => {
     expect(streakKortLinje(base)).toEqual({ tal: "7 måneder i træk", frist: "Næste frist: september senest 20/10 (14 hverdage)", erStatus: false });
@@ -147,7 +168,7 @@ describe("streakLinjer", () => {
   it("streakKortLinje uden streak (status «ingen»): statussen er linjen — aldrig «0 måneder i træk» — og fristen står stadig", () => {
     const l = streakKortLinje({ ...base, laengde: 0, bedste: 0, status: "ingen" });
     expect(l).toEqual({
-      tal: "Godkend dine tal senest den 20. og start din streak",
+      tal: "Ingen streak endnu",
       frist: "Næste frist: september senest 20/10 (14 hverdage)",
       erStatus: true,
     });
