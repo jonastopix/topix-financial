@@ -26,7 +26,7 @@
  * src/lib/__tests__/forsidePlan.guard.test.ts.
  */
 import type { DineMaalDom, MaalForMedlem } from "./dineMaal";
-import { forsideMaal } from "./dineMaal";
+import { ALLE_SKRIDT_GJORT_TEKST, forsideMaal } from "./dineMaal";
 import { sorterAktive, vaelgForslag } from "./aftaler";
 
 /** Det af company_actions-rækken planen læser (forsidens actionsQuery). */
@@ -82,7 +82,6 @@ export const PLAN_INGEN_AKTIVE_TEKST = "Ingen aktive mål lige nu — aktivér e
 export const MAAL_UDEN_SKRIDT_TEKST = "Tilføj det første skridt";
 export const UDEN_MAAL_OVERSKRIFT = "Uden mål";
 export const ANDRE_MAAL_OVERSKRIFT = "Skridt under andre mål";
-export const ALLE_GJORT_TEKST = "Alle skridt er gjort — marker målet som nået";
 export const SE_HELE_PLANEN = "Se hele planen";
 export const PLAN_FEJL_TEKST = "Din plan kunne ikke hentes. Prøv igen.";
 
@@ -167,9 +166,10 @@ export interface Fejring {
 export function fejringTekst(maalTitel: string | null, progress: number | null): string {
   if (!maalTitel || progress == null || !Number.isFinite(progress)) return "Godt gået.";
   const pct = Math.round(progress);
-  // 100 %: målet er færdigt i planens dom (Jonas «A») og forlader de aktive —
-  // fejringen bærer derfor selv opfordringen til at markere det som nået.
-  if (pct >= 100) return `Godt gået — ${maalTitel} er nu 100 %. ${ALLE_GJORT_TEKST}.`;
+  // 100 %: alle skridt er gjort, men målet er IKKE nået af sig selv (Jonas
+  // 1/10) — fejringen bærer opfordringen til at markere det som nået. ÉN
+  // tekst for «alle skridt gjort» (ALLE_SKRIDT_GJORT_TEKST, rådets fund L3).
+  if (pct >= 100) return `Godt gået — ${maalTitel} er nu 100 %. ${ALLE_SKRIDT_GJORT_TEKST}`;
   return `Godt gået — ${maalTitel} er nu ${pct} %`;
 }
 

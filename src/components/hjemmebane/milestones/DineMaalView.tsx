@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { kraevRaekker } from "@/lib/kraevRaekker";
 import { MILESTONE_CATEGORIES, type MilestoneCategory } from "@/lib/milestoneCategories";
 import { MILESTONE_SUGGESTIONS } from "@/lib/milestoneSuggestions";
-import { dineMaalDom, doemMaalFristModSkridt, lokalDatoStreng, DINE_SKRIDT_FEJL_TEKST, TILFOEJ_SKRIDT_FEJL_TEKST, TILFOEJ_SKRIDT_OK_TEKST, type SkridtTilDineMaal } from "@/lib/hjemmebane/dineMaal";
+import { dineMaalDom, doemMaalFristModSkridt, lokalDatoStreng, senesteAabneSkridt, tidligsteMaalFristTekst, DINE_SKRIDT_FEJL_TEKST, TILFOEJ_SKRIDT_FEJL_TEKST, TILFOEJ_SKRIDT_OK_TEKST, type SkridtTilDineMaal } from "@/lib/hjemmebane/dineMaal";
 import type { MaalRaekke } from "@/lib/hjemmebane/planen";
 import { MAX_AKTIVE_MAAL } from "@/lib/hjemmebane/maal";
 import { HbAdvisorCompanyPrompt } from "../HbAdvisorCompanyPrompt";
@@ -183,11 +183,12 @@ export const DineMaalView = () => {
     const dom = doemMaalFristModSkridt(d ? lokalDatoStreng(d) : null, skridtUnder(maalId));
     return dom.ok === false ? dom.grund : null;
   };
+  // Det seneste åbne skridt: kalenderen slår dagene før fra, og hjælpeteksten
+  // siger hvorfor (rådets fund M2 — grå dage uden forklaring).
+  const aabenSenesteSkridt = aaben ? senesteAabneSkridt(skridtUnder(aaben.id)) : null;
   const aabenTidligsteFrist = (() => {
-    if (!aaben) return undefined;
-    const frister = skridtUnder(aaben.id).filter((s) => s.status === "active" && s.due_date).map((s) => (s.due_date as string).slice(0, 10)).sort();
-    if (frister.length === 0) return undefined;
-    const [y, m, d] = frister[frister.length - 1].split("-").map(Number);
+    if (!aabenSenesteSkridt) return undefined;
+    const [y, m, d] = aabenSenesteSkridt.dato.split("-").map(Number);
     return new Date(y, m - 1, d);
   })();
   const opdaterMaalFelt = async (id: string, fields: Record<string, unknown>) => {
@@ -367,6 +368,7 @@ export const DineMaalView = () => {
         onUpdateField={opdaterMaalFelt}
         doemNyFrist={aaben ? (d) => maalFristGrund(aaben.id, d ?? null) : undefined}
         tidligsteFrist={aabenTidligsteFrist}
+        tidligsteFristTekst={aabenSenesteSkridt ? tidligsteMaalFristTekst(aabenSenesteSkridt.dato, aabenSenesteSkridt.titel) : undefined}
         onUpdateCurrentValue={aabenBeregnet ? async () => { toast.info("Fremdriften regnes af skridtene under målet"); } : saetNuvaerendeVaerdi}
       />
       <SletMilestoneDialog

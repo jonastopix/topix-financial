@@ -64,9 +64,9 @@ import { isTrackedEntry, useAkademiData, type AkademiItem } from "../akademi/use
 import { afgoerForloeb, forloebslinje, type Forloebslinje } from "@/lib/hjemmebane/forloeb";
 import { maaskeRelevant, MAASKE_RELEVANT_PRAEFIKS } from "@/lib/hjemmebane/maaskeRelevant";
 import { afgoerMilepael } from "@/lib/milepaelDom";
-import { dineMaalDom, DINE_MAAL_FEJL_TEKST, DINE_SKRIDT_FEJL_TEKST, TILFOEJ_SKRIDT_FEJL_TEKST, TILFOEJ_SKRIDT_KNAP_TEKST, TILFOEJ_SKRIDT_OK_TEKST, type SkridtTilDineMaal } from "@/lib/hjemmebane/dineMaal";
+import { ALLE_SKRIDT_GJORT_TEKST, dineMaalDom, DINE_MAAL_FEJL_TEKST, DINE_SKRIDT_FEJL_TEKST, TILFOEJ_SKRIDT_FEJL_TEKST, TILFOEJ_SKRIDT_KNAP_TEKST, TILFOEJ_SKRIDT_OK_TEKST, type SkridtTilDineMaal } from "@/lib/hjemmebane/dineMaal";
 import {
-  ALLE_GJORT_TEKST, ANDRE_MAAL_OVERSKRIFT, FEJRING_VARIGHED_MS, fejring as lavFejring, forsidePlanDom, MAAL_UDEN_SKRIDT_TEKST, PLAN_INGEN_AKTIVE_TEKST, PLAN_TOM_BOOK, PLAN_TOM_SAET_MAAL, PLAN_TOM_TEKST, SE_HELE_PLANEN, UDEN_MAAL_OVERSKRIFT,
+  ANDRE_MAAL_OVERSKRIFT, FEJRING_VARIGHED_MS, fejring as lavFejring, forsidePlanDom, MAAL_UDEN_SKRIDT_TEKST, PLAN_INGEN_AKTIVE_TEKST, PLAN_TOM_BOOK, PLAN_TOM_SAET_MAAL, PLAN_TOM_TEKST, SE_HELE_PLANEN, UDEN_MAAL_OVERSKRIFT,
   type Fejring, type PlanSkridt,
 } from "@/lib/hjemmebane/forsidePlan";
 import { TilfoejSkridtForm } from "../milestones/HbMaalRaekke";
@@ -2523,7 +2523,7 @@ export const BoardroomView = () => {
                   </p>
                   {x.alleGjort && (
                     <p className="mt-1 text-sm" data-alle-gjort>
-                      <Link to="/milestones" className="text-hb-evergreen underline-offset-4 hover:underline">{ALLE_GJORT_TEKST}</Link>
+                      <Link to="/milestones" className="text-hb-evergreen underline-offset-4 hover:underline">{ALLE_SKRIDT_GJORT_TEKST}</Link>
                     </p>
                   )}
                   {/* Skridtene under målet: aktive, så forslag. */}

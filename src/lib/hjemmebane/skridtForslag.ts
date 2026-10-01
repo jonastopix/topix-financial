@@ -237,12 +237,17 @@ export function foreslaaetFristModMaal(nu: Date, maalFrist: string | null | unde
     doemFrist («ikke før i dag») — grunden siger, at målets frist skal
     rykkes først. Fail-closed: en ulæselig målfrist afvises. Kalderen dømmer
     doemFrist FØRST og giver dens dato ind. Grunden er dansk og vises ordret
-    (skridt-tilfoej's 400 og formularens fejl). */
-export function doemFristModMaal(skridtFrist: string, maalFrist: string | null | undefined, nu: Date): FristDom {
+    (skridt-tilfoej's svar og formularens fejl). `kode` skiller de tre
+    afvisninger ad, så skridt-tilfoej kan svare dem hver for sig (rådets
+    fund L1, 1/10): ulæselig målfrist er VORES fejl (500), en passeret
+    målfrist og en skridtfrist efter målets er medlemmets valg (400). */
+export type FristModMaalKode = "maalets_frist_ulaeselig" | "maalets_frist_passeret" | "efter_maalets_frist";
+export type FristModMaalDom = { ok: true; dato: string } | { ok: false; grund: string; kode: FristModMaalKode };
+export function doemFristModMaal(skridtFrist: string, maalFrist: string | null | undefined, nu: Date): FristModMaalDom {
   const graense = maalFristDato(maalFrist);
   if (graense == null) return { ok: true, dato: skridtFrist };
-  if (graense === "ulaeselig") return { ok: false, grund: "Målets frist kan ikke læses — skridtet blev ikke tilføjet" };
-  if (graense < dagsdatoDansk(nu)) return { ok: false, grund: `Målets frist (${danskDato(graense)}) er passeret — ryk målets frist, før du tilføjer et skridt` };
-  if (skridtFrist > graense) return { ok: false, grund: `Skridtets frist kan ikke ligge efter målets frist (${danskDato(graense)}) — vælg den dag eller tidligere` };
+  if (graense === "ulaeselig") return { ok: false, grund: "Målets frist kan ikke læses — skridtet blev ikke tilføjet", kode: "maalets_frist_ulaeselig" };
+  if (graense < dagsdatoDansk(nu)) return { ok: false, grund: `Målets frist (${danskDato(graense)}) er passeret — ryk målets frist, før du tilføjer et skridt`, kode: "maalets_frist_passeret" };
+  if (skridtFrist > graense) return { ok: false, grund: `Skridtets frist kan ikke ligge efter målets frist (${danskDato(graense)}) — vælg den dag eller tidligere`, kode: "efter_maalets_frist" };
   return { ok: true, dato: skridtFrist };
 }

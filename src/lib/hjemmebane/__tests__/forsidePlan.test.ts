@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { dineMaalDom, type SkridtTilDineMaal } from "@/lib/hjemmebane/dineMaal";
+import { ALLE_SKRIDT_GJORT_TEKST, dineMaalDom, type SkridtTilDineMaal } from "@/lib/hjemmebane/dineMaal";
 import type { MaalRaekke } from "@/lib/hjemmebane/planen";
 import {
-  ALLE_GJORT_TEKST,
   erUdloebetForslag,
   fejring,
   fejringTekst,
@@ -73,7 +72,7 @@ describe("forsidePlanDom — grupperne", () => {
     const d = forsidePlanDom(dineMaalDom([maal({ id: "m", progress: 0 })], gjorte, NU), [], NU);
     expect(d.maal).toHaveLength(1);
     expect(d.maal[0].alleGjort).toBe(true);
-    expect(ALLE_GJORT_TEKST).toBe("Alle skridt er gjort — marker målet som nået");
+    expect(ALLE_SKRIDT_GJORT_TEKST).toBe("Alle skridt er gjort — marker målet som nået, når I er i mål.");
     // Rækkens progress 100 (opgave-luk har skrevet den). Før 1/10 var målet
     // da «nået» og forsvandt fra de aktive — fejlen Jonas målte 1/10 11:37
     // («klikker gjort på et skridt, så lukker målet»). Nu: stadig aktivt.
@@ -117,8 +116,8 @@ describe("ordnForslag — vaelgForslag's rangorden gentaget", () => {
 describe("fejringen — ✓ og en stille linje", () => {
   it("«Godt gået — {mål} er nu {N} %» med motorens tal, afrundet", () => {
     expect(fejringTekst("Nå 100 aktive kunder", 66.6)).toBe("Godt gået — Nå 100 aktive kunder er nu 67 %");
-    expect(fejringTekst("Mål", 100)).toBe("Godt gået — Mål er nu 100 %. Alle skridt er gjort — marker målet som nået.");
-    expect(fejringTekst("Mål", 99.6)).toBe("Godt gået — Mål er nu 100 %. Alle skridt er gjort — marker målet som nået.");
+    expect(fejringTekst("Mål", 100)).toBe("Godt gået — Mål er nu 100 %. Alle skridt er gjort — marker målet som nået, når I er i mål.");
+    expect(fejringTekst("Mål", 99.6)).toBe("Godt gået — Mål er nu 100 %. Alle skridt er gjort — marker målet som nået, når I er i mål.");
   });
   it("uden mål eller uden tal: «Godt gået.»", () => {
     expect(fejringTekst(null, 50)).toBe("Godt gået.");

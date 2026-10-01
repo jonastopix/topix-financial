@@ -10,7 +10,9 @@ import {
   forsideMaal,
   graenseTekst,
   modMaaletTekst,
+  senesteAabneSkridt,
   skridtLinjer,
+  tidligsteMaalFristTekst,
   type SkridtTilDineMaal,
 } from "@/lib/hjemmebane/dineMaal";
 
@@ -201,5 +203,20 @@ describe("forsiden — forsideMaal og «Mod målet»", () => {
     expect(modMaaletTekst(liste, "m")).toBe("Mod målet: Positiv bundlinje");
     expect(modMaaletTekst(liste, null)).toBeNull();
     expect(modMaaletTekst(liste, "x")).toBeNull();
+  });
+});
+
+describe("rådets fund M2 (1/10-2026): de grå dage i detaljens kalender forklares", () => {
+  const sk = (title: string, status: string, due_date: string | null): SkridtTilDineMaal =>
+    ({ id: title, title, status, due_date, maal_id: "m", closed_at: null }) as SkridtTilDineMaal;
+  it("det seneste ÅBNE skridt med frist — gjorte, droppede og skridt uden frist tæller ikke", () => {
+    expect(senesteAabneSkridt([])).toBeNull();
+    expect(senesteAabneSkridt([sk("A", "done", "2026-12-01"), sk("B", "active", null)])).toBeNull();
+    expect(senesteAabneSkridt([sk("A", "active", "2026-11-01"), sk("B", "active", "2026-11-20T00:00:00Z"), sk("C", "done", "2026-12-24")])).toEqual({ dato: "2026-11-20", titel: "B" });
+    // Samme dag: det første i listen.
+    expect(senesteAabneSkridt([sk("A", "active", "2026-11-20"), sk("B", "active", "2026-11-20")])).toEqual({ dato: "2026-11-20", titel: "A" });
+  });
+  it("teksten: dato, skridtets titel og vejen ud", () => {
+    expect(tidligsteMaalFristTekst("2026-11-20", "Ring til banken")).toBe("Tidligst 20. nov. 2026 — skridtet «Ring til banken» har frist den dag. Ryk eller luk skridtet først, hvis målet skal slutte før.");
   });
 });

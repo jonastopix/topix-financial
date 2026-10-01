@@ -100,7 +100,7 @@ export const invitationen = (dom: string, forside: string): boolean =>
 export const fejringenHolder = (dom: string, forside: string): boolean =>
   /export function fejringTekst\(maalTitel: string \| null, progress: number \| null\): string/.test(dom) &&
   dom.includes("const pct = Math.round(progress);") && dom.includes("return `Godt gået — ${maalTitel} er nu ${pct} %`;") &&
-  dom.includes("if (pct >= 100) return `Godt gået — ${maalTitel} er nu 100 %. ${ALLE_GJORT_TEKST}.`;") &&
+  dom.includes("if (pct >= 100) return `Godt gået — ${maalTitel} er nu 100 %. ${ALLE_SKRIDT_GJORT_TEKST}`;") &&
   forside.includes('if (kald.type === "luk" && kald.udfald === "done") {') &&
   /setFejring\(lavFejring\(skridt, maal\?\.title \?\? null, progress\)\)/.test(forside) &&
   /\.maal\.progress/.test(forside) &&

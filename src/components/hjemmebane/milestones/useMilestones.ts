@@ -224,8 +224,9 @@ export function useMilestones({ userId, companyId, isAdvisor }: Args) {
   }, [milestones, saetFremgang]);
 
   /** «Marker som nået» (fase 3, Jonas 16/9: medlemmet ejer sine mål) — status
-      = 'completed', fremdriften røres IKKE (et mål kan nås på 40 %; på 100 %
-      er det allerede nået). completed_at sættes af triggeren
+      = 'completed', fremdriften røres IKKE (et mål kan nås på 40 %, og et
+      mål på 100 % er IKKE nået, før nogen klikker her — 1/10-2026: nået er
+      KUN status 'completed', aldrig fremdriften). completed_at sættes af triggeren
       milestone_completed_at (fase 1). Fejringen er den samme som ved 100 %. */
   const markerNaaet = useCallback(async (id: string) => {
     const ms = milestones.find((m) => m.id === id);

@@ -233,18 +233,19 @@ describe("skridtets frist mod målets (Jonas 1/10-2026: et skridt må ikke have 
   it("målets frist er loftet — samme dag er tilladt, dagen efter afvises med en klar besked", () => {
     expect(doemFristModMaal("2026-11-20", "2026-11-20", NU)).toEqual({ ok: true, dato: "2026-11-20" });
     expect(doemFristModMaal("2026-11-19", "2026-11-20", NU)).toEqual({ ok: true, dato: "2026-11-19" });
-    expect(doemFristModMaal("2026-11-21", "2026-11-20", NU)).toEqual({ ok: false, grund: "Skridtets frist kan ikke ligge efter målets frist (20. nov. 2026) — vælg den dag eller tidligere" });
+    expect(doemFristModMaal("2026-11-21", "2026-11-20", NU)).toEqual({ ok: false, grund: "Skridtets frist kan ikke ligge efter målets frist (20. nov. 2026) — vælg den dag eller tidligere", kode: "efter_maalets_frist" });
   });
   it("mål uden frist: ingen grænse", () => {
     for (const m of [null, undefined, "", "  "]) expect(doemFristModMaal("2030-01-01", m, NU)).toEqual({ ok: true, dato: "2030-01-01" });
   });
   it("målets frist passeret (før i dag, dansk tid): afvist — målets frist skal rykkes først", () => {
-    expect(doemFristModMaal("2026-09-20", "2026-09-16", NU)).toEqual({ ok: false, grund: "Målets frist (16. sep. 2026) er passeret — ryk målets frist, før du tilføjer et skridt" });
+    expect(doemFristModMaal("2026-09-20", "2026-09-16", NU)).toEqual({ ok: false, grund: "Målets frist (16. sep. 2026) er passeret — ryk målets frist, før du tilføjer et skridt", kode: "maalets_frist_passeret" });
     // Målets frist i dag: skridtet kan få i dag.
     expect(doemFristModMaal("2026-09-17", "2026-09-17", NU)).toEqual({ ok: true, dato: "2026-09-17" });
   });
   it("en ulæselig målfrist afvises (fail-closed); en timestamptz-form læses på datoen", () => {
     expect(doemFristModMaal("2026-10-01", "i morgen", NU).ok).toBe(false);
+    expect(doemFristModMaal("2026-10-01", "i morgen", NU)).toMatchObject({ ok: false, kode: "maalets_frist_ulaeselig" });
     expect(doemFristModMaal("2026-10-01", "2026-10-01T00:00:00+00:00", NU)).toEqual({ ok: true, dato: "2026-10-01" });
   });
   it("forslaget rykkes ind under målets frist; datovælgerens max er målets frist", () => {

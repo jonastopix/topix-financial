@@ -10,7 +10,9 @@ import { resolve } from "node:path";
 //      status, og kalder aldrig skyderens skriveregel (statusEfterFremgang).
 //   2. «Det er heller ikke smart, at et skridt kan have en deadline længere
 //      ude i fremtiden end selve målet.» — skridt-tilfoej henter målets frist
-//      og dømmer doemFristModMaal FØR insert (samme dom som formularen).
+//      og dømmer doemFristModMaal FØR insert (samme dom som formularen) —
+//      og svarer dommens kode (rådets fund L1): 400 for efter_maalets_frist
+//      og maalets_frist_passeret, 500 for maalets_frist_ulaeselig.
 // Selvbevis på kopier: hver regel falder, når kilden ændres tilbage.
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -44,7 +46,7 @@ export const fristModMaalHolder = (tilfoej: string): boolean => {
   return (
     /\.select\("id, status, deadline"\)/.test(k) &&
     dom > 0 && insert > dom &&
-    /if \(!modMaal\.ok\) \{\s*return jsonResponse\(\{ error: modMaal\.grund, grund: "efter_maalets_frist" \}, 400\);/.test(k)
+    /if \(!modMaal\.ok\) \{\s*if \(modMaal\.kode === "maalets_frist_ulaeselig"\) \{[\s\S]*?return jsonResponse\(\{ error: modMaal\.grund, grund: modMaal\.kode \}, 500\);\s*\}\s*return jsonResponse\(\{ error: modMaal\.grund, grund: modMaal\.kode \}, 400\);/.test(k)
   );
 };
 
@@ -67,5 +69,8 @@ describe("mål og skridt (1/10-2026)", () => {
   it("selvbevis 2: uden målets frist i opslaget, eller uden dommen, falder", () => {
     expect(fristModMaalHolder(tilfoej.replace('.select("id, status, deadline")', '.select("id, status")'))).toBe(false);
     expect(fristModMaalHolder(tilfoej.replace("doemFristModMaal(fristDom.dato,", "ingenDom(fristDom.dato,"))).toBe(false);
+    // L1: én fast grund for alle tre afvisninger (før rettelsen) falder.
+    expect(fristModMaalHolder(tilfoej.replace("grund: modMaal.kode }, 400)", 'grund: "efter_maalets_frist" }, 400)'))).toBe(false);
+    expect(fristModMaalHolder(tilfoej.replace("grund: modMaal.kode }, 500)", "grund: modMaal.kode }, 400)"))).toBe(false);
   });
 });

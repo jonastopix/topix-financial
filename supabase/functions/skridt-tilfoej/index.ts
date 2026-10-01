@@ -28,7 +28,8 @@
 //   5. FØRST derefter service-role: målet findes hos SAMME virksomhed og er
 //      aktivt (404/409 — samme tekster som foreslaa-opgave). Har målet en
 //      frist, må skridtets frist højst være den (doemFristModMaal, Jonas
-//      1/10-2026) — 400 med grunden ordret.
+//      1/10-2026) — grunden ordret og dommens kode: 400 «efter_maalets_frist»
+//      eller «maalets_frist_passeret», 500 «maalets_frist_ulaeselig».
 //   6. Dubletkontrollen: doemSkrivning med skriveren «medlem» (kun
 //      dubletkontrol — som rådgiveren, valg A) og målets id (afvist under
 //      samme mål kommer aldrig igen, fase 5). 409 med klar tekst.
@@ -135,10 +136,17 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Målet er ikke aktivt — et skridt kan kun høre til et aktivt mål" }, 409);
   }
   // Skridtets frist højst målets frist (Jonas 1/10-2026) — samme dom som
-  // formularen (doemFristModMaal); 400 med grunden ordret.
+  // formularen (doemFristModMaal); grunden ordret og dommens kode som
+  // `grund` (rådets fund L1, 1/10): «efter_maalets_frist» og
+  // «maalets_frist_passeret» er medlemmets valg (400); en ulæselig målfrist
+  // er vores data (500, «maalets_frist_ulaeselig»), aldrig medlemmets fejl.
   const modMaal = doemFristModMaal(fristDom.dato, (maal as { deadline: string | null }).deadline, nu);
   if (!modMaal.ok) {
-    return jsonResponse({ error: modMaal.grund, grund: "efter_maalets_frist" }, 400);
+    if (modMaal.kode === "maalets_frist_ulaeselig") {
+      console.error("[skridt-tilfoej] målets frist kan ikke læses:", maalId);
+      return jsonResponse({ error: modMaal.grund, grund: modMaal.kode }, 500);
+    }
+    return jsonResponse({ error: modMaal.grund, grund: modMaal.kode }, 400);
   }
 
   // ── 6. Dubletkontrollen FØR insert — skriveren er medlemmet ──

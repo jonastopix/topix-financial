@@ -99,7 +99,13 @@ const SKRIDT_TITEL_MIN_LAENGDE = 3;
     JONAS 1/10-2026: fristen højst MÅLETS frist (doemFristModMaal — samme dom
     som skridt-tilfoej): datovælgerens max er målets frist, forslaget rykkes
     ind under den (foreslaaetFristModMaal), og en senere dato afvises med en
-    klar besked før kaldet. */
+    klar besked før kaldet.
+    RÅDETS FUND M1 (1/10): formen er `noValidate` — ellers stoppede browserens
+    egen (engelske) boble for max indsendelsen, før dommens danske grund blev
+    vist. max sættes KUN, når den kan overholdes (målets frist ≥ i dag): er
+    målets frist passeret, ville min > max gøre enhver værdi ugyldig, så
+    feltet får intet max, og hjælpeteksten er dommens grund (ryk målets
+    frist først). */
 export const TilfoejSkridtForm = ({ maalId, maalFrist, busy, onTilfoej, onLuk, knapTekst }: {
   maalId: string;
   /** Målets frist (milestones.deadline, «YYYY-MM-DD») — null/udeladt = ingen grænse. */
@@ -115,6 +121,11 @@ export const TilfoejSkridtForm = ({ maalId, maalFrist, busy, onTilfoej, onLuk, k
   const [fejl, setFejl] = useState<string | null>(null);
   const idag = dagsdatoDansk(new Date());
   const maks = senesteSkridtFrist(maalFrist);
+  // Kun et max, der kan overholdes: målets frist ≥ i dag (ellers min > max).
+  const maksIFeltet = maks != null && maks >= idag ? maks : null;
+  // Målets frist passeret: dommens egen grund som hjælp, før medlemmet prøver.
+  const passeretDom = maks != null && maks < idag ? doemFristModMaal(idag, maalFrist, new Date()) : null;
+  const passeretGrund = passeretDom && passeretDom.ok === false ? passeretDom.grund : null;
   const titelOk = titel.trim().length >= SKRIDT_TITEL_MIN_LAENGDE;
   const send = async () => {
     const fristDom = doemFrist(frist, new Date());
@@ -129,17 +140,17 @@ export const TilfoejSkridtForm = ({ maalId, maalFrist, busy, onTilfoej, onLuk, k
     else { setTitel(""); setFrist(foreslaaetFristModMaal(new Date(), maalFrist)); onLuk(); }
   };
   return (
-    <form className="mt-2 space-y-2" onSubmit={(e) => { e.preventDefault(); void send(); }} data-tilfoej-skridt-form={maalId}>
+    <form noValidate className="mt-2 space-y-2" onSubmit={(e) => { e.preventDefault(); void send(); }} data-tilfoej-skridt-form={maalId}>
       <HbField label="Skridtet" htmlFor={`tilfoej-titel-${maalId}`} help={`Hvad vil du gøre? Mindst ${SKRIDT_TITEL_MIN_LAENGDE} tegn, højst 200.`}>
         <HbInput id={`tilfoej-titel-${maalId}`} value={titel} maxLength={200} onChange={(e) => setTitel(e.target.value)} autoFocus className="py-1.5 text-sm" />
       </HbField>
       <HbField
         label="Frist"
         htmlFor={`tilfoej-frist-${maalId}`}
-        help={maks ? `Ikke før i dag og ikke efter målets frist (${danskDato(maks)}).` : `Foreslået: om ${FORESLAAET_FRIST_DAGE} dage. Ikke før i dag.`}
+        help={passeretGrund ?? (maks ? `Ikke før i dag og ikke efter målets frist (${danskDato(maks)}).` : `Foreslået: om ${FORESLAAET_FRIST_DAGE} dage. Ikke før i dag.`)}
         error={fejl}
       >
-        <HbInput id={`tilfoej-frist-${maalId}`} type="date" value={frist} min={idag} max={maks ?? undefined} required onChange={(e) => setFrist(e.target.value)} className="py-1.5 text-sm" />
+        <HbInput id={`tilfoej-frist-${maalId}`} type="date" value={frist} min={idag} max={maksIFeltet ?? undefined} required onChange={(e) => setFrist(e.target.value)} className="py-1.5 text-sm" />
       </HbField>
       <div className="flex items-center gap-2">
         <HbButton type="submit" className="h-8 px-3 text-xs" disabled={busy || !titelOk || !frist}>{busy ? "Gemmer…" : knapTekst ?? TILFOEJ_SKRIDT_KNAP_TEKST}</HbButton>

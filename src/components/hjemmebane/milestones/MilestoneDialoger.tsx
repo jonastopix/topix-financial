@@ -264,7 +264,7 @@ export const OpretMilestoneDialog = ({
 // ── Detalje/rediger — før: Dialog + Select + Popover (MilestonesList.tsx:264-516) ──
 
 export const MilestoneDetaljeDialog = ({
-  ms, open, onOpenChange, onQuickProgress, onUpdateField, onUpdateCurrentValue, doemNyFrist, tidligsteFrist,
+  ms, open, onOpenChange, onQuickProgress, onUpdateField, onUpdateCurrentValue, doemNyFrist, tidligsteFrist, tidligsteFristTekst,
 }: {
   ms: Milestone | null;
   open: boolean;
@@ -277,6 +277,8 @@ export const MilestoneDetaljeDialog = ({
   doemNyFrist?: (d: Date | undefined) => string | null;
   /** Det seneste åbne skridts frist — kalenderen slår dagene før fra. */
   tidligsteFrist?: Date;
+  /** Forklaringen på de grå dage (dineMaal.tidligsteMaalFristTekst, rådets fund M2) — vises når tidligsteFrist er sat. */
+  tidligsteFristTekst?: string;
 }) => {
   const [editingDescription, setEditingDescription] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
@@ -380,6 +382,9 @@ export const MilestoneDetaljeDialog = ({
             }}
           />
         </div>
+        {tidligsteFrist && tidligsteFristTekst && (
+          <p className="text-xs text-hb-ink-soft" data-maal-frist-tidligst>{tidligsteFristTekst}</p>
+        )}
         {fristFejl && (
           <p className="text-sm text-hb-rust" role="alert" data-maal-frist-fejl>{fristFejl}</p>
         )}

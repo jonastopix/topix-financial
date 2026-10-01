@@ -23,7 +23,7 @@ import type { Signal } from "@/lib/virksomhedsSignaler";
 import type { Fornyelsestilstand } from "@/lib/fornyelse";
 import type { Betalingsfristtilstand } from "@/lib/betalingsfrist";
 import type { MaalRaekke } from "@/lib/hjemmebane/planen";
-import { ALVOR_INGEN_MAAL, ALVOR_MAAL, ALVOR_REFLEKSION_HJAELP, maalTilstandstekst, refleksionBesvaret, refleksionsPeriode, refleksionUddrag, REFLEKSION_MIN_TEGN, REFLEKSION_UDDRAG, STILSTAND_LAENGE_DAGE } from "@/lib/forsidensDom";
+import { ALVOR_INGEN_MAAL, ALVOR_MAAL, MAAL_ALLE_GJORT_RAADGIVER_TEKST, ALVOR_REFLEKSION_HJAELP, maalTilstandstekst, refleksionBesvaret, refleksionsPeriode, refleksionUddrag, REFLEKSION_MIN_TEGN, REFLEKSION_UDDRAG, STILSTAND_LAENGE_DAGE } from "@/lib/forsidensDom";
 import { BOELGE_FRA, BOELGENS_LEDSAGERE, boelgeDagTekst, USAEDVANLIGT_MANGE_TEKST, usaedvanligtMangeTekst, type Boelgelinje } from "@/lib/forsidensDom";
 import { ALVOR_BETALT_IKKE_OPRETTET, BETALT_NOEGLE, betaltGrundTekst, betaltIkkeOprettetTekst, betaltLinje, FORM as FORM_KORT, INDSATS as INDSATS_KORT, type BetaltIkkeOprettet, type Betaltlinje } from "@/lib/forsidensDom";
 import { ALVOR_ANSOEGNINGER_VENTER, ansoegningerTekst, ansoegningslinje, type Ansoegningslinje, type AnsoegningTilForside } from "@/lib/forsidensDom";
@@ -971,6 +971,18 @@ describe("mål uden bevægelse (tolvte slags, fase 4)", () => {
     // Før 1/10 regnede dommen progress 100 som nået og sprang det over.
     const d = afgoerForsidensDom([virksomhed({ maal: [maal({ progress: 100, dageSiden: 90 }), maal({ dageSiden: 1 })] })], NU);
     expect(maalGrund(d)?.slags).toBe("maal_uden_bevaegelse");
+  });
+  it("rådets fund L4 (1/10): et aktivt mål på 100 % «mangler at blive markeret nået» — ikke «har ikke rykket sig»", () => {
+    expect(MAAL_ALLE_GJORT_RAADGIVER_TEKST).toBe("Alle skridt er gjort — mangler at blive markeret nået");
+    const en = maalGrund(afgoerForsidensDom([virksomhed({ navn: "Floren Engros", maal: [maal({ title: "Ny kunde", progress: 100, dageSiden: 40 })] })], NU))!;
+    expect(en.tekst).toBe("«Ny kunde»: Alle skridt er gjort — mangler at blive markeret nået");
+    expect(en.handling).toBe("Spørg Floren Engros, om målet er nået");
+    const to = maalGrund(afgoerForsidensDom([virksomhed({ maal: [maal({ progress: 100, dageSiden: 40 }), maal({ progress: 100, dageSiden: 35 })] })], NU))!;
+    expect(to.tekst).toBe("2 mål: Alle skridt er gjort — mangler at blive markeret nået");
+    // Blandet: stilstanden nævnes med sine egne dage, de færdige for sig.
+    const blandet = maalGrund(afgoerForsidensDom([virksomhed({ navn: "Floren Engros", maal: [maal({ title: "Salg", dageSiden: 40 }), maal({ progress: 100, dageSiden: 90 })] })], NU))!;
+    expect(blandet.tekst).toBe("Målet «Salg» har ikke rykket sig i 40 dage · 1 mål med alle skridt gjort mangler at blive markeret nået");
+    expect(blandet.handling).toBe("Spørg Floren Engros hvad der står i vejen");
   });
   it("den samlede linje nævner gennemgang og stilstand hver for sig", () => {
     const d = afgoerForsidensDom([

@@ -209,6 +209,28 @@ export function lokalDatoStreng(d: Date): string {
   return `${d.getFullYear()}-${mm}-${dd}`;
 }
 
+/** Det seneste ÅBNE skridts frist under et mål (status active med frist) —
+    den tidligste dag, målets frist må have (doemMaalFristModSkridt). Ved
+    flere skridt på samme dag: det første i listen. null uden sådanne skridt. */
+export function senesteAabneSkridt(
+  skridt: readonly Pick<SkridtTilDineMaal, "status" | "due_date" | "title">[],
+): { dato: string; titel: string } | null {
+  let bedst: { dato: string; titel: string } | null = null;
+  for (const s of skridt) {
+    if (s.status !== "active" || !s.due_date) continue;
+    const dato = s.due_date.slice(0, 10);
+    if (bedst == null || dato > bedst.dato) bedst = { dato, titel: s.title };
+  }
+  return bedst;
+}
+
+/** Hjælpeteksten ved detaljens datovælger, når dagene før det seneste åbne
+    skridts frist er slået fra (rådets fund M2, 1/10) — så de grå dage har en
+    forklaring, før medlemmet klikker. */
+export function tidligsteMaalFristTekst(dato: string, titel: string): string {
+  return `Tidligst ${danskDato(dato)} — skridtet «${titel}» har frist den dag. Ryk eller luk skridtet først, hvis målet skal slutte før.`;
+}
+
 export type MaalFristDom = { ok: true } | { ok: false; grund: string; senesteSkridtFrist: string; antal: number };
 
 /**
