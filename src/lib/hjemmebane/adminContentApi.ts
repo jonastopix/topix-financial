@@ -87,10 +87,18 @@ export const AREAS = [
   },
   {
     key: "quick_wins",
+    /* Produktbeslutning 1/10-2026 (Jonas: «Quick Wins skal væk fra
+       Akademiet»): området er SKJULT for medlemmer — akademi: false gater
+       ForsideView/OmraadeView/KursusView/ElementView og forløbsdommen, og
+       useAkademiData tager områdets rækker ud (MEDLEM_SKJULTE_OMRAADER).
+       Intet er slettet: rækkerne og nøglen 'quick_wins' (CHECK-constraints,
+       RLS) står, og admin-fanen (adminFane: true) kan stadig se og redigere
+       indholdet. Tages området ind igen: fjern nøglen fra
+       MEDLEM_SKJULTE_OMRAADER og sæt akademi: true. */
     label: "Quick Wins",
-    akademi: true,
+    akademi: false,
     adminFane: true,
-    hint: "Korte, hurtige videoer",
+    hint: "Korte, hurtige videoer — skjult for medlemmer (1/10-2026), kun rådgiverne ser indholdet her",
   },
   {
     key: "push",
@@ -121,6 +129,11 @@ export const AREAS = [
     hint: "Forsidens tidløse bibliotek (5-10 indslag UDEN udløb) — roterer deterministisk pr. ISO-uge; kræver migration 20260809170000 kørt i Lovable",
   },
 ] as const;
+
+/** Områder, medlemmet ikke må se i Akademiet — ÉT sted (1/10-2026, Jonas).
+    Klienten filtrerer dem fra; indholdsrækkerne og admin-fanerne er
+    uberørte. Rådgiveren ser stadig indholdet gennem admin (listItems). */
+export const MEDLEM_SKJULTE_OMRAADER: ReadonlySet<string> = new Set(["quick_wins"]);
 
 export type AreaKey = (typeof AREAS)[number]["key"];
 

@@ -5,6 +5,7 @@ import { Check, Undo2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   AREAS,
+  MEDLEM_SKJULTE_OMRAADER,
   batchAcknowledge,
   clearAcknowledge,
   listAllMemberProgress,
@@ -52,7 +53,7 @@ function buildAreaBlocks(collections: ContentCollection[], tracked: ContentItem[
   const blocks: AreaBlock[] = [];
 
   // Kun forløbsområder — et evt. bunny-push må aldrig optræde som modul.
-  for (const area of AREAS.filter((a) => a.akademi)) {
+  for (const area of AREAS.filter((a) => a.akademi || MEDLEM_SKJULTE_OMRAADER.has(a.key))) {
     const areaItems = tracked.filter((i) => i.area === area.key).sort(byPosition);
     if (areaItems.length === 0) continue;
     const areaCollections = collections.filter((c) => c.area === area.key).sort(byPosition);
