@@ -767,6 +767,48 @@ export type Database = {
           },
         ]
       }
+      ansoegning_webinar_kobling: {
+        Row: {
+          ansoegning_id: string
+          grund: string | null
+          id: string
+          koblet_af: string
+          koblet_at: string
+          tilmelding_id: string
+        }
+        Insert: {
+          ansoegning_id: string
+          grund?: string | null
+          id?: string
+          koblet_af?: string
+          koblet_at?: string
+          tilmelding_id: string
+        }
+        Update: {
+          ansoegning_id?: string
+          grund?: string | null
+          id?: string
+          koblet_af?: string
+          koblet_at?: string
+          tilmelding_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ansoegning_webinar_kobling_ansoegning_id_fkey"
+            columns: ["ansoegning_id"]
+            isOneToOne: true
+            referencedRelation: "ansoegninger"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ansoegning_webinar_kobling_tilmelding_id_fkey"
+            columns: ["tilmelding_id"]
+            isOneToOne: true
+            referencedRelation: "webinar_tilmeldinger"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ansoegninger: {
         Row: {
           afslagsgrund: string | null
@@ -1277,6 +1319,7 @@ export type Database = {
           intro_session_used_at: string | null
           is_demo: boolean | null
           is_legat: boolean
+          jonas_session_tilbudt_at: string | null
           jonas_session_used_at: string | null
           logo_url: string | null
           name: string
@@ -1325,6 +1368,7 @@ export type Database = {
           intro_session_used_at?: string | null
           is_demo?: boolean | null
           is_legat?: boolean
+          jonas_session_tilbudt_at?: string | null
           jonas_session_used_at?: string | null
           logo_url?: string | null
           name?: string
@@ -1373,6 +1417,7 @@ export type Database = {
           intro_session_used_at?: string | null
           is_demo?: boolean | null
           is_legat?: boolean
+          jonas_session_tilbudt_at?: string | null
           jonas_session_used_at?: string | null
           logo_url?: string | null
           name?: string
