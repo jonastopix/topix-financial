@@ -14,7 +14,7 @@ import { MAAL_KOLONNER_NYE } from "@/hooks/dineMaalGrundlag";
 
 const ROD = process.cwd();
 const laes = (sti: string) => readFileSync(resolve(ROD, sti), "utf8");
-const MIGRATION = "supabase/migrations/20261001210000_maal_tal.sql";
+const MIGRATION = "supabase/migrations/20261001190000_maal_tal.sql";
 const MOTOR = "src/lib/hjemmebane/maalTal.ts";
 
 /** Kildeteksten uden kommentarer — værnene dømmer koden, ikke forklaringen. */

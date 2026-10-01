@@ -11,7 +11,7 @@
  * der når måltallet, giver «Måltallet er nået», aldrig et lukket mål.
  *
  * Designet og regnestykkerne: docs/dine-maal-design.md. Datamodellen:
- * migration 20261001210000_maal_tal.sql (art, maal_noegle, udgangspunkt,
+ * migration 20261001190000_maal_tal.sql (art, maal_noegle, udgangspunkt,
  * udgangspunkt_dato på milestones).
  *
  * REN: ingen React, ingen Supabase, ingen Date.now — tiden gives ind som `nu`.
@@ -26,6 +26,7 @@ import {
   FRISKHED_MAANEDER,
   likviditet,
   maalteAfsluttede,
+  naesteMaaned,
   resultatAf,
   VINDUE_MAANEDER,
   type ScoreMaaned,
@@ -34,6 +35,7 @@ import { CANONICAL } from "@/lib/omkostningsnoegler";
 import { kbhDato, laegDageTilDato, laegMaanederTilDato } from "@/lib/hverdage";
 import { MAANEDSNAVNE } from "@/lib/maanedsnoegle";
 import { grupperSkridt } from "./planen";
+import { erUdloebetForslag } from "./forsidePlan";
 import { danskDato } from "./skridtForslag";
 
 // ── Ordforrådet (står ORDRET i migrationens CHECK'e — kildeværn maalTal.guard) ──
@@ -64,6 +66,11 @@ export const FORESLAAET_FRIST_MAANEDER = 12;
 /** Tidslinjens længde og kvartalsmarkørernes afstand. */
 export const TIDSLINJE_MAANEDER = 12;
 export const KVARTAL_MAANEDER = 3;
+/** Fristen højst så langt frem (rådets fund 15, 1/10 aften): 36 måneder fra dansk i dag. */
+export const MAKS_FRIST_MAANEDER = 36;
+/** Dækningsgradens gyldige måltal (procent). */
+export const DB_GRAD_MIN = 0;
+export const DB_GRAD_MAKS = 100;
 
 // ── Ordene ét sted ─────────────────────────────────────────────────────────
 
@@ -110,8 +117,9 @@ export const MAAL_ORD = {
   forFaaMaaneder: (har: number) => `For få godkendte måneder — tallet kræver ${TAL_MAANEDER}, der er ${har}.`,
   forGammelt: (key: string) => `Det seneste tal er fra ${maanedTekst(key)} — ældre end ${FRISKHED_MAANEDER} måneder. Godkend de seneste måneder.`,
   ingenOmsaetning: "Omsætningen i perioden er nul eller negativ — dækningsgraden kan ikke regnes.",
+  ikkeSammenhaengende: "De seneste tre måneder hænger ikke sammen — tallet kræver tre godkendte måneder i træk.",
   tastTallet: "Tast tallet — det læses ikke af regnskabet.",
-  maaltalNaaetSpoergsmaal: "Måltallet er nået — markér målet som nået, når I er i mål.",
+  maaltalNaaetSpoergsmaal: "Måltallet er nået. Overvej at markere målet som nået.",
 } as const;
 
 // ── Tal-dommen ─────────────────────────────────────────────────────────────
@@ -141,10 +149,26 @@ export function maanedTekst(key: string): string {
   return `${MAANEDSNAVNE[Number(m[2]) - 1] ?? m[2]} ${m[1]}`;
 }
 
-function periodeTekst(keys: readonly string[]): string {
+/**
+ * Perioden i ord for SAMMENHÆNGENDE måneder (nuvaerendeTal kræver dem):
+ * «juli – september 2026»; over et årsskifte «november 2025 – januar 2026».
+ */
+export function periodeTekst(keys: readonly string[]): string {
   if (keys.length === 0) return "";
   if (keys.length === 1) return maanedTekst(keys[0]);
-  return `${maanedTekst(keys[0])} – ${maanedTekst(keys[keys.length - 1])}`;
+  const foerste = keys[0];
+  const sidste = keys[keys.length - 1];
+  if (foerste.slice(0, 4) === sidste.slice(0, 4)) {
+    const navn = MAANEDSNAVNE[Number(foerste.slice(5, 7)) - 1] ?? foerste.slice(5, 7);
+    return `${navn} – ${maanedTekst(sidste)}`;
+  }
+  return `${maanedTekst(foerste)} – ${maanedTekst(sidste)}`;
+}
+
+/** Hænger nøglerne sammen som kalendermåneder (hver er måneden efter den forrige)? Samme mønster som Score's vækst. */
+export function erSammenhaengende(keys: readonly string[]): boolean {
+  for (let i = 1; i < keys.length; i++) if (naesteMaaned(keys[i - 1]) !== keys[i]) return false;
+  return true;
 }
 
 export function enhedFor(noegle: MaalNoegle): Enhed {
@@ -169,6 +193,12 @@ export function enhedFor(noegle: MaalNoegle): Enhed {
  *
  * Under 3 målte måneder: «mangler» med grunden «for få godkendte måneder»
  * (likviditeten følger Score og kræver kun én måned med omkostninger).
+ * SAMMENHÆNG (rådets fund 2, 1/10 aften): årstakten og dækningsgraden kræver,
+ * at de tre seneste måneder med tallet er TRE SAMMENHÆNGENDE kalendermåneder
+ * (Score's vækst-mønster, naesteMaaned) — ellers «mangler» med grunden «de
+ * seneste tre måneder hænger ikke sammen». Eks.: juni, juli, september (august
+ * mangler) gav før «gennemsnittet af juni – september × 12», som lod tre
+ * måneder ligne et kvartal; januar 2025 + august + september 2026 ligeså.
  * Friskhed: den seneste måned bag tallet skal være ≥ aeldsteFriskeMaaned(nu)
  * (Score's regel, 6 måneder op til seneste passerede frist) — ellers «mangler».
  */
@@ -203,6 +233,7 @@ export function nuvaerendeTal(noegle: MaalNoegle, maaneder: readonly ScoreMaaned
     if (rows.length < TAL_MAANEDER) return { status: "mangler", grund: MAAL_ORD.forFaaMaaneder(rows.length) };
     const seneste = rows[rows.length - 1].key;
     if (seneste < aeldsteFriskeMaaned(nu)) return { status: "mangler", grund: MAAL_ORD.forGammelt(seneste) };
+    if (!erSammenhaengende(rows.map((r) => r.key))) return { status: "mangler", grund: MAAL_ORD.ikkeSammenhaengende };
     const oms = rows.reduce((s, r) => s + r.oms, 0);
     const db = rows.reduce((s, r) => s + r.db, 0);
     if (oms <= 0) return { status: "mangler", grund: MAAL_ORD.ingenOmsaetning };
@@ -226,6 +257,7 @@ export function nuvaerendeTal(noegle: MaalNoegle, maaneder: readonly ScoreMaaned
   if (rows.length < TAL_MAANEDER) return { status: "mangler", grund: MAAL_ORD.forFaaMaaneder(rows.length) };
   const seneste = rows[rows.length - 1].key;
   if (seneste < aeldsteFriskeMaaned(nu)) return { status: "mangler", grund: MAAL_ORD.forGammelt(seneste) };
+  if (!erSammenhaengende(rows.map((r) => r.key))) return { status: "mangler", grund: MAAL_ORD.ikkeSammenhaengende };
   const sum = rows.reduce((s, r) => s + r.v, 0);
   const keys = rows.map((r) => r.key);
   return {
@@ -280,6 +312,31 @@ export function dageMellem(a: string, b: string): number {
   return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86_400_000);
 }
 
+/** Sidste kalenderdag i en måned: «2026-08» → «2026-08-31»; «2028-02» → «2028-02-29». Ugyldig nøgle → null. */
+export function sidsteDagIMaaned(key: string): string | null {
+  const m = /^(\d{4})-(\d{2})$/.exec(key);
+  if (!m) return null;
+  const aar = Number(m[1]);
+  const md = Number(m[2]);
+  if (md < 1 || md > 12) return null;
+  // Date.UTC(år, md, 0) = dag 0 i måneden EFTER = sidste dag i måneden (md er 1-baseret her, 0-baseret i Date.UTC).
+  const dag = new Date(Date.UTC(aar, md, 0)).getUTCDate();
+  return `${m[1]}-${m[2]}-${String(dag).padStart(2, "0")}`;
+}
+
+/**
+ * Datoen BAG tallet (rådets fund 1, 1/10 aften): et læst tal står for sin
+ * seneste måned — sidste dag i prMaaned (dansk kalenderdato). Et tastet tal
+ * (andet_tal, prMaaned null) står for i dag.
+ */
+export function talDato(talDom: TalDom | null, nu: Date): string {
+  if (talDom?.status === "ok" && talDom.prMaaned) {
+    const d = sidsteDagIMaaned(talDom.prMaaned);
+    if (d) return d;
+  }
+  return kbhDato(nu);
+}
+
 /** Sporets startdato: udgangspunkt_dato, ellers created_at som DANSK dato (et stempel 22:30Z den 30/9 er 1/10 i Danmark om sommeren). */
 export function startDato(m: Pick<MaalMedTal, "udgangspunkt_dato" | "created_at">): string | null {
   const u = datoAf(m.udgangspunkt_dato);
@@ -314,7 +371,7 @@ export function fristTekst(deadline: string | null | undefined, nu: Date): strin
 
 // ── Sporet ─────────────────────────────────────────────────────────────────
 
-/** Det af milestones-rækken motoren læser (nye kolonner fra 20261001210000). */
+/** Det af milestones-rækken motoren læser (nye kolonner fra 20261001190000). */
 export interface MaalMedTal {
   id: string;
   title: string;
@@ -336,8 +393,10 @@ export interface SporDom {
   grund: SporGrund | null;
   /** (tal − udgangspunkt) ÷ (mål − udgangspunkt) — RÅ (kan være < 0 eller > 1); null uden tal. */
   andelAfVejen: number | null;
-  /** (i dag − start) ÷ (frist − start) i dage, klippet til 0–1; null uden start/frist. */
+  /** (tallets dato − start) ÷ (frist − start) i dage, klippet til 0–1; null uden start/frist. */
   forventetAndel: number | null;
+  /** Datoen forventetAndel er regnet på: sidste dag i tallets måned (læst tal), ellers i dag (tastet/intet tal). */
+  forventetPr: string;
   /** Kalenderdage til fristen (negativ = overskredet); null uden frist. */
   dageTilbage: number | null;
   /** (mål − tal) ÷ resterende måneder; null uden tal/mål/frist, når fristen er nået, eller når måltallet er nået. */
@@ -349,7 +408,17 @@ export interface SporDom {
 /**
  * Sporet for ét mål. Regnestykket (dage er danske kalenderdage):
  *   start          = udgangspunkt_dato ?? dansk dato af created_at;  slut = deadline
- *   forventetAndel = clamp((i dag − start) ÷ (slut − start), 0, 1)
+ *   taltDato       = sidste dag i tallets måned (prMaaned) for et LÆST tal; i dag for
+ *                    et tastet tal (andet_tal) og uden tal (talDato)
+ *   forventetAndel = clamp((taltDato − start) ÷ (slut − start), 0, 1)
+ *   HVORFOR (rådets fund 1, 1/10 aften): tallet og forventningen skal gælde SAMME
+ *   dag. Et læst tal er «pr. august» — at holde det op mod hvor langt vi burde være
+ *   I DAG, straffer et mål for, at september ikke er godkendt endnu.
+ *   Eksempel: mål oprettet 1/10-2026 (udgangspunkt = årstakten pr. august, 1,2 mio.),
+ *   frist 1/1-2027 (92 dage), i dag 31/10, tallet stadig pr. august (september
+ *   godkendes først ~20/11):
+ *     med i dag:     forventet = (31/10 − 1/10) ÷ 92 = 30/92 ≈ 0,33; andel 0 → BAGUD (forkert)
+ *     med taltDato:  forventet = clamp((31/8 − 1/10) ÷ 92) = clamp(−31/92) = 0; andel 0 → PÅ SPORET
  *   andelAfVejen   = (tal − udgangspunkt) ÷ (måltal − udgangspunkt)
  *                    — samme formel for et mål, der SÆNKER et tal: tæller og nævner
  *                    er begge negative, når tallet bevæger sig rigtigt (fra 60 mod 30:
@@ -373,10 +442,11 @@ export function sporet(maal: MaalMedTal, talDom: TalDom | null, nu: Date): SporD
   const v = talDom?.status === "ok" ? talDom.vaerdi : null;
   const dageTilbage = frist ? dageMellem(idag, frist) : null;
 
+  const forventetPr = talDato(talDom, nu);
   let forventetAndel: number | null = null;
   if (frist && start) {
     const laengde = dageMellem(start, frist);
-    if (laengde > 0) forventetAndel = Math.min(1, Math.max(0, dageMellem(start, idag) / laengde));
+    if (laengde > 0) forventetAndel = Math.min(1, Math.max(0, dageMellem(start, forventetPr) / laengde));
   }
 
   const saenk = maaltal !== null && udg !== null && maaltal !== udg ? maaltal < udg : null;
@@ -386,7 +456,7 @@ export function sporet(maal: MaalMedTal, talDom: TalDom | null, nu: Date): SporD
   const kraeverPrMaaned =
     v !== null && maaltal !== null && dageTilbage !== null && dageTilbage > 0 && !naaet ? (maaltal - v) / (dageTilbage / DAGE_PR_MAANED) : null;
 
-  const ud = (status: SporStatus, grund: SporGrund | null): SporDom => ({ status, grund, andelAfVejen, forventetAndel, dageTilbage, kraeverPrMaaned, saenk });
+  const ud = (status: SporStatus, grund: SporGrund | null): SporDom => ({ status, grund, andelAfVejen, forventetAndel, forventetPr, dageTilbage, kraeverPrMaaned, saenk });
 
   const art = laesArt(maal.art);
   if (art === null) return ud("kan_ikke_afgoeres", "gammelt_maal");
@@ -414,6 +484,8 @@ export interface SkridtTilMaal {
   maal_id: string | null;
   closed_at?: string | null;
   created_at?: string | null;
+  /** Forslagets udløb (company_actions.expires_at) — et udløbet forslag er ikke et næste skridt. */
+  expires_at?: string | null;
 }
 
 export interface NaesteSkridtDom {
@@ -442,9 +514,12 @@ export interface NaesteSkridtDom {
  *   3. ellers null.
  * Grupperne er planen.ts' (grupperSkridt: proposed → venter, active → aktive,
  * done → gjorte) — samme statusregler som «Din plan» og Planen.
+ * UDLØBNE FORSLAG (rådets fund 6): et forslag med expires_at før `nu` er ikke
+ * åbent — samme dom som forsiden (forsidePlan.erUdloebetForslag), sorteret fra
+ * FØR grupperingen, så det hverken vises eller tæller i oevrigeAabne.
  */
 export function naesteSkridt(maalId: string, skridt: readonly SkridtTilMaal[], nu: Date): NaesteSkridtDom {
-  const egne = skridt.filter((s) => s.maal_id === maalId);
+  const egne = skridt.filter((s) => s.maal_id === maalId && !erUdloebetForslag({ status: s.status, expires_at: s.expires_at ?? null }, nu));
   const g = grupperSkridt(egne);
   const idag = kbhDato(nu);
   const stempel = (s: SkridtTilMaal) => s.created_at ?? "";
@@ -629,8 +704,10 @@ export type NytMaalDom =
         target_value: number;
         udgangspunkt: number;
         udgangspunkt_dato: string;
-        current_value: number | null;
-        unit: string | null;
+        /** Kun andet_tal (udgangspunktet er det første tastede tal) og begivenhed (0). Husnøgler: udeladt. */
+        current_value?: number;
+        /** KUN andet_tal (enheden er brugerens ord). Husnøgler og begivenhed sætter den aldrig (fund 5). */
+        unit?: string;
         deadline: string;
       };
     }
@@ -640,16 +717,24 @@ export const TITEL_MAX = 120;
 
 /**
  * Dommen over guidens input (fail-closed; grunden er dansk og vises ordret):
- *   titel 1–120 tegn · frist en rigtig dato EFTER i dag (dansk) ·
- *   tal-mål: nøgle, måltal og udgangspunkt (tal), og måltal ≠ udgangspunkt;
- *     andet_tal kræver en enhed og gemmer udgangspunktet som current_value
- *     (det tastede tal starter dér);
+ *   titel 1–120 tegn · frist en rigtig dato EFTER i dag (dansk) og højst
+ *     36 måneder frem (laegMaanederTilDato(i dag, 36), inklusive — fund 15) ·
+ *   tal-mål: nøgle og måltal (tal); måltal ≠ udgangspunkt;
+ *     db_grad: måltal 0–100 (inklusive); likviditet_mdr: måltal ≥ 0;
+ *     HUSNØGLER (alt undtagen andet_tal): udgangspunktet er det NUVÆRENDE TAL
+ *       (`nuvaerende` = nuvaerendeTal for nøglen, regnet af kalderen af de
+ *       godkendte måneder) — klienten kan ikke opfinde det: mangler tallet, afvises
+ *       målet; et medsendt udgangspunkt, der afviger (mere end 1e-9 relativt),
+ *       afvises; uden medsendt bruges tallet. Enheden gemmes ALDRIG (unit
+ *       udledes af nøglen ved læsning — fund 5; et ord i unit fik gamle læsere
+ *       til at vise «X af Y kr.» med forkert fremdrift);
+ *     andet_tal: udgangspunktet tastes og kræver en enhed; udgangspunktet gemmes
+ *       som current_value (det tastede tal starter dér);
  *   begivenhed: måltal = 1, udgangspunkt = 0 (designpapiret §2: «tal = 1,
- *     fremdriften er skridtene»).
- * udgangspunkt_dato = i dag (dansk). Enheden for husets nøgler gemmes som
- * ordet fra enhedFor (kr · mdr. · %), så gamle læsere (unit) viser noget meningsfuldt.
+ *     fremdriften er skridtene»), ingen nøgle (CHECK milestones_art_noegle_check).
+ * udgangspunkt_dato = i dag (dansk).
  */
-export function doemNytMaal(input: NytMaalInput, nu: Date): NytMaalDom {
+export function doemNytMaal(input: NytMaalInput, nu: Date, nuvaerende: TalDom | null = null): NytMaalDom {
   const titel = (input.titel ?? "").trim();
   if (!titel) return { ok: false, grund: "Skriv målet som én sætning" };
   if (titel.length > TITEL_MAX) return { ok: false, grund: `Målet er for langt (højst ${TITEL_MAX} tegn)` };
@@ -659,42 +744,78 @@ export function doemNytMaal(input: NytMaalInput, nu: Date): NytMaalDom {
   const idag = kbhDato(nu);
   if (!frist || laegDageTilDato(frist, 0) !== frist) return { ok: false, grund: "Vælg en frist" };
   if (frist <= idag) return { ok: false, grund: "Fristen skal ligge efter i dag" };
+  const senest = laegMaanederTilDato(idag, MAKS_FRIST_MAANEDER);
+  if (frist > senest) return { ok: false, grund: `Fristen kan højst ligge ${MAKS_FRIST_MAANEDER} måneder frem (senest ${danskDato(senest)})` };
 
   if (art === "begivenhed") {
+    if (input.noegle != null) return { ok: false, grund: "Et begivenhedsmål har intet tal at følge" };
     return {
       ok: true,
-      felter: { title: titel, art, maal_noegle: null, target_value: 1, udgangspunkt: 0, udgangspunkt_dato: idag, current_value: 0, unit: null, deadline: frist },
+      felter: { title: titel, art, maal_noegle: null, target_value: 1, udgangspunkt: 0, udgangspunkt_dato: idag, current_value: 0, deadline: frist },
     };
   }
   const noegle = laesNoegle(input.noegle);
   if (!noegle) return { ok: false, grund: "Vælg hvilket tal målet handler om" };
   const maaltal = tal(input.maaltal);
   if (maaltal === null) return { ok: false, grund: "Skriv måltallet" };
-  const udg = tal(input.udgangspunkt);
-  if (udg === null) return { ok: false, grund: "Udgangspunktet mangler" };
-  if (udg === maaltal) return { ok: false, grund: "Måltallet er det samme som udgangspunktet" };
-  let unit: string | null;
+  if (noegle === "db_grad" && (maaltal < DB_GRAD_MIN || maaltal > DB_GRAD_MAKS)) return { ok: false, grund: `Dækningsgraden skal ligge mellem ${DB_GRAD_MIN} og ${DB_GRAD_MAKS} %` };
+  if (noegle === "likviditet_mdr" && maaltal < 0) return { ok: false, grund: "Likviditeten kan ikke være under 0 måneder" };
+
   if (noegle === "andet_tal") {
-    unit = (input.enhed ?? "").trim() || null;
+    const udg = tal(input.udgangspunkt);
+    if (udg === null) return { ok: false, grund: "Udgangspunktet mangler" };
+    if (udg === maaltal) return { ok: false, grund: "Måltallet er det samme som udgangspunktet" };
+    const unit = (input.enhed ?? "").trim();
     if (!unit) return { ok: false, grund: "Skriv hvad tallet tæller (fx kunder)" };
-  } else {
-    const e = enhedFor(noegle);
-    unit = e === "kr" ? "kr." : e === "mdr" ? "mdr." : "%";
+    return {
+      ok: true,
+      felter: { title: titel, art, maal_noegle: noegle, target_value: maaltal, udgangspunkt: udg, udgangspunkt_dato: idag, current_value: udg, unit, deadline: frist },
+    };
   }
+
+  // Husnøgle: udgangspunktet ER det nuværende tal — aldrig klientens eget.
+  if (!nuvaerende || nuvaerende.status !== "ok" || nuvaerende.enhed !== enhedFor(noegle)) {
+    return { ok: false, grund: nuvaerende?.status === "mangler" ? nuvaerende.grund : MAAL_ORD.grund.intet_tal };
+  }
+  const udg = nuvaerende.vaerdi;
+  const medsendt = tal(input.udgangspunkt);
+  if (input.udgangspunkt != null && (medsendt === null || Math.abs(medsendt - udg) > 1e-9 * Math.max(1, Math.abs(udg)))) {
+    return { ok: false, grund: "Udgangspunktet skal være det nuværende tal — det læses af de godkendte måneder" };
+  }
+  if (udg === maaltal) return { ok: false, grund: "Måltallet er det samme som udgangspunktet" };
   return {
     ok: true,
-    felter: {
-      title: titel,
-      art,
-      maal_noegle: noegle,
-      target_value: maaltal,
-      udgangspunkt: udg,
-      udgangspunkt_dato: idag,
-      current_value: noegle === "andet_tal" ? udg : null,
-      unit,
-      deadline: frist,
-    },
+    felter: { title: titel, art, maal_noegle: noegle, target_value: maaltal, udgangspunkt: udg, udgangspunkt_dato: idag, deadline: frist },
   };
+}
+
+/**
+ * «Gør målet skarpt» (rådets fund 4): et mål fra før designet har ofte et
+ * måltal, et nuværende tal og en enhed. De NULSTILLES ikke — guiden får dem
+ * som FORSLAG: måltal = target_value; udgangspunkt = current_value (kun et
+ * forslag for et tastet tal — husnøglernes udgangspunkt er altid det læste
+ * tal, doemNytMaal); enhed = unit. current_value bevares i databasen
+ * (goerMaalSkarpt skriver den aldrig).
+ */
+export interface SkarptForslag {
+  maaltal: number | null;
+  udgangspunkt: number | null;
+  enhed: string | null;
+}
+export function skarptForslag(maal: Pick<MaalMedTal, "target_value" | "current_value" | "unit">): SkarptForslag {
+  const enhed = typeof maal.unit === "string" && maal.unit.trim() ? maal.unit.trim() : null;
+  return { maaltal: tal(maal.target_value), udgangspunkt: tal(maal.current_value), enhed };
+}
+
+/**
+ * Må en GAMMEL læser (HbMaalRaekke, MilestoneDialoger, useMilestones'
+ * saetNuvaerendeVaerdi) vise og skrive «X af Y enhed»? Kun for mål fra før
+ * designet (art NULL) med måltal og enhed (rådets fund 5). Et tal-mål læses
+ * af motoren (andelen af vejen fra udgangspunktet — ikke current ÷ target),
+ * og et begivenhedsmål følges på skridtene.
+ */
+export function gammelTalvisning(m: { art?: string | null; target_value: number | null; unit: string | null }): boolean {
+  return (m.art ?? null) === null && !!m.target_value && !!m.unit;
 }
 
 // ── Tidslinjen ─────────────────────────────────────────────────────────────
@@ -724,28 +845,32 @@ export interface TidslinjeDom {
  * år, så linjen viser det INDEVÆRENDE medlemsår: 12-måneders-rytmen i
  * designpapiret §3 (intro-session = måned 0, kvartalstjek måned 3/6/9,
  * årsbrevet i måned 11–12) tæller fra medlemskabet, ikke fra et mål.
- * Uden kontraktstart: det tidligste ikke-parkerede måls start (startDato);
- * uden mål: i dag.
- *   start = kontraktStart + 12·k måneder, k = største heltal ≥ 0 med start ≤ i dag.
+ * Uden kontraktstart: det tidligste ikke-parkerede måls start (startDato) —
+ * rullet frem i hele år PÅ SAMME MÅDE (rådets fund 11: ellers viste et mål fra
+ * for 14 måneder siden en linje, der sluttede før i dag); uden mål: i dag.
+ *   start = anker + 12·k måneder, k = største heltal ≥ 0 med start ≤ i dag
+ *   (et måls start i fremtiden → i dag; en kontraktstart i fremtiden står, som før).
  */
 export function tidslinjeStart(kontraktStart: string | null, maal: readonly MaalMedTal[], nu: Date): string {
   const idag = kbhDato(nu);
-  const kontrakt = datoAf(kontraktStart);
-  if (kontrakt) {
-    let s = kontrakt;
+  const rulFrem = (anker: string): string => {
+    let s = anker;
     for (let k = 1; k < 100; k++) {
-      const naeste = laegMaanederTilDato(kontrakt, TIDSLINJE_MAANEDER * k);
+      const naeste = laegMaanederTilDato(anker, TIDSLINJE_MAANEDER * k);
       if (naeste > idag) break;
       s = naeste;
     }
     return s;
-  }
+  };
+  const kontrakt = datoAf(kontraktStart);
+  if (kontrakt) return rulFrem(kontrakt);
   const starter = maal
     .filter((m) => m.status !== "parked")
     .map(startDato)
     .filter((d): d is string => d !== null)
     .sort();
-  return starter[0] && starter[0] <= idag ? starter[0] : idag;
+  if (!starter[0]) return idag;
+  return starter[0] > idag ? idag : rulFrem(starter[0]);
 }
 
 /**

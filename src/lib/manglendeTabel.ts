@@ -28,7 +28,7 @@ export function erManglendeTabel(fejl: { code?: string | null; message?: string 
 /**
  * erManglendeKolonne — «findes KOLONNEN ikke?» (1/10-2026, Dine mål:
  * hooks/dineMaalGrundlag.ts læser milestones.art/maal_noegle/udgangspunkt/
- * udgangspunkt_dato fra migration 20261001210000 og falder tilbage på de
+ * udgangspunkt_dato fra migration 20261001190000 og falder tilbage på de
  * gamle kolonner, til migrationen er kørt). Samme mønster som tabellen:
  *   - 42703: Postgres' «column … does not exist» — svaret på en SELECT af en
  *     ukendt kolonne gennem PostgREST.

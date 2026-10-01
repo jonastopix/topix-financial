@@ -9,6 +9,7 @@ import { HbButton } from "../HbButton";
 import { HbField, HbInput } from "../admin/HbField";
 import { HbTag } from "../HbTag";
 import type { Milestone } from "./useMilestones";
+import { gammelTalvisning } from "@/lib/hjemmebane/maalTal";
 
 /**
  * Ét mål som række på «Dine mål» — «Én plan», fase 3 (16/9-2026). Afløser
@@ -204,7 +205,8 @@ export const HbMaalRaekke = ({
   const [tilfoejAaben, setTilfoejAaben] = useState(false);
   const cfg = MILESTONE_CATEGORIES[ms.category] || MILESTONE_CATEGORIES.other;
   const Ikon = cfg.icon;
-  const maalbar = !!(ms.target_value && ms.unit);
+  // Kun mål fra før designet (art NULL) viser «X af Y enhed» — et tal-mål læses af motoren (fund 5, maalTal.gammelTalvisning).
+  const maalbar = gammelTalvisning(ms);
   const dom = x.plan.dom;
   const h = x.handlinger;
   const klikbarBar = h.kanSaetteFremdrift && !maalbar;
