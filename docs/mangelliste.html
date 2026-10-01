@@ -2451,9 +2451,10 @@
       <p><strong>Målt 30/9 ~18:05:</strong> databasen er 6.006 MB; <code>cron.job_run_details</code> har en heap på 5.856 MB for ≈41.000 rækker (runid 1.878.375–1.919.702), ejer <code>supabase_admin</code>. <code>postgres</code> har DELETE og TRUNCATE på tabellen, men ikke VACUUM FULL. <strong>Ingen handling uden Jonas.</strong> Drift-agentens læser (<code>drift_agent_laes</code>) læser tabellen, så størrelsen rører også agenten. Henvisning: <code>docs/prod-hjem.md</code> (#1181). OVERLEVERING DEL 2 «30. september» §8.</p>
       <div class="meta"><span class="tag gold">Beslutning hos Jonas</span><span class="tag ny">Ny 30/9</span><span class="tag size">Mellem</span></div>
     </div>
-    <div class="card new" id="a30-update-score" data-status="mangler" data-spor="senere" data-rammer="medlem">
+    <div class="card new" id="a30-update-score" data-status="loest" data-spor="senere" data-rammer="medlem">
       <h3>Update i Lovable: Score-koden (#1178) er MÅLT i prod-bundlen, men om det var Update eller <code>deploy_project</code> er ikke afgjort — de øvrige <code>src/</code>-ændringer fra 30/9 er ikke målt</h3>
       <p><strong>Målt 30/9 ~19:10:</strong> #1178 (Score-flade) merget <code>97e0211e</code> efter rådets «ret først» (7 fund rettet). <code>deploy_project</code> gennem MCP'en gav status pending på <code>topix.lovable.app</code>; 8 minutter senere var index-bundlen på <code>app.theboardroom.dk</code> uændret (<code>index-BFHfhh9b.js</code>). <strong>RETTET sent 30/9:</strong> den første søgning (~19:15, «ingen score-kode i 232 chunks») var ikke rekursiv og bærer ikke «deploy_project ≠ Update». <strong>Målt senere: Score-koden ER i prod-bundlen</strong> — bundlen skiftede til <code>index-CGnyrA3M.js</code> mellem ~19:20 og ~20:15, og <code>maaned_foerste_godkendelse</code>/«helbredstal» ligger i <code>BoardroomView-BPTBwUn2.js</code>. <strong>Ikke afgjort:</strong> om det var Jonas' Update eller <code>deploy_project</code> (spurgt 20:20). De øvrige <code>src/</code>-ændringer (#1169, #1172, #1184) er ikke målt i bundlen. Update-klikket bliver hos Jonas (regelsættet §6a). Verificér den nye commit er synket før klik (CLAUDE.md, «Deployment af frontend»). <strong>LØST 1/10 ~02:</strong> <code>deploy_project</code> publicerer — med op til ~30 minutters forsinkelse; Score-bundlen var i drift ~20:15, før Jonas' Update 20:35, og 1/10 kom #1187–#1192 i drift efter to kald (rekursivt målt i 247 chunks, OVERLEVERING «30. september nat» §4). #1184 (Wilson) er ikke målt i bundlen — se <a href="#a30-wilson-bevis">a30-wilson-bevis</a>. <strong>GENÅBNET 1/10 ~06:</strong> «LØST» ovenfor byggede på én observation. Kaldene 02:20 og 05:35 publicerede intet (bundlen uændret, ingen #1193-tekst i 247 chunks). <code>deploy_project</code> er upålidelig; #1193 venter på Jonas' Update (regelsættet §6a, lærestreg (ii)).</p>
+      <p><strong>LØST 1/10 aften:</strong> Update 1/10 14:35 (Jonas). Målt i en FRISK fane 14:37: <code>index-BwUVZgTc.js</code>, 248 chunks, markørerne fra #1193, #1204, #1205, #1206 og #1209 fundet. «deploy_project» er uafklaret (lærestreg (jj)).</p>
       <div class="meta"><span class="tag gold">Score-koden i prod — resten ikke målt</span><span class="tag ny">Ny 30/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" id="a30-driftsagent-laas" data-status="beslutning" data-spor="senere" data-rammer="raadgiver">
@@ -2481,6 +2482,41 @@
       <p><strong>Målt 30/9 22:17 (kald 26821):</strong> <code>{"dry_run":false,"email":"lh@greensolar.dk"}</code> → <code>medlem.skrevet</code> 1 · <code>saet_true</code> 1 · <code>lykkedes</code> 1 · <code>laas_aktiv</code> false · <code>sender_rigtigt</code> true; <code>klaviyo_profil</code>-rækken <code>tb_medlem</code> true, <code>udfald</code> ok, status 200. <strong>Målt hos Klaviyo 22:20 (API):</strong> profil <code>01M39DC6DB3313D5ZMYP9FGTR5</code> har <code>properties.tb_medlem = true</code>. <strong>Næste, i rækkefølge:</strong> (1) Jonas' guarded UPDATE af <code>app_config.klaviyo_medlem_aktiv</code>; (2) segmentet «Medlemmer (auto)» på <code>tb_medlem = true</code>. Afløser trin 1 på kortet <a href="#a30-klaviyo-tb-medlem">a30-klaviyo-tb-medlem</a> (som står). OVERLEVERING DEL 2 «30. september» §7j.</p>
       <div class="meta"><span class="tag gold">Jonas' UPDATE + segment</span><span class="tag ny">Ny 30/9</span><span class="tag size">Lille</span></div>
     </div>
+    <div class="card new" id="a01-maal-skive1" data-status="beslutning" data-spor="nu" data-rammer="medlem">
+      <h3>Dine mål skive 1: «Foreslå skridt» kræver et mål (#1212) — venter på Jonas' ja</h3>
+      <p><strong>Målt 1/10:</strong> 36 aktive mål hos 14 af 30 kunder, 0 med både måltal og dato, 6 med et skridt. #1212 (forsidens «Dit næste skridt» peger på målet + «Foreslå skridt» kræver et mål) er grøn efter rådets fund. Del B vender Jonas' «B» fra 16/9 og merges først efter hans ja. Udrulning: merge → <code>foreslaa-opgave</code> → Update. Designpapirets fem spørgsmål står på aftenlisten.</p>
+      <div class="meta"><span class="tag gold">Beslutning — Jonas</span><span class="tag ny">Ny 1/10</span><span class="tag size">Mellem</span></div>
+    </div>
+    <div class="card new" id="a01-bucket-a-bevis" data-status="mangler" data-spor="senere" data-rammer="medlem">
+      <h3>Kald-bevis for fire Bucket A-functions udestår: skridt-tilfoej, opgave-accepter, opgave-udskyd, maal-skriv</h3>
+      <p>Alle fire er udrullet 1/10 («Successfully deployed edge functions …»). Den nye kode svarer med <code>grund</code>-koder (<code>efter_maalets_frist</code>, <code>maalet_ikke_aktivt</code>, <code>ved_maalets_frist</code>, <code>foer_skridtets_frist</code>) og feltet <code>begraenset_til_maalets_frist</code>. Svarene nås kun med et medlems JWT, og Claude bruger ingen medlemskonto. <code>maal-skriv</code> «rediger» har ingen kalder i fladen (rådets B3). Beviset tages første gang et medlem rammer reglen, i netværksfanen eller i functionens log.</p>
+      <div class="meta"><span class="tag">Bevis udestår</span><span class="tag ny">Ny 1/10</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="a01-nicklas-link" data-status="mangler" data-spor="nu" data-rammer="raadgiver">
+      <h3>Delingslink til Nicklas — og beviset for webinar-delt (målstreger, kobling, Wilson)</h3>
+      <p><code>webinar-delt</code> er udrullet 1/10 aften med Nicklas' fire målstreger (#1217), koblingen (#1209) og Wilson (#1184). Beviset er ét delt-svar med <code>maalstreger[*].grundlagOrd</code>, <code>koblinger_talt</code> og <code>spor.kilder[0].maaling</code>, og det kræver et link. Jonas laver linket på /webinar → «Del», og Claude åbner det og måler svaret. Varme leads kommer aldrig i delingen (kildeværn + mailværn i drift).</p>
+      <div class="meta"><span class="tag gold">Jonas → Claude</span><span class="tag ny">Ny 1/10</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="a01-capi-webinar" data-status="beslutning" data-spor="senere" data-rammer="ingen">
+      <h3>Webinartilmeldinger til Metas Conversions API: kun med samtykke — resten er en juridisk beslutning</h3>
+      <p>Nicklas foreslår at sende alle tilmeldinger fra serveren. Det omgår cookie-nejet, som 4 ud af 5 har givet, og blev fravalgt 21/9. Det rene først er en server-hændelse KUN for tilmeldinger med samtykke, hvilket kræver at samtykket følger med fra siden. <code>docs/marketing-motoren-nicklas.md</code> §5.4.</p>
+      <div class="meta"><span class="tag gold">Beslutning — Jonas (jurist)</span><span class="tag ny">Ny 1/10</span><span class="tag size">Mellem</span></div>
+    </div>
+    <div class="card new" id="a01-sms-forsoeg" data-status="beslutning" data-spor="senere" data-rammer="ingen">
+      <h3>SMS 1 time før webinaret: forsøg med eWebinars egen Twilio-integration</h3>
+      <p><code>docs/mailplan-14-dage-og-sms.md</code> §3–§5. Formålet er fremmøde, målt med Wilson. Opt-in med tomt kryds. Ikke slået op: hvordan eWebinar indsamler nummeret, og om der er et samtykkefelt. Jonas: erstatter SMS'en en_time-mailen, og slettes nummeret 7 dage efter?</p>
+      <div class="meta"><span class="tag gold">Beslutning — Jonas</span><span class="tag ny">Ny 1/10</span><span class="tag size">Mellem</span></div>
+    </div>
+    <div class="card new" id="a01-ringet-markering" data-status="mangler" data-spor="senere" data-rammer="raadgiver">
+      <h3>«Varme leads»: en «ringet»-markering, så opkaldslisten kan arbejdes igennem</h3>
+      <p>Listen på /webinar (#1217) viser dem, der har set mindst 75 % uden at ansøge. Der kan ikke krydses af, at én er ringet op. Det kræver en tabel (tilføjende migration, rådgiver-RLS). Det er nyttigt før Jonas ringer 14.–16. oktober.</p>
+      <div class="meta"><span class="tag">Forslag</span><span class="tag ny">Ny 1/10</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="a01-tildeling-kolonnen" data-status="beslutning" data-spor="senere" data-rammer="ingen">
+      <h3>Tildelingen lever videre i databasen: conversations.assigned_advisor_id + triggeren validate_advisor_assignment</h3>
+      <p>Fladen har ingen tildeling efter 1/10 (#1203), og agentens klokke ringer hos alle (#1215). Målt: 25 af 28 samtaler har en gammel tildeling, og en ny samtale har fået én. <code>send-welcome-message</code> og <code>nudge-report-no-reflection</code> bruger den som afsender, og det er ikke en fejl, da en afsender skal være en person. At rydde kolonnen eller ændre triggeren er en Jonas-beslutning (trigger).</p>
+      <div class="meta"><span class="tag gold">Beslutning — Jonas</span><span class="tag ny">Ny 1/10</span><span class="tag size">Lille</span></div>
+    </div>
     <div class="card new" id="a01-legacy-noegler" data-status="beslutning" data-spor="senere" data-rammer="ingen">
       <h3>Supabase sletter legacy anon/service_role-nøglerne «Late 2026, TBC» — husets cron → functions bygger på dem</h3>
       <p><strong>Læst 1/10 ~02:40</strong> i Supabases changelog (https://supabase.com/changelog/29260-upcoming-changes-to-supabase-api-keys): nye projekter har ingen legacy-nøgler siden november 2025, og eksisterende projekter mister dem «Late 2026, TBC». Bucket B (cron, <code>kald_edge</code>, <code>verify_jwt = true</code> — 61 functions står <code>true</code>) sender den legacy service_role-JWT. Hvordan Lovable håndterer det: ikke målt. Fase 3a i <code>docs/prod-hjem-plan.md</code> lægger cron om til de nye nøgler, mens prod står, hvor den står; det rører <code>verify_jwt</code> (FORBIDDEN-listen) og kræver Jonas' grønne lys (D1).</p>
@@ -2496,9 +2532,10 @@
       <p>Udrullet fra build-chatten 1/10 01:26 (som også selv tilføjede <code>pdf-lib</code>, lærestreg (ff)). Beviset kræver et rigtigt kald, og en tør kørsel skriver rigtige forslag — tages næste gang en rådgiver trykker «Foreslå ugens fokus» (svaret i netværksfanen) eller ved et bevidst kald på en virksomhed, hvor et forslag er ønsket.</p>
       <div class="meta"><span class="tag gold">Bevis udestår</span><span class="tag ny">Ny 1/10</span><span class="tag size">Lille</span></div>
     </div>
-    <div class="card new" id="a01-lh-webinarkobling" data-status="beslutning" data-spor="senere" data-rammer="raadgiver">
+    <div class="card new" id="a01-lh-webinarkobling" data-status="loest" data-spor="senere" data-rammer="raadgiver">
       <h3>Webinartragten tilskriver ikke et medlem, der så webinaret og kom ind «direkte» (lh@greensolar.dk)</h3>
       <p><strong>Målt 30/9 nat:</strong> ingen tilmelding med lh@greensolar.dk; en sandsynlig med en gmail-adresse (fb, 8/9, 22/9-sessionen) står «Missed / Didn't join» — ikke afgjort, om det er hende. Ansøgningen har <code>kilde = direkte</code>. Forslag (ikke bygget): rådgiveren kobler ansøgningen til en tilmelding (forslag ud fra navnet), og tragten tæller koblingen — kræver migration. OVERLEVERING «30. september nat» §2.</p>
+      <p><strong>LØST 1/10 aften:</strong> bygget som «forslag + klik» (#1209, migration <code>20261001120000</code> kørt og målt): rådgiveren kobler en ansøgning til en tilmelding på ansøgningssiden, og tragten tæller koblingen. Set i drift på Zanco: mailen matcher, så intet forslag vises.</p>
       <div class="meta"><span class="tag gold">Forslag — Jonas</span><span class="tag ny">Ny 1/10</span><span class="tag size">Mellem</span></div>
     </div>
     <div class="card new" id="a01-design-senere" data-status="mangler" data-spor="senere" data-rammer="medlem">
