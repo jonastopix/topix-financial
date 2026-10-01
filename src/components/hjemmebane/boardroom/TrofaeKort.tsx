@@ -15,12 +15,13 @@ import { HbCard } from "../HbCard";
     dæmpet med «sådan får du den».
 
     FAIL-SOFT: henter → intet (kortet springer ikke i højden for en sekundær
-    flade); fejl → kortet står roligt med forklaringen og uden trofæer. */
+    flade); fejl → intet kort (rådets fund M2, 1/10). */
 export function TrofaeKort({ trofaeer, isError }: { trofaeer: TrofaeDom[] | undefined; isError: boolean }) {
-  if (!trofaeer && !isError) return null;
-  const liste = isError ? [] : (trofaeer ?? []);
+  // Fejl → intet kort (rådets fund M2, 1/10): en fejlet hentning må ikke ligne «du har ingen trofæer».
+  if (isError || !trofaeer) return null;
+  const liste = trofaeer;
   return (
-    <HbCard className="p-5 md:p-6" data-trofaeer={isError ? "fejl" : "klar"}>
+    <HbCard className="p-5 md:p-6" data-trofaeer="klar">
       <div className="flex items-baseline justify-between gap-3">
         <h3 className="text-base font-semibold text-hb-ink">Dine trofæer</h3>
         {liste.length > 0 && (

@@ -48,7 +48,7 @@ describe("trofæernes kildeværn", () => {
 
   it("4. kortet siger, at trofæer ikke er scoren", () => {
     const motor = laes("src/lib/gamification/trofaeer.ts");
-    expect(motor).toMatch(/TROFAE_FORKLARING =\s*\n?\s*"Milepæle, du har nået — de bliver ved med at stå her\. Din Boardroom Score ovenfor er dit helbredstal lige nu\."/);
+    expect(motor).toMatch(/TROFAE_FORKLARING =\s*\n?\s*"Milepæle, du har nået\. Din Boardroom Score ovenfor er dit helbredstal lige nu\."/);
     expect(laes("src/components/hjemmebane/boardroom/TrofaeKort.tsx")).toMatch(/\{TROFAE_FORKLARING\}/);
   });
 });

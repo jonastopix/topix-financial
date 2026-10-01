@@ -635,7 +635,7 @@ ligner en ufuldstændig rapport, og den bærer indtjeningssøjlens 188 point.
 
 ## Trofæer (1/10-2026)
 
-**Hvad:** milepæle — opnået én gang, for altid. IKKE et tal og IKKE Boardroom Score; kortet siger det i én linje (`TROFAE_FORKLARING`: «Milepæle, du har nået — de bliver ved med at stå her. Din Boardroom Score ovenfor er dit helbredstal lige nu.»). Dommen er «det tidligste tidspunkt, betingelsen var opfyldt», så et trofæ kan ikke tabes.
+**Hvad:** milepæle. IKKE et tal og IKKE Boardroom Score; kortet siger det i én linje (`TROFAE_FORKLARING`: «Milepæle, du har nået. Din Boardroom Score ovenfor er dit helbredstal lige nu.»). Dommen er «det tidligste tidspunkt, betingelsen var opfyldt» i de data, der står NU — intet gemmes, så et trofæ kan forsvinde, hvis data slettes (en tråd, et mål sat tilbage, budgettet slettet) eller medlemskabet udløber (RLS skjuler community). Derfor lover kortet ikke «for altid» (rådets fund M1, 1/10). Fejler hentningen, vises kortet slet ikke (M2: en fejl må ikke ligne nul trofæer).
 
 **Jonas' regler (1/10):** intet trofæ giver fordel til størrelse — motoren læser kun TIDSPUNKTER og hvem der skrev hvad, aldrig omsætning, beløb eller antal ansatte (kildeværn). «Månedens point/sparring» bygges IKKE nu (Jonas taler med Morten) — ordene point, præmie og «månedens» må ikke stå i fladerne (kildeværn).
 

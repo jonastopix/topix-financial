@@ -147,7 +147,7 @@ export function antalOpnaaet(dom: readonly TrofaeDom[]): number {
 
 /** Linjen, der skiller trofæerne fra scoren — står på kortet. */
 export const TROFAE_FORKLARING =
-  "Milepæle, du har nået — de bliver ved med at stå her. Din Boardroom Score ovenfor er dit helbredstal lige nu.";
+  "Milepæle, du har nået. Din Boardroom Score ovenfor er dit helbredstal lige nu.";
 
 /** «12. sep. 2026» i dansk tid. */
 export function trofaeDato(iso: string): string {
