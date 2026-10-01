@@ -4,19 +4,22 @@ import { resolve } from "node:path";
 import * as webDash from "@/lib/webinar/dashboard";
 import * as webPris from "@/lib/webinar/annoncepriser";
 import * as webDeling from "@/lib/webinar/deling";
+import * as webMaal from "@/lib/webinar/maalstreger";
 import { blevMedlem as webBlevMedlem } from "@/lib/ansoegninger/ansoegningVisning";
 import * as denoDash from "../../../supabase/functions/_shared/webinarDashboard.ts";
 import * as denoPris from "../../../supabase/functions/_shared/annoncepriser.ts";
 import * as denoDeling from "../../../supabase/functions/_shared/webinarDeling.ts";
+import * as denoMaal from "../../../supabase/functions/_shared/webinarMaalstreger.ts";
 import { blevMedlem as denoBlevMedlem } from "../../../supabase/functions/_shared/blevMedlem.ts";
 
 /**
  * Paritet for webinar-delingen (udkast 21/9-2026): serveren (webinar-delt)
- * regner det delte dashboard med SPEJLE af fladens domme. Fire par:
+ * regner det delte dashboard med SPEJLE af fladens domme. Fem par:
  *   src/lib/webinar/dashboard.ts      ↔ _shared/webinarDashboard.ts
  *   src/lib/webinar/annoncepriser.ts  ↔ _shared/annoncepriser.ts
  *   src/lib/webinar/deling.ts         ↔ _shared/webinarDeling.ts      (nul imports → byte-ens krop)
  *   blevMedlem i ansoegningVisning.ts ↔ _shared/blevMedlem.ts         (funktionen alene)
+ *   src/lib/webinar/maalstreger.ts    ↔ _shared/webinarMaalstreger.ts (1/10-2026)
  * Kroppen efter filhovedet er ordret ens PÅ NÆR import-stierne (@/lib/… ↔ ./…):
  * imports fjernes før sammenligningen, og hver src-sti skal have sin _shared-sti.
  * OG dommene svarer ens på samme input.
@@ -38,6 +41,11 @@ const PAR: [string, string, Record<string, string>][] = [
   }],
   ["src/lib/webinar/annoncepriser.ts", "supabase/functions/_shared/annoncepriser.ts", {
     "@/lib/metaAnnoncer": "./metaAnnoncer.ts", "@/lib/webinar/dashboard": "./webinarDashboard.ts",
+  }],
+  // Nicklas' målstreger (1/10-2026) — samme dom i rådgiverens flade og i webinar-delt.
+  ["src/lib/webinar/maalstreger.ts", "supabase/functions/_shared/webinarMaalstreger.ts", {
+    "@/lib/webinar/dashboard": "./webinarDashboard.ts", "@/lib/webinar/annoncepriser": "./annoncepriser.ts",
+    "@/lib/webinarDom": "./webinarDom.ts", "@/lib/marketing/statistik": "./marketingStatistik.ts",
   }],
 ];
 
@@ -126,6 +134,28 @@ describe("webinarDashboard.paritet — dommene", () => {
       const ind = { tilmeldinger: FIXTURE.tilmeldinger, ansoegninger: FIXTURE.ansoegninger, dage: FIXTURE.dage, annoncer: FIXTURE.annoncer, tilstand: "har" as const, valg, hentetTil: "2026-09-11" };
       expect(denoPris.annoncepriser(ind, NU)).toEqual(webPris.annoncepriser(ind, NU));
     }
+  });
+  it("målstregerne giver samme svar — med og uden forbrug", () => {
+    const forbrug = { dage: FIXTURE.dage, annoncer: FIXTURE.annoncer, tilstand: "har" as const, hentetTil: "2026-09-11" };
+    for (const f of [forbrug, null]) {
+      const ind = { tilmeldinger: FIXTURE.tilmeldinger, ansoegninger: FIXTURE.ansoegninger, forbrug: f };
+      expect(denoMaal.maalstreger(ind, NU)).toEqual(webMaal.maalstreger(ind, NU));
+    }
+  });
+  it("K11: målstregerne med ≥ 5 personer og DKK-forbrug — Wilson- OG kronegrenen sammenlignes", () => {
+    // 12 personer, første tilmelding 10/9 (i forbrugets vindue 10.–11/9), session 15/9 (afholdt ved NU 19/9):
+    // 8 så færdigt, 4 udeblev; 6 af de sete ansøgte 16/9 (EFTER både tilmelding og session) og blev medlemmer.
+    const tilm = Array.from({ length: 12 }, (_, n) =>
+      R(`k${n}@firma.dk`, `K ${n}`, T15, n < 8 ? {} : { state: "Missed", attended: null, set_procent: null }));
+    const ans = Array.from({ length: 6 }, (_, n) => ({ email: `k${n}@firma.dk`, indsendt_at: "2026-09-16T10:00:00.000Z", trin: "underskrevet" as const, virksomhed_slutdato: "2027-09-16" }));
+    const ind = { tilmeldinger: tilm, ansoegninger: ans, forbrug: { dage: FIXTURE.dage, annoncer: FIXTURE.annoncer, tilstand: "har" as const, hentetTil: "2026-09-11" } };
+    const web = webMaal.maalstreger(ind, NU);
+    // Prøven er kun en prøve, hvis grenene faktisk rammes: alle fire linjer har et TAL.
+    expect(web.linjer.map((l) => l.vaerdi)).toEqual(["maalt", "maalt", "maalt", "maalt"]);
+    expect(web.linjer[0].bar.fra).not.toBeNull();
+    expect(web.linjer[2].vaerdiOrd).toBe("667 kr. af 6 ansøgninger");
+    expect(web.linjer[3].vaerdiOrd).toBe("667 kr. af 6 medlemmer");
+    expect(denoMaal.maalstreger(ind, NU)).toEqual(web);
   });
   it("delingsdommen og blevMedlem svarer ens", () => {
     const nu = new Date("2026-09-21T12:00:00Z");

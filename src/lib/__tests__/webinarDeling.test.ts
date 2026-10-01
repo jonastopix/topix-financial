@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   afvisningAf, delingsOversigt, delingsTilstand, delingsUrl, erDageGyldige, erTokenForm, erVindueValg, forlaengetUdloeb,
   MAKS_DAGE, rensNavn, SPOR_HAENDELSER, STANDARD_DAGE, tilBase64Url, TOKEN_BYTES, TOKEN_FORM, udloebEfter,
 } from "@/lib/webinar/deling";
 import { udenRaekker, webinarDashboard } from "@/lib/webinar/dashboard";
-import { bygDeltSvar, findForbudteNoegler, FORBUDTE_NOEGLER } from "../../../supabase/functions/_shared/webinarDelingSvar.ts";
+import { bygDeltSvar, findForbudteNoegler, findMailVaerdier, FORBUDTE_NOEGLER, MAIL_MOENSTER } from "../../../supabase/functions/_shared/webinarDelingSvar.ts";
 import { FIXTURE } from "./webinarDashboard.paritet.test";
 
 /**
@@ -138,6 +140,17 @@ describe("webinarDeling — svaret til den eksterne bærer ingen persondata", ()
     expect(svar.priser.samlet.forbrugOere).toBe(400000);
     expect(svar.valg).toBe("daekning");
   });
+  it("MÅLSTREGERNE (1/10-2026) går ud som TAL — feltet `maalstreger` er beviset for udrulningen", () => {
+    expect(svar.maalstreger.kilde).toBe("Nicklas, 1/10");
+    expect(svar.maalstreger.linjer.map((l) => l.noegle)).toEqual(["fremmoede", "ansoegere_blandt_set", "pris_pr_ansoegning", "pris_pr_medlem"]);
+    // Fixturen: 4 afholdte personer (15/9) — under 5, så «for få» ERSTATTER procenten.
+    expect(svar.maalstreger.linjer[0]).toMatchObject({ vaerdi: "for_faa", naevner: 4 });
+    expect(findForbudteNoegler(svar.maalstreger)).toEqual([]);
+    expect(JSON.stringify(svar.maalstreger)).not.toMatch(/@/);
+    // Samme vindue uanset periodevælgeren: «Hele perioden».
+    const syv = bygDeltSvar({ ...ind, valg: "7dage" }, NU_FIX);
+    expect(syv.maalstreger).toEqual(svar.maalstreger);
+  });
   it("udenRaekker fjerner PRÆCIS naeste.raekker — og intet andet", () => {
     const fuld = webinarDashboard({ tilmeldinger: FIXTURE.tilmeldinger, ansoegninger: FIXTURE.ansoegninger, sporKolonnerFindes: true }, NU_FIX);
     expect(fuld.naeste?.raekker.length).toBe(2);
@@ -152,5 +165,25 @@ describe("webinarDeling — svaret til den eksterne bærer ingen persondata", ()
     expect(findForbudteNoegler({ ...svar, dashboard: { ...svar.dashboard, naeste: { ...svar.dashboard.naeste, raekker: [] } } })).toEqual(["dashboard.naeste.raekker"]);
     expect(findForbudteNoegler({ a: { fbclid: null } })).toEqual(["a.fbclid"]);
     expect(findForbudteNoegler(null)).toEqual([]);
+  });
+  it("VÆRN NR. 2 (B5): det rigtige svar har INGEN mail som værdi — hverken med eller uden forbrug", () => {
+    expect(findMailVaerdier(svar)).toEqual([]);
+    expect(findMailVaerdier(bygDeltSvar({ ...ind, dage: [], tilstand: "tom" as const, hentning: null }, NU_FIX))).toEqual([]);
+  });
+  it("VÆRN NR. 2 VIRKER: en mail som værdi under et uskyldigt navn fanges med sin sti — aldrig værdien", () => {
+    const fund = findMailVaerdier({ ...svar, dashboard: { ...svar.dashboard, titel: "kontakt anna@firma.dk" } });
+    expect(fund).toEqual(["dashboard.titel"]);
+    expect(fund.join(" ")).not.toMatch(/@/);
+    expect(findMailVaerdier({ a: [{ b: ["x", "bo@x.dk"] }] })).toEqual(["a[0].b[1]"]);
+    expect(findMailVaerdier("c@d.dk")).toEqual(["(rod)"]);
+    expect(findMailVaerdier({ a: "ikke en mail @ her", b: "a@b", c: 42, d: null })).toEqual([]);
+    expect(MAIL_MOENSTER.source).toBe("[^\\s@]+@[^\\s@]+\\.[^\\s@]+");
+  });
+  it("webinar-delt bruger BEGGE værn før svaret sendes", () => {
+    const kode = readFileSync(resolve(process.cwd(), "supabase/functions/webinar-delt/index.ts"), "utf8");
+    const i = kode.indexOf("findMailVaerdier(svar)");
+    expect(kode.indexOf("findForbudteNoegler(svar)")).toBeGreaterThan(0);
+    expect(i).toBeGreaterThan(kode.indexOf("findForbudteNoegler(svar)"));
+    expect(i).toBeLessThan(kode.indexOf("return json({ ok: true"));
   });
 });
