@@ -959,7 +959,7 @@ skrivende edge functions bruger `SUPABASE_SERVICE_ROLE_KEY`.
     `verify_jwt = false` ONLY together with a «key only» mode that refuses the
     role claim, and the invariant script rewritten to enforce exactly that —
     without it the role claim is forgeable by anyone.
-  - `public.kald_edge` (SECURITY DEFINER, migration `20261001090000_kald_edge_apikey.sql`,
+  - `public.kald_edge` (SECURITY DEFINER, migration `20261001200000_kald_edge_apikey.sql`,
     **not run; needs Jonas' explicit go-ahead to run**): still sends the legacy
     `Authorization: Bearer` from vault `email_queue_service_role_key`
     unchanged, and additionally `apikey` from the NEW vault entry
