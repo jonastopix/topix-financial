@@ -1,0 +1,274 @@
+/**
+ * src/lib/hjemmebane/dineMaalFlade.ts — ordene og de små afledninger på det
+ * nye «Dine mål» (/milestones, fladen 1/10-2026; Jonas 21:04 ja til designet,
+ * 22:37 ja til «Jeres retning»). Motoren (maalTal.ts) regner ALT om tal, spor,
+ * frister og skridt; denne fil giver kun det, fladen tegner: hovedets linje og
+ * chips, banens andele som tegnbare tal, et begivenhedsmåls skridt-fremdrift,
+ * guidens kort og tidslinjens geometri. Komponenterne under
+ * components/hjemmebane/milestones/ regner intet selv.
+ *
+ * REN: ingen React, ingen Supabase, ingen Date.now — tiden gives ind som `nu`.
+ */
+import { kbhDato } from "@/lib/hverdage";
+import { MAANEDSNAVNE } from "@/lib/maanedsnoegle";
+import { MAX_AKTIVE_MAAL } from "./maal";
+import { dageMellem, MAAL_NOEGLER, MAAL_ORD, type MaalKort, type MaalNoegle, type SporStatus, type TidslinjeDom, type TidslinjePunkt } from "./maalTal";
+
+// ── Hovedet ────────────────────────────────────────────────────────────────
+
+export const DINE_MAAL_EYEBROW = "Dine mål";
+export const DINE_MAAL_OVERSKRIFT = "Hvor I er på vej hen";
+export const DINE_MAAL_FEJL_TEKST = "Dine mål kunne ikke hentes.";
+export const PROEV_IGEN = "Prøv igen";
+/** Tal-målene, når Score-grundlaget fejlede eller afventer sin migration (dineMaalGrundlag.tallenFejlede). */
+export const TALLENE_FEJLEDE_TEKST = "Tallene bag målene kunne ikke læses lige nu — målene står, men sporet kan ikke afgøres.";
+export const AFVENTER_MIGRATION_TEKST = "Mål med tal er på vej — indtil da kan målene gøres skarpe, når opdateringen er kørt.";
+
+/** «Dine mål · oktober 2026» — måneden i dansk tid. */
+export function eyebrowTekst(nu: Date): string {
+  const d = kbhDato(nu);
+  const navn = MAANEDSNAVNE[Number(d.slice(5, 7)) - 1] ?? d.slice(5, 7);
+  return `${DINE_MAAL_EYEBROW} · ${navn} ${d.slice(0, 4)}`;
+}
+
+/**
+ * «N mål for de næste 12 måneder · M plads ledig» (designet 1/10). Pladsen er
+ * MAX_AKTIVE_MAAL − N, aldrig under 0; over grænsen (mål fra før den) siger
+ * linjen det i stedet for et negativt tal.
+ */
+export function hovedLinje(antalAktive: number): string {
+  const maal = antalAktive === 0 ? "Ingen mål endnu" : antalAktive === 1 ? "1 mål for de næste 12 måneder" : `${antalAktive} mål for de næste 12 måneder`;
+  if (antalAktive > MAX_AKTIVE_MAAL) return `${maal} · flere end de ${MAX_AKTIVE_MAAL}, der er plads til`;
+  const plads = MAX_AKTIVE_MAAL - antalAktive;
+  const ledig = plads === 0 ? "ingen plads ledig" : plads === 1 ? "1 plads ledig" : `${plads} pladser ledige`;
+  return `${maal} · ${ledig}`;
+}
+
+export interface StatusChip {
+  status: SporStatus;
+  antal: number;
+  /** «1 på sporet» · «2 bagud» — motorens ord med lille forbogstav. */
+  tekst: string;
+}
+
+const CHIP_ORDEN: readonly SporStatus[] = ["bagud", "paa_sporet", "foran", "naaet_i_tal", "kan_ikke_afgoeres"];
+
+/** Chips i hovedet: én pr. status med mindst ét TAL-mål (begivenheder og gamle mål har ingen status at tælle). Bagud først. */
+export function statusChips(kort: readonly MaalKort[]): StatusChip[] {
+  const antal = new Map<SporStatus, number>();
+  for (const k of kort) {
+    if (k.art !== "tal") continue;
+    antal.set(k.sporet.status, (antal.get(k.sporet.status) ?? 0) + 1);
+  }
+  return CHIP_ORDEN.filter((s) => (antal.get(s) ?? 0) > 0).map((status) => {
+    const n = antal.get(status) ?? 0;
+    const ord = MAAL_ORD.status[status];
+    return { status, antal: n, tekst: `${n} ${ord.charAt(0).toLowerCase()}${ord.slice(1)}` };
+  });
+}
+
+/** Chip-tonen: rust for bagud, evergreen for på sporet/foran/nået, dæmpet ellers. Én dom, så alle flader farver ens. */
+export type ChipTone = "god" | "advarsel" | "neutral";
+export function chipTone(status: SporStatus): ChipTone {
+  if (status === "bagud") return "advarsel";
+  if (status === "kan_ikke_afgoeres") return "neutral";
+  return "god";
+}
+
+// ── Banen på kortet ────────────────────────────────────────────────────────
+
+export interface BaneDom {
+  /** Den fyldte del, 0–1 (andelAfVejen klippet). */
+  fyldt: number;
+  /** Stregen «hvor I burde være», 0–1; null når motoren ikke har en forventning. */
+  streg: number | null;
+  /** Procenter til style (afrundet til én decimal). */
+  fyldtPct: number;
+  stregPct: number | null;
+}
+
+const klip = (v: number) => Math.min(1, Math.max(0, v));
+const pct = (v: number) => Math.round(v * 1000) / 10;
+
+/** Banen fra motorens spor: fyldt = andelAfVejen klippet til 0–1 (en negativ andel tegnes tom); stregen = forventetAndel. */
+export function bane(kort: Pick<MaalKort, "sporet">): BaneDom {
+  const fyldt = kort.sporet.andelAfVejen === null ? 0 : klip(kort.sporet.andelAfVejen);
+  const streg = kort.sporet.forventetAndel === null ? null : klip(kort.sporet.forventetAndel);
+  return { fyldt, streg, fyldtPct: pct(fyldt), stregPct: streg === null ? null : pct(streg) };
+}
+
+/** «hvor I burde være pr. august» — stregens forklaring, af motorens forventetPr (dansk dato «YYYY-MM-DD»). */
+export function stregTekst(kort: Pick<MaalKort, "sporet">): string {
+  const d = kort.sporet.forventetPr;
+  const navn = MAANEDSNAVNE[Number(d.slice(5, 7)) - 1] ?? d.slice(5, 7);
+  return `hvor I burde være pr. ${navn}`;
+}
+
+/** Et begivenhedsmåls fremdrift i skridt (designet: «et begivenhedsmål viser skridt-fremdrift i stedet»). Ingen procent. */
+export interface SkridtFremdrift {
+  gjorte: number;
+  alle: number;
+  andel: number;
+  tekst: string;
+}
+export function skridtFremdrift(kort: Pick<MaalKort, "naeste">): SkridtFremdrift {
+  const aabne = kort.naeste.oevrigeAabne + (kort.naeste.skridt ? 1 : 0);
+  const gjorte = kort.naeste.gjorte;
+  const alle = gjorte + aabne;
+  const tekst = alle === 0 ? "Ingen skridt endnu" : `${gjorte} af ${alle} skridt gjort`;
+  return { gjorte, alle, andel: alle === 0 ? 0 : gjorte / alle, tekst };
+}
+
+/** «3 skridt mere · 2 gjort» — linjen under det næste skridt; null når der hverken er flere åbne eller gjorte. */
+export function flereSkridtTekst(kort: Pick<MaalKort, "naeste">): string | null {
+  const { oevrigeAabne, gjorte } = kort.naeste;
+  if (oevrigeAabne === 0 && gjorte === 0) return null;
+  const dele: string[] = [];
+  if (oevrigeAabne > 0) dele.push(oevrigeAabne === 1 ? "1 skridt mere" : `${oevrigeAabne} skridt mere`);
+  if (gjorte > 0) dele.push(gjorte === 1 ? "1 gjort" : `${gjorte} gjort`);
+  return dele.join(" · ");
+}
+
+/** Det store tals undertekst: «pr. august (godkendt)» (læst) eller «tastet» (andet_tal). */
+export const TASTET_TEKST = "tastet";
+export function talUndertekst(kort: Pick<MaalKort, "prTekst" | "noegle" | "tal">): string | null {
+  if (kort.tal?.status !== "ok") return null;
+  return kort.prTekst ?? (kort.noegle === "andet_tal" ? TASTET_TEKST : null);
+}
+
+// ── Ordene på kortet ───────────────────────────────────────────────────────
+
+export const KORT_ORD = {
+  gjort: "Gjort",
+  naesteSkridt: "Næste skridt",
+  senest: "senest",
+  foreslaaetAf: "foreslået af",
+  venterPaaSvar: "venter på jeres svar",
+  svarPaaForsiden: "Svar på forsiden",
+  foersteSkridt: "Hvad er det første, I gør?",
+  tilfoejSkridt: "Tilføj skridt",
+  menu: "Flere handlinger",
+  rediger: "Redigér",
+  parker: "Parkér",
+  markerNaaet: "Markér som nået",
+  slet: "Slet",
+  goerSkarpt: MAAL_ORD.goerSkarpt,
+  gammeltMaal: "Målet er fra før tallene — gør det skarpt, så det kan følges.",
+  tomPladsTitel: "Plads til ét mål mere",
+  tomPladsTekst: "Hvad skal ske i jeres virksomhed det næste år?",
+  saetMaal: "Sæt et mål",
+  start: "start",
+  sporet: "sporet",
+  maal: "mål",
+} as const;
+
+// ── Guiden ─────────────────────────────────────────────────────────────────
+
+/** Guidens valg i trin 1: de fem nøgler og begivenheden. */
+export type GuideValg = MaalNoegle | "begivenhed";
+
+export interface GuideKort {
+  valg: GuideValg;
+  titel: string;
+  /** Kortets lille forklaring. */
+  tekst: string;
+}
+
+export const GUIDE_ORD = {
+  trin1: "Hvad vil I nå?",
+  trin2: "Hvor meget og hvornår?",
+  trin3: "Det første skridt",
+  nuvaerende: "Nu",
+  mangler: "mangler",
+  tastes: "tastes af jer",
+  maaltal: "Måltal",
+  udgangspunkt: "Udgangspunkt",
+  enhed: "Hvad tæller tallet?",
+  frist: "Frist",
+  fristHjaelp: "Foreslået: om 12 måneder. Højst 36 måneder frem.",
+  titel: "Målet som én sætning",
+  titelHjaelp: "Foreslået af tallet — ret den, så den lyder som jer.",
+  kraever: "Det kræver ca.",
+  prMaaned: "pr. måned",
+  kraeverNed: "Tallet skal ned med ca.",
+  springOver: "Spring over",
+  tilbage: "Tilbage",
+  videre: "Videre",
+  gem: "Sæt målet",
+  gemSkarpt: "Gør målet skarpt",
+  gemmer: "Gemmer…",
+  skridtTitel: "Skridtet",
+  skridtFrist: "Frist for skridtet",
+  skridtHjaelp: "Senest målets frist.",
+} as const;
+
+const NOEGLE_TEKST: Record<MaalNoegle, string> = {
+  omsaetning_aarstakt: "De seneste tre måneders omsætning gange 12.",
+  resultat_aarstakt: "De seneste tre måneders resultat før skat gange 12.",
+  likviditet_mdr: "Hvor mange måneders drift banken kan bære.",
+  db_grad: "Dækningsbidrag delt med omsætning.",
+  andet_tal: "Et tal I selv følger — kunder, ansatte, ordrer.",
+};
+
+/** Kortene i trin 1, i husets rækkefølge: de fire læste nøgler, så «et andet tal», så begivenheden. */
+export function guideKort(): GuideKort[] {
+  const noegler = MAAL_NOEGLER.map((n) => ({ valg: n as GuideValg, titel: MAAL_ORD.noegle[n], tekst: NOEGLE_TEKST[n] }));
+  const begivenhed: GuideKort = { valg: "begivenhed", titel: MAAL_ORD.begivenhedKort.titel, tekst: MAAL_ORD.begivenhedKort.tekst };
+  return [...noegler, begivenhed];
+}
+
+/** «Det kræver ca. 83.000 kr. pr. måned» — eller «Tallet skal ned med ca. …» for et mål, der sænker tallet. null uden tal. */
+export function kraeverTekst(kraeverPrMaaned: number | null, tekst: (v: number) => string): string | null {
+  if (kraeverPrMaaned === null || !Number.isFinite(kraeverPrMaaned)) return null;
+  if (kraeverPrMaaned === 0) return null;
+  if (kraeverPrMaaned < 0) return `${GUIDE_ORD.kraeverNed} ${tekst(-kraeverPrMaaned)} ${GUIDE_ORD.prMaaned}`;
+  return `${GUIDE_ORD.kraever} ${tekst(kraeverPrMaaned)} ${GUIDE_ORD.prMaaned}`;
+}
+
+// ── Rejsen (tidslinjen) ────────────────────────────────────────────────────
+
+export const REJSEN_ORD = {
+  eyebrow: "Rejsen",
+  titel: "De næste 12 måneder",
+  idag: "i dag",
+  forklaring: {
+    skridt_gjort: "skridt gjort",
+    maal_frist: "måls frist",
+    naaet: "nået",
+    kvartal: "kvartal",
+  },
+  tom: "Tidslinjen fyldes, efterhånden som I gør skridt og sætter frister.",
+} as const;
+
+export interface TidslinjeMarkoer {
+  punkt: TidslinjePunkt;
+  /** 0–1 langs linjen. */
+  x: number;
+  /** «12. nov.» */
+  dato: string;
+}
+
+export interface TidslinjeTegning {
+  nuX: number;
+  /** Start, kvartaler og slut — aksens mærker. */
+  akse: TidslinjeMarkoer[];
+  skridt: TidslinjeMarkoer[];
+  frister: TidslinjeMarkoer[];
+  /** Ingen skridt og ingen frister på linjen. */
+  tom: boolean;
+}
+
+const kortDato = (d: string): string => {
+  const md = Number(d.slice(5, 7));
+  return `${Number(d.slice(8, 10))}. ${(MAANEDSNAVNE[md - 1] ?? "").slice(0, 3)}.`;
+};
+
+/** Punkterne som positioner 0–1: x = (dato − start) ÷ (slut − start) i kalenderdage. */
+export function tidslinjeTegning(t: TidslinjeDom): TidslinjeTegning {
+  const laengde = Math.max(1, dageMellem(t.start, t.slut));
+  const til = (p: TidslinjePunkt): TidslinjeMarkoer => ({ punkt: p, x: klip(dageMellem(t.start, p.dato) / laengde), dato: kortDato(p.dato) });
+  const akse = t.punkter.filter((p) => p.art === "start" || p.art === "kvartal" || p.art === "slut").map(til);
+  const skridt = t.punkter.filter((p) => p.art === "skridt_gjort").map(til);
+  const frister = t.punkter.filter((p) => p.art === "maal_frist").map(til);
+  return { nuX: klip(t.nuAndel), akse, skridt, frister, tom: skridt.length === 0 && frister.length === 0 };
+}

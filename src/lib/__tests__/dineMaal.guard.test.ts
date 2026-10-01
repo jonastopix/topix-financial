@@ -16,9 +16,10 @@ import { join, resolve } from "node:path";
 //      ny hentning), kun når begge er hentet.
 //   3. Skyderen kun for mål UDEN skridt: HbMaalRaekke's klikbare bar er
 //      låst til dommens kanSaetteFremdrift, og dommen sætter den fra `!x.beregnet`.
-//   4. Medlemmet ejer sine mål: DineMaalView bruger useMilestones' opret, slet,
-//      opdaterFelt og markerNaaet; og INGEN migration i repoet hedder
-//      «maal_skrives_af_raadgiveren» (planens RLS-migration UDGÅR).
+//   4. Medlemmet ejer sine mål: DineMaalView bruger useMilestones' slet,
+//      opdaterFelt og markerNaaet, og (fladen 1/10-2026) dineMaalGrundlag's
+//      opret/goerSkarpt — medlemmets egen RLS begge steder; INGEN migration i
+//      repoet hedder «maal_skrives_af_raadgiveren» (planens RLS-migration UDGÅR).
 //   5. JONAS 16/9 (ordret: «B»): maalId er VALGFRIT i foreslaa-opgave — ingen
 //      400 «Målet mangler»; et VALGT mål valideres stadig (404/409). Begge
 //      kaldere — chatten og Planen — sender maalId kun når et mål er valgt, og
@@ -141,14 +142,27 @@ export const skyderenHolder = (raekke: string, dom: string): boolean =>
   /kanSaetteFremdrift: !x\.beregnet, kanTilfoejeSkridt: true \}/.test(dom) &&
   (dom.match(/kanSaetteFremdrift: false/g) ?? []).length === 2;
 
-/** Dom 4: medlemmet ejer sine mål — fladen skriver med hookets egne skrivere; ingen RLS-migration. */
+/** Dom 4: medlemmet ejer sine mål — fladen skriver med hookets egne skrivere; ingen RLS-migration.
+    RETTET 1/10-2026 (fladen, docs/dine-maal-design.md §8): skyderen (saetFremgang/saetNuvaerendeVaerdi)
+    og useMilestones.opret er IKKE længere fladens veje — oprettelse og «Gør målet skarpt» går gennem
+    dineMaalGrundlag's bogførte klientskrivere (maalSkriv.guard dom 3: opretMaalMedTal/goerMaalSkarpt),
+    stadig medlemmets egen RLS. Nået/parkér/slet er stadig useMilestones' (markerNaaet, opdaterFelt, slet),
+    pakket ind med invalidering af motorens nøgler (markerNaaetOgRyd/opdaterMaalFelt). */
 export const medlemmetEjer = (view: string, migrationer: readonly string[]): boolean =>
-  /const \{ milestones, loading, saetFremgang, saetNuvaerendeVaerdi, markerNaaet, slet, opdaterFelt, opret, genhent \} = useMilestones\(/.test(view) &&
-  view.includes("onNaaet={() => void markerNaaet(ms.id)}") &&
-  view.includes('onParker={() => void opdaterFelt(ms.id, { status: "parked" })}') &&
+  /const \{ milestones, loading, markerNaaet, slet, opdaterFelt, genhent \} = useMilestones\(/.test(view) &&
+  view.includes("const skriv = useDineMaalSkrivning({ companyId, efter: genhent });") &&
+  view.includes("await markerNaaet(id);") &&
+  view.includes("onNaaet={() => void markerNaaetOgRyd(ms.id)}") &&
+  view.includes("onNaaet={() => void markerNaaetOgRyd(k.id)}") &&
+  view.includes('onParker={() => void opdaterMaalFelt(ms.id, { status: "parked" })}') &&
+  view.includes('onParker={() => void opdaterMaalFelt(k.id, { status: "parked" })}') &&
   view.includes("onSlet={() => setSletId(ms.id)}") &&
-  view.includes("onOpret={opret}") &&
+  view.includes("onSlet={() => setSletId(k.id)}") &&
+  view.includes("await skriv.opret({ companyId, userId: user.id, input, nu: new Date(), maaneder: g.grundlag?.maaneder ?? null });") &&
+  view.includes("await skriv.goerSkarpt({ maalId, input, nu: new Date(), maaneder: g.grundlag?.maaneder ?? null });") &&
+  !/saetFremgang|saetNuvaerendeVaerdi|onQuickProgress|onUpdateCurrentValue/.test(view) &&
   !/functions\.invoke\("maal-skriv"/.test(view) &&
+  !/\.from\("milestones"\)/.test(view) &&
   !migrationer.some((m) => /maal_skrives_af_raadgiveren/.test(m));
 
 /** Dom 5 (Jonas «B»): maalId valgfrit — det valgte mål valideres; kalderne sender kun et valgt mål og har «Uden mål». */
@@ -255,6 +269,8 @@ describe("dineMaal.guard — fase 3: medlemmets mål, uden milepæls-slot, skyde
   it("selvbevis 4: fladen uden slet, med maal-skriv, eller en RLS-migration med planens navn falder", () => {
     expect(medlemmetEjer(view.replace("onSlet={() => setSletId(ms.id)}", ""), migrationer)).toBe(false);
     expect(medlemmetEjer(view + '\nawait supabase.functions.invoke("maal-skriv", {});', migrationer)).toBe(false);
+    expect(medlemmetEjer(view + '\nawait supabase.from("milestones").update({});', migrationer)).toBe(false);
+    expect(medlemmetEjer(view.replace("onNaaet={() => void markerNaaetOgRyd(k.id)}", "onNaaet={() => undefined}"), migrationer)).toBe(false);
     expect(medlemmetEjer(view, [...migrationer, "supabase/migrations/20260917160000_maal_skrives_af_raadgiveren.sql"])).toBe(false);
   });
   it("selvbevis 5: «Målet mangler» tilbage i functionen, et værn der er væk, eller en kalder uden «Uden mål» falder", () => {

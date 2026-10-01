@@ -79,7 +79,8 @@ import {
 export const MAAL_KOLONNER_GAMLE = "id, title, status, deadline, created_at, target_value, current_value, unit";
 /** Kolonnerne EFTER migrationen 20261001190000. */
 export const MAAL_KOLONNER_NYE = `${MAAL_KOLONNER_GAMLE}, art, maal_noegle, udgangspunkt, udgangspunkt_dato`;
-export const SKRIDT_KOLONNER = "id, title, status, due_date, maal_id, closed_at, created_at, expires_at";
+/** source_type (fladen 1/10): «foreslået af …» under det næste skridt — maalTal.skridtKilde. */
+export const SKRIDT_KOLONNER = "id, title, status, due_date, maal_id, closed_at, created_at, expires_at, source_type";
 /** Mål-id'er pr. `.in("maal_id", …)` — URL'en holdes kort (200 uuid'er ≈ 7,4 kB). */
 export const MAAL_ID_BID = 200;
 

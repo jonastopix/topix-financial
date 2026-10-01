@@ -24,6 +24,8 @@ import {
   periodeTekst,
   sidsteDagIMaaned,
   skarptForslag,
+  skridtKilde,
+  foreslaaTitel,
   talDato,
   type MaalMedTal,
   type SkridtTilMaal,
@@ -683,5 +685,39 @@ describe("«Måltallet er nået» opfordrer kun (fund 16)", () => {
   it("teksten foreslår at overveje klikket — den siger ikke, at målet er nået", () => {
     expect(MAAL_ORD.maaltalNaaetSpoergsmaal).toBe("Måltallet er nået. Overvej at markere målet som nået.");
     expect(MAAL_ORD.status.naaet_i_tal).toBe("Måltallet er nået");
+  });
+});
+
+// ── Fladen 1/10-2026: skridtets kilde og guidens titelforslag ──────────────
+
+describe("skridtKilde — company_actions.source_type er en observation", () => {
+  it("manual → jer selv, advisor → din rådgiver, maskinens ord → AI, alt andet → null", () => {
+    expect(skridtKilde("manual")).toBe("medlem");
+    expect(skridtKilde("advisor")).toBe("raadgiver");
+    for (const s of ["ai_weekly", "agent", "reflection", "deterministic_template", "ai_extraction"]) expect(skridtKilde(s)).toBe("ai");
+    expect(skridtKilde("manual_baseline")).toBeNull();
+    expect(skridtKilde(null)).toBeNull();
+    expect(skridtKilde(undefined)).toBeNull();
+  });
+  it("naesteSkridt bærer «foreslået af …» i ord — og null uden kilde", () => {
+    const sk = (over: Partial<SkridtTilMaal>): SkridtTilMaal => ({ id: "s", title: "Ring", status: "active", due_date: "2026-10-10", maal_id: "m1", ...over });
+    expect(naesteSkridt("m1", [sk({ source_type: "advisor" })], NU).skridt?.foreslaaetAf).toBe("din rådgiver");
+    expect(naesteSkridt("m1", [sk({ source_type: "manual" })], NU).skridt?.foreslaaetAf).toBe("jer selv");
+    expect(naesteSkridt("m1", [sk({ source_type: "ai_weekly" })], NU).skridt?.foreslaaetAf).toBe("AI");
+    expect(naesteSkridt("m1", [sk({})], NU).skridt?.foreslaaetAf).toBeNull();
+  });
+});
+
+describe("foreslaaTitel — guidens titel af nøglen og måltallet", () => {
+  it("husnøglerne i ord", () => {
+    expect(foreslaaTitel("omsaetning_aarstakt", 2_000_000)).toBe("Omsætning på 2 mio. kr. i årstakt");
+    expect(foreslaaTitel("resultat_aarstakt", 620_000)).toBe("Resultat før skat på 620.000 kr. i årstakt");
+    expect(foreslaaTitel("likviditet_mdr", 4)).toBe("4 mdr. drift i banken");
+    expect(foreslaaTitel("db_grad", 42.5)).toBe("Dækningsgrad på 42,5 %");
+  });
+  it("andet_tal kræver en enhed; uden måltal intet forslag", () => {
+    expect(foreslaaTitel("andet_tal", 12, "kunder")).toBe("12 kunder");
+    expect(foreslaaTitel("andet_tal", 12, "")).toBeNull();
+    expect(foreslaaTitel("omsaetning_aarstakt", null)).toBeNull();
   });
 });

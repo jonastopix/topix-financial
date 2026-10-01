@@ -1,9 +1,10 @@
 # Dine mål — målmodellen, tal-målene og sporet (motor 1/10-2026)
 
-**Status:** motoren er bygget (branch `feat/dine-maal-motor`), ingen flade. Migrationen
-`20261001190000_maal_tal.sql` er IKKE kørt. Designpapiret (produkt og teknik) ligger
-som udkast i hovedsessionens scratchpad (`maal-produkt.md` §2, `maal-teknik.md`) — dette
-dokument er den del, motoren bygger på, bogført i repoet.
+**Status:** motoren er bygget (branch `feat/dine-maal-motor`, PR #1223); **fladen er bygget**
+(branch `feat/dine-maal-flade`, §8) og afventer merge + Update. Migrationen
+`20261001190000_maal_tal.sql` er KØRT i prod (målt FØR/EFTER, REST 200). Designpapiret
+(produkt og teknik) ligger som udkast i hovedsessionens scratchpad (`maal-produkt.md` §2,
+`maal-teknik.md`) — dette dokument er den del, motoren og fladen bygger på, bogført i repoet.
 
 ## Jonas' beslutninger 1/10-2026
 
@@ -221,5 +222,114 @@ holder nøglerne i takt med `handoutConfigs.overordnet`):
   opdateringen: den skriver hele rækken og afleder status af indholdet, så et UDFYLDT handout ville
   blive genåbnet. Kendt: læs-flet-skriv uden lås — en samtidig autosave i handoutet kan overskrive
   (samme forbehold som handoutets egen autosave i to faner).
-- **Ingen flade endnu.** Handoutets egen side står uændret; at fjerne de tre spørgsmål dér er en
-  fladebeslutning.
+- **Fladen (§8):** `JeresRetning.tsx` øverst på Dine mål. Handoutets egen side står uændret; at
+  fjerne de tre spørgsmål dér er stadig en åben fladebeslutning.
+
+## 8. Fladen (1/10-2026 aften, branch `feat/dine-maal-flade`)
+
+Jonas om den gamle side: «kedelig, intetsigende … grimt forvirrende design og dårlig UX og UI …
+kommer til at være død fra medlemmerne». Standarden: «Enkelthed er et nøgleord … medlemmer føler
+sig holdt i hånden og ikke er et sekund i tvivl». **Motoren regner alt; fladen tegner.** Fladens
+egne ord og de små afledninger (hovedlinje, chips, banens andele som procenter, et begivenhedsmåls
+skridt-fremdrift, guidens kort, tidslinjens positioner) står i `src/lib/hjemmebane/dineMaalFlade.ts`
+(ren, `dineMaalFlade.test.ts`) — komponenterne under `components/hjemmebane/milestones/` regner intet.
+
+### Siden oppefra (`DineMaalView.tsx`)
+
+1. **Hovedet:** eyebrow «Dine mål · <måned år>» (dansk tid), serif-overskrift «Hvor I er på vej
+   hen», én linje «N mål for de næste 12 måneder · M plads ledig» (`hovedLinje`; over grænsen siger
+   linjen det i stedet for et negativt tal) og status-chips «1 på sporet», «1 bagud» …
+   (`statusChips`: én pr. status blandt TAL-målene — begivenheder og gamle mål har ingen status at
+   tælle; bagud først; rust for bagud, sage for resten, dæmpet for «kan ikke afgøres» — `chipTone`).
+2. **«Jeres retning»** (`JeresRetning.tsx`): tre tilstande — henter (skelet), tom (ÉN invitation
+   «Skriv jeres retning (3 spørgsmål, 5 minutter)», der åbner redigeringen med alle tre felter inline
+   — valgt frem for ét felt ad gangen: de tre spørgsmål hører sammen, og tre felter på én skærm er
+   færre klik), udfyldt (læsbar tekst, «Ret» diskret; et ubesvaret spørgsmål siger «Ikke svaret
+   endnu»). Gemmes gennem `gemRetning` (§7); fejl står i feltet, «Fortryd» kasserer kladden.
+3. **Målkortene** (`MaalKort.tsx`, gitter: 1 kolonne på mobil, 2 på md, 3 på xl): chip (motorens
+   `statusOrd`) + `fristTekst` («om 6 mdr.»); titlen som serif-sætning; TALLET stort (`talTekst`)
+   med «pr. august (godkendt)» eller «tastet» (`talUndertekst`); banen (`bane`: fyldt =
+   `andelAfVejen` klippet 0–1, stregen = `forventetAndel`, med titlen «hvor I burde være pr. august»
+   — `stregTekst`) og under den «start · mål + frist»; et begivenhedsmål viser «1 af 3 skridt gjort»
+   (`skridtFremdrift`, ingen procent) i stedet for banen. Mangler tallet, står motorens grund i
+   stedet. Nederst ÉT næste skridt (`naeste.skridt`) med «senest <dato> · foreslået af <jer selv /
+   din rådgiver / AI>» (motorens `foreslaaetAf` — læst af `company_actions.source_type`,
+   `maalTal.skridtKilde`; et navn kræver et profilopslag og er bevidst IKKE bygget) og «Gjort»
+   (opgave-luk, som før); et ventende forslag får «Svar på forsiden». «N skridt mere · M gjort»
+   (`flereSkridtTekst`) folder resten ud (planens `skridtLinjer`). Uden skridt: «Hvad er det første,
+   I gør?» + «Tilføj skridt» (`TilfoejSkridtForm` fra `HbMaalRaekke.tsx` — SAMME formular som før og
+   som forsiden). **«Foreslå et» er udeladt:** der findes ingen medlemsvej til `foreslaa-opgave`
+   (kun chatten og Planen, rådgiverens). «…»-menuen: Redigér (`RedigerMaalDialog`), Parkér, Markér
+   som nået, Slet (bekræftes i siden, `SletMilestoneDialog`). **Gammelt mål (art null):** titlen og
+   ÉN handling «Gør målet skarpt» (guiden forudfyldt af `skarptForslag`); menuen har ikke Redigér.
+4. **Den stiplede plads** (`TomPladsKort`): «Plads til ét mål mere» + «Hvad skal ske i jeres
+   virksomhed det næste år?» + «Sæt et mål» — kun når `dineMaalDom.kanOprette` og ikke over grænsen.
+5. **«Rejsen»** (`Rejsen.tsx`): motorens `tidslinje` som enkel SVG (linjen, kvartalsmærker,
+   gjorte skridt som prikker under linjen, målenes frister som flag over — rust, evergreen når nået —
+   og «i dag» som en lodret streg) med husets tokens gennem `currentColor`; aksens ord, «i dag» og
+   forklaringen er HTML, så intet skaleres ulæseligt på 375 px; punkterne står også i ord (sr-only).
+   Tom: «Tidslinjen fyldes, efterhånden som I gør skridt og sætter frister.»
+6. **Nået og parkeret** står foldet nederst som før (`HbMaalRaekke`: Genåbn/Aktivér/Slet) — baren
+   dér er læs-kun (`kanSaetteFremdrift` er false for begge), og teksten er «Nået»/«Parkeret», ikke en
+   procent.
+
+**Skyderen og den blandede procent er væk fra siden:** `MilestoneDetaljeDialog` (range-input,
+«nuværende ÷ mål») og `OpretMilestoneDialog` er slettet fra `MilestoneDialoger.tsx` (kun slet står
+tilbage); `useMilestones.saetFremgang`/`saetNuvaerendeVaerdi` kaldes ikke af fladen (de står i hooket
+for forsiden/legat). Et TASTET tal (andet_tal) rettes i `RedigerMaalDialog` («Tallet nu») gennem
+`useMilestones.opdaterFelt`, som nu tager `current_value` — KUN den kolonne, aldrig `progress`.
+
+### Guiden «Sæt et mål» (`SaetMaalGuide.tsx`)
+
+Tre trin i `HbDialog` (bred): **1. «Hvad vil I nå?»** — seks kort (`guideKort`: de fire læste
+nøgler, «et andet tal», «noget der skal ske»); hvert læst kort viser det NUVÆRENDE tal med
+«pr. august (godkendt)» (`nytMaalForslag` → `nuvaerendeTal`) eller «mangler: <grund>» og kan da
+ikke vælges (dommen ville afvise det). «Hvad er et mål?» (`MAAL_FORKLARING_TEKST`, én kilde) står som
+dialogens beskrivelse. **2. «Hvor meget og hvornår?»** — måltal (+ udgangspunkt og enhed for
+andet_tal), frist (foreslået 12 mdr., `min` i dag, `max` 36 mdr.), den levende linje «Det kræver ca.
+X pr. måned» / «Tallet skal ned med ca. …» (`kraeverTekst` af motorens `kraeverPrMaaned`, regnet
+med dansk i dag og den valgte frist) og titlen, foreslået af motoren (`foreslaaTitel`:
+«Omsætning på 2 mio. kr. i årstakt», «4 mdr. drift i banken», «12 kunder») — den følger tallet,
+indtil medlemmet retter den. `doemNytMaal` kører ved «Videre» og viser grunden i titelfeltet.
+**3. «Det første skridt»** — titel + frist (foreslået som `TilfoejSkridtForm`: i dag + 14 under
+målets frist; `doemFrist` + `doemFristModMaal`, SAMME dom som skridt-tilfoej) eller «Spring over».
+Gem: `useDineMaalSkrivning.opret` (→ `opretMaalMedTal`), derefter skridtet gennem skridt-tilfoej med
+det nye måls id; fejler skridtet, siger dialogen det, og målet står. **«Gør målet skarpt»** er
+samme guide i to trin (uden skridt), forudfyldt med `skarptForslag` (titel, måltal, udgangspunkt,
+enhed) og gemt gennem `goerSkarpt`. «Højst tre aktive» er stadig databasens (trigger) og
+oversættes af `maalFejlTekst` gennem `opretMaalMedTal`.
+
+### Rollerne, tilstandene, værnene
+
+- **Rådgiveren** ser siden for en virksomhed som før (`companyId` fra `useAuth`; uden valgt
+  virksomhed `HbAdvisorCompanyPrompt`) og har de samme handlinger (klientvejen — uændret RLS).
+- **Tilstande:** henter (tre kort-skeletter i kortets højde — intet spring); fejl i mål/skridt
+  (`isError`: «Dine mål kunne ikke hentes.» + «Prøv igen» — invaliderer `["dine-maal"]`); Score
+  fejlede/afventer (`tallenFejlede`: én rolig linje, kortene står med «Tallet kan ikke læses endnu»);
+  migrationen ikke kørt (`afventerMigration`: én linje, alle mål som «Gør målet skarpt»).
+- **Mobil 375 px:** gitteret falder til én kolonne, chips og hovedlinje ombrydes, banens
+  «hvor I burde være» er titel på stregen (teksten kun fra sm), Rejsens ord er HTML.
+- **Fokus synligt** på alle knapper (husets ring); menuen er `role="menu"` i `HbPopover` (Escape,
+  klik udenfor); dialogerne er `HbDialog` (fokus fanges, Escape, fokus tilbage).
+- **Bevægelse:** banens `transition-[width]` og chevronen respekterer `motion-reduce`.
+- **Kildeværn rettet, fordi de bevidst fældede den gamle flade:** `dineMaal.guard` dom 4 (useMilestones'
+  destructure uden skyderen og `opret`; `skriv.opret`/`skriv.goerSkarpt` som oprettelsesvej;
+  `markerNaaetOgRyd`/`opdaterMaalFelt` som indpakning med invalidering; ingen direkte
+  `.from("milestones")` i fladen), `maalSkriv.guard` dom 4 (opret-knappen → den stiplede plads
+  `TomPladsKort` bag `dom.kanOprette`), `forsidePlan.guard` dom 6 («Hvad er et mål?» i guiden som
+  dialogens beskrivelse i trin 1 — DIALOG peger på `SaetMaalGuide.tsx`; den tomme tilstand er
+  blokken `data-dine-maal="tom"` før gitteret), `milepaelDom.guard` (`MilestoneDialoger.tsx` læser
+  ingen dom længere — kun slet står tilbage). Ingen værn er slækket: hver regel er flyttet til den
+  nye sandhed.
+- **Tests:** `dineMaalFlade.test.ts` (ordene og afledningerne), `MaalKort.test.tsx` (på sporet,
+  bagud, uden tal, gammelt mål, begivenhed, tom plads, menuen, Gjort), `SaetMaalGuide.test.tsx`
+  (trin 1 med/uden måneder, trin 2 «det kræver» og titelforslaget, dommen, trin 3 med/uden skridt,
+  begivenhed, gør skarpt), `JeresRetning.test.tsx` (tom/udfyldt/henter/fejl), `DineMaalView.test.tsx`
+  (siden oppefra, tre aktive, ingen mål, henter/fejl); motoren fik `skridtKilde` og `foreslaaTitel`
+  i `maalTal.test.ts`.
+
+### Åbne punkter efter fladen
+
+9. «Foreslået af <navn>» viser rollen, ikke navnet — et navn kræver et profilopslag pr. skridt.
+10. Kategori, beskrivelse og baseline på gamle mål vises ikke længere på fladen (data står).
+11. Handoutets side bærer stadig de tre retningsspørgsmål (§7) — dobbelt indgang, samme række.

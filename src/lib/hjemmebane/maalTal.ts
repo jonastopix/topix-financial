@@ -120,7 +120,44 @@ export const MAAL_ORD = {
   ikkeSammenhaengende: "De seneste tre måneder hænger ikke sammen — tallet kræver tre godkendte måneder i træk.",
   tastTallet: "Tast tallet — det læses ikke af regnskabet.",
   maaltalNaaetSpoergsmaal: "Måltallet er nået. Overvej at markere målet som nået.",
+  /** «foreslået af …» under det næste skridt — læst af company_actions.source_type (en observation, dømt mod ordforrådet). */
+  skridtKilde: {
+    medlem: "jer selv",
+    raadgiver: "din rådgiver",
+    ai: "AI",
+  } satisfies Record<SkridtKilde, string>,
+  /** Guidens trin 1: begivenhedskortet. */
+  begivenhedKort: { titel: "Noget der skal ske", tekst: "Fx «ansat den første» eller «ny butik åbnet» — fremdriften er skridtene." },
+  /** Guidens titelforslag (foreslaaTitel) — kan rettes af medlemmet. */
+  titelForslag: {
+    omsaetning_aarstakt: (maaltal: string) => `Omsætning på ${maaltal} i årstakt`,
+    resultat_aarstakt: (maaltal: string) => `Resultat før skat på ${maaltal} i årstakt`,
+    likviditet_mdr: (maaltal: string) => `${maaltal} drift i banken`,
+    db_grad: (maaltal: string) => `Dækningsgrad på ${maaltal}`,
+    andet_tal: (maaltal: string) => `${maaltal}`,
+  } satisfies Record<MaalNoegle, (maaltal: string) => string>,
 } as const;
+
+// ── Skridtets kilde ────────────────────────────────────────────────────────
+
+/** Hvem foreslog skridtet — tre ord i fladen («foreslået af jer selv / din rådgiver / AI»). */
+export type SkridtKilde = "medlem" | "raadgiver" | "ai";
+
+/**
+ * company_actions.source_type → kilde. Ordforrådet er det, functions skriver
+ * (målt i supabase/functions 1/10-2026): 'manual' = medlemmets eget
+ * (skridt-tilfoej; planen.MEDLEMMETS_EGET_KILDE), 'advisor' = foreslaa-opgave
+ * som rådgiver, 'ai_weekly' · 'agent' · 'reflection' · 'deterministic_template'
+ * · 'ai_extraction' = maskinen. Et ukendt eller manglende ord giver null —
+ * fladen skriver så intet «foreslået af».
+ */
+export function skridtKilde(sourceType: unknown): SkridtKilde | null {
+  if (typeof sourceType !== "string") return null;
+  if (sourceType === "manual") return "medlem";
+  if (sourceType === "advisor") return "raadgiver";
+  if (["ai_weekly", "agent", "reflection", "deterministic_template", "ai_extraction"].includes(sourceType)) return "ai";
+  return null;
+}
 
 // ── Tal-dommen ─────────────────────────────────────────────────────────────
 
@@ -486,6 +523,8 @@ export interface SkridtTilMaal {
   created_at?: string | null;
   /** Forslagets udløb (company_actions.expires_at) — et udløbet forslag er ikke et næste skridt. */
   expires_at?: string | null;
+  /** company_actions.source_type — hvem foreslog skridtet (skridtKilde). Valgfri: ældre kaldere læser den ikke. */
+  source_type?: string | null;
 }
 
 export interface NaesteSkridtDom {
@@ -498,6 +537,8 @@ export interface NaesteSkridtDom {
     frist: string | null;
     /** Aktivt skridt med frist før i dag (dansk dato). */
     forfalden: boolean;
+    /** «foreslået af …» i ord (MAAL_ORD.skridtKilde); null når kilden er ukendt. */
+    foreslaaetAf: string | null;
   } | null;
   /** Åbne skridt (aktive + ventende) ud over det viste. */
   oevrigeAabne: number;
@@ -554,8 +595,16 @@ export function naesteSkridt(maalId: string, skridt: readonly SkridtTilMaal[], n
   if (!valgt) return { skridt: null, oevrigeAabne: 0, gjorte };
   const frist = datoAf(valgt.due_date);
   const status = valgt.status === "active" ? "active" : "proposed";
+  const kilde = skridtKilde(valgt.source_type);
   return {
-    skridt: { id: valgt.id, titel: valgt.title, status, frist, forfalden: status === "active" && frist !== null && frist < idag },
+    skridt: {
+      id: valgt.id,
+      titel: valgt.title,
+      status,
+      frist,
+      forfalden: status === "active" && frist !== null && frist < idag,
+      foreslaaetAf: kilde ? MAAL_ORD.skridtKilde[kilde] : null,
+    },
     oevrigeAabne: aabne - 1,
     gjorte,
   };
@@ -680,6 +729,21 @@ export function nytMaalForslag(
     foreslaaetFrist,
     kraeverPrMaaned: udgangspunkt.status === "ok" && maaltal !== null ? kraeverPrMaanedFor(udgangspunkt.vaerdi, maaltal, idag, frist) : null,
   };
+}
+
+/**
+ * Guidens titelforslag (fladen 1/10-2026: «titlen foreslås af motoren men kan
+ * rettes»): én sætning af nøglen og måltallet i ord — «Omsætning på 2 mio. kr.
+ * i årstakt», «4 mdr. drift i banken», «Dækningsgrad på 40 %»; andet_tal
+ * «12 kunder» (måltal + enhed). Uden måltal: null (intet at foreslå). Et
+ * begivenhedsmål har intet forslag — sætningen ER målet, og medlemmet skriver den.
+ */
+export function foreslaaTitel(noegle: MaalNoegle, maaltal: number | null | undefined, egenEnhed: string | null = null): string | null {
+  const v = tal(maaltal);
+  if (v === null) return null;
+  const ord = vaerdiTekst(v, enhedFor(noegle), egenEnhed);
+  if (noegle === "andet_tal" && !(egenEnhed ?? "").trim()) return null;
+  return MAAL_ORD.titelForslag[noegle](ord);
 }
 
 /** Indholdet af et nyt mål, som guiden sender til skrivevejen (hooks/dineMaalGrundlag.ts). */

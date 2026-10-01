@@ -265,6 +265,8 @@ export function useMilestones({ userId, companyId, isAdvisor }: Args) {
     }
     if ("target_value" in fields) { dbFields.target_value = fields.target_value; localFields.target_value = fields.target_value; }
     if ("unit" in fields) { dbFields.unit = fields.unit || null; localFields.unit = fields.unit || null; }
+    // Fladen 1/10-2026: et TASTET tal (andet_tal) rettes her — KUN current_value, aldrig progress (fremdriften er motorens andel af vejen, maalTal.sporet).
+    if ("current_value" in fields && typeof fields.current_value === "number") { dbFields.current_value = fields.current_value; localFields.current_value = fields.current_value; }
     if ("description" in fields) { dbFields.description = fields.description || null; localFields.description = fields.description || null; }
     if ("deadline" in fields) {
       // Den dag medlemmet klikkede (lokal dag), ikke toISOString — den gav dagen

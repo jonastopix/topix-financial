@@ -108,7 +108,9 @@ describe("milepælenes dom — de dækkede flader bærer ingen egen regel", () =
   it("de dækkede flader, der viser milepæle, kalder motoren (direkte eller gennem useMilestones)", () => {
     expect(laes("src/components/hjemmebane/milestones/useMilestones.ts")).toContain("afgoerMilepael(");
     expect(laes("src/components/hjemmebane/virksomhed/VirksomhedView.tsx")).toContain("afgoerMilepael(");
-    for (const sti of ["HbMaalRaekke.tsx", "MilestoneDialoger.tsx"]) {
+    // MilestoneDialoger.tsx stod her til 1/10-2026 (detaljen læste ms.dom.faerdig); fladen afløste detaljen
+    // med RedigerMaalDialog (tegner motorens MaalKort, ingen tilstand) — filen er nu kun slet-dialogen uden dom.
+    for (const sti of ["HbMaalRaekke.tsx"]) {
       expect(strip(laes(`src/components/hjemmebane/milestones/${sti}`)), `${sti} læser ikke dommen`).toContain(".dom.");
     }
     // Siden dømmer gennem dineMaalDom (→ planenDom → afgoerMilepael) — ikke selv.
