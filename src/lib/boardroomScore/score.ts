@@ -2,17 +2,29 @@
  * src/lib/boardroomScore/score.ts — den samlede Boardroom Score, retningen
  * og «hvad løfter mest nu» (docs/boardroom-score.md §2.5, §2.6, §3).
  *
- *   score    = round( Σ point(søjler med data) / Σ max(søjler med data) × 1000 )
+ *   score    = round( Σ point(søjler med data) / Σ max(ALLE fire søjler) × 1000 )
+ *            = round( Σ point(søjler med data) )      (Σ max = 4 × 250 = 1000)
  *   daekning = Σ max(søjler med data) / 1000
- *   score er null, når færre end MIN_SOEJLER_MED_DATA søjler har data —
- *   manglende data straffes aldrig; de øvrige søjler skaleres op, og
- *   daekning siger, hvor meget scoren hviler på.
+ *   En søjle uden data giver 0 point (Jonas 1/10-2026 11:29: «drop
+ *   opskaleringen»). Den gamle regel delte med Σ max(søjler MED data) og
+ *   skalerede op — Brilleværk (indtjening 250, disciplin 150, likviditet og
+ *   vækst uden data) fik (250 + 150) / 500 × 1000 = 800; nu 250 + 150 = 400.
+ *   Opskaleringen belønnede huller: at lægge banktallet ind kunne SÆNKE
+ *   scoren. Nu kan mere data kun løfte tallet (en søjle går fra 0 til ≥ 0).
+ *   score er stadig null, når færre end MIN_SOEJLER_MED_DATA søjler har data;
+ *   daekning siger, hvor mange af de 1000 point der KAN optjenes nu.
  *
  *   forrige  = samme dom med `nu` én måned tilbage på de rækker, der DA var
  *              godkendt (første godkendelse ≤ det tidligere tidspunkt; en
  *              række uden kendt godkendelse var der ikke) — retningen uden
  *              lager. Begrænsning (rådets fund 4): budget og mål har intet
  *              tidspunkt i grundlaget og regnes som nu.
+ *
+ *   En handling, der LÅSER en søjle op, har nu en reel gevinst (0 → søjlens
+ *   point), men den er ikke regnet: søjlens point afhænger af tal, vi ikke
+ *   har (bankbeløbet, marginen, væksten), og alle tre kurver starter i 0
+ *   (LIKVIDITET/INDTJENING/VAEKST_KNAEK), så den eneste sande nedre grænse er
+ *   0. gevinst = null → fladen siger «Låser en søjle op».
  *
  *   Handlinger: én pr. søjle, regnet som marginal effekt på den SAMLEDE score
  *   (disciplin ved simulering af handlingen, de tre tal ved et skridt på
@@ -33,18 +45,20 @@ const RAEKKEFOELGE: SoejleNavn[] = ["disciplin", "likviditet", "indtjening", "va
 
 export function samlet(soejler: Soejler): { score: number | null; daekning: number; medData: number } {
   let point = 0;
-  let max = 0;
+  let maxMedData = 0;
+  let maxAlle = 0;
   let medData = 0;
   for (const navn of RAEKKEFOELGE) {
     const s = soejler[navn];
-    if (s.status !== "ok") continue;
+    maxAlle += s.max;
+    if (s.status !== "ok") continue; // uden data: 0 point — nævneren bærer stadig søjlens max
     point += s.point;
-    max += s.max;
+    maxMedData += s.max;
     medData++;
   }
-  const daekning = max / SCORE_MAX;
-  if (medData < MIN_SOEJLER_MED_DATA || max === 0) return { score: null, daekning, medData };
-  return { score: Math.round((point / max) * SCORE_MAX), daekning, medData };
+  const daekning = maxMedData / SCORE_MAX;
+  if (medData < MIN_SOEJLER_MED_DATA || maxAlle === 0) return { score: null, daekning, medData };
+  return { score: Math.round((point / maxAlle) * SCORE_MAX), daekning, medData };
 }
 
 /** «15.721» — hele kroner, dansk tusindtal, uden fortegn. */

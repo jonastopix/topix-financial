@@ -85,6 +85,19 @@ describe("daekningTekst", () => {
     expect(d.score).not.toBeNull();
     expect(daekningTekst(d)).toBe("Bygget på 3 af 4 søjler");
   });
+  it("uden opskalering (1/10-2026): scoren er summen af søjlernes point — likviditet uden data giver 0, ikke de andres gennemsnit", () => {
+    const med = boardroomScore(grundlag(keys("2025-06", 15).map((k) => sund(k))), NU);
+    const uden = boardroomScore(grundlag(keys("2025-06", 15).map((k) => sund(k, { cash: null }))), NU);
+    const sum = (d: typeof uden) => soejleLinjer(d).reduce((a, l) => a + (l.point ?? 0), 0);
+    expect(Math.abs((uden.score as number) - sum(uden))).toBeLessThanOrEqual(2);
+    expect(soejleLinjer(uden).find((l) => l.navn === "likviditet")).toMatchObject({ point: null, andel: 0 });
+    // At lægge banktallet ind kan kun løfte tallet.
+    expect(med.score as number).toBeGreaterThanOrEqual(uden.score as number);
+    // Handlingen, der låser likviditeten op, har ingen regnet gevinst (bankbeløbet er ukendt, kurven starter i 0).
+    const laas = uden.handlinger.find((h) => h.soejle === "likviditet")!;
+    expect(laas.gevinst).toBeNull();
+    expect(effektTekst(laas, uden)).toBe(EFFEKT_LAASER_OP);
+  });
 });
 
 describe("soejleLinjer", () => {

@@ -120,6 +120,21 @@ describe("ScoreKort", () => {
     expect(screen.getByText(SCORE_FORBEHOLD)).toBeTruthy();
   });
 
+  it("uden opskalering (1/10-2026): to søjler uden data står «—», og tallet er summen af barernes point", () => {
+    // Brilleværk-formen: ingen bank, for kort historik til vækst. Før 1/10 blev Σ point skaleret op til 1000.
+    const dom = boardroomScore(grundlag([sund("2026-07", { cash: null }), sund("2026-08", { cash: null })]), NU);
+    expect(dom.score).not.toBeNull();
+    const { container } = tegn({ dom });
+    const point = [...container.querySelectorAll("[data-soejle]")].map((el) => el.getAttribute("data-soejle-point"));
+    expect(container.querySelector('[data-soejle="likviditet"]')!.getAttribute("data-soejle-point")).toBe("ingen");
+    expect(container.querySelector('[data-soejle="vaekst"]')!.getAttribute("data-soejle-point")).toBe("ingen");
+    expect(container.querySelector('[data-soejle="likviditet"] dd')!.textContent).toBe("—");
+    const sum = point.filter((p) => p !== "ingen").reduce((a, p) => a + Number(p), 0);
+    // Barerne viser afrundede point; scoren er den afrundede sum — højst ½ point pr. søjle fra hinanden.
+    expect(Math.abs((dom.score as number) - sum)).toBeLessThanOrEqual(2);
+    expect(container.querySelector("[data-score-daekning-tekst]")!.textContent).toBe("Bygget på 2 af 4 søjler");
+  });
+
   it("uden score: «Ikke nok tal endnu», streaken står stadig", () => {
     const dom = boardroomScore(grundlag([], { kontraktStart: "2026-01-01" }), NU);
     expect(dom.score).toBeNull();

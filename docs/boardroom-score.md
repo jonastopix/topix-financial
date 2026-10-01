@@ -13,6 +13,10 @@ med rapportering [kører] med deadline d. 20. i måneden efter. Mere hvis
 Boardroom Score skal passe til det.» Scoren følger nu samme frist som
 `send-report-reminder` (`REMINDER_DAYS = [7, 15, 20]`). Se §4.
 
+**Opskaleringen er droppet (Jonas 1/10-2026 11:29: «drop opskaleringen»):**
+en søjle uden data giver 0 point; scoren er Σ point over alle fire søjler.
+Se §2.5 — den gamle regel står der, markeret som afløst.
+
 Jonas' ramme: «Folk er konkurrencemennesker … noget at jagte … visuelt
 overskueligt og spændende.» B2B-tone, aldrig barnlig. **Ingen rangliste
 mellem navngivne virksomheder** (BACKLOG 13/8 står ved magt: scoren er
@@ -202,16 +206,63 @@ frist er passeret).
 
 ### 2.5 Samlet score
 
+**Gældende regel (1/10-2026, Jonas 11:29: «drop opskaleringen»):**
+
+```
+score    = round( Σ point(søjler med data) / Σ max(ALLE fire søjler) × 1000 )
+         = round( Σ point(søjler med data) )        fordi Σ max = 4 × 250 = 1000
+daekning = Σ max(søjler med data) / 1000
+```
+
+En søjle uden data giver **0 point**. Færre end 2 søjler med data →
+**scoren er null** («ikke nok data»), og dommen siger, hvad der mangler.
+`daekning` og fladens «Bygget på X af 4 søjler» står uændret, men betyder
+nu «X søjler kan give point» — de øvrige står på kortet som «—», og deres
+handling siger «Låser en søjle op».
+
+**Målt i drift 1/10 — Brilleværk:** indtjening 250/250, disciplin 150/250,
+likviditet uden banktal, vækst uden sammenligning.
+
+```
+gammel regel: (250 + 150) / (250 + 250) × 1000 = 400 / 500 × 1000 = 800
+ny regel:      250 + 150 + 0 + 0                                   = 400
+```
+
+**Begrundelsen.** Opskaleringen belønnede huller og straffede ærlighed:
+lagde Brilleværk banktallet ind, og gav likviditeten fx 100 point, faldt
+scoren fra 800 til (250 + 150 + 100) / 750 × 1000 = 667. En score, der
+falder, fordi man giver os flere tal, lærer medlemmet at holde tal tilbage.
+Med den nye regel går en søjle fra 0 til ≥ 0 point, når den får data, så
+**mere data kan kun løfte tallet** (prøvet udtømmende i
+`score.test.ts`, «egenskab: at lægge en søjle til kan aldrig sænke
+scoren»). Prisen: et nyt medlem med to søjler står lavt (højst 500), indtil
+de øvrige tal er der — det er sandt, og kortet siger hvorfor («Bygget på 2
+af 4 søjler» + søjlerne med «—»).
+
+**`MIN_SOEJLER_MED_DATA` = 2 bevares** (ikke ændret). Uden opskalering er
+den ikke længere et værn mod et oppustet tal, men den værner stadig mod et
+tal, der ikke er et helbredstal: med én søjle ville scoren for et nyt
+medlem typisk være disciplin alene (0–250, ofte 0 — «0 af 1000» som første
+indtryk er en anklage, ikke en måling, jf. §5 pkt. 7). Overgangen fra 1 til
+2 søjler er null → tal, aldrig et fald, så reglen bryder ikke «mere data kan
+kun løfte».
+
+**`forrige`** regnes med samme `samlet()` og dermed samme regel; intet er
+gemt, så retningen sammenligner aldrig en ny score med en gammel,
+opskaleret.
+
+**Afløst regel (30/9-2026 → 1/10-2026), bevaret som historik:**
+
 ```
 score = round( Σ point(søjler med data) / Σ max(søjler med data) × 1000 )
 daekning = Σ max(søjler med data) / 1000
 ```
 
-Færre end 2 søjler med data → **scoren er null** («ikke nok data»), og
+~~Færre end 2 søjler med data → scoren er null («ikke nok data»), og
 dommen siger, hvad der mangler. Manglende data straffes aldrig; de
 resterende søjler skaleres op, og `daekning` viser, hvor stor en del af
 grundlaget scoren hviler på — fladen skal vise den (fx «bygget på 3 af 4
-søjler»). En score på 750 med to søjler er ikke det samme som 750 med fire.
+søjler»). En score på 750 med to søjler er ikke det samme som 750 med fire.~~
 
 ### 2.6 Stabilitet
 
@@ -251,7 +302,20 @@ likviditet, indtjening, vækst).
 Søjler uden data får handlingen «Upload en rapport med bank/…» med gevinst
 = null (kan ikke regnes), og vælges kun, når ingen søjle med data har en
 gevinst > 0. Gevinsten oversættes til samlet score gennem samme skalering
-som §2.5.
+som §2.5 — efter 1/10 er det 1:1 (et point i en søjle er et point i
+scoren).
+
+**Efter 1/10 (ingen opskalering) har en handling, der låser en søjle op, en
+REEL gevinst** (søjlen går fra 0 til sine point). Den regnes stadig ikke:
+point afhænger af tal, vi ikke har (bankbeløbet, marginen, væksten), og
+alle tre kurver starter i 0, så den eneste sande nedre grænse er 0 —
+«mindst +0» siger intet. Gevinsten forbliver null, og fladen siger «Låser
+en søjle op». **ÅBENT (beslutning, ikke truffet):** `loefterMitTal` viser
+stadig kun en oplåsende handling, når INGEN handling har en regnet gevinst
+> 0. Før 1/10 var det rigtigt (oplåsning kunne sænke scoren); nu kan en
+oplåsning være mere værd end fx «+25» for disciplin, men skjules af den.
+Kandidat: fyld ledige pladser (op til 3) med oplåsende handlinger efter de
+regnede.
 
 ---
 
@@ -492,6 +556,9 @@ hukommelsen. Enhver ANDEN fejl kaster `HentningsFejl` (en fejl er ikke «ingen t
 7. **Fravær som straf, kun i disciplin.** Alle andre søjler siger «ikke nok
    data». En medlem, der aldrig har uploadet, får disciplin 0 (hvis
    vinduet findes) og score null — og handlingen «Godkend august».
+   **Rettet 1/10-2026:** en søjle uden data giver nu 0 point i den samlede
+   score (§2.5) — fraværet koster point, men straffes ikke i SØJLEN (den
+   viser «—», ikke 0/250), og mere data kan kun løfte tallet.
 
 ---
 
