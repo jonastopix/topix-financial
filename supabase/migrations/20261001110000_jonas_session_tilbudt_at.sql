@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod 1/10-2026 ca. 13:15 via Lovable-MCP (hovedsessionen). FØR: kolonnen fandtes ikke · 52 companies · 22 med jonas_session_used_at. EFTER: timestamptz nullable · 0 sat · kommentar sat · ikke på hvidlisten. REST med anon-nøglen → 200. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
 --
 -- «SESSION MED JONAS · TILBUDT» (1/10-2026; Jonas 1/10 10:35: «ja tilbudt»).
 --
