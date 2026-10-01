@@ -20,7 +20,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { fjernWebinarKobling, hentWebinarKobling, koblTilWebinar, WEBINAR_KOBLING_KEY } from "@/hooks/webinarKobling";
+import { fjernWebinarKobling, hentWebinarKobling, KANDIDAT_LOFT, koblTilWebinar, WEBINAR_KOBLING_KEY } from "@/hooks/webinarKobling";
 import { WEBINAR_DASHBOARD_KEY } from "@/hooks/webinarDashboard";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 import {
@@ -31,6 +31,7 @@ import {
   KOBLING_FORSLAG_TITEL,
   KOBLING_KNAP,
   koblingLinje,
+  loftTekst,
   koblingsVisning,
 } from "@/lib/webinar/kobling";
 import { datoKort, tilmeldingTekst } from "@/lib/webinarDom";
@@ -65,7 +66,8 @@ export const WebinarKoblingAfsnit = ({ ansoegningId, navnAf }: { ansoegningId: s
 
   const d = q.data;
   const nu = new Date();
-  const forslag = foreslaaWebinarKobling(d.ansoegning, d.kandidater).slice(0, KOBLING_FORSLAG_MAKS);
+  // De optagne (koblet til en ANDEN ansøgning) foreslås aldrig — dommen udelukker dem (M2).
+  const forslag = foreslaaWebinarKobling(d.ansoegning, d.kandidater, d.optagne).slice(0, KOBLING_FORSLAG_MAKS);
   const visning = koblingsVisning(d.kobling !== null, d.mailMatcher, forslag);
 
   if (visning.art === "koblet" && d.kobling) {
@@ -84,6 +86,10 @@ export const WebinarKoblingAfsnit = ({ ansoegningId, navnAf }: { ansoegningId: s
         </button>
       </div>
     );
+  }
+  if (visning.art === "intet" && d.kandidaterAfkortet) {
+    // Intet forslag, men loftet er ramt: et ældre match kan mangle — det skal stå (L5).
+    return <p className="mt-3 text-xs text-hb-ink-soft" data-webinar-kobling-loft>{loftTekst(KANDIDAT_LOFT)}</p>;
   }
   if (visning.art !== "forslag") return null;
 
@@ -111,6 +117,7 @@ export const WebinarKoblingAfsnit = ({ ansoegningId, navnAf }: { ansoegningId: s
           </li>
         ))}
       </ul>
+      {d.kandidaterAfkortet && <p className="mt-2 text-xs text-hb-ink-soft" data-webinar-kobling-loft>{loftTekst(KANDIDAT_LOFT)}</p>}
     </div>
   );
 };

@@ -117,12 +117,18 @@ async function hentTilmeldinger(admin: SupabaseClient): Promise<{ raekker: Tilme
  * Webinarkoblingen (udkast 1/10-2026): ansøgnings-id → tilmeldingens mail for de
  * RÅDGIVERBEKRÆFTEDE koblinger (`ansoegning_webinar_kobling`), som hooken
  * (src/hooks/webinarKobling.ts: hentKoblingsMails). Manglende tabel (42P01/PGRST205,
- * migration 20261001090000 ikke kørt) → ingen koblinger; enhver anden fejl kastes.
- * Mailene forlader aldrig serveren — dommen (medWebinarKobling) bruger dem kun som nøgle.
+ * migration 20261001120000 ikke kørt) ELLER ukendt relation i PostgREST's schema-cache
+ * (PGRST200 — indlejringen `webinar_tilmeldinger(email)` før `NOTIFY pgrst`) → ingen
+ * koblinger; enhver anden fejl kastes. Mailene forlader aldrig serveren — dommen
+ * (medWebinarKobling) bruger dem kun som nøgle; svaret bærer kun antallet (`koblinger_talt`).
  */
+const KOBLING_FAIL_SOFT_KODER = ["42P01", "PGRST205", "PGRST200"];
 async function hentKoblingsMails(admin: SupabaseClient): Promise<Map<string, string>> {
   const res = await admin.from("ansoegning_webinar_kobling").select("ansoegning_id, webinar_tilmeldinger(email)").limit(GRAENSE);
-  if (res.error && (res.error.code === "42P01" || res.error.code === "PGRST205")) return new Map();
+  if (res.error && KOBLING_FAIL_SOFT_KODER.includes(res.error.code ?? "")) {
+    console.warn(`${LOG} webinarkoblingen springes over (${res.error.code}) — ingen koblinger i dommen`);
+    return new Map();
+  }
   if (res.error) throw new Error(`ansoegning_webinar_kobling: ${res.error.message}`);
   const kort = new Map<string, string>();
   for (const r of (res.data ?? []) as unknown as { ansoegning_id: string; webinar_tilmeldinger: { email: string | null } | null }[]) {

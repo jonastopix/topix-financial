@@ -4,6 +4,7 @@ import {
   koblingLinje,
   koblingsVisning,
   KOBLING_MAKS_DAGE,
+  loftTekst,
   navneMatch,
   normaliserNavn,
   normaliserTelefon,
@@ -14,6 +15,7 @@ import * as webDash from "@/lib/webinar/dashboard";
 import * as denoDash from "../../../../supabase/functions/_shared/webinarDashboard.ts";
 import * as webPris from "@/lib/webinar/annoncepriser";
 import * as denoPris from "../../../../supabase/functions/_shared/annoncepriser.ts";
+import { bygDeltSvar, findForbudteNoegler, koblingerTalt } from "../../../../supabase/functions/_shared/webinarDelingSvar.ts";
 
 /**
  * Webinarkoblingen (udkast 1/10-2026 — Jonas «forslag + klik»). Sagen bag:
@@ -135,6 +137,18 @@ describe("foreslaaWebinarKobling", () => {
   });
 });
 
+describe("foreslaaWebinarKobling — de optagne (rådets M2: én ansøgning pr. tilmelding)", () => {
+  const kandidater = [T({ id: "optaget", navn: "Lone Havndrup Hansen" }), T({ id: "fri", navn: "Lone Hansen", registreret_at: "2026-09-01T12:00:00.000Z" })];
+  it("en tilmelding koblet til en ANDEN ansøgning foreslås aldrig — heller ikke det stærkeste match", () => {
+    expect(foreslaaWebinarKobling(ANS, kandidater).map((f) => f.tilmelding.id)).toEqual(["optaget", "fri"]);
+    expect(foreslaaWebinarKobling(ANS, kandidater, new Set(["optaget"])).map((f) => f.tilmelding.id)).toEqual(["fri"]);
+    expect(foreslaaWebinarKobling(ANS, kandidater, new Set(["optaget", "fri"]))).toEqual([]);
+  });
+  it("et ukendt id i mængden ændrer intet", () => {
+    expect(foreslaaWebinarKobling(ANS, kandidater, new Set(["noget-andet"]))).toEqual(foreslaaWebinarKobling(ANS, kandidater));
+  });
+});
+
 describe("koblingsVisning og ordene", () => {
   const f = foreslaaWebinarKobling(ANS, [T({ id: "t1", navn: "Lone Hansen" })]);
   it("koblet vinder altid; mail-match viser intet forslag; ellers forslag eller intet", () => {
@@ -142,6 +156,10 @@ describe("koblingsVisning og ordene", () => {
     expect(koblingsVisning(false, 1, f).art).toBe("mail_match");
     expect(koblingsVisning(false, 0, f)).toEqual({ art: "forslag", forslag: f });
     expect(koblingsVisning(false, 0, []).art).toBe("intet");
+  });
+  it("loftet i ord, med tusindtalspunktum", () => {
+    expect(loftTekst(5000)).toBe("Kun de 5.000 nyeste tilmeldinger i vinduet er gennemset — en ældre tilmelding kan mangle blandt forslagene.");
+    expect(loftTekst(800)).toContain("Kun de 800 nyeste");
   });
   it("koblingLinje", () => {
     expect(koblingLinje("22/9", "Jonas Herlev")).toBe("Koblet til webinaret 22/9 af Jonas Herlev");
@@ -193,5 +211,39 @@ describe("medWebinarKobling — en bekræftet kobling tæller som et mail-match"
     expect(denoDash.webinarDashboard(ind as never, NU)).toEqual(webDash.webinarDashboard(ind, NU));
     const p = { ...ind, dage: [], annoncer: [], tilstand: "mangler" as const };
     expect(denoPris.annoncepriser(p as never, NU)).toEqual(webPris.annoncepriser(p, NU));
+  });
+});
+
+describe("hvorfor UNIQUE (tilmelding_id) — to ansøgninger på samme tilmelding tælles som én", () => {
+  it("tragtens mailsæt slår dem sammen: to medlemmer koblet til samme tilmelding giver 1, ikke 2", () => {
+    const tilmeldinger = [tilm("privat@gmail.com")];
+    const d = webDash.webinarDashboard({
+      tilmeldinger,
+      ansoegninger: [medlem("lone@firma.dk", "privat@gmail.com"), medlem("anden@firma.dk", "privat@gmail.com")],
+      sporKolonnerFindes: true,
+    }, NU);
+    // Det er netop fejlen, databasen (UNIQUE) og dommen (optagne) forhindrer.
+    expect(d.tragt.trin.find((t) => t.navn === "Blev medlem")?.antal).toBe(1);
+  });
+});
+
+describe("webinar-delt: beviset for udrulningen er `koblinger_talt` — et tal, ingen mails (rådets M3)", () => {
+  const ind = {
+    tilmeldinger: [tilm("privat@gmail.com"), tilm("anden@x.dk")],
+    ansoegninger: [medlem("lone@firma.dk", "privat@gmail.com"), medlem("b@x.dk", "  "), medlem("c@x.dk", null), medlem("d@x.dk")],
+    sporKolonnerFindes: true, dage: [], annoncer: [], tilstand: "mangler" as const, hentning: null, valg: "daekning" as const,
+  };
+  const svar = bygDeltSvar(ind as never, NU);
+  it("feltet findes og tæller kun de ikke-tomme koblinger", () => {
+    expect(svar.koblinger_talt).toBe(1);
+    expect(koblingerTalt([])).toBe(0);
+    expect(bygDeltSvar({ ...ind, ansoegninger: [medlem("c@x.dk")] } as never, NU).koblinger_talt).toBe(0);
+  });
+  it("svaret bærer ingen mails — heller ikke koblingens — og går rent gennem findForbudteNoegler", () => {
+    expect(findForbudteNoegler(svar)).toEqual([]);
+    const json = JSON.stringify(svar);
+    expect(json).not.toMatch(/@/);
+    expect(json).not.toContain("webinar_email");
+    expect(typeof svar.koblinger_talt).toBe("number");
   });
 });

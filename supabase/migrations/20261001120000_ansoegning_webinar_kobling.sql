@@ -13,6 +13,13 @@
 -- (dashboard.ts: medWebinarKobling — som om mailen matchede). Denne tabel er
 -- klikket: én række pr. ansøgning (UNIQUE), og en fejlkobling kan fjernes (DELETE).
 --
+-- ÉN ANSØGNING PR. TILMELDING (UNIQUE (tilmelding_id), rådets fund M2 1/10):
+-- tragten tæller ansøgerne som et SÆT af mails. Var to ansøgninger koblet til
+-- samme tilmelding, fik de samme mail og blev talt som ÉN — tragten ville falde
+-- med én, ikke stige. Databasen nægter derfor den anden kobling (23505), og
+-- forslagsdommen (foreslaaWebinarKobling) udelukker i forvejen tilmeldinger, der
+-- er koblet til en anden ansøgning.
+--
 -- ADGANG: rådgivere (has_role(auth.uid(), 'advisor') — admin arver advisor)
 -- SELECT/INSERT/DELETE. INGEN medlemsadgang, ingen UPDATE (en kobling rettes
 -- ved at fjerne den og koble igen — så `koblet_af`/`koblet_at` altid er klikkets).
@@ -33,12 +40,20 @@
 -- ikke service role, og der gives ingen ekstra policy til den.
 --
 -- RÆKKEFØLGEN: denne migration KØRT og MÅLT (EFTER-SELECT'en herunder) →
--- eksplicit udrulning af `webinar-delt` (beviset: et delt-svar svarer stadig
--- 200 — functionen er fail-soft på en manglende tabel, så beviset for den NYE
--- kode er, at en kobling flytter delingens tal) → Update. Fladen og
+-- eksplicit udrulning af `webinar-delt` → BEVISET for udrulningen: et delt-svar
+-- bærer feltet `koblinger_talt` (et tal, ingen mails — antallet af bekræftede
+-- koblinger, der indgik i dommen; 0 er et gyldigt svar). KUN den nye kode har
+-- feltet; uden det kører den gamle bundle, uanset hvad «View code» viser →
+-- FØRST DEREFTER Update. Fladen og
 -- dashboard-hooken er ligeledes fail-soft på en manglende tabel
 -- (erManglendeTabel), så en Update før migrationen lægger intet ned — men
 -- knappen «Kobl til webinaret» vises først, når tabellen findes.
+--
+-- SCHEMA-CACHEN: tragten henter koblingen med den indlejrede tilmelding
+-- (`select("ansoegning_id, webinar_tilmeldinger(email)")`), og det kræver, at
+-- PostgREST kender FK-relationen. Derfor `NOTIFY pgrst, 'reload schema';` SIDST
+-- i filen. Kender PostgREST den alligevel ikke (PGRST200), behandler hooken og
+-- webinar-delt det som en manglende tabel: ingen koblinger, intet vælter.
 --
 -- ─── FØR (forventet: tabel 0) ────────────────────────────────────────────────
 -- SELECT 'foer' AS sektion, count(*)::text AS vaerdi
@@ -46,7 +61,8 @@
 -- WHERE table_schema = 'public' AND table_name = 'ansoegning_webinar_kobling';
 --
 -- ─── EFTER (forventet: tabel 1 · rls true · policies 3 (SELECT, INSERT, DELETE;
---     alle {authenticated}) · unik 1 · grant_anon false · grant_update false) ──
+--     alle {authenticated}) · unik 2 (ansoegning_id og tilmelding_id) · grant_anon false
+--     · grant_update false) ──
 -- SELECT 'tabel' AS sektion, count(*)::text AS vaerdi FROM information_schema.tables
 --   WHERE table_schema = 'public' AND table_name = 'ansoegning_webinar_kobling'
 -- UNION ALL
@@ -56,7 +72,8 @@
 --   WHERE schemaname = 'public' AND tablename = 'ansoegning_webinar_kobling'
 -- UNION ALL
 -- SELECT 'unik', count(*)::text FROM pg_indexes
---   WHERE schemaname = 'public' AND tablename = 'ansoegning_webinar_kobling' AND indexdef ILIKE '%UNIQUE%(ansoegning_id)%'
+--   WHERE schemaname = 'public' AND tablename = 'ansoegning_webinar_kobling'
+--     AND (indexdef ILIKE '%UNIQUE%(ansoegning_id)%' OR indexdef ILIKE '%UNIQUE%(tilmelding_id)%')
 -- UNION ALL
 -- SELECT 'grant_anon', has_table_privilege('anon', 'public.ansoegning_webinar_kobling', 'SELECT')::text
 -- UNION ALL
@@ -70,14 +87,14 @@ CREATE TABLE IF NOT EXISTS public.ansoegning_webinar_kobling (
   koblet_at     timestamptz NOT NULL DEFAULT now(),
   -- Forslagets grund i ord, som rådgiveren så den («Samme fulde navn — men en anden mail»).
   grund         text,
-  CONSTRAINT ansoegning_webinar_kobling_en_pr_ansoegning UNIQUE (ansoegning_id)
+  CONSTRAINT ansoegning_webinar_kobling_en_pr_ansoegning UNIQUE (ansoegning_id),
+  -- Én ansøgning pr. tilmelding (M2): ellers tæller tragtens mailsæt to ansøgninger som én.
+  -- Det unikke indeks er også opslagsindekset på tilmelding_id (FK'ens cascade).
+  CONSTRAINT ansoegning_webinar_kobling_en_pr_tilmelding UNIQUE (tilmelding_id)
 );
 
-CREATE INDEX IF NOT EXISTS ansoegning_webinar_kobling_tilmelding_idx
-  ON public.ansoegning_webinar_kobling (tilmelding_id);
-
 COMMENT ON TABLE public.ansoegning_webinar_kobling IS
-  'Webinarkoblingen (1/10-2026): en rådgiverbekræftet kobling mellem en ansøgning og en webinartilmelding under en ANDEN mail. Foreslås af src/lib/webinar/kobling.ts (navn/telefon, ≤ 90 dage før), tæller i tragten som et mail-match (dashboard.ts: medWebinarKobling). Én pr. ansøgning; rådgivere SELECT/INSERT/DELETE, ingen medlemsadgang.';
+  'Webinarkoblingen (1/10-2026): en rådgiverbekræftet kobling mellem en ansøgning og en webinartilmelding under en ANDEN mail. Foreslås af src/lib/webinar/kobling.ts (navn/telefon, ≤ 90 dage før), tæller i tragten som et mail-match (dashboard.ts: medWebinarKobling). Én pr. ansøgning og én pr. tilmelding; rådgivere SELECT/INSERT/DELETE, ingen medlemsadgang.';
 
 ALTER TABLE public.ansoegning_webinar_kobling ENABLE ROW LEVEL SECURITY;
 
@@ -102,3 +119,7 @@ DROP POLICY IF EXISTS "Advisors can delete webinar kobling" ON public.ansoegning
 CREATE POLICY "Advisors can delete webinar kobling"
   ON public.ansoegning_webinar_kobling FOR DELETE TO authenticated
   USING (public.has_role(auth.uid(), 'advisor'));
+
+-- PostgREST skal kende FK-relationen til tilmeldingen, før indlejringen
+-- `webinar_tilmeldinger(email)` virker (ellers PGRST200). SIDST, efter alt andet.
+NOTIFY pgrst, 'reload schema';

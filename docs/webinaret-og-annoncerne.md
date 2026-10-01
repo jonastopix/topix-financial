@@ -579,10 +579,16 @@ hun tæller ikke — hverken som ansøger eller som medlem.
    Kun tilmeldinger SKARPT FØR ansøgningens `created_at`, højst **90 dage** før
    (tilmeldingens tid = `registreret_at`, ellers rækkens `created_at`).
    Rangeret navn + telefon > telefon > navn; fuldt navn før for+efternavn;
-   seneste før ældre. Grunden står i ord. **Et forslag tæller aldrig.**
+   seneste før ældre. Grunden står i ord. **Et forslag tæller aldrig.** En
+   tilmelding, der allerede er koblet til en ANDEN ansøgning, foreslås aldrig
+   (tredje argument `optagne`; rådets fund M2 1/10).
 2. **Klikket** er en række i `ansoegning_webinar_kobling` (migration
-   `20261001090000`): én pr. ansøgning (UNIQUE), rådgivere SELECT/INSERT/DELETE,
-   ingen medlemsadgang, ingen SECURITY DEFINER. Fladen:
+   `20261001120000`): én pr. ansøgning OG én pr. tilmelding (to UNIQUE'er),
+   rådgivere SELECT/INSERT/DELETE, ingen medlemsadgang, ingen SECURITY DEFINER.
+   **Hvorfor én pr. tilmelding (M2):** tragten tæller ansøgerne som et SÆT af
+   mails; to ansøgninger koblet til samme tilmelding får samme mail og tælles som
+   ÉN (prøvet i `kobling.test.ts`). Databasen nægter den anden (23505 → fladen
+   siger det i ord), og dommen foreslår den ikke. Fladen:
    `WebinarKoblingAfsnit` under «Svarene» på ansøgningen — «Mulig
    webinartilmelding» (navn · mail · tilmeldt · titel · status · grund) +
    «Kobl til webinaret»; efter klikket «Koblet til webinaret 22/9 af {rådgiver}»
@@ -594,7 +600,43 @@ hun tæller ikke — hverken som ansøger eller som medlem.
    `webinarDashboard` og i `annoncepriser` (begge spejle). Data hentes i
    `hooks/webinarDashboard.ts` (`hentKoblingsMails`) og i `webinar-delt`
    (samme opslag, service role). Fail-soft på en manglende tabel
-   (`erManglendeTabel` / 42P01 · PGRST205): ingen koblinger, intet vælter.
+   (`erManglendeTabel` / 42P01 · PGRST205) OG på en ukendt relation (PGRST200 —
+   indlejringen `webinar_tilmeldinger(email)` kræver, at PostgREST kender FK'en;
+   migrationen slutter med `NOTIFY pgrst, 'reload schema';`): ingen koblinger,
+   intet vælter.
+
+**Kandidat-opslaget (rådets fund L5):** hooken henter KUN de kolonner, dommen og
+fladen bruger (`KOBLING_TILMELDING_KOLONNER` = id · created_at · email · navn ·
+webinar_titel · session_tid · session_type · registreret_at · state · attended ·
+set_procent — intet annoncespor, ingen by/enhed, ingen `raa`; låst til typen af
+`webinarKobling.guard` dom 8), NYESTE FØRST (`registreret_at` desc, null sidst,
+så `created_at` desc, `id`), sideinddelt med `.range` i sider á 1.000 (PostgREST
+klipper stille ved max-rows 1.000, DEL 4 #929) til loftet `KANDIDAT_LOFT` =
+5.000. Rammes loftet, står det i ord på ansøgningen (`loftTekst`): «Kun de 5.000
+nyeste tilmeldinger i vinduet er gennemset — en ældre tilmelding kan mangle
+blandt forslagene.»
+
+**Kendte grænser for forslaget (rådets fund L6 — dommen er bevidst snæver):**
+
+- **Almindelige navne:** «Mette Jensen» kan matche flere personer. Navnet alene
+  er et forslag, aldrig en kobling — rådgiveren afgør, og fladen viser mail,
+  dato, session og status ved hvert forslag, så hun kan skelne. Højst tre forslag
+  vises (`KOBLING_FORSLAG_MAKS`).
+- **Omvendt rækkefølge:** «Hansen Lone» mod «Lone Hansen» matcher IKKE — dommen
+  sammenligner første med første og sidste med sidste ord. Bevidst: at bytte om
+  ville fordoble de falske træf på almindelige navne.
+- **Ét-ords navne:** «Lone» alene (på en af siderne) giver aldrig et
+  navneforslag — et fornavn kan ikke bære en kobling. Kun telefonen kan, og den
+  er UMÅLT på tilmeldingen (nedenfor).
+- Også uden for dommen: stavevarianter (`Soren` ≠ `Søren`), bindestreger
+  (`Havndrup-Hansen` er ét ord) og mellemnavne, der bytter plads med efternavnet.
+
+**Beviset for udrulningen af `webinar-delt` (rådets fund M3):** delt-svaret bærer
+feltet `koblinger_talt` — antallet af rådgiverbekræftede koblinger, der indgik i
+dommen (`koblingerTalt` i `_shared/webinarDelingSvar.ts`). Et TAL, aldrig en
+mail; det går gennem `bygDeltSvar` og `findForbudteNoegler` som resten
+(`kobling.test.ts`). KUN den nye kode har feltet; 0 er et gyldigt svar (også før
+migrationen). Uden feltet kører den gamle bundle, uanset hvad «View code» viser.
 
 **Vinduet — hvorfor 90 dage:** tragten og annoncesporet har INGEN dagsgrænse
 (tragtens grænse er `indsendt_at > session_tid`, §2). Det eneste vindue i huset
@@ -610,14 +652,14 @@ Målingen, før telefonen kobles på (Lovable SQL editor):
 
 **Rækkefølgen (merge lægger kilden; den udruller ikke):**
 
-1. Migration `20261001090000` KØRT i Lovable → SQL editor og MÅLT
-   (EFTER-SELECT'en i filhovedet: tabel 1 · rls true · 3 policies · unik 1 ·
+1. Migration `20261001120000` KØRT i Lovable → SQL editor og MÅLT
+   (EFTER-SELECT'en i filhovedet: tabel 1 · rls true · 3 policies · unik 2 ·
    grant_anon false · grant_update false).
 2. **Eksplicit udrulning af `webinar-delt`** fra build-chatten (den henter nu
-   koblingerne). Beviset: en kobling flytter delingens tal («ansøgt»/«medlem»
-   for sessionen) — functionen er fail-soft på tabellen, så et 200 alene
-   beviser intet.
-3. **Update** i Lovable (ansøgningsfladen + `/webinar`).
+   koblingerne). **Beviset:** et delt-svar (`/delt/webinar?t=…`, eller kaldet
+   målt serverside som 21/9) bærer feltet `koblinger_talt` (et tal). Et 200 uden
+   feltet er den gamle kode.
+3. **FØRST DEREFTER Update** i Lovable (ansøgningsfladen + `/webinar`).
 4. Første kobling: Green Solars ansøgning → «Kobl til webinaret» → `/webinar`
    viser sessionen 22/9 med én mere i «blev medlem» (hvis den gmail-tilmelding
    er forslaget — det er ikke målt, at navnene matcher).

@@ -4,21 +4,26 @@ import { resolve } from "node:path";
 
 /**
  * Kildeværn for webinarkoblingen (udkast 1/10-2026 — Jonas «forslag + klik»).
- * Syv domme, hver prøvet fra begge sider (rigtig kilde → sand, én ændring → falsk):
+ * Ni domme, hver prøvet fra begge sider (rigtig kilde → sand, én ændring → falsk):
  *   1. Migrationens filhoved: FØRSTE linje er «IKKE KØRT …», FØR/EFTER-SQL står i hovedet.
  *   2. RLS: slået til, KUN rådgiverpolicies (has_role … 'advisor'), SELECT/INSERT/DELETE,
  *      ingen medlemsadgang (user_company_id, auth.uid() = user_id), ingen UPDATE, anon intet.
  *   3. Ingen SECURITY DEFINER, ingen ny funktion, ingen trigger; has_role/user_company_id/
  *      handle_new_user røres ikke.
- *   4. Én pr. ansøgning (UNIQUE), FK'er med ON DELETE CASCADE, koblet_af = auth.uid() kræves.
+ *   4. Én pr. ansøgning OG én pr. tilmelding (UNIQUE begge — rådets M2), FK'er med ON DELETE
+ *      CASCADE, koblet_af = auth.uid() kræves, `NOTIFY pgrst, 'reload schema'` SIDST (L4).
  *   5. Tragten tæller koblingen ÉT sted: dommen (begge spejle) kalder medWebinarKobling
  *      FØR alt andet; annoncepriserne (begge spejle) gør det samme.
  *   6. Data hentes i hooken OG i webinar-delt (koblingerne pr. ansøgnings-id).
- *   7. Fladen tegner dommens forslag — ingen egen navne-/telefonsammenligning.
+ *   7. Fladen tegner dommens forslag — ingen egen navne-/telefonsammenligning — og giver
+ *      dommen de optagne tilmeldinger (M2).
+ *   8. Kandidat-opslaget henter KUN typens kolonner, nyeste først, sideinddelt til loftet (L5).
+ *   9. Beviset for udrulningen af webinar-delt: `koblinger_talt` i bygDeltSvar; PGRST200 er
+ *      fail-soft i functionen og i hooken (M3, L4).
  */
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
-const MIG = "supabase/migrations/20261001090000_ansoegning_webinar_kobling.sql";
+const MIG = "supabase/migrations/20261001120000_ansoegning_webinar_kobling.sql";
 const udenSqlKommentarer = (s: string) => s.replace(/--.*$/gm, "");
 
 export const hovedetErRigtigt = (sql: string): boolean => {
@@ -59,6 +64,8 @@ export const formenErRigtig = (sql: string): boolean => {
   const s = udenSqlKommentarer(sql);
   return (
     /UNIQUE \(ansoegning_id\)/.test(s) &&
+    /UNIQUE \(tilmelding_id\)/.test(s) &&
+    /NOTIFY pgrst, 'reload schema';\s*$/.test(s) &&
     /ansoegning_id uuid NOT NULL REFERENCES public\.ansoegninger\(id\) ON DELETE CASCADE/.test(s) &&
     /tilmelding_id uuid NOT NULL REFERENCES public\.webinar_tilmeldinger\(id\) ON DELETE CASCADE/.test(s) &&
     /koblet_af\s+uuid NOT NULL DEFAULT auth\.uid\(\)/.test(s) &&
@@ -83,9 +90,30 @@ export const koblingerneHentes = (hook: string, delt: string): boolean =>
   /webinar_email: koblinger\.get\(id\) \?\? null/.test(delt);
 
 export const fladenTegnerDommen = (flade: string): boolean =>
-  /foreslaaWebinarKobling\(d\.ansoegning, d\.kandidater\)/.test(flade) &&
+  /foreslaaWebinarKobling\(d\.ansoegning, d\.kandidater, d\.optagne\)/.test(flade) &&
   /koblingsVisning\(/.test(flade) &&
   !/normaliserNavn|normaliserTelefon|toLowerCase\(\)|\.telefon ===|\.navn ===/.test(flade);
+
+/** Kolonnelisten = typens felter (id, created_at + Pick'en), nyeste først, sideinddelt. */
+export const kandidaterneErSmalle = (hook: string): boolean => {
+  const kol = hook.match(/export const KOBLING_TILMELDING_KOLONNER =\s*\n?\s*"([^"]+)"/)?.[1] ?? "";
+  const pick = hook.match(/export type KoblingsTilmelding = Pick<WebinarTilmelding,\s*([^>]+)>/)?.[1] ?? "";
+  const typens = ["id", "created_at", ...[...pick.matchAll(/"([a-z_]+)"/g)].map((m) => m[1])].sort();
+  const listen = kol.split(",").map((k) => k.trim()).filter(Boolean).sort();
+  return (
+    listen.length > 0 && JSON.stringify(listen) === JSON.stringify(typens) &&
+    !/TILMELDING_KOLONNER\b(?!\s*=)/.test(hook.replace(/KOBLING_TILMELDING_KOLONNER/g, "")) &&
+    /\.order\("registreret_at", \{ ascending: false, nullsFirst: false \}\)/.test(hook) &&
+    /\.range\(start,/.test(hook) &&
+    /afkortet: true/.test(hook)
+  );
+};
+
+export const beviset = (svarFil: string, delt: string, hook: string): boolean =>
+  /koblinger_talt: number;/.test(svarFil) &&
+  /koblinger_talt: koblingerTalt\(ind\.ansoegninger\)/.test(svarFil) &&
+  /const KOBLING_FAIL_SOFT_KODER = \[[^\]]*"PGRST200"[^\]]*\];/.test(delt) &&
+  /res\.error\.code === "PGRST200"/.test(hook);
 
 describe("webinarkoblingens kildeværn", () => {
   const sql = laes(MIG);
@@ -120,6 +148,9 @@ describe("webinarkoblingens kildeværn", () => {
     expect(formenErRigtig(sql.replace("UNIQUE (ansoegning_id)", "CHECK (true)"))).toBe(false);
     expect(formenErRigtig(sql.replace("REFERENCES public.ansoegninger(id) ON DELETE CASCADE", "REFERENCES public.ansoegninger(id)"))).toBe(false);
     expect(formenErRigtig(sql.replace(" AND koblet_af = auth.uid())", ")"))).toBe(false);
+    expect(formenErRigtig(sql.replace("CONSTRAINT ansoegning_webinar_kobling_en_pr_tilmelding UNIQUE (tilmelding_id)", "CHECK (true)"))).toBe(false);
+    expect(formenErRigtig(sql.replace("\nNOTIFY pgrst, 'reload schema';", "\n"))).toBe(false);
+    expect(formenErRigtig(`${sql}\nSELECT 1;\n`)).toBe(false);
   });
 
   it("5. tragten tæller koblingen ét sted — i begge spejle og i annoncepriserne", () => {
@@ -142,6 +173,24 @@ describe("webinarkoblingens kildeværn", () => {
     const flade = laes("src/components/hjemmebane/ansoegninger/WebinarKoblingAfsnit.tsx");
     expect(fladenTegnerDommen(flade)).toBe(true);
     expect(fladenTegnerDommen(`${flade}\nconst egen = t.navn === a.navn;`)).toBe(false);
-    expect(fladenTegnerDommen(flade.replace("foreslaaWebinarKobling(d.ansoegning, d.kandidater)", "d.kandidater.map((tilmelding) => ({ tilmelding }))"))).toBe(false);
+    expect(fladenTegnerDommen(flade.replace("foreslaaWebinarKobling(d.ansoegning, d.kandidater, d.optagne)", "d.kandidater.map((tilmelding) => ({ tilmelding }))"))).toBe(false);
+    expect(fladenTegnerDommen(flade.replace("foreslaaWebinarKobling(d.ansoegning, d.kandidater, d.optagne)", "foreslaaWebinarKobling(d.ansoegning, d.kandidater)"))).toBe(false);
+  });
+
+  it("8. kandidat-opslaget: kun typens kolonner, nyeste først, sideinddelt til loftet", () => {
+    const hook = laes("src/hooks/webinarKobling.ts");
+    expect(kandidaterneErSmalle(hook)).toBe(true);
+    expect(kandidaterneErSmalle(hook.replace('"id, created_at, email, navn,', '"id, created_at, email, navn, by,'))).toBe(false);
+    expect(kandidaterneErSmalle(hook.replace('.order("registreret_at", { ascending: false, nullsFirst: false })', ""))).toBe(false);
+    expect(kandidaterneErSmalle(hook.replace(".range(start,", ".limit(5000, "))).toBe(false);
+  });
+
+  it("9. beviset for udrulningen (koblinger_talt) og PGRST200 fail-soft", () => {
+    const svarFil = laes("supabase/functions/_shared/webinarDelingSvar.ts");
+    const delt = laes("supabase/functions/webinar-delt/index.ts"), hook = laes("src/hooks/webinarKobling.ts");
+    expect(beviset(svarFil, delt, hook)).toBe(true);
+    expect(beviset(svarFil.replace(", koblinger_talt: koblingerTalt(ind.ansoegninger)", ""), delt, hook)).toBe(false);
+    expect(beviset(svarFil, delt.replace(', "PGRST200"', ""), hook)).toBe(false);
+    expect(beviset(svarFil, delt, hook.replace('res.error.code === "PGRST200"', "false"))).toBe(false);
   });
 });

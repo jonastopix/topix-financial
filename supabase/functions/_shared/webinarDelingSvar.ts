@@ -40,6 +40,18 @@ export interface DeltSvar {
   priser: Annoncepriser;
   hentning: HentningStatus | null;
   valg: VindueValg;
+  /**
+   * WEBINARKOBLINGEN (1/10-2026, rådets fund M3): antallet af rådgiverbekræftede
+   * koblinger (`ansoegning_webinar_kobling`), der indgik i dommen — ET TAL, aldrig
+   * en mail. Feltet er BEVISET for udrulningen af webinar-delt: kun den nye kode
+   * svarer med det (0 er et gyldigt svar — også før migrationen er kørt).
+   */
+  koblinger_talt: number;
+}
+
+/** Ansøgningerne, der bærer en bekræftet kobling (en ikke-tom `webinar_email`) — kun antallet. */
+export function koblingerTalt(ansoegninger: readonly AnsoegerMail[]): number {
+  return ansoegninger.filter((a) => typeof a.webinar_email === "string" && a.webinar_email.trim() !== "").length;
 }
 
 /** Ét kald, ét svar — samme domme som fladen, uden rækkerne. */
@@ -49,7 +61,7 @@ export function bygDeltSvar(ind: DeltInput, nu: Date): DeltSvar {
     { tilmeldinger: ind.tilmeldinger, ansoegninger: ind.ansoegninger, dage: ind.dage, annoncer: ind.annoncer, tilstand: ind.tilstand, valg: ind.valg, hentetTil: ind.hentning?.hentet_til ?? null },
     nu,
   );
-  return { dashboard, priser, hentning: ind.hentning, valg: ind.valg };
+  return { dashboard, priser, hentning: ind.hentning, valg: ind.valg, koblinger_talt: koblingerTalt(ind.ansoegninger) };
 }
 
 /** Stierne (a.b[0].c) til enhver forbudt nøgle i objektet — tom liste = rent. Går hele træet, også arrays. */

@@ -9,12 +9,16 @@
  *
  * LØSNINGEN: platformen FORESLÅR, rådgiveren BEKRÆFTER med ét klik, og først
  * da tæller tragten koblingen (`ansoegning_webinar_kobling`, migration
- * 20261001090000; dashboardets `medWebinarKobling`). Et forslag er ALDRIG en
+ * 20261001120000; dashboardets `medWebinarKobling`). Et forslag er ALDRIG en
  * kobling — dommen her skriver intet og tæller intet.
  *
- * DOMMEN `foreslaaWebinarKobling(ansoegning, tilmeldinger)`:
+ * DOMMEN `foreslaaWebinarKobling(ansoegning, tilmeldinger, optagne)`:
  *   · kun tilmeldinger, hvis mail IKKE er ansøgningens (mail-match er tragtens
  *     egen kobling og behøver ingen bekræftelse);
+ *   · ALDRIG en tilmelding, der allerede er koblet til en ANDEN ansøgning
+ *     (`optagne` = deres id'er; rådets fund M2 1/10): tragten tæller ansøgerne
+ *     som et sæt af mails, så to ansøgninger på samme tilmelding ville blive
+ *     talt som én. Databasen nægter det også (UNIQUE (tilmelding_id));
  *   · kun tilmeldinger FØR ansøgningens oprettelse (`created_at`), højst
  *     KOBLING_MAKS_DAGE før — SKARPT før: en tilmelding i samme millisekund
  *     er ikke «før». Tilmeldingens tid er `registreret_at`, ellers rækkens
@@ -133,7 +137,15 @@ function grundTekst(navn: NavnMatch | null, telefon: boolean): string {
 
 // ── Dommen ─────────────────────────────────────────────────────────────────
 
-export function foreslaaWebinarKobling<T extends KoblingTilmelding>(ansoegning: KoblingAnsoegning, tilmeldinger: readonly T[]): KoblingsForslag<T>[] {
+/** Ingen optagne tilmeldinger (standard — prøverne; fladen giver altid sin egen mængde). */
+const INGEN_OPTAGNE: ReadonlySet<string> = new Set<string>();
+
+export function foreslaaWebinarKobling<T extends KoblingTilmelding>(
+  ansoegning: KoblingAnsoegning,
+  tilmeldinger: readonly T[],
+  /** Id'erne på tilmeldinger, der allerede er koblet til en ANDEN ansøgning. */
+  optagne: ReadonlySet<string> = INGEN_OPTAGNE,
+): KoblingsForslag<T>[] {
   const oprettet = tid(ansoegning.created_at);
   if (oprettet === null) return [];
   const fra = oprettet - KOBLING_MAKS_DAGE * DAG_MS;
@@ -143,6 +155,7 @@ export function foreslaaWebinarKobling<T extends KoblingTilmelding>(ansoegning: 
   const ud: KoblingsForslag<T>[] = [];
   for (const t of tilmeldinger) {
     if (mail !== "" && t.email.trim().toLowerCase() === mail) continue;
+    if (optagne.has(t.id)) continue;
     const tt = tilmeldingsTid(t);
     if (tt === null || tt >= oprettet || tt < fra) continue;
     const navn = navneMatch(ansoegning.navn, t.navn);
@@ -185,12 +198,19 @@ export function koblingsVisning<T extends KoblingTilmelding>(
 /** Højst så mange forslag på fladen — resten er støj. */
 export const KOBLING_FORSLAG_MAKS = 3;
 
-export const KOBLING_EYEBROW = "Webinaret";
 export const KOBLING_FORSLAG_TITEL = "Mulig webinartilmelding";
 export const KOBLING_FORSLAG_FORKLARING =
   "Ansøgerens mail står ikke i eWebinar, men en tilmelding under en anden mail ligner. Et forslag tæller ikke — først når I kobler, tæller ansøgningen med i tragten på /webinar.";
 export const KOBLING_KNAP = "Kobl til webinaret";
 export const KOBLING_FJERN_KNAP = "Fjern koblingen";
+
+/**
+ * Loftet i ord (rådets fund L5 1/10): hooken gennemser højst `loft` tilmeldinger
+ * i vinduet, nyeste først. Rammes det, kan et ældre match mangle — det skal stå.
+ */
+export function loftTekst(loft: number): string {
+  return `Kun de ${String(loft).replace(/\B(?=(\d{3})+(?!\d))/g, ".")} nyeste tilmeldinger i vinduet er gennemset — en ældre tilmelding kan mangle blandt forslagene.`;
+}
 
 /** «Koblet til webinaret 22/9 af Jonas Herlev» — dato og navn kan mangle. */
 export function koblingLinje(sessionDato: string | null, raadgiver: string | null): string {

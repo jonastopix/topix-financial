@@ -3,20 +3,22 @@
  * er src/lib/webinar/kobling.ts's `foreslaaWebinarKobling`, tragtens brug af
  * koblingen er dashboard.ts's `medWebinarKobling`. Her hentes og skrives kun.
  *
- * Tabellen `ansoegning_webinar_kobling` (migration 20261001090000): rådgivere
+ * Tabellen `ansoegning_webinar_kobling` (migration 20261001120000): rådgivere
  * har SELECT/INSERT/DELETE, medlemmer intet. `as any` som hooks/webinar.ts,
  * indtil de genererede typer kender tabellen.
  *
  * TABELLEN KAN MANGLE (migrationen ikke kørt endnu): `erManglendeTabel` →
  * ingen koblinger, roligt. Fladen bliver rigtig af sig selv i samme sekund,
- * migrationen er kørt. Enhver ANDEN fejl kastes med kildens navn.
+ * migrationen er kørt. Tragtens indlejring `webinar_tilmeldinger(email)` kan
+ * desuden svare PGRST200 (PostgREST kender ikke FK-relationen endnu — migrationen
+ * slutter med `NOTIFY pgrst, 'reload schema'`); også det er «ingen koblinger».
+ * Enhver ANDEN fejl kastes med kildens navn.
  */
 import { supabase } from "@/integrations/supabase/client";
 import { HentningsFejl, kraevRaekker } from "@/lib/kraevRaekker";
 import { erManglendeTabel } from "@/lib/manglendeTabel";
 import { KOBLING_MAKS_DAGE, type KoblingAnsoegning } from "@/lib/webinar/kobling";
 import type { WebinarTilmelding } from "@/lib/webinarDom";
-import { TILMELDING_KOLONNER } from "@/hooks/webinar";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const tabel = (navn: string) => supabase.from(navn as any) as any;
@@ -24,8 +26,30 @@ const tabel = (navn: string) => supabase.from(navn as any) as any;
 export const KOBLING_TABEL = "ansoegning_webinar_kobling";
 export const WEBINAR_KOBLING_KEY = (ansoegningId: string) => ["webinar-kobling", ansoegningId] as const;
 
-/** Tilmeldingen med id og rækkens created_at — det dommen og fladen skal bruge. */
-export type KoblingsTilmelding = WebinarTilmelding & { id: string; created_at: string | null; telefon: null };
+/**
+ * Tilmeldingen, som dommen og fladen læser den — KUN de felter, de bruger
+ * (rådets fund L5 1/10): dommen id · email · navn · registreret_at · created_at;
+ * fladen desuden webinar_titel og linjen `tilmeldingTekst` (session_tid ·
+ * session_type · state · attended · set_procent). Intet annoncespor, ingen by/
+ * enhed, ingen `raa` — det skal rådgiveren ikke bruge for at bekræfte en kobling.
+ */
+export type KoblingsTilmelding = Pick<WebinarTilmelding,
+  "email" | "navn" | "webinar_titel" | "session_tid" | "session_type" | "registreret_at" | "state" | "attended" | "set_procent"
+> & { id: string; created_at: string | null; telefon: null };
+
+/** Kolonnerne til KoblingsTilmelding — låst til typen af kildeværnet (webinarKobling.guard dom 8). */
+export const KOBLING_TILMELDING_KOLONNER =
+  "id, created_at, email, navn, webinar_titel, session_tid, session_type, registreret_at, state, attended, set_procent";
+
+/**
+ * LOFTET på kandidaterne: højst så mange tilmeldinger i vinduet gennemses,
+ * NYESTE FØRST. PostgREST klipper stille ved max-rows (1.000 — DEL 4, #929),
+ * så de hentes sideinddelt (`.range`) i sider á KANDIDAT_SIDE til loftet.
+ * Rammes loftet, siger fladen det i ord (`kandidaterAfkortet`): et ældre
+ * match kan da mangle.
+ */
+export const KANDIDAT_LOFT = 5000;
+const KANDIDAT_SIDE = 1000;
 
 export interface Kobling {
   ansoegning_id: string;
@@ -41,15 +65,17 @@ export interface KoblingsData {
   kobling: Kobling | null;
   /** Tilmeldingen bag koblingen (null uden kobling, eller hvis den ikke kunne læses). */
   koblet: KoblingsTilmelding | null;
-  /** Kandidaterne i vinduet — dommen afgør, hvilke der er forslag. */
+  /** Kandidaterne i vinduet, nyeste først — dommen afgør, hvilke der er forslag. */
   kandidater: KoblingsTilmelding[];
+  /** true = loftet (KANDIDAT_LOFT) blev ramt; ældre tilmeldinger i vinduet er ikke gennemset. */
+  kandidaterAfkortet: boolean;
+  /** Tilmeldinger, der allerede er koblet til en ANDEN ansøgning — dommen foreslår dem aldrig. */
+  optagne: ReadonlySet<string>;
   /** Tilmeldinger på ansøgerens EGEN mail (dommen viser intet forslag, når der er nogen). */
   mailMatcher: number;
   /** false = migrationen er ikke kørt; afsnittet står roligt. */
   tabelFindes: boolean;
 }
-
-const KOLONNER = `id, created_at, ${TILMELDING_KOLONNER}`;
 
 function somRaekke(r: Record<string, unknown>): KoblingsTilmelding {
   const p = r.set_procent;
@@ -57,13 +83,36 @@ function somRaekke(r: Record<string, unknown>): KoblingsTilmelding {
 }
 
 /**
- * Alt til afsnittet på ansøgningen, i fire opslag: ansøgningen (navn, telefon,
- * mail, oprettelse), koblingen, kandidaterne i vinduet og mail-matcherne.
+ * Kandidaterne i vinduet: alle tilmeldinger med `registreret_at` i vinduet ELLER
+ * uden `registreret_at` (dommen falder da tilbage på rækkens created_at),
+ * NYESTE FØRST (`registreret_at` desc, null sidst, så `created_at` desc og `id`
+ * for en stabil sideinddeling), sideinddelt til KANDIDAT_LOFT.
+ */
+async function hentKandidater(fra: string): Promise<{ kandidater: KoblingsTilmelding[]; afkortet: boolean }> {
+  const alle: Record<string, unknown>[] = [];
+  for (let start = 0; start < KANDIDAT_LOFT; start += KANDIDAT_SIDE) {
+    const res = await tabel("webinar_tilmeldinger")
+      .select(KOBLING_TILMELDING_KOLONNER)
+      .or(`registreret_at.gte.${fra},registreret_at.is.null`)
+      .order("registreret_at", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false, nullsFirst: false })
+      .order("id", { ascending: true })
+      .range(start, Math.min(start + KANDIDAT_SIDE, KANDIDAT_LOFT) - 1);
+    const side = kraevRaekker(res, "webinar_tilmeldinger") as Record<string, unknown>[];
+    alle.push(...side);
+    if (side.length < KANDIDAT_SIDE) return { kandidater: alle.map(somRaekke), afkortet: false };
+  }
+  // Fem fulde sider: loftet er ramt — der KAN være flere (ældre) i vinduet.
+  return { kandidater: alle.map(somRaekke), afkortet: true };
+}
+
+/**
+ * Alt til afsnittet på ansøgningen: ansøgningen (navn, telefon, mail,
+ * oprettelse), koblingen, de optagne tilmeldinger, kandidaterne i vinduet og
+ * mail-matcherne.
  *
- * KANDIDATERNE: alle tilmeldinger med `registreret_at` i vinduet ELLER uden
- * `registreret_at` (dommen falder da tilbage på rækkens created_at). Den
- * øvre grænse og mail-udelukkelsen sættes af DOMMEN, ikke her — ét sted.
- * TELEFON: ingen kolonne på tilmeldingen (UMÅLT i eWebinars `raa`) — null.
+ * Den øvre grænse, mail-udelukkelsen og de optagne sættes af DOMMEN, ikke her
+ * — ét sted. TELEFON: ingen kolonne på tilmeldingen (UMÅLT i eWebinars `raa`) — null.
  */
 export async function hentWebinarKobling(ansoegningId: string): Promise<KoblingsData> {
   const aRes = await tabel("ansoegninger").select("id, email, navn, telefon, created_at").eq("id", ansoegningId).limit(1);
@@ -73,7 +122,7 @@ export async function hentWebinarKobling(ansoegningId: string): Promise<Koblings
 
   const kRes = await tabel(KOBLING_TABEL).select("ansoegning_id, tilmelding_id, koblet_af, koblet_at, grund").eq("ansoegning_id", ansoegningId).limit(1);
   if (kRes.error && erManglendeTabel(kRes.error)) {
-    return { ansoegning, kobling: null, koblet: null, kandidater: [], mailMatcher: 0, tabelFindes: false };
+    return { ansoegning, kobling: null, koblet: null, kandidater: [], kandidaterAfkortet: false, optagne: new Set(), mailMatcher: 0, tabelFindes: false };
   }
   const kobling = ((kraevRaekker(kRes, KOBLING_TABEL) as Kobling[])[0]) ?? null;
 
@@ -81,20 +130,26 @@ export async function hentWebinarKobling(ansoegningId: string): Promise<Koblings
   const fra = new Date((Number.isNaN(oprettet) ? Date.now() : oprettet) - KOBLING_MAKS_DAGE * 24 * 60 * 60 * 1000).toISOString();
   const mail = (ansoegning.email ?? "").trim().toLowerCase();
 
-  const [cRes, mRes, tRes] = await Promise.all([
-    tabel("webinar_tilmeldinger").select(KOLONNER).or(`registreret_at.gte.${fra},registreret_at.is.null`).limit(5000),
+  const [c, mRes, tRes, oRes] = await Promise.all([
+    hentKandidater(fra),
     mail === "" ? Promise.resolve({ data: [], error: null }) : tabel("webinar_tilmeldinger").select("id").eq("email", mail).limit(50),
-    kobling === null ? Promise.resolve({ data: [], error: null }) : tabel("webinar_tilmeldinger").select(KOLONNER).eq("id", kobling.tilmelding_id).limit(1),
+    kobling === null ? Promise.resolve({ data: [], error: null }) : tabel("webinar_tilmeldinger").select(KOBLING_TILMELDING_KOLONNER).eq("id", kobling.tilmelding_id).limit(1),
+    // De ANDRE ansøgningers koblinger (M2): én række pr. manuelt klik — få, langt under max-rows.
+    tabel(KOBLING_TABEL).select("tilmelding_id").neq("ansoegning_id", ansoegningId).limit(1000),
   ]);
-  const kandidater = (kraevRaekker(cRes, "webinar_tilmeldinger") as Record<string, unknown>[]).map(somRaekke);
   const mailMatcher = (kraevRaekker(mRes, "webinar_tilmeldinger") as unknown[]).length;
   const koblet = ((kraevRaekker(tRes, "webinar_tilmeldinger") as Record<string, unknown>[]).map(somRaekke))[0] ?? null;
-  return { ansoegning, kobling, koblet, kandidater, mailMatcher, tabelFindes: true };
+  const optagne = new Set((kraevRaekker(oRes, KOBLING_TABEL) as { tilmelding_id: string }[]).map((r) => r.tilmelding_id));
+  return { ansoegning, kobling, koblet, kandidater: c.kandidater, kandidaterAfkortet: c.afkortet, optagne, mailMatcher, tabelFindes: true };
 }
 
 /** Rådgiverens klik. `koblet_af` sættes af databasen (default auth.uid(), policy kræver det). */
 export async function koblTilWebinar(ansoegningId: string, tilmeldingId: string, grund: string): Promise<void> {
   const res = await tabel(KOBLING_TABEL).insert({ ansoegning_id: ansoegningId, tilmelding_id: tilmeldingId, grund });
+  // 23505 = en af de to UNIQUE'er: ansøgningen har en kobling, eller tilmeldingen er koblet til en anden.
+  if (res.error?.code === "23505") {
+    throw new HentningsFejl(KOBLING_TABEL, "tilmeldingen er allerede koblet til en anden ansøgning — eller ansøgningen har allerede en kobling. Genindlæs siden.");
+  }
   if (res.error) throw new HentningsFejl(KOBLING_TABEL, res.error.message || "ukendt fejl");
 }
 
@@ -107,11 +162,13 @@ export async function fjernWebinarKobling(ansoegningId: string): Promise<void> {
 
 /**
  * Koblingerne til tragten: ansøgnings-id → tilmeldingens mail. Én hentning
- * med den indlejrede tilmelding (FK tilmelding_id). Manglende tabel → tomt kort.
+ * med den indlejrede tilmelding (FK tilmelding_id). Manglende tabel eller
+ * ukendt relation (PGRST200) → tomt kort.
  */
 export async function hentKoblingsMails(): Promise<Map<string, string>> {
   const res = await tabel(KOBLING_TABEL).select("ansoegning_id, webinar_tilmeldinger(email)").limit(5000);
-  if (res.error && erManglendeTabel(res.error)) return new Map();
+  // PGRST200: PostgREST kender ikke FK-relationen (schema-cachen ikke genindlæst) — som en manglende tabel.
+  if (res.error && (erManglendeTabel(res.error) || res.error.code === "PGRST200")) return new Map();
   const kort = new Map<string, string>();
   for (const r of kraevRaekker(res, KOBLING_TABEL) as { ansoegning_id: string; webinar_tilmeldinger: { email: string | null } | null }[]) {
     const m = (r.webinar_tilmeldinger?.email ?? "").trim().toLowerCase();

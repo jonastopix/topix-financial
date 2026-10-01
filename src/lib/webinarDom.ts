@@ -371,7 +371,10 @@ function procentTekst(p: number): string {
 }
 
 /** Én tilmelding i ord: «så 62 % af webinaret 22/9 (delvist)». */
-export function tilmeldingTekst(t: WebinarTilmelding, nu: Date): string {
+/** Felterne, linjen læser (dommen + `session_type`) — en smal hentning (webinarkoblingen) kan give netop dem. */
+export type TilTekst = TilDom & Pick<WebinarTilmelding, "session_type">;
+
+export function tilmeldingTekst(t: TilTekst, nu: Date): string {
   const grad = doemSetGrad(t, nu);
   const dato = datoKort(t.session_tid);
   const hvad = dato ? `webinaret ${dato}` : (t.session_type ?? "").toLowerCase() === "replay" || (t.session_type ?? "").toLowerCase() === "ondemand" ? "optagelsen" : "webinaret";
