@@ -11430,6 +11430,10 @@ Set som claude@ (tjenestekonto): rådgiverforsiden, Green Solars virksomhedsside
 - **Affiliate:** Jonas er enig i anbefalingerne (`docs/affiliate-design.md`); medlemmet sender en faktura på **5.000 kr. ekskl. moms** til Topix.dk ApS pr. medlem, der kommer ind via deres henvisning.
 - **boardroom-2-prod:** (1) Claude gemmer Stripe-konteringsmønstrene og e-conomic-fejlkataloget i repoet, (2) Jonas roterer Stripe-nøglen, Klaviyos private nøgle og e-conomic-grantet, (3) projektet pauses og slettes efter 30 dage. Kort `a30-boardroom-2-prod`.
 
+#### 7b. Oprydning, skive 1 — kun det, der beviseligt er dødt (Jonas 30/9 20:57: «fjern skrammel og gammel kode, men forsigtigt»)
+
+En recon-agent (kun læsning) byggede importgrafen fra `src/main.tsx` (statiske og dynamiske imports, 61 `lazy(`) og fandt 69 filer i `src/`, som intet når. Kun kategorien SIKKER er slettet, og hver fil er kontrolleret igen af hovedsessionen med en præcis import-søgning (`@/…`, `./…`, `src/…` i `src`, `supabase`, `scripts`, `.github`) og en søgning i alle tests: 20 filer (bl.a. `AIFinancialAnalysis`, `FileUploadZone`, `PreviewHjemmebane` og dens tre kort, `pages/Boardroom`, `App.css`). tsc rent, `bun run build` grønt, `bun run test` 611/8744 — to tests færre end main, fordi `fuldhøjde`-værnet genererer to tests pr. fil, og `PreviewHjemmebane.tsx` var én af dem (målt med en navnediff af JSON-rapporterne). **IKKE rørt (bevidst):** 27 ubrugte shadcn-filer i `components/ui/` og deres npm-pakker, `CombinedBudgetWidget` (læses af et værn), de testede spejle i `src/lib` (paritet med `_shared/`), marketingmotorens lag 1/6 (kun tests — lag 4 er ikke bygget), edge functions (kan kaldes udefra uden spor i repoet), `pdf-lib`. De er næste skiver, hver med sin egen måling.
+
 #### 8. Åbne punkter (nat)
 
 - Beviset for `run-company-agent` (#1191): `annoncerede_vaerktoejer` i et svar.
