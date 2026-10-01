@@ -186,7 +186,7 @@ function renderNode(node: CommunityNode, key: number): ReactNode {
 
     case "orderedList":
       return (
-        <ol key={key} className="list-decimal space-y-2 pl-5 marker:text-hb-ink-soft">
+        <ol key={key} start={node.start} className="list-decimal space-y-2 pl-5 marker:text-hb-ink-soft">
           {renderIndhold(node.content)}
         </ol>
       );

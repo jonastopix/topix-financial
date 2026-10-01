@@ -1,7 +1,7 @@
 import { Fragment, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import DOMPurify from "dompurify";
 import { henvisningsAdresse, parseChatDokument, type ChatNode } from "@/lib/chatDokument";
+import { nummererLister, renskChatHtml } from "@/lib/chatHtml";
 
 /** Boblens tekst i begge chatpaner (29/9-2026, «#» i chatten, trin 3).
 
@@ -13,10 +13,10 @@ import { henvisningsAdresse, parseChatDokument, type ChatNode } from "@/lib/chat
 
     Ellers — alle gamle beskeder, alle andre skrivere, og en besked hvis
     dokument ikke overlever hvidlisten — tegnes content PRÆCIS som før:
-    samme element, samme klasser, samme DOMPurify-liste. */
-
-const TILLADTE_TAGS = ["b", "strong", "i", "em", "ul", "ol", "li", "a", "p", "br"];
-const TILLADTE_ATTR = ["href", "target", "rel"];
+    samme element, samme klasser, samme DOMPurify-liste — med ÉN undtagelse
+    (1/10-2026, «1. 1. 1.»): `start` på <ol> bevares, og en liste, der kun er
+    skilt fra den forrige af tomme afsnit, fortsætter tællingen. Begge veje:
+    src/lib/chatHtml.ts (renskChatHtml / nummererLister). */
 
 function renderTekst(node: Extract<ChatNode, { type: "text" }>): ReactNode {
   let element: ReactNode = node.text;
@@ -44,7 +44,7 @@ function renderNode(node: ChatNode, key: number): ReactNode {
     case "bulletList":
       return <ul key={key}>{renderIndhold(node.content as ChatNode[])}</ul>;
     case "orderedList":
-      return <ol key={key}>{renderIndhold(node.content as ChatNode[])}</ol>;
+      return <ol key={key} start={node.start}>{renderIndhold(node.content as ChatNode[])}</ol>;
     case "listItem":
       return <li key={key}>{renderIndhold(node.content as ChatNode[])}</li>;
     case "hardBreak":
@@ -75,14 +75,14 @@ function renderIndhold(noder: ChatNode[]): ReactNode[] {
 }
 
 export function ChatBeskedTekst({ content, dokument }: { content: string; dokument?: unknown }) {
-  const noder = dokument == null ? [] : parseChatDokument(dokument);
+  const noder = dokument == null ? [] : nummererLister(parseChatDokument(dokument));
   if (noder.length > 0) {
     return <div className="text-sm leading-relaxed chat-html-content">{renderIndhold(noder)}</div>;
   }
   return (
     <div
       className="text-sm leading-relaxed chat-html-content"
-      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(content, { ALLOWED_TAGS: TILLADTE_TAGS, ALLOWED_ATTR: TILLADTE_ATTR }) }}
+      dangerouslySetInnerHTML={{ __html: renskChatHtml(content) }}
     />
   );
 }
