@@ -39,9 +39,14 @@ const DAEKKEDE = [
   // existsSync, så slettede stier SKAL ud herfra.
 ];
 
-/** Motoren selv er den ENESTE der må skrive reglen — og kun disse to linjer. */
+/** Motoren selv er den ENESTE der må skrive reglen — og kun disse linjer.
+    1/10-2026 (Jonas: «klikker gjort på et skridt, så lukker målet»): «nået»
+    er KUN status = 'completed' (erMarkeretNaaet); progress >= 100 står kun i
+    skyderens skriveregel (statusEfterFremgang — et menneskes klik). */
 const MOTORENS_EGNE_LINJER = [
-  'const faerdig = !parkeret && (input.status === "completed" || progress >= 100);',
+  'return status === "completed";',
+  "const faerdig = !parkeret && erMarkeretNaaet(input.status);",
+  'return progress >= 100 ? "completed" : "active";',
 ];
 
 const AFVIGERE: Array<{ sti: string; regel: string; hvorfor: string }> = [

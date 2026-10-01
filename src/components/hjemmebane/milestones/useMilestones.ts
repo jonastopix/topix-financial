@@ -7,6 +7,8 @@ import type { MilestoneCategory } from "@/lib/milestoneCategories";
 import { afgoerMilepael, sammenlignAktive, statusEfterFremgang, type MilepaelDom, type MilepaelTilstand } from "@/lib/milepaelDom";
 // Fase 2 («Én plan», 16/9): «højst tre aktive» håndhæves af databasen (trigger) — fladen oversætter fejlen til husets tekst.
 import { maalFejlTekst } from "@/lib/hjemmebane/maalFejl";
+// 1/10-2026: datovælgerens lokale dag → «YYYY-MM-DD» (toISOString gav dagen før i dansk tid).
+import { lokalDatoStreng } from "@/lib/hjemmebane/dineMaal";
 
 /**
  * Datalaget for Hb-milestonefladen — en ren FLYTNING af logikken i
@@ -256,8 +258,11 @@ export function useMilestones({ userId, companyId, isAdvisor }: Args) {
     if ("unit" in fields) { dbFields.unit = fields.unit || null; localFields.unit = fields.unit || null; }
     if ("description" in fields) { dbFields.description = fields.description || null; localFields.description = fields.description || null; }
     if ("deadline" in fields) {
-      dbFields.deadline = fields.deadline ? (fields.deadline as Date).toISOString().split("T")[0] : null;
-      localFields.deadline = fields.deadline || null;
+      // Den dag medlemmet klikkede (lokal dag), ikke toISOString — den gav dagen
+      // før i dansk tid. Lokalt som UTC-midnat, samme form som hentningen giver.
+      const dato = fields.deadline ? lokalDatoStreng(fields.deadline as Date) : null;
+      dbFields.deadline = dato;
+      localFields.deadline = dato ? new Date(dato) : null;
     }
     if ("status" in fields) {
       dbFields.status = fields.status;
@@ -289,7 +294,7 @@ export function useMilestones({ userId, companyId, isAdvisor }: Args) {
       description: ny.description.trim() || null,
       baseline: ny.baseline.trim() || null,
       category: ny.category,
-      deadline: ny.deadline ? ny.deadline.toISOString().split("T")[0] : null,
+      deadline: ny.deadline ? lokalDatoStreng(ny.deadline) : null,
       company_id: companyId,
       user_id: userId,
       source: "manual",

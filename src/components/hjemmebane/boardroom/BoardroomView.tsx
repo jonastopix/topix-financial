@@ -2540,7 +2540,7 @@ export const BoardroomView = () => {
                   {/* «+ Tilføj skridt» — #946's formular (samme function). Uden skridt: «Tilføj det første skridt». */}
                   {tilfoejAaben === x.plan.plan.maal.id ? (
                     <div className="mt-3 max-w-xl">
-                      <TilfoejSkridtForm maalId={x.plan.plan.maal.id} busy={planBusy} onTilfoej={(titel, dueDate) => tilfoejSkridt(x.plan.plan.maal.id, titel, dueDate)} onLuk={() => setTilfoejAaben(null)} knapTekst={x.udenSkridt ? MAAL_UDEN_SKRIDT_TEKST : undefined} />
+                      <TilfoejSkridtForm maalId={x.plan.plan.maal.id} maalFrist={x.plan.plan.maal.deadline} busy={planBusy} onTilfoej={(titel, dueDate) => tilfoejSkridt(x.plan.plan.maal.id, titel, dueDate)} onLuk={() => setTilfoejAaben(null)} knapTekst={x.udenSkridt ? MAAL_UDEN_SKRIDT_TEKST : undefined} />
                     </div>
                   ) : (
                     <button type="button" disabled={planBusy} onClick={() => setTilfoejAaben(x.plan.plan.maal.id)} className="mt-3 text-xs text-hb-evergreen underline-offset-4 hover:underline disabled:opacity-50" data-handling="tilfoej-skridt">

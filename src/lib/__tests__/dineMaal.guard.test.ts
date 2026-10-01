@@ -58,13 +58,19 @@ const HOOK = "src/hooks/useVirksomhed.ts";
     rækken tegner knappen/formularen bag dommens kanTilfoejeSkridt, dommen giver
     den kun i den aktive gren; formularen bruger foreslaaetFrist + doemFrist (dansk
     tid, ikke før i dag) og et date-felt med min = i dag; fladen kalder
-    skridt-tilfoej og genhenter (invalidate + genhent) bagefter. */
+    skridt-tilfoej og genhenter (invalidate + genhent) bagefter.
+    1/10-2026 (Jonas): fristen højst MÅLETS frist — forslaget er
+    foreslaaetFristModMaal, doemFristModMaal dømmer før kaldet, og date-feltet
+    har max = målets frist (senesteSkridtFrist). */
 export const tilfoejKnappenHolder = (raekke: string, dom: string, view: string): boolean =>
   /\{h\.kanTilfoejeSkridt && \(/.test(raekke) &&
   raekke.includes("<TilfoejSkridtForm ") &&
-  /useState\(\(\) => foreslaaetFrist\(new Date\(\)\)\)/.test(raekke) &&
+  /useState\(\(\) => foreslaaetFristModMaal\(new Date\(\), maalFrist\)\)/.test(raekke) &&
   /const fristDom = doemFrist\(frist, new Date\(\)\);/.test(raekke) &&
-  /type="date" value=\{frist\} min=\{idag\} required/.test(raekke) &&
+  /const modMaal = doemFristModMaal\(fristDom\.dato, maalFrist, new Date\(\)\);\s*if \(modMaal\.ok === false\) \{ setFejl\(modMaal\.grund\); return; \}/.test(raekke) &&
+  /const maks = senesteSkridtFrist\(maalFrist\);/.test(raekke) &&
+  /type="date" value=\{frist\} min=\{idag\} max=\{maks \?\? undefined\} required/.test(raekke) &&
+  raekke.includes("maalFrist={x.plan.maal.deadline}") &&
   /const idag = dagsdatoDansk\(new Date\(\)\);/.test(raekke) &&
   (dom.match(/kanTilfoejeSkridt: true/g) ?? []).length === 1 &&
   (dom.match(/kanTilfoejeSkridt: false/g) ?? []).length === 2 &&
@@ -254,8 +260,12 @@ describe("dineMaal.guard — fase 3: medlemmets mål, uden milepæls-slot, skyde
   it("selvbevis 9: knappen uanset tilstand, dommen der giver den til parkerede, en tom standardfrist, et date-felt uden min, eller en flade der ikke genhenter falder", () => {
     expect(tilfoejKnappenHolder(raekke.replace("{h.kanTilfoejeSkridt && (", "{("), dom, view)).toBe(false);
     expect(tilfoejKnappenHolder(raekke, dom.replace("kanAktivere: plads, kanSlette: true, kanSaetteFremdrift: false, kanTilfoejeSkridt: false }", "kanAktivere: plads, kanSlette: true, kanSaetteFremdrift: false, kanTilfoejeSkridt: true }"), view)).toBe(false);
-    expect(tilfoejKnappenHolder(raekke.replace("useState(() => foreslaaetFrist(new Date()))", 'useState("")'), dom, view)).toBe(false);
-    expect(tilfoejKnappenHolder(raekke.replace("type=\"date\" value={frist} min={idag} required", "type=\"date\" value={frist}"), dom, view)).toBe(false);
+    expect(tilfoejKnappenHolder(raekke.replace("useState(() => foreslaaetFristModMaal(new Date(), maalFrist))", 'useState("")'), dom, view)).toBe(false);
+    expect(tilfoejKnappenHolder(raekke.replace("type=\"date\" value={frist} min={idag} max={maks ?? undefined} required", "type=\"date\" value={frist}"), dom, view)).toBe(false);
+    // 1/10: et date-felt uden max, en formular der ikke dømmer mod målets frist, eller en række der ikke giver fristen videre falder.
+    expect(tilfoejKnappenHolder(raekke.replace(" max={maks ?? undefined}", ""), dom, view)).toBe(false);
+    expect(tilfoejKnappenHolder(raekke.replace("const modMaal = doemFristModMaal(fristDom.dato, maalFrist, new Date());", "const modMaal = { ok: true } as const;"), dom, view)).toBe(false);
+    expect(tilfoejKnappenHolder(raekke.replace("maalFrist={x.plan.maal.deadline}", ""), dom, view)).toBe(false);
     expect(tilfoejKnappenHolder(raekke, dom, view.replace("genhent();\n    },\n  });\n  const tilfoejSkridt", "},\n  });\n  const tilfoejSkridt"))).toBe(false);
   });
   it("selvbevis 10: en Planen med sin egen «manual»-streng, et hook uden source_type, eller en anden kilde i planen.ts falder", () => {

@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { kraevRaekker } from "@/lib/kraevRaekker";
 import { MILESTONE_CATEGORIES, type MilestoneCategory } from "@/lib/milestoneCategories";
 import { MILESTONE_SUGGESTIONS } from "@/lib/milestoneSuggestions";
-import { dineMaalDom, DINE_SKRIDT_FEJL_TEKST, TILFOEJ_SKRIDT_FEJL_TEKST, TILFOEJ_SKRIDT_OK_TEKST, type SkridtTilDineMaal } from "@/lib/hjemmebane/dineMaal";
+import { dineMaalDom, doemMaalFristModSkridt, lokalDatoStreng, DINE_SKRIDT_FEJL_TEKST, TILFOEJ_SKRIDT_FEJL_TEKST, TILFOEJ_SKRIDT_OK_TEKST, type SkridtTilDineMaal } from "@/lib/hjemmebane/dineMaal";
 import type { MaalRaekke } from "@/lib/hjemmebane/planen";
 import { MAX_AKTIVE_MAAL } from "@/lib/hjemmebane/maal";
 import { HbAdvisorCompanyPrompt } from "../HbAdvisorCompanyPrompt";
@@ -174,6 +174,29 @@ export const DineMaalView = () => {
   const aaben: Milestone | null = milestones.find((m) => m.id === aabenId) ?? null;
   const aabenBeregnet = aaben ? [...dom.aktive, ...dom.parkerede, ...dom.naaede].find((x) => x.plan.maal.id === aaben.id)?.plan.beregnet ?? false : false;
   const tilSletning: Milestone | null = milestones.find((m) => m.id === sletId) ?? null;
+  // Målets frist mod skridtenes (Jonas 1/10-2026): en ny målfrist før et åbent
+  // skridts frist NÆGTES (dineMaal.doemMaalFristModSkridt — valget og grunden
+  // står dér). Dommen bruges to steder: detaljens datovælger (besked + dagene
+  // før slået fra) og opdaterMaalFelt nedenfor (andet lag, før skrivningen).
+  const skridtUnder = (maalId: string) => (skridtQuery.data ?? []).filter((s) => s.maal_id === maalId);
+  const maalFristGrund = (maalId: string, d: Date | null | undefined): string | null => {
+    const dom = doemMaalFristModSkridt(d ? lokalDatoStreng(d) : null, skridtUnder(maalId));
+    return dom.ok === false ? dom.grund : null;
+  };
+  const aabenTidligsteFrist = (() => {
+    if (!aaben) return undefined;
+    const frister = skridtUnder(aaben.id).filter((s) => s.status === "active" && s.due_date).map((s) => (s.due_date as string).slice(0, 10)).sort();
+    if (frister.length === 0) return undefined;
+    const [y, m, d] = frister[frister.length - 1].split("-").map(Number);
+    return new Date(y, m - 1, d);
+  })();
+  const opdaterMaalFelt = async (id: string, fields: Record<string, unknown>) => {
+    if ("deadline" in fields) {
+      const grund = maalFristGrund(id, (fields.deadline as Date | null | undefined) ?? null);
+      if (grund) { toast.error("Målets frist blev ikke ændret", { description: grund }); return; }
+    }
+    await opdaterFelt(id, fields);
+  };
   const busy = gjortMutation.isPending || tilfoejMutation.isPending;
 
   if (isAdvisor && !companyId) {
@@ -341,7 +364,9 @@ export const DineMaalView = () => {
         onOpenChange={(v) => { if (!v) setAabenId(null); }}
         // Mål MED skridt: fremdriften regnes af skridtene — detaljens hurtig-fremdrift og «nuværende værdi» siger det i stedet for at skrive.
         onQuickProgress={aabenBeregnet ? () => toast.info("Fremdriften regnes af skridtene under målet") : saetFremgang}
-        onUpdateField={opdaterFelt}
+        onUpdateField={opdaterMaalFelt}
+        doemNyFrist={aaben ? (d) => maalFristGrund(aaben.id, d ?? null) : undefined}
+        tidligsteFrist={aabenTidligsteFrist}
         onUpdateCurrentValue={aabenBeregnet ? async () => { toast.info("Fremdriften regnes af skridtene under målet"); } : saetNuvaerendeVaerdi}
       />
       <SletMilestoneDialog

@@ -68,16 +68,19 @@ describe("forsidePlanDom — grupperne", () => {
     expect(d.maal[0].udenSkridt).toBe(true);
     expect(MAAL_UDEN_SKRIDT_TEKST).toBe("Tilføj det første skridt");
   });
-  it("alle skridt gjort (fremdrift 100 af skridtene, rækkens tal endnu ikke 100) → målet er aktivt med alleGjort; med rækkens tal 100 er det nået og ude af de aktive", () => {
+  it("alle skridt gjort (fremdrift 100 af skridtene) → målet er aktivt med alleGjort — OGSÅ når rækkens tal er 100 (Jonas 1/10: aldrig nået af sig selv)", () => {
     const gjorte: SkridtTilDineMaal[] = [{ id: "g", title: "G", status: "done", due_date: null, maal_id: "m", closed_at: "2026-09-12T00:00:00Z" }];
     const d = forsidePlanDom(dineMaalDom([maal({ id: "m", progress: 0 })], gjorte, NU), [], NU);
     expect(d.maal).toHaveLength(1);
     expect(d.maal[0].alleGjort).toBe(true);
     expect(ALLE_GJORT_TEKST).toBe("Alle skridt er gjort — marker målet som nået");
-    // Rækkens progress 100 (opgave-luk har skrevet den): nået i planens dom (Jonas «A») → ikke blandt de aktive.
-    const naaet = forsidePlanDom(dineMaalDom([maal({ id: "m", progress: 100 })], gjorte, NU), [], NU);
-    expect(naaet.maal).toHaveLength(0);
-    expect(naaet.ingenAktive).toBe(true);
+    // Rækkens progress 100 (opgave-luk har skrevet den). Før 1/10 var målet
+    // da «nået» og forsvandt fra de aktive — fejlen Jonas målte 1/10 11:37
+    // («klikker gjort på et skridt, så lukker målet»). Nu: stadig aktivt.
+    const efterLuk = forsidePlanDom(dineMaalDom([maal({ id: "m", progress: 100 })], gjorte, NU), [], NU);
+    expect(efterLuk.maal).toHaveLength(1);
+    expect(efterLuk.maal[0].alleGjort).toBe(true);
+    expect(efterLuk.ingenAktive).toBe(false);
   });
   it("kun parkerede/nåede mål → ingenAktive (ikke tom)", () => {
     const d = forsidePlanDom(dineMaalDom([maal({ id: "p", status: "parked" })], [], NU), [], NU);

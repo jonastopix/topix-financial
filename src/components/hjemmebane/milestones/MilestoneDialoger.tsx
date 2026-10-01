@@ -76,9 +76,11 @@ const Kildetags = ({ ms }: { ms: Milestone }) => (
     valget IKKE popoveren af sig selv (Radix Popover gjorde det heller
     ikke) — den lukker ved klik udenfor eller Escape. */
 const Datovaelger = ({
-  vaerdi, onVaelg, tomTekst, className, stille = false,
+  vaerdi, onVaelg, tomTekst, className, stille = false, tidligst,
 }: {
   vaerdi: Date | undefined;
+  /** Dage før denne kan ikke vælges (målets frist mod skridtenes, 1/10-2026). */
+  tidligst?: Date;
   onVaelg: (d: Date | undefined) => void;
   tomTekst: string;
   className?: string;
@@ -114,7 +116,7 @@ const Datovaelger = ({
         )
       }
     >
-      <HbKalender mode="single" selected={vaerdi} onSelect={(d) => onVaelg(d ?? undefined)} initialFocus />
+      <HbKalender mode="single" selected={vaerdi} onSelect={(d) => onVaelg(d ?? undefined)} disabled={tidligst ? { before: tidligst } : undefined} initialFocus />
     </HbPopover>
   );
 };
@@ -262,7 +264,7 @@ export const OpretMilestoneDialog = ({
 // ── Detalje/rediger — før: Dialog + Select + Popover (MilestonesList.tsx:264-516) ──
 
 export const MilestoneDetaljeDialog = ({
-  ms, open, onOpenChange, onQuickProgress, onUpdateField, onUpdateCurrentValue,
+  ms, open, onOpenChange, onQuickProgress, onUpdateField, onUpdateCurrentValue, doemNyFrist, tidligsteFrist,
 }: {
   ms: Milestone | null;
   open: boolean;
@@ -270,6 +272,11 @@ export const MilestoneDetaljeDialog = ({
   onQuickProgress: (id: string, p: number) => void;
   onUpdateField: (id: string, fields: Record<string, unknown>) => Promise<void>;
   onUpdateCurrentValue: (id: string, newValue: number) => Promise<void>;
+  /** Målets nye frist mod skridtenes (dineMaal.doemMaalFristModSkridt, 1/10-2026):
+      en grund = ændringen NÆGTES og grunden vises; null = ok. */
+  doemNyFrist?: (d: Date | undefined) => string | null;
+  /** Det seneste åbne skridts frist — kalenderen slår dagene før fra. */
+  tidligsteFrist?: Date;
 }) => {
   const [editingDescription, setEditingDescription] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
@@ -278,13 +285,14 @@ export const MilestoneDetaljeDialog = ({
   const [descDraft, setDescDraft] = useState("");
   const [detailDeadline, setDetailDeadline] = useState<Date | undefined>(undefined);
   const [savingField, setSavingField] = useState(false);
+  const [fristFejl, setFristFejl] = useState<string | null>(null);
 
   // Sync local state when ms changes from outside (MilestonesList.tsx:149-152).
   useEffect(() => { setTitleDraft(ms?.title ?? ""); }, [ms?.title]);
   useEffect(() => { setCategoryDraft(ms?.category ?? "other"); }, [ms?.category]);
   useEffect(() => { setDescDraft(ms?.description || ""); }, [ms?.description]);
   useEffect(() => { setDetailDeadline(ms?.deadline || undefined); }, [ms?.deadline]);
-  useEffect(() => { if (!open) { setEditingTitle(false); setEditingDescription(false); } }, [open]);
+  useEffect(() => { if (!open) { setEditingTitle(false); setEditingDescription(false); setFristFejl(null); } }, [open]);
 
   if (!ms) return null;
   const luk = () => onOpenChange(false);
@@ -359,7 +367,12 @@ export const MilestoneDetaljeDialog = ({
             stille
             vaerdi={detailDeadline}
             tomTekst="Sæt deadline"
+            tidligst={tidligsteFrist}
             onVaelg={async (d) => {
+              // Målets frist før et åbent skridts frist NÆGTES (1/10-2026) — intet gemmes, grunden vises.
+              const grund = doemNyFrist ? doemNyFrist(d) : null;
+              if (grund) { setFristFejl(grund); return; }
+              setFristFejl(null);
               setDetailDeadline(d || undefined);
               setSavingField(true);
               await onUpdateField(ms.id, { deadline: d || null });
@@ -367,6 +380,9 @@ export const MilestoneDetaljeDialog = ({
             }}
           />
         </div>
+        {fristFejl && (
+          <p className="text-sm text-hb-rust" role="alert" data-maal-frist-fejl>{fristFejl}</p>
+        )}
         <div>
           {ms.target_value && ms.unit ? (
             <>

@@ -964,8 +964,13 @@ describe("mål uden bevægelse (tolvte slags, fase 4)", () => {
     expect(g.tekst).toBe("17 aktive mål — gennemgå planen: behold højst 3");
   });
   it("parkerede og nåede mål tæller hverken i stilstand eller gennemgang", () => {
-    const d = afgoerForsidensDom([virksomhed({ maal: [maal({ status: "parked", dageSiden: 90 }), maal({ status: "completed", dageSiden: 90 }), maal({ progress: 100, dageSiden: 90 }), maal({ dageSiden: 1 })] })], NU);
+    const d = afgoerForsidensDom([virksomhed({ maal: [maal({ status: "parked", dageSiden: 90 }), maal({ status: "completed", dageSiden: 90 }), maal({ dageSiden: 1 })] })], NU);
     expect(maalGrund(d)).toBeUndefined();
+  });
+  it("1/10-2026 (Jonas: nået kun ved klik): et AKTIVT mål på 100 % er ikke nået — står det stille i 90 dage, er det stilstand", () => {
+    // Før 1/10 regnede dommen progress 100 som nået og sprang det over.
+    const d = afgoerForsidensDom([virksomhed({ maal: [maal({ progress: 100, dageSiden: 90 }), maal({ dageSiden: 1 })] })], NU);
+    expect(maalGrund(d)?.slags).toBe("maal_uden_bevaegelse");
   });
   it("den samlede linje nævner gennemgang og stilstand hver for sig", () => {
     const d = afgoerForsidensDom([
