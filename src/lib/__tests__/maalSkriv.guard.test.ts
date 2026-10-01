@@ -46,6 +46,9 @@ const BOGFOERTE_KLIENTSKRIVERE: Record<string, RegExp[]> = {
   [HANDOUT]: [/\.from\("milestones"\)\s*\.insert\(insertData as any\)/],
   "src/pages/LegatDashboard.tsx": [/\.from\("milestones"\)\s*\.update\(\{ progress: 100, status: "completed" \}\)/],
   "src/components/hjemmebane/rapportering/RapporteringView.tsx": [/from\("milestones"\)\.delete\(\)\.eq\("source_report"/],
+  // 1/10-2026 (Dine mål, tal-mål — Jonas 21:04): guidens oprettelse og «Gør målet skarpt»,
+  // medlemmets egen vej som useMilestones; dømt af maalTal.doemNytMaal, «højst tre» af databasen.
+  "src/hooks/dineMaalGrundlag.ts": [/\.from\("milestones"\)\.insert\(payload\)/, /\.from\("milestones"\)\.update\(dom\.felter\)/],
 };
 
 function alleFiler(rod: string, endelse: RegExp = /\.tsx?$/): string[] {

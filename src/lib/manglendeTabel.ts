@@ -24,3 +24,25 @@ export function erManglendeTabel(fejl: { code?: string | null; message?: string 
   const besked = fejl.message ?? "";
   return (/could not find the table/i.test(besked) && /schema cache/i.test(besked)) || (/relation/i.test(besked) && /does not exist/i.test(besked));
 }
+
+/**
+ * erManglendeKolonne — «findes KOLONNEN ikke?» (1/10-2026, Dine mål:
+ * hooks/dineMaalGrundlag.ts læser milestones.art/maal_noegle/udgangspunkt/
+ * udgangspunkt_dato fra migration 20261001210000 og falder tilbage på de
+ * gamle kolonner, til migrationen er kørt). Samme mønster som tabellen:
+ *   - 42703: Postgres' «column … does not exist» — svaret på en SELECT af en
+ *     ukendt kolonne gennem PostgREST.
+ *   - PGRST204: PostgREST's «Could not find the '…' column of '…' in the
+ *     schema cache» — svaret på en INSERT/UPDATE med en ukendt kolonne.
+ * (IKKE målt i prod, hvilken af de to Lovables PostgREST giver — derfor begge.)
+ * Koden tjekkes FØRST; en manglende TABEL (PGRST205/42P01), RLS eller netværk
+ * er aldrig «kolonnen mangler». Uden kode: kun en besked, der entydigt siger det.
+ */
+export const MANGLENDE_KOLONNE_KODER: readonly string[] = ["42703", "PGRST204"];
+
+export function erManglendeKolonne(fejl: { code?: string | null; message?: string | null } | null | undefined): boolean {
+  if (!fejl) return false;
+  if (typeof fejl.code === "string" && fejl.code !== "") return MANGLENDE_KOLONNE_KODER.includes(fejl.code);
+  const besked = fejl.message ?? "";
+  return (/column/i.test(besked) && /does not exist/i.test(besked)) || (/could not find the/i.test(besked) && /column/i.test(besked) && /schema cache/i.test(besked));
+}
