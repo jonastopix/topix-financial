@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 /**
  * Kildeværn for webinarkoblingen (udkast 1/10-2026 — Jonas «forslag + klik»).
  * Ni domme, hver prøvet fra begge sider (rigtig kilde → sand, én ændring → falsk):
- *   1. Migrationens filhoved: FØRSTE linje er «IKKE KØRT …», FØR/EFTER-SQL står i hovedet.
+ *   1. Migrationens filhoved: FØRSTE linje er «IKKE KØRT …» eller «KØRT i prod …», FØR/EFTER-SQL står i hovedet.
  *   2. RLS: slået til, KUN rådgiverpolicies (has_role … 'advisor'), SELECT/INSERT/DELETE,
  *      ingen medlemsadgang (user_company_id, auth.uid() = user_id), ingen UPDATE, anon intet.
  *   3. Ingen SECURITY DEFINER, ingen ny funktion, ingen trigger; has_role/user_company_id/
@@ -30,7 +30,9 @@ export const hovedetErRigtigt = (sql: string): boolean => {
   const linjer = sql.split("\n");
   const hoved = sql.slice(0, sql.indexOf("CREATE TABLE"));
   return (
-    linjer[0] === "-- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik)." &&
+    // Hovedet vendes til «KØRT i prod …», når migrationen er kørt (regelsættet §4c (dd)).
+    /^-- (IKKE KØRT\.|KØRT i prod) /.test(linjer[0]) &&
+    linjer[0].endsWith("DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).") &&
     /--.*FØR[\s\S]*information_schema\.tables/.test(hoved) &&
     /--.*EFTER[\s\S]*pg_policies/.test(hoved)
   );
@@ -121,7 +123,7 @@ describe("webinarkoblingens kildeværn", () => {
   it("1. filhovedet: IKKE KØRT øverst, FØR/EFTER-SQL i hovedet", () => {
     expect(hovedetErRigtigt(sql)).toBe(true);
     expect(hovedetErRigtigt(`-- Webinarkoblingen\n${sql}`)).toBe(false);
-    expect(hovedetErRigtigt(sql.replace("-- IKKE KØRT. DEPLOY:", "-- KØRT i prod. DEPLOY:"))).toBe(false);
+    expect(hovedetErRigtigt(sql.replace(/^[^\n]*/, "-- KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik)."))).toBe(false);
     expect(hovedetErRigtigt(sql.replace(/pg_policies/g, "x"))).toBe(false);
   });
 
