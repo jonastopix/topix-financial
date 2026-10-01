@@ -20,11 +20,15 @@
  *
  * «Marker som nået» sætter status = 'completed' (completed_at sættes af
  * triggeren milestone_completed_at, fase 1) — fremdriften røres ikke. Jonas
- * 16/9 («A»): 100 % betyder at alle skridt er gjort, og målet vises som
- * færdigt; «nået» er derudover medlemmets eksplicitte valg, også under 100 %.
+ * 16/9 («A»): 100 % betyder at alle skridt er gjort. RETTET 1/10-2026 (Jonas
+ * 11:37, målt: «klikker gjort på et skridt, så lukker målet»): et mål bliver
+ * ALDRIG nået af sig selv, fordi alle skridt er gjort — «nået» er KUN
+ * medlemmets/rådgiverens klik (milepaelDom.erMarkeretNaaet). Et aktivt mål
+ * på 100 % står under de aktive med baren fuld og ALLE_SKRIDT_GJORT_TEKST.
  */
 import { fremdriftTekst, planenDom, type MaalIPlanen, type MaalRaekke, type SkridtRaekke } from "./planen";
 import { kanOpretteMaal, MAX_AKTIVE_MAAL } from "./maal";
+import { danskDato } from "./skridtForslag";
 
 /** Det af company_actions-rækken medlemmets flader læser: planens skridt +
     closed_at (historik: «gjort 12. sep.»). */
@@ -52,7 +56,7 @@ export interface SkridtLinje {
 export interface MedlemsHandlinger {
   /** Aktivt mål → completed. */
   kanMarkereNaaet: boolean;
-  /** Nået mål → active igen. Nej når der ikke er plads, og nej når alle skridt er gjort (fremdriften ville stadig være 100). */
+  /** Nået mål → active igen. Nej når der ikke er plads. (Før 1/10 også nej når alle skridt var gjort — 100 % dømtes som nået; det gør det ikke længere.) */
   kanGenaabne: boolean;
   /** Aktivt mål → parked. */
   kanParkere: boolean;
@@ -75,6 +79,9 @@ export interface MaalForMedlem {
   fremdriftTekst: string;
   /** Antal gjorte skridt — historikkens fold-overskrift. */
   gjorte: number;
+  /** Aktivt mål med tællende skridt, hvor alle er gjort (100 %) — men IKKE nået:
+      fladen siger ALLE_SKRIDT_GJORT_TEKST ved «Marker som nået» (Jonas 1/10). */
+  alleSkridtGjort: boolean;
 }
 
 export interface DineMaalDom {
@@ -136,14 +143,14 @@ export function graenseTekst(antalAktive: number): string {
 }
 
 function medHandlinger(x: MaalIPlanen, skridtAf: Map<string, SkridtTilDineMaal[]>, plads: boolean): MaalForMedlem {
-  const alleGjort = x.beregnet && x.fremdrift >= 100;
   const handlinger: MedlemsHandlinger = x.dom.aktiv
     ? { kanMarkereNaaet: true, kanGenaabne: false, kanParkere: true, kanAktivere: false, kanSlette: true, kanSaetteFremdrift: !x.beregnet, kanTilfoejeSkridt: true }
     : x.dom.parkeret
       ? { kanMarkereNaaet: false, kanGenaabne: false, kanParkere: false, kanAktivere: plads, kanSlette: true, kanSaetteFremdrift: false, kanTilfoejeSkridt: false }
-      : { kanMarkereNaaet: false, kanGenaabne: plads && !alleGjort, kanParkere: false, kanAktivere: false, kanSlette: true, kanSaetteFremdrift: false, kanTilfoejeSkridt: false };
+      : { kanMarkereNaaet: false, kanGenaabne: plads, kanParkere: false, kanAktivere: false, kanSlette: true, kanSaetteFremdrift: false, kanTilfoejeSkridt: false };
   const linjer = skridtLinjer(skridtAf.get(x.maal.id) ?? []);
-  return { plan: x, handlinger, skridtLinjer: linjer, fremdriftTekst: fremdriftTekst(x), gjorte: x.skridt.gjorte.length };
+  const alleSkridtGjort = x.dom.aktiv && x.beregnet && x.fremdrift >= 100;
+  return { plan: x, handlinger, skridtLinjer: linjer, fremdriftTekst: fremdriftTekst(x), gjorte: x.skridt.gjorte.length, alleSkridtGjort };
 }
 
 export function dineMaalDom(maal: readonly MaalRaekke[], skridt: readonly SkridtTilDineMaal[], nu: Date): DineMaalDom {
@@ -188,3 +195,73 @@ export const DINE_SKRIDT_FEJL_TEKST = "Dine skridt kunne ikke hentes. Prøv igen
 export const TILFOEJ_SKRIDT_KNAP_TEKST = "Tilføj skridt";
 export const TILFOEJ_SKRIDT_FEJL_TEKST = "Skridtet blev ikke tilføjet";
 export const TILFOEJ_SKRIDT_OK_TEKST = "Skridtet er tilføjet — det tæller med i målets fremdrift";
+/** Aktivt mål, alle skridt gjort (1/10-2026): målet lukker ikke af sig selv — medlemmet afgør. */
+export const ALLE_SKRIDT_GJORT_TEKST = "Alle skridt er gjort — marker målet som nået, når I er i mål.";
+
+/** Datovælgerens Date (lokal midnat, react-day-picker) → «YYYY-MM-DD» på den
+    dag medlemmet KLIKKEDE. toISOString() gav dagen før i dansk tid (lokal
+    midnat = 22:00/23:00 UTC dagen før) — rettet 1/10-2026 sammen med
+    fristreglen, fordi sammenligningen med skridtenes frister ellers ramte
+    én dag forkert. */
+export function lokalDatoStreng(d: Date): string {
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
+/** Det seneste ÅBNE skridts frist under et mål (status active med frist) —
+    den tidligste dag, målets frist må have (doemMaalFristModSkridt). Ved
+    flere skridt på samme dag: det første i listen. null uden sådanne skridt. */
+export function senesteAabneSkridt(
+  skridt: readonly Pick<SkridtTilDineMaal, "status" | "due_date" | "title">[],
+): { dato: string; titel: string } | null {
+  let bedst: { dato: string; titel: string } | null = null;
+  for (const s of skridt) {
+    if (s.status !== "active" || !s.due_date) continue;
+    const dato = s.due_date.slice(0, 10);
+    if (bedst == null || dato > bedst.dato) bedst = { dato, titel: s.title };
+  }
+  return bedst;
+}
+
+/** Hjælpeteksten ved detaljens datovælger, når dagene før det seneste åbne
+    skridts frist er slået fra (rådets fund M2, 1/10) — så de grå dage har en
+    forklaring, før medlemmet klikker. */
+export function tidligsteMaalFristTekst(dato: string, titel: string): string {
+  return `Tidligst ${danskDato(dato)} — skridtet «${titel}» har frist den dag. Ryk eller luk skridtet først, hvis målet skal slutte før.`;
+}
+
+export type MaalFristDom = { ok: true } | { ok: false; grund: string; senesteSkridtFrist: string; antal: number };
+
+/**
+ * MÅLETS NYE FRIST MOD SKRIDTENES (Jonas 1/10-2026: et skridt må ikke have en
+ * frist længere ude end målet). Rykkes målets frist til FØR et åbent skridts
+ * frist, NÆGTES ændringen med en tydelig besked — VALGET (det roligste):
+ * ingen skridt rykkes stille. At «tilbyde at rykke skridtene» kræver en
+ * skrivning på company_actions.due_date, som medlemmets klient ikke har
+ * (company_actions er SELECT-only for klienter; skridt skrives af edge
+ * functions) — en ny skrivevej er en senere beslutning, ikke en del af
+ * rettelsen. Medlemmet kan vælge en senere målfrist, eller lukke/droppe
+ * skridtet først.
+ * Kun ÅBNE skridt tæller (status active — de eneste med en frist, der stadig
+ * gælder; gjorte/droppede er historik, forslag har ingen frist før accept).
+ * Ingen ny frist (null = fristen fjernes) → ok. Samme dag er tilladt.
+ */
+export function doemMaalFristModSkridt(
+  nyFrist: string | null,
+  skridt: readonly Pick<SkridtTilDineMaal, "status" | "due_date" | "title">[],
+): MaalFristDom {
+  if (nyFrist == null || nyFrist === "") return { ok: true };
+  const ny = nyFrist.slice(0, 10);
+  const efter = skridt.filter((s) => s.status === "active" && s.due_date && s.due_date.slice(0, 10) > ny);
+  if (efter.length === 0) return { ok: true };
+  const frister = efter.map((s) => (s.due_date as string).slice(0, 10)).sort();
+  const seneste = frister[frister.length - 1];
+  const hvem = efter.length === 1 ? `Skridtet «${efter[0].title}» har frist ${danskDato(seneste)}` : `${efter.length} skridt har en senere frist — det seneste ${danskDato(seneste)}`;
+  return {
+    ok: false,
+    grund: `Målets frist kan ikke ligge før skridtenes. ${hvem}. Vælg ${danskDato(seneste)} eller senere — eller luk skridtet først.`,
+    senesteSkridtFrist: seneste,
+    antal: efter.length,
+  };
+}

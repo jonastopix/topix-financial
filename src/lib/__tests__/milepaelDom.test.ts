@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { afgoerMilepael, dageTilFrist, sammenlignAktive, statusEfterFremgang, HASTENDE_DAGE } from "@/lib/milepaelDom";
+import { afgoerMilepael, erMarkeretNaaet, dageTilFrist, sammenlignAktive, statusEfterFremgang, HASTENDE_DAGE } from "@/lib/milepaelDom";
 
 // Fristen er 10. september 2026. «Nu» gives i LOKAL tid, fordi dommen læser
 // læserens kalenderdag — testene er derfor uafhængige af maskinens zone.
@@ -51,21 +51,31 @@ describe("afgoerMilepael — grænserne omkring fristen (7/9: fristdagen er sids
   });
 });
 
-describe("afgoerMilepael — færdig på to felter, én ting", () => {
-  it("progress >= 100 er færdig, også når status stadig er 'active'", () => {
-    const d = afgoerMilepael(aktiv(100), dagenEfter_tidligt);
-    expect(d.tilstand).toBe("faerdig");
-    expect(d.faerdig).toBe(true);
-    expect(d.aktiv).toBe(false);
-    expect(d.forfalden).toBe(false);
+describe("afgoerMilepael — nået er KUN et menneskes klik (Jonas 1/10-2026)", () => {
+  // Fejlen 1/10 11:37 (Jonas, målt): «Når jeg har et skridt på et mål, og
+  // klikker gjort på et skridt, så lukker målet.» opgave-luk skriver progress
+  // = andel gjorte skridt (100 ved det sidste); dommen sagde progress >= 100
+  // = færdig, og målet sprang til den foldede «Nået». Denne test fælder det.
+  it("progress 100 med status 'active' er IKKE nået — målet står aktivt (alle skridt gjort ≠ nået)", () => {
+    const d = afgoerMilepael(aktiv(100), fristdag_sent);
+    expect(d.faerdig).toBe(false);
+    expect(d.aktiv).toBe(true);
+    expect(d.tilstand).toBe("i_gang");
+    expect(erMarkeretNaaet("active")).toBe(false);
   });
-  it("status 'completed' er færdig, også ved progress 0", () => {
+  it("et aktivt mål på 100 % med passeret frist er forfaldent — det er stadig aktivt", () => {
+    const d = afgoerMilepael(aktiv(100), dagenEfter_tidligt);
+    expect(d.tilstand).toBe("forfalden");
+    expect(d.faerdig).toBe(false);
+  });
+  it("status 'completed' er nået, også ved progress 0", () => {
     const d = afgoerMilepael({ status: "completed", progress: 0, deadline: FRIST }, dagenEfter_tidligt);
     expect(d.tilstand).toBe("faerdig");
     expect(d.forfalden).toBe(false);
+    expect(erMarkeretNaaet("completed")).toBe(true);
   });
   it("progress over 100 og null progress", () => {
-    expect(afgoerMilepael(aktiv(140), fristdag_sent).tilstand).toBe("faerdig");
+    expect(afgoerMilepael(aktiv(140), fristdag_sent).faerdig).toBe(false);
     expect(afgoerMilepael({ status: "active", progress: null, deadline: null }, fristdag_sent).tilstand).toBe("ikke_startet");
   });
 });

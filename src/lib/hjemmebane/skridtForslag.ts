@@ -192,3 +192,62 @@ export function doemFrist(input: unknown, nu: Date): FristDom {
   if (dato < dagsdatoDansk(nu)) return { ok: false, grund: "Fristen kan ikke ligge før i dag" };
   return { ok: true, dato };
 }
+
+/** SKRIDTETS FRIST MOD MÅLETS (Jonas 1/10-2026, ordret: «Det er heller ikke
+    smart, at et skridt kan have en deadline længere ude i fremtiden end
+    selve målet.»). Datoerne er «YYYY-MM-DD», så strengsammenligning er
+    kalendersammenligning; ingen Intl i datoteksten, så ingen zone skrider. */
+const MAANEDER_KORT = ["jan.", "feb.", "mar.", "apr.", "maj", "jun.", "jul.", "aug.", "sep.", "okt.", "nov.", "dec."];
+
+/** «2026-11-20» → «20. nov. 2026». */
+export function danskDato(dato: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(dato);
+  if (!m) return dato;
+  return `${Number(m[3])}. ${MAANEDER_KORT[Number(m[2]) - 1] ?? m[2]} ${m[1]}`;
+}
+
+/** Målets frist (milestones.deadline, en date-kolonne) som «YYYY-MM-DD»; null uden frist; "ulaeselig" ellers. */
+export function maalFristDato(maalFrist: string | null | undefined): string | null | "ulaeselig" {
+  if (maalFrist == null || maalFrist.trim() === "") return null;
+  const m = /^(\d{4}-\d{2}-\d{2})/.exec(maalFrist.trim());
+  return m ? m[1] : "ulaeselig";
+}
+
+/** Den seneste frist et skridt under målet må have — datovælgerens max. null = ingen grænse. */
+export function senesteSkridtFrist(maalFrist: string | null | undefined): string | null {
+  const d = maalFristDato(maalFrist);
+  return d === "ulaeselig" ? null : d;
+}
+
+/** Den foreslåede frist under et mål: i dag + 14 dage (foreslaaetFrist), men
+    aldrig efter målets frist — ligger målets frist inden for de 14 dage,
+    foreslås målets frist. Er målets frist passeret, foreslås det
+    almindelige (formularen afviser det med doemFristModMaal's grund). */
+export function foreslaaetFristModMaal(nu: Date, maalFrist: string | null | undefined): string {
+  const forslag = foreslaaetFrist(nu);
+  const graense = senesteSkridtFrist(maalFrist);
+  if (graense == null || graense < dagsdatoDansk(nu)) return forslag;
+  return forslag > graense ? graense : forslag;
+}
+
+/** Dommen: et skridt under et mål MED frist må højst have målets frist —
+    samme dag er tilladt (fristdagen er med, som milepaelDom: «fristdagen
+    selv er IKKE forfalden»). Uden målfrist: ok. Er målets frist passeret
+    (før i dag, dansk tid), kan intet skridt overholde både denne regel og
+    doemFrist («ikke før i dag») — grunden siger, at målets frist skal
+    rykkes først. Fail-closed: en ulæselig målfrist afvises. Kalderen dømmer
+    doemFrist FØRST og giver dens dato ind. Grunden er dansk og vises ordret
+    (skridt-tilfoej's svar og formularens fejl). `kode` skiller de tre
+    afvisninger ad, så skridt-tilfoej kan svare dem hver for sig (rådets
+    fund L1, 1/10): ulæselig målfrist er VORES fejl (500), en passeret
+    målfrist og en skridtfrist efter målets er medlemmets valg (400). */
+export type FristModMaalKode = "maalets_frist_ulaeselig" | "maalets_frist_passeret" | "efter_maalets_frist";
+export type FristModMaalDom = { ok: true; dato: string } | { ok: false; grund: string; kode: FristModMaalKode };
+export function doemFristModMaal(skridtFrist: string, maalFrist: string | null | undefined, nu: Date): FristModMaalDom {
+  const graense = maalFristDato(maalFrist);
+  if (graense == null) return { ok: true, dato: skridtFrist };
+  if (graense === "ulaeselig") return { ok: false, grund: "Målets frist kan ikke læses — skridtet blev ikke tilføjet", kode: "maalets_frist_ulaeselig" };
+  if (graense < dagsdatoDansk(nu)) return { ok: false, grund: `Målets frist (${danskDato(graense)}) er passeret — ryk målets frist, før du tilføjer et skridt`, kode: "maalets_frist_passeret" };
+  if (skridtFrist > graense) return { ok: false, grund: `Skridtets frist kan ikke ligge efter målets frist (${danskDato(graense)}) — vælg den dag eller tidligere`, kode: "efter_maalets_frist" };
+  return { ok: true, dato: skridtFrist };
+}

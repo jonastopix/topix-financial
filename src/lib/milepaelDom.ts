@@ -23,9 +23,20 @@
  *                deriveStatus altid har gjort). En parkeret milepæl er
  *                aldrig forfalden — man kan ikke være for sent på noget
  *                man har lagt fra sig.
- *   faerdig      status = 'completed' ELLER progress >= 100. To felter,
- *                én ting; er ét af dem sat, er den færdig. Færdig er
- *                aldrig forfalden.
+ *   faerdig      status = 'completed' — og KUN det (erMarkeretNaaet).
+ *                Færdig er aldrig forfalden.
+ *                JONAS 1/10-2026 (rettet efter fejlen «klikker gjort på
+ *                et skridt, så lukker målet»): et mål bliver ALDRIG nået
+ *                af sig selv, fordi alle skridt er gjort. Før 1/10 dømte
+ *                denne linje også progress >= 100 som færdig; opgave-luk
+ *                skriver progress = andel gjorte skridt, så det sidste
+ *                «Gjort» gav 100 → færdig → målet sprang fra «Jeres mål»
+ *                til den foldede «Nået». Nu: 100 % = «alle skridt gjort»
+ *                (baren er fuld), «nået» er et menneskes klik («Marker
+ *                som nået», eller skyderen på et mål UDEN skridt —
+ *                statusEfterFremgang). Dommen «højst tre aktive» i
+ *                databasen tæller også kun status (20260917150000) —
+ *                nu siger fladen det samme som triggeren.
  *   forfalden    fristens kalenderdag er PASSERET — dagen efter fristen
  *                er første forfaldne dag. Fristdagen selv er IKKE
  *                forfalden (besluttet 7/9 for slutdatoen: sidste dag MED;
@@ -56,7 +67,7 @@ export interface MilepaelDom {
   tilstand: MilepaelTilstand;
   /** status = 'parked'. */
   parkeret: boolean;
-  /** Ikke parkeret, og status = 'completed' eller progress >= 100. */
+  /** Ikke parkeret, og status = 'completed' (et menneske har markeret målet nået). */
   faerdig: boolean;
   /** Hverken parkeret eller færdig — en forfalden milepæl ER aktiv. */
   aktiv: boolean;
@@ -97,10 +108,17 @@ export function dageTilFrist(deadline: string | Date | null | undefined, nu: Dat
   return Math.round((frist - nuDag(nu)) / MS_PER_DOEGN);
 }
 
+/** Er målet NÅET? KUN når status = 'completed' — dvs. når et menneske har
+    markeret det (Jonas 1/10-2026: «nået» bliver aldrig regnet ud af
+    fremdriften; alle skridt gjort = 100 %, ikke nået). */
+export function erMarkeretNaaet(status: string | null | undefined): boolean {
+  return status === "completed";
+}
+
 export function afgoerMilepael(input: MilepaelInput, nu: Date): MilepaelDom {
   const progress = input.progress ?? 0;
   const parkeret = input.status === "parked";
-  const faerdig = !parkeret && (input.status === "completed" || progress >= 100);
+  const faerdig = !parkeret && erMarkeretNaaet(input.status);
   const aktiv = !parkeret && !faerdig;
   const dage = dageTilFrist(input.deadline, nu);
   const forfalden = aktiv && dage != null && dage < 0;
@@ -117,12 +135,14 @@ export function afgoerMilepael(input: MilepaelInput, nu: Date): MilepaelDom {
   return { tilstand, parkeret, faerdig, aktiv, forfalden, paabegyndt, dage_til_frist: dage };
 }
 
-/** Skrivereglen når fremgangen sættes: 100 % er færdig, ellers aktiv.
-    Samme dom som ovenfor set fra skrivesiden, så ingen flade selv regner
-    «progress >= 100» ved skrivning. Parkerede skrives ikke (fladen
+/** Skrivereglen når et MENNESKE sætter fremgangen med hånden (skyderen /
+    «nuværende værdi» — kun på mål UDEN tællende skridt, dineMaal
+    kanSaetteFremdrift): 100 % er medlemmets eget «nået», ellers aktiv.
+    Det er et klik, ikke en beregning — opgave-luk kalder den ALDRIG
+    (rykMaalFremdrift skriver kun progress). Parkerede skrives ikke (fladen
     afviser før den kalder). */
 export function statusEfterFremgang(progress: number): "completed" | "active" {
-  return afgoerMilepael({ status: "active", progress, deadline: null }, new Date(0)).faerdig ? "completed" : "active";
+  return progress >= 100 ? "completed" : "active";
 }
 
 /** Sorteringsnøgle for aktive milepæle: forfaldne først (ældst først),

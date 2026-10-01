@@ -2,12 +2,17 @@ import { describe, expect, it } from "vitest";
 import { MAX_AKTIVE_MAAL } from "@/lib/hjemmebane/maal";
 import type { MaalRaekke } from "@/lib/hjemmebane/planen";
 import {
+  ALLE_SKRIDT_GJORT_TEKST,
   DINE_MAAL_TOM_TEKST,
   dineMaalDom,
+  doemMaalFristModSkridt,
+  lokalDatoStreng,
   forsideMaal,
   graenseTekst,
   modMaaletTekst,
+  senesteAabneSkridt,
   skridtLinjer,
+  tidligsteMaalFristTekst,
   type SkridtTilDineMaal,
 } from "@/lib/hjemmebane/dineMaal";
 
@@ -52,19 +57,83 @@ describe("dineMaalDom — medlemmets handlinger", () => {
     const fuldt = dineMaalDom([maal({ id: "a" }), maal({ id: "b" }), maal({ id: "c" }), maal({ id: "p", status: "parked" })], [], NU);
     expect(fuldt.parkerede[0].handlinger.kanAktivere).toBe(false);
   });
-  it("nået mål: genåbn når der er plads — men ikke når alle skridt er gjort (fremdriften ville stadig være 100)", () => {
+  it("nået mål: genåbn når der er plads — også når alle skridt er gjort (100 % er ikke længere «nået», 1/10)", () => {
     const naaet = dineMaalDom([maal({ id: "n", status: "completed", progress: 40, completed_at: "2026-09-12T00:00:00Z" })], [], NU);
     expect(naaet.naaede[0].handlinger.kanGenaabne).toBe(true);
     const alleGjort = dineMaalDom([maal({ id: "n", status: "completed", progress: 100 })], [skridt({ id: "s", maal_id: "n", status: "done", closed_at: "2026-09-12T00:00:00Z" })], NU);
     expect(alleGjort.naaede[0].plan.fremdrift).toBe(100);
-    expect(alleGjort.naaede[0].handlinger.kanGenaabne).toBe(false);
+    expect(alleGjort.naaede[0].handlinger.kanGenaabne).toBe(true);
+    expect(alleGjort.naaede[0].alleSkridtGjort).toBe(false);
     const fuldt = dineMaalDom([maal({ id: "a" }), maal({ id: "b" }), maal({ id: "c" }), maal({ id: "n", status: "completed", progress: 40 })], [], NU);
     expect(fuldt.naaede[0].handlinger.kanGenaabne).toBe(false);
   });
-  it("progress 100 med status active er nået (Jonas: A) — samme dom som planen", () => {
+});
+
+describe("dineMaalDom — et mål bliver ALDRIG nået af sig selv (Jonas 1/10-2026)", () => {
+  // Fejlen (Jonas 1/10 11:37, målt): «Når jeg har et skridt på et mål, og
+  // klikker gjort på et skridt, så lukker målet.» Rækkefølgen i drift:
+  // «Gjort» → opgave-luk → rykMaalFremdrift skriver progress = 100 (status
+  // uændret 'active') → genhent → afgoerMilepael dømte progress >= 100 som
+  // færdig → målet flyttede fra «Jeres mål» til den foldede «Nået». Testen
+  // her fælder den gamle dom.
+  it("alle skridt gjort, status active: målet står under de aktive med «Marker som nået» og beskeden", () => {
+    const d = dineMaalDom([maal({ id: "m", progress: 100 })], [skridt({ id: "s", maal_id: "m", status: "done", closed_at: "2026-10-01T09:37:00Z" })], NU);
+    expect(d.naaede).toEqual([]);
+    expect(d.aktive.map((x) => x.plan.maal.id)).toEqual(["m"]);
+    const x = d.aktive[0];
+    expect(x.plan.dom.faerdig).toBe(false);
+    expect(x.plan.fremdrift).toBe(100);
+    expect(x.fremdriftTekst).toBe("1 af 1 skridt gjort · 100 %");
+    expect(x.handlinger.kanMarkereNaaet).toBe(true);
+    expect(x.handlinger.kanTilfoejeSkridt).toBe(true);
+    expect(x.alleSkridtGjort).toBe(true);
+    expect(ALLE_SKRIDT_GJORT_TEKST).toContain("marker målet som nået");
+  });
+  it("selv hvis den gemte progress halter (fx 0) og alle skridt er gjort: aktivt, 100 %", () => {
+    const d = dineMaalDom([maal({ id: "m", progress: 0 })], [skridt({ id: "s", maal_id: "m", status: "done" })], NU);
+    expect(d.aktive[0].plan.fremdrift).toBe(100);
+    expect(d.aktive[0].plan.dom.aktiv).toBe(true);
+  });
+  it("mål UDEN skridt på 100 % med status active (ældre række): aktivt — kun status 'completed' er nået", () => {
     const d = dineMaalDom([maal({ id: "h", progress: 100 })], [], NU);
-    expect(d.aktive).toEqual([]);
-    expect(d.naaede.map((x) => x.plan.maal.id)).toEqual(["h"]);
+    expect(d.naaede).toEqual([]);
+    expect(d.aktive.map((x) => x.plan.maal.id)).toEqual(["h"]);
+    expect(d.aktive[0].alleSkridtGjort).toBe(false);
+  });
+  it("kun medlemmets/rådgiverens klik (status 'completed') gør målet nået", () => {
+    const d = dineMaalDom([maal({ id: "m", status: "completed", progress: 50, completed_at: "2026-10-01T10:00:00Z" })], [skridt({ id: "s", maal_id: "m", status: "active" }), skridt({ id: "t", maal_id: "m", status: "done" })], NU);
+    expect(d.naaede.map((x) => x.plan.maal.id)).toEqual(["m"]);
+  });
+});
+
+describe("doemMaalFristModSkridt — målets frist mod skridtenes (Jonas 1/10-2026)", () => {
+  const s = (id: string, status: string, due: string | null) => ({ title: `Skridt ${id}`, status, due_date: due });
+  it("ingen ny frist, eller ingen åbne skridt efter den: ok", () => {
+    expect(doemMaalFristModSkridt(null, [s("a", "active", "2026-12-01")])).toEqual({ ok: true });
+    expect(doemMaalFristModSkridt("2026-12-01", [s("a", "active", "2026-12-01")])).toEqual({ ok: true });
+    expect(doemMaalFristModSkridt("2026-11-01", [s("a", "done", "2026-12-01"), s("b", "dropped", "2026-12-01"), s("c", "proposed", null)])).toEqual({ ok: true });
+  });
+  it("et åbent skridt med senere frist: NÆGTES med skridtets titel og dato", () => {
+    const d = doemMaalFristModSkridt("2026-11-01", [s("a", "active", "2026-11-20"), s("b", "active", "2026-10-15")]);
+    expect(d.ok).toBe(false);
+    if (d.ok === false) {
+      expect(d.senesteSkridtFrist).toBe("2026-11-20");
+      expect(d.antal).toBe(1);
+      expect(d.grund).toBe("Målets frist kan ikke ligge før skridtenes. Skridtet «Skridt a» har frist 20. nov. 2026. Vælg 20. nov. 2026 eller senere — eller luk skridtet først.");
+    }
+  });
+  it("flere: antallet og den seneste frist", () => {
+    const d = doemMaalFristModSkridt("2026-11-01", [s("a", "active", "2026-11-20"), s("b", "active", "2026-12-03")]);
+    expect(d.ok === false && d.antal).toBe(2);
+    expect(d.ok === false && d.senesteSkridtFrist).toBe("2026-12-03");
+    expect(d.ok === false && d.grund).toContain("2 skridt har en senere frist — det seneste 3. dec. 2026");
+  });
+});
+
+describe("lokalDatoStreng — den dag der blev klikket", () => {
+  it("lokal midnat giver samme dag (toISOString gav dagen før i dansk tid)", () => {
+    expect(lokalDatoStreng(new Date(2026, 10, 20))).toBe("2026-11-20");
+    expect(lokalDatoStreng(new Date(2026, 0, 1, 0, 0))).toBe("2026-01-01");
   });
 });
 
@@ -134,5 +203,20 @@ describe("forsiden — forsideMaal og «Mod målet»", () => {
     expect(modMaaletTekst(liste, "m")).toBe("Mod målet: Positiv bundlinje");
     expect(modMaaletTekst(liste, null)).toBeNull();
     expect(modMaaletTekst(liste, "x")).toBeNull();
+  });
+});
+
+describe("rådets fund M2 (1/10-2026): de grå dage i detaljens kalender forklares", () => {
+  const sk = (title: string, status: string, due_date: string | null): SkridtTilDineMaal =>
+    ({ id: title, title, status, due_date, maal_id: "m", closed_at: null }) as SkridtTilDineMaal;
+  it("det seneste ÅBNE skridt med frist — gjorte, droppede og skridt uden frist tæller ikke", () => {
+    expect(senesteAabneSkridt([])).toBeNull();
+    expect(senesteAabneSkridt([sk("A", "done", "2026-12-01"), sk("B", "active", null)])).toBeNull();
+    expect(senesteAabneSkridt([sk("A", "active", "2026-11-01"), sk("B", "active", "2026-11-20T00:00:00Z"), sk("C", "done", "2026-12-24")])).toEqual({ dato: "2026-11-20", titel: "B" });
+    // Samme dag: det første i listen.
+    expect(senesteAabneSkridt([sk("A", "active", "2026-11-20"), sk("B", "active", "2026-11-20")])).toEqual({ dato: "2026-11-20", titel: "A" });
+  });
+  it("teksten: dato, skridtets titel og vejen ud", () => {
+    expect(tidligsteMaalFristTekst("2026-11-20", "Ring til banken")).toBe("Tidligst 20. nov. 2026 — skridtet «Ring til banken» har frist den dag. Ryk eller luk skridtet først, hvis målet skal slutte før.");
   });
 });

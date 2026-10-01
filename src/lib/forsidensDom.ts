@@ -1054,6 +1054,10 @@ function grundFraIngenMaal(v: VirksomhedTilDom): Grund | null {
   };
 }
 
+/** Rådgiverens tekst for et aktivt mål, hvor alle skridt er gjort, men som
+    ingen har markeret nået (rådets fund L4, 1/10-2026). */
+export const MAAL_ALLE_GJORT_RAADGIVER_TEKST = "Alle skridt er gjort — mangler at blive markeret nået";
+
 function grundFraMaal(v: VirksomhedTilDom, nu: Date): Grund | null {
   if (!v.maal || v.maal.length === 0) return null;
   const plan = planenDom(v.maal, [], nu);
@@ -1075,17 +1079,34 @@ function grundFraMaal(v: VirksomhedTilDom, nu: Date): Grund | null {
   if (stille.length === 0) return null;
   const laengst = Math.max(...stille.map((x) => x.dageUdenBevaegelse ?? 0));
   const trin: keyof typeof ALVOR_MAAL = laengst >= STILSTAND_LAENGE_DAGE ? "stilstand_laenge" : "stilstand";
+  // Rådets fund L4 (1/10): et AKTIVT mål på 100 % har alle skridt gjort og
+  // er kun ikke nået, fordi ingen har klikket (Jonas 1/10: nået er KUN et
+  // klik). «Har ikke rykket sig» er forkert om det — det mangler at blive
+  // markeret nået. Kalderen giver ingen skridt, så fremdriften er rækkens
+  // progress, som opgave-luk skriver = andel gjorte skridt (100 = alle).
+  const alleGjorte = stille.filter((x) => x.fremdrift >= 100);
+  const rest = stille.filter((x) => x.fremdrift < 100);
+  const restTekst =
+    rest.length === 0
+      ? null
+      : rest.length === 1
+        ? `Målet «${rest[0].maal.title}» har ikke rykket sig i ${Math.max(...rest.map((x) => x.dageUdenBevaegelse ?? 0))} dage`
+        : `${rest.length} mål har ikke rykket sig i ${Math.max(...rest.map((x) => x.dageUdenBevaegelse ?? 0))} dage`;
   const tekst =
-    stille.length === 1
-      ? `Målet «${stille[0].maal.title}» har ikke rykket sig i ${laengst} dage`
-      : `${stille.length} mål har ikke rykket sig i ${laengst} dage`;
+    restTekst == null
+      ? alleGjorte.length === 1
+        ? `«${alleGjorte[0].maal.title}»: ${MAAL_ALLE_GJORT_RAADGIVER_TEKST}`
+        : `${alleGjorte.length} mål: ${MAAL_ALLE_GJORT_RAADGIVER_TEKST}`
+      : alleGjorte.length === 0
+        ? restTekst
+        : `${restTekst} · ${alleGjorte.length} mål med alle skridt gjort mangler at blive markeret nået`;
   return {
     slags: "maal_uden_bevaegelse",
     signaltype: `maal_${trin}`,
     noegle: "maal_uden_bevaegelse",
     grundlag: stille.map((x) => `${x.maal.id}=${x.maal.progress_updated_at ?? "aldrig"}`).sort().join(","),
     tekst,
-    handling: `Spørg ${v.navn} hvad der står i vejen`,
+    handling: restTekst == null ? `Spørg ${v.navn}, om ${alleGjorte.length === 1 ? "målet" : "målene"} er nået` : `Spørg ${v.navn} hvad der står i vejen`,
     alvor: ALVOR_MAAL[trin],
     lukkerOmDage: null,
     indsats: INDSATS.maal_uden_bevaegelse,
