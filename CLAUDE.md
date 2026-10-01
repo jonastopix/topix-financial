@@ -27,7 +27,7 @@ Workflow ved nye migrationer:
 
 Migrationsfilen i repoet er kanonisk historik — Lovable's SQL editor er den faktiske eksekverings-kanal.
 
-**Lovable-forbindelsen (MCP, fra 30/9-2026 16:40):** Claude når prod gennem Lovables officielle MCP-server — `query_database` (samme database som SQL editoren, som `postgres`), `send_message` til build-chatten (deploy af edge functions; den kan ændre kode trods besked — tjek `list_edits`/`get_diff` efter hver) og `deploy_project`, som PUBLICERER frontenden, men med op til ~30 minutters forsinkelse (afgjort 1/10; mål bundlen rekursivt, før noget konkluderes). Update hos Jonas er stadig en lige så god vej. Projektet er «Boardroom Compass», `0bcda7a6-4154-4a81-9f82-fcdf623eb7ea`. Reglerne for brugen står i `docs/claude-regelsaet.md` §6a; forbindelsen flytter hænderne, ikke beslutningerne. Efter hver publicering: designgennemsyn i drift (§4b).
+**Lovable-forbindelsen (MCP, fra 30/9-2026 16:40):** Claude når prod gennem Lovables officielle MCP-server — `query_database` (samme database som SQL editoren, som `postgres`), `send_message` til build-chatten (deploy af edge functions; den kan ændre kode trods besked — tjek `list_edits`/`get_diff` efter hver) og `deploy_project`, som er UPÅLIDELIG (målt 1/10: virkede én gang, ikke de to næste — regelsættet §6a); Update hos Jonas er vejen for frontenden, og «i drift» skrives først efter en rekursiv måling af bundlen. Projektet er «Boardroom Compass», `0bcda7a6-4154-4a81-9f82-fcdf623eb7ea`. Reglerne for brugen står i `docs/claude-regelsaet.md` §6a; forbindelsen flytter hænderne, ikke beslutningerne. Efter hver publicering: designgennemsyn i drift (§4b).
 
 ## Deployment af edge functions
 

@@ -11393,7 +11393,7 @@ Kørt i tilstanden «Kør selv» (Jonas 30/9 22:53: «fortsæt indtil klokken er
 | #1189 | 1/10 00:41 | Boardroom Score: frist d. 20 og et kompakt kort med ring | i drift (set som medlem via «Visning som», Brick Works) |
 | #1191 | 1/10 01:15 | Agentforslag: kun det, rådgiveren kan afgøre, kræver en afgørelse | `src/` i drift («Foreslå ugens fokus» set på virksomhedssiden); `run-company-agent` udrullet fra build-chatten (§3) — **beviset (`annoncerede_vaerktoejer` i et svar) udestår**, fordi en tør kørsel skriver rigtige forslag |
 | #1192 | 1/10 01:23 | Forsiden: erfarne medlemmer får «Dit næste skridt» i stedet for tjeklisten | i drift: Brick Works (erfaren) ser «Upload dine august-tal», ikke tjeklisten |
-| #1193 | 1/10 02:13 | Score-kortet og chatten efter designgennemsynet i drift | `deploy_project` kaldt 1/10 ~02:20 (deployment `cf20db2c…`); i drift: se §6 |
+| #1193 | 1/10 02:13 | Score-kortet og chatten efter designgennemsynet i drift | **IKKE i drift kl. 06** (to `deploy_project`-kald uden virkning, §4) — venter på Update |
 
 #### 2. Hvad der blev målt, før der blev bygget (de gamle medlemmer)
 
@@ -11409,7 +11409,7 @@ Deployen af `run-company-agent` (efter #1191) gav to commits fra Lovable på mai
 
 #### 4. `deploy_project` VIRKER — med forsinkelse (rettelse af «ikke afgjort» i #1186)
 
-To kald 1/10 ~01:27 og ~01:45 (deployments `8052fbf5…`, `df43903c…`): `app.theboardroom.dk` stod først på `index-BVSr3UVl.js` (med #1187/#1190, uden #1188/#1189/#1191/#1192), og ~02:00 på `index-DbEEwX7c.js`. Rekursiv søgning (247 chunks, dynamiske imports fulgt — lærestreg (ee)) fandt alle fire: «hvad der tæller» i `BoardroomView-16HJ61e_.js`, «Foreslå ugens fokus» og `chat-hoejde-vh` i `Virksomhed-DfOec9BO.js` og `index-DXh48HEK.css`, `erfarent` i `HbMemberShell-Dk3WAbSq.js`, `lavIHvile` i `CompanyChatPane-Bwk8eRtf.js`. Jonas' Update kl. 20:35 30/9 kom EFTER bundlen med Score-koden (målt ~20:15) — altså publicerede `deploy_project` den. Konklusionen: **`deploy_project` publicerer, men det kan tage op til ~30 minutter; mål den rekursivt, før noget konkluderes.** Regelsættet §6a og CLAUDE.md rettet.
+To kald 1/10 ~01:27 og ~01:45 (deployments `8052fbf5…`, `df43903c…`): `app.theboardroom.dk` stod først på `index-BVSr3UVl.js` (med #1187/#1190, uden #1188/#1189/#1191/#1192), og ~02:00 på `index-DbEEwX7c.js`. Rekursiv søgning (247 chunks, dynamiske imports fulgt — lærestreg (ee)) fandt alle fire: «hvad der tæller» i `BoardroomView-16HJ61e_.js`, «Foreslå ugens fokus» og `chat-hoejde-vh` i `Virksomhed-DfOec9BO.js` og `index-DXh48HEK.css`, `erfarent` i `HbMemberShell-Dk3WAbSq.js`, `lavIHvile` i `CompanyChatPane-Bwk8eRtf.js`. Jonas' Update kl. 20:35 30/9 kom EFTER bundlen med Score-koden (målt ~20:15) — altså publicerede `deploy_project` den. Konklusionen: **`deploy_project` publicerer, men det kan tage op til ~30 minutter; mål den rekursivt, før noget konkluderes.** Regelsættet §6a og CLAUDE.md rettet. **RETTET IGEN ~06:** kaldene 02:20 og 05:35 gav ingen ny bundle (`index-DbEEwX7c.js` uændret 3½ time og 21 min efter; ingen #1193-tekst i 247 chunks). `deploy_project` er upålidelig; Update er Jonas' (#1193 står på morgenlisten som «Klik Update før kl. 11»). Den forkerte konklusion byggede på én observation — lærestreg (ii).
 
 #### 5. Designgennemsynet i drift (Jonas 30/9 20:57: «Husk altid at tjekke design og opsætning grundigt efter publicering»)
 
