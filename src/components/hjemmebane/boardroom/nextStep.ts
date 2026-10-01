@@ -3,7 +3,7 @@ import { PROFIL_STI } from "@/lib/hjemmebane/profilUdfyldt";
 import type { Tjekliste } from "@/lib/onboardingTjekliste";
 import { tjeklistenStyrerForsiden } from "@/lib/hjemmebane/ankomst";
 import {
-  dageTilbageTekst, foersteSkridtTitel, fristTitel, maalFokus, modMaaletLinje,
+  dageTilDanskDato, foersteSkridtTitel, fristTitel, maalFokus, modMaaletLinje,
   MAAL_FOKUS_MAAL_CTA, MAAL_FOKUS_SKRIDT_CTA, MAAL_FOKUS_STI, MAAL_FOKUS_TILFOEJ_CTA,
   type MaalFokusMaal, type MaalFokusSkridt,
 } from "@/lib/hjemmebane/maalFokus";
@@ -49,8 +49,11 @@ import {
           nærmeste aktive skridt under et aktivt mål «mod målet: X», (2)
           aktivt mål uden noget i gang → «Tilføj det første skridt mod
           X», (3) målfrist ≤ 30 dage → «X: N dage tilbage». Under rapport
-          og beskeder, over løse skridt. (Fra 16/9 til 1/10 var slottet
-          UDGÅET — målet stod kun i «Din plan» længere nede.)
+          og beskeder, over løse skridt — MEN kun (1) står ubetinget over
+          (f): (2) og (3) lægges under et HASTENDE aktivt (f)-skridt
+          (forfaldent eller frist inden for 7 danske dage; rådets fund 6,
+          1/10). (Fra 16/9 til 1/10 var slottet UDGÅET — målet stod kun i
+          «Din plan» længere nede.)
       (f) åbne company_actions (kalderens prioritetsorden)
       (g) pulse-nudge                  (h) løftestang uden milestone
       (i) tom netværksprofil (ask_me_about mangler) — LAVEST: en tom
@@ -187,6 +190,33 @@ export interface NextStep {
   description: string;
   cta: string;
   link: string;
+}
+
+/** Et aktivt (f)-skridt med frist inden for så mange DANSKE dage (forfaldne
+    medregnet) er «hastende» — målpunktets kilde (2) og (3) lægges under det
+    (rådets fund 6, 1/10). Samme danske dag som maalFokus (dageTilDanskDato). */
+export const HASTENDE_SKRIDT_DAGE = 7;
+
+/** Er (f)-handlingen et hastende aktivt skridt? Kun status 'active' (ikke
+    forslag, ikke arve-'open') med en læselig frist, hvis danske dag er
+    passeret eller ligger højst HASTENDE_SKRIDT_DAGE dage fremme.
+    Regnestykket: dage = dageTilDanskDato(due_date, now) ≤ 7 (negativ =
+    forfalden). Eksempel: now = 10/8-2026 kl. 12 dansk; due «2026-08-17» →
+    7 → hastende; «2026-08-18» → 8 → ikke. */
+export function erHastendeSkridt(action: Pick<FocusOpenAction, "status" | "due_date">, now: Date): boolean {
+  if (action.status !== "active" || !action.due_date) return false;
+  const dage = dageTilDanskDato(action.due_date, now);
+  return dage != null && dage <= HASTENDE_SKRIDT_DAGE;
+}
+
+/** Tillægget om målets frist i kilde (1) — rådets fund 12 (1/10): en
+    passeret frist og en frist i dag siges som en sætning, ikke som
+    «Målets frist: fristen er passeret». */
+export function maalFristTillaeg(dage: number | null): string {
+  if (dage == null) return "";
+  if (dage < 0) return " Fristen for målet er passeret.";
+  if (dage === 0) return " Fristen for målet er i dag.";
+  return ` Målets frist: ${dage === 1 ? "1 dag" : `${dage} dage`} tilbage.`;
 }
 
 /** "YYYY-MM-DD" → "4. september" — splitter selv frem for new Date():
@@ -405,21 +435,28 @@ export function deriveFocus(inputs: FocusInputs): FocusItem[] {
   // 6 af 36 aktive mål havde et skridt — kortet øverst skal pege på målet.
   // Dommen og kildernes rækkefølge står i maalFokus.ts. Er punktet et
   // skridt, springer (f) netop det skridt over (samme ting to gange).
+  // PLADSEN (rådets fund 6, 1/10): kun (1) — et konkret skridt under et mål
+  // — står ubetinget over (f). (2) «Tilføj skridt» og (3) «N dage tilbage»
+  // er invitationer, ikke aftaler: de må ikke skubbe et aktivt skridt, der
+  // er forfaldent eller har frist inden for HASTENDE_SKRIDT_DAGE, ned. Er
+  // der et sådant (erHastendeSkridt), lægges målpunktet lige UNDER det
+  // sidste hastende (f)-punkt (kalderens orden bevares) og får (f)'s
+  // prioritet 6, så listen stadig er sorteret; ellers står det som før.
   const maalPunkt = inputs.maalPlan ? maalFokus(inputs.maalPlan.maal, inputs.maalPlan.skridt, now) : null;
+  let ventendeMaalItem: FocusItem | null = null;
   if (maalPunkt?.art === "skridt") {
-    const fristLinje = maalPunkt.maalDageTilbage != null ? ` Målets frist: ${dageTilbageTekst(maalPunkt.maalDageTilbage)}.` : "";
     items.push({
       key: `maal:skridt:${maalPunkt.skridtId}`,
       kind: "maal",
       priority: 5,
       title: maalPunkt.skridtTitel,
-      description: `Skal være gjort senest ${formatDanskDato(maalPunkt.frist)} — ${modMaaletLinje(maalPunkt.maalTitel)}.${fristLinje}`,
+      description: `Skal være gjort senest ${formatDanskDato(maalPunkt.frist)} — ${modMaaletLinje(maalPunkt.maalTitel)}.${maalFristTillaeg(maalPunkt.maalDageTilbage)}`,
       ctaLabel: MAAL_FOKUS_SKRIDT_CTA,
       ctaHref: "#dine-skridt",
       sourceId: maalPunkt.skridtId,
     });
   } else if (maalPunkt?.art === "foerste_skridt") {
-    items.push({
+    ventendeMaalItem = {
       key: `maal:foerste:${maalPunkt.maalId}`,
       kind: "maal",
       priority: 5,
@@ -430,9 +467,9 @@ export function deriveFocus(inputs: FocusInputs): FocusItem[] {
       ctaLabel: MAAL_FOKUS_TILFOEJ_CTA,
       ctaHref: MAAL_FOKUS_STI,
       sourceId: maalPunkt.maalId,
-    });
+    };
   } else if (maalPunkt?.art === "frist") {
-    items.push({
+    ventendeMaalItem = {
       key: `maal:frist:${maalPunkt.maalId}`,
       kind: "maal",
       priority: 5,
@@ -441,9 +478,11 @@ export function deriveFocus(inputs: FocusInputs): FocusItem[] {
       ctaLabel: MAAL_FOKUS_MAAL_CTA,
       ctaHref: MAAL_FOKUS_STI,
       sourceId: maalPunkt.maalId,
-    });
+    };
   }
   const maalSkridtId = maalPunkt?.art === "skridt" ? maalPunkt.skridtId : null;
+  const fStart = items.length;
+  let sidsteHastende = -1;
 
   // (f) Åbne handlinger — kalderens orden bevares (ActionCenter:205-208:
   // high → medium → low, dernæst ældste først). 'proposed' udelades
@@ -484,6 +523,13 @@ export function deriveFocus(inputs: FocusInputs): FocusItem[] {
       ctaHref: erAktivOpgave ? "#dine-skridt" : "/",
       sourceId: action.id,
     });
+    if (erHastendeSkridt(action, now)) sidsteHastende = items.length - 1;
+  }
+  // Målpunktets (2)/(3) plads (se (e)): under det sidste hastende (f)-punkt,
+  // ellers før (f) som hidtil. Stadig ét målpunkt i alt.
+  if (ventendeMaalItem) {
+    if (sidsteHastende >= 0) items.splice(sidsteHastende + 1, 0, { ...ventendeMaalItem, priority: 6 });
+    else items.splice(fStart, 0, ventendeMaalItem);
   }
 
   // (g) Pulse-nudgen — GATED bag committed rapport (ActionCenter:166-176:

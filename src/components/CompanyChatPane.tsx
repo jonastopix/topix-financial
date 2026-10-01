@@ -59,7 +59,7 @@ import { useKpiBenchmarks } from "@/hooks/useKpiBenchmarks";
 import { deriveKpiMetrics, getTargetStatus, type KpiMetric } from "@/lib/kpiDefs";
 import { useCompanyCommentary } from "@/hooks/useCompanyCommentary";
 import { laesAnalysisData } from "@/lib/financialAnalysis";
-import { forslagMaalDom, MAAL_KRAEVES_GRUND } from "@/lib/maalValg";
+import { forslagMaalDom } from "@/lib/maalValg";
 import { format, formatDistanceToNow, startOfDay } from "date-fns";
 import { da } from "date-fns/locale";
 // Delt med MemberChatPane efter C1-splittet (docs/chat-design.md):
@@ -1022,12 +1022,37 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
     staleTime: 60_000,
   });
   const aktiveMaal = aktiveMaalQuery.data ?? [];
+  // Det EFFEKTIVE valg (rådets fund 1, 1/10): et valgt id, der ikke (længere)
+  // er blandt de aktive mål — en anden samtale/virksomhed, eller et mål, der
+  // er nået/parkeret siden — behandles som intet valg. Ellers stod <select>'en
+  // med en value uden <option>: browseren viser første mulighed, men et klik
+  // på den samme mulighed udløser ingen onChange, og knappen var død
+  // («ukendt_maal» uden vej ud). Nu vises pladsholderen, og valget virker.
+  const effektivtMaalValg = aktiveMaal.some((m) => m.id === forslagMaalValg) ? forslagMaalValg : "";
+  // Nulstil valget ved skift af virksomhed (samtalen kan skifte, mens
+  // popoveren er lukket). Hooken står i topblokken (React #310-reglen).
+  useEffect(() => {
+    setForslagMaalValg("");
+  }, [forslagCompanyId]);
   // Dommen (1/10): må forslaget sendes, og med hvilket mål? Intet valg = intet mål — der er ingen standard.
   const forslagDom = forslagMaalDom(
     aktiveMaalQuery.isError ? "fejl" : aktiveMaalQuery.isPending ? "henter" : "klar",
     aktiveMaal,
-    forslagMaalValg === "" ? null : forslagMaalValg,
+    effektivtMaalValg === "" ? null : effektivtMaalValg,
   );
+  // Grunden til en deaktiveret knap — én linje under knappen, koblet med
+  // aria-describedby (rådets fund 3). Kun dommens grunde; en tom titel er
+  // selvforklarende (feltet står tomt lige over).
+  // (strict er slået fra i tsconfig: diskriminanten narrowes kun med === false.)
+  const forslagGrundTekst: string | null = forslagDom.kanSendes === false
+    ? forslagDom.grund === "henter"
+      ? "Henter virksomhedens mål …"
+      : forslagDom.grund === "fejl"
+        ? "Skridtet kan ikke sendes, før målene er hentet."
+        : forslagDom.grund === "ukendt_maal"
+          ? "Målet er ikke længere aktivt — vælg et andet."
+          : "Vælg det mål, skridtet hører til."
+    : null;
 
   // Modtageren i skrivefeltet (og den tomme tilstand): rådgiveren skriver
   // TIL virksomheden. Låst (blok 4): virksomhedens navn, samme tone som
@@ -1229,9 +1254,11 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
         try {
           const svar = await (error as any).context?.json?.();
           if (svar?.error) besked = svar.error;
-          // Et mål er kommet til, siden listen blev hentet — hent den igen, så vælgeren viser det.
-          if (svar?.grund === MAAL_KRAEVES_GRUND) void aktiveMaalQuery.refetch();
         } catch { /* behold error.message */ }
+        // Enhver serverfejl (rådets fund 10, 1/10): hent målene igen — ikke kun
+        // ved maal_kraeves. Et mål kan være kommet til (400 maal_kraeves), nået
+        // eller parkeret (404/409), og vælgeren skal vise den faktiske liste.
+        void aktiveMaalQuery.refetch();
         toast.error("Forslaget blev ikke sendt", { description: besked });
         return;
       }
@@ -1283,7 +1310,12 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
     <>
       <HbPopover
         open={forslagAaben}
-        onOpenChange={setForslagAaben}
+        onOpenChange={(aaben) => {
+          setForslagAaben(aaben);
+          // Lukket vælger = nulstillet mål (rådets fund 1): næste åbning starter
+          // fra pladsholderen, ikke fra et mål valgt i en anden sammenhæng.
+          if (!aaben) setForslagMaalValg("");
+        }}
         className="flex-shrink-0"
         ariaLabel="Foreslå skridt"
         panelClassName="absolute left-0 top-full mt-2 w-72 max-w-[calc(100vw-1.5rem)] p-3"
@@ -1316,10 +1348,22 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
         >
           <p className="text-[10px] text-hb-rust font-medium uppercase tracking-[0.14em] mb-2">Foreslå skridt</p>
           {aktiveMaalQuery.isError ? (
-            <p className="mb-1.5 text-xs text-hb-rust">Virksomhedens mål kunne ikke hentes — prøv igen om lidt.</p>
+            <p className="mb-1.5 text-xs text-hb-rust" data-maal-hentefejl>
+              Virksomhedens mål kunne ikke hentes.{" "}
+              {/* Rådets fund 4: en vej ud uden at lukke og genåbne. */}
+              <button
+                type="button"
+                onClick={() => void aktiveMaalQuery.refetch()}
+                disabled={aktiveMaalQuery.isFetching}
+                className="underline underline-offset-2 hover:no-underline disabled:opacity-50"
+                data-maal-proev-igen
+              >
+                {aktiveMaalQuery.isFetching ? "Henter …" : "Prøv igen"}
+              </button>
+            </p>
           ) : aktiveMaal.length > 0 ? (
             <select
-              value={forslagMaalValg}
+              value={effektivtMaalValg}
               onChange={(e) => setForslagMaalValg(e.target.value)}
               aria-label="Målet skridtet hører til"
               required
@@ -1352,10 +1396,16 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
           <HbButton
             type="submit"
             disabled={foreslaarOpgave || !forslagTitel.trim() || !forslagDom.kanSendes}
+            aria-describedby={forslagGrundTekst ? "foreslaa-skridt-grund" : undefined}
             className="h-8 w-full px-2 text-xs"
           >
             {foreslaarOpgave ? "Sender…" : "Foreslå skridt"}
           </HbButton>
+          {forslagGrundTekst && (
+            <p id="foreslaa-skridt-grund" className="mt-1.5 text-xs text-hb-ink-soft" data-foreslaa-grund>
+              {forslagGrundTekst}
+            </p>
+          )}
         </form>
       </HbPopover>
       {activeConv?.awaiting_reply_from === "advisor" && (

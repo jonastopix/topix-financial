@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deriveFocus, deriveNextStep, filtrerUdloebneForslag, foersteRapportPeriode, type FocusInputs, type NextStepInputs } from "../nextStep";
+import { deriveFocus, deriveNextStep, erHastendeSkridt, filtrerUdloebneForslag, foersteRapportPeriode, maalFristTillaeg, type FocusInputs, type NextStepInputs } from "../nextStep";
 import { byggTjekliste, TJEKLISTE_RAEKKEFOELGE, type TjeklisteInput } from "@/lib/onboardingTjekliste";
 
 /** Fokus-motoren (forside PR 1): hver kilde, rækkefølgen ved samtidige
@@ -101,10 +101,10 @@ describe("deriveFocus — hver kilde for sig", () => {
   const maalRaekke = (o: Record<string, unknown>) => ({ id: "m1", title: "Ny sælger", status: "active", progress: 0, deadline: null, created_at: "2026-07-01T00:00:00Z", ...o });
   const skridtRaekke = (o: Record<string, unknown>) => ({ id: "s1", title: "Skriv jobopslag", status: "active", due_date: "2026-08-20", maal_id: "m1", ...o });
 
-  it("(e) mål uden skridt → «Tilføj det første skridt mod …» til /milestones", () => {
+  it("(e) mål uden skridt → «Tilføj det første skridt mod …» til forsidens anker #dine-maal (rådets fund 13)", () => {
     const items = deriveFocus(base({ maalPlan: { maal: [maalRaekke({})], skridt: [] } }));
     expect(items).toEqual([
-      expect.objectContaining({ kind: "maal", priority: 5, title: "Tilføj det første skridt mod Ny sælger", ctaHref: "/milestones", sourceId: "m1" }),
+      expect.objectContaining({ kind: "maal", priority: 5, title: "Tilføj det første skridt mod Ny sælger", ctaHref: "#dine-maal", sourceId: "m1" }),
     ]);
   });
 
@@ -126,13 +126,72 @@ describe("deriveFocus — hver kilde for sig", () => {
     expect(items[0].description).toBe("Skal være gjort senest 20. august — mod målet: Ny sælger. Målets frist: 20 dage tilbage.");
   });
 
+  it("(e)(1) tillægget siger «passeret» og «i dag» som sætninger (rådets fund 12)", () => {
+    const tekst = (deadline: string) =>
+      deriveFocus(base({ maalPlan: { maal: [maalRaekke({ deadline })], skridt: [skridtRaekke({})] } }))[0].description;
+    expect(tekst("2026-08-05")).toBe("Skal være gjort senest 20. august — mod målet: Ny sælger. Fristen for målet er passeret.");
+    expect(tekst("2026-08-10")).toBe("Skal være gjort senest 20. august — mod målet: Ny sælger. Fristen for målet er i dag.");
+    expect(tekst("2026-08-11")).toBe("Skal være gjort senest 20. august — mod målet: Ny sælger. Målets frist: 1 dag tilbage.");
+    expect(maalFristTillaeg(null)).toBe("");
+  });
+
+  it("(e) (2)/(3) lægges UNDER et hastende aktivt (f)-skridt — forfaldent eller frist ≤ 7 danske dage (rådets fund 6)", () => {
+    const loest = (id: string, due_date: string) => ({ id, title: `Løst ${id}`, priority: "high", status: "active", due_date });
+    // (2) under et skridt med frist om 7 dage (17/8) — grænsen er med.
+    const syv = deriveFocus(base({ maalPlan: { maal: [maalRaekke({})], skridt: [] }, openActions: [loest("x", "2026-08-17")] }));
+    expect(syv.map((i) => i.key)).toEqual(["action:x", "maal:foerste:m1"]);
+    // Prioriteten følger pladsen, så listen stadig er sorteret.
+    expect(syv.map((i) => i.priority)).toEqual([6, 6]);
+    // Forfaldent (9/8) — også under.
+    expect(deriveFocus(base({ maalPlan: { maal: [maalRaekke({})], skridt: [] }, openActions: [loest("x", "2026-08-09")] })).map((i) => i.kind))
+      .toEqual(["company-action", "maal"]);
+    // (3) under det SIDSTE hastende; et ikke-hastende bliver under målpunktet.
+    const frist = deriveFocus(base({
+      maalPlan: { maal: [maalRaekke({ deadline: "2026-08-25" })], skridt: [skridtRaekke({ status: "proposed", due_date: null })] },
+      openActions: [loest("a", "2026-08-12"), loest("b", "2026-09-30"), loest("c", "2026-08-14")],
+    }));
+    expect(frist.map((i) => i.key)).toEqual(["action:a", "action:b", "action:c", "maal:frist:m1"]);
+    expect(frist.filter((i) => i.kind === "maal")).toHaveLength(1);
+  });
+
+  it("(e) (2)/(3) står OVER (f), når intet (f)-skridt haster — 8 dage, forslag og arve-open tæller ikke", () => {
+    const items = deriveFocus(base({
+      maalPlan: { maal: [maalRaekke({})], skridt: [] },
+      openActions: [
+        { id: "otte", title: "Om 8 dage", priority: "high", status: "active", due_date: "2026-08-18" },
+        { id: "forslag", title: "Forslag", priority: "high", status: "proposed", due_date: "2026-08-11" },
+        { id: "arv", title: "Arv", priority: "high" },
+      ],
+    }));
+    expect(items.map((i) => i.key)).toEqual(["maal:foerste:m1", "action:otte", "action:arv"]);
+    expect(items[0].priority).toBe(5);
+  });
+
+  it("(e)(1) — skridtet under et mål — står over (f), også når et løst skridt haster", () => {
+    const items = deriveFocus(base({
+      maalPlan: { maal: [maalRaekke({})], skridt: [skridtRaekke({})] },
+      openActions: [{ id: "x", title: "Haster", priority: "high", status: "active", due_date: "2026-08-09" }],
+    }));
+    expect(items.map((i) => i.key)).toEqual(["maal:skridt:s1", "action:x"]);
+  });
+
+  it("erHastendeSkridt: dansk dag, kun aktive med frist", () => {
+    // 10/8 kl. 23:30 UTC = 11/8 01:30 dansk → «i dag» = 11/8; 18/8 er 7 dage væk.
+    const sent = new Date("2026-08-10T23:30:00Z");
+    expect(erHastendeSkridt({ status: "active", due_date: "2026-08-18" }, sent)).toBe(true);
+    expect(erHastendeSkridt({ status: "active", due_date: "2026-08-19" }, sent)).toBe(false);
+    expect(erHastendeSkridt({ status: "proposed", due_date: "2026-08-11" }, sent)).toBe(false);
+    expect(erHastendeSkridt({ status: "active", due_date: null }, sent)).toBe(false);
+  });
+
   it("(e) står UNDER rapport og beskeder og OVER løse skridt, pulse og profil", () => {
     const items = deriveFocus(base({
       processedPeriodKeys: new Set([JUNI]),
       committedPeriodKeys: new Set([JUNI]),
       unreadUserMessages: 1,
       askMeAboutMissing: true,
-      openActions: [{ id: "x", title: "Løst", priority: "high", status: "active", due_date: "2026-08-12" }],
+      // Ikke hastende (frist om 20 dage) — ellers lægges (2) under skridtet (fund 6, testet nedenfor).
+      openActions: [{ id: "x", title: "Løst", priority: "high", status: "active", due_date: "2026-08-30" }],
       maalPlan: { maal: [maalRaekke({})], skridt: [] },
     }));
     expect(items.map((i) => i.kind)).toEqual(["missing-report", "unread-messages", "maal", "company-action", "empty-profile"]);

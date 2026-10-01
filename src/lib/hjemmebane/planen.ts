@@ -108,6 +108,22 @@ function aeldsteFoerst(a: MaalIPlanen, b: MaalIPlanen): number {
   return a.maal.created_at < b.maal.created_at ? -1 : a.maal.created_at > b.maal.created_at ? 1 : 0;
 }
 
+/** Fremdriften fladen viser for ÉT mål — ÉN regel for Planen, «Din plan»
+    (dineMaal → forsidePlan) og fokusmotorens målpunkt (maalFokus, 1/10):
+    har målet TÆLLENDE skridt, regnes den af dem (maalFremdrift); ellers er
+    det rækkens eget tal (sat af et menneske), klippet til 0–100. */
+export function visteFremdrift(
+  egneSkridt: readonly { status: string }[],
+  progress: number | null | undefined,
+): { fremdrift: number; beregnet: boolean } {
+  const taellende = egneSkridt.filter((s) => TAELLENDE_SKRIDT.includes(s.status));
+  const beregnet = taellende.length > 0;
+  return {
+    fremdrift: beregnet ? maalFremdrift(taellende, progress) : Math.min(100, Math.max(0, Math.round(progress ?? 0))),
+    beregnet,
+  };
+}
+
 export function planenDom(maal: readonly MaalRaekke[], skridt: readonly SkridtRaekke[], nu: Date): PlanenDom {
   const skridtPrMaal = new Map<string, SkridtRaekke[]>();
   const udenMaal: SkridtRaekke[] = [];
@@ -124,9 +140,7 @@ export function planenDom(maal: readonly MaalRaekke[], skridt: readonly SkridtRa
   const alle: MaalIPlanen[] = maal.map((m) => {
     const dom = afgoerMilepael(m, nu);
     const egne = skridtPrMaal.get(m.id) ?? [];
-    const taellende = egne.filter((s) => TAELLENDE_SKRIDT.includes(s.status));
-    const beregnet = taellende.length > 0;
-    const fremdrift = beregnet ? maalFremdrift(taellende, m.progress) : Math.min(100, Math.max(0, Math.round(m.progress ?? 0)));
+    const { fremdrift, beregnet } = visteFremdrift(egne, m.progress);
     return {
       maal: m,
       dom,

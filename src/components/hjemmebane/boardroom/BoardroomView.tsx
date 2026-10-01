@@ -1964,7 +1964,10 @@ export const BoardroomView = () => {
   // stadig — men med en rolig linje under om hvad der manglede, så et
   // manglende punkt ikke bliver læst som «der er intet». Ordene i
   // lib/hjemmebane/hentefejl; kilden bæres af HentningsFejl.
-  const fejledeKilder = [processedQuery, milestonesQuery, pulseQuery, refleksionAntalQuery, leversQuery, ownProfileQuery, contractStartQuery]
+  // skridtQuery (rådets fund 2, 1/10): slot (e) læser den — en fejl giver intet
+  // målpunkt (maalPlan = null), og det skal siges, ikke ligne «intet at gøre».
+  // Kilden er "company_actions" (kraevRaekker) → «dine aftaler» i hentefejl.
+  const fejledeKilder = [processedQuery, milestonesQuery, skridtQuery, pulseQuery, refleksionAntalQuery, leversQuery, ownProfileQuery, contractStartQuery]
     .filter((q) => q.isError)
     .map((q) => kildeAf(q.error));
   const hentefejlLinje = hentefejlTekst(fejledeKilder);
@@ -2118,6 +2121,10 @@ export const BoardroomView = () => {
       // Rækken kan være ændret imens (409-låsen) — hent den faktiske
       // tilstand frem for at lade fladen stå med et forældet punkt.
       void queryClient.invalidateQueries({ queryKey: ["boardroom", "company-actions", companyId] });
+      // Også skridtene under målene (rådets fund 9): slot (e) og «Din plan»
+      // læser skridtQuery (queryKey ["boardroom", "skridt", companyId]) —
+      // samme nøgle som onSuccess.
+      void queryClient.invalidateQueries({ queryKey: ["boardroom", "skridt", companyId] });
     },
   });
 
@@ -2125,6 +2132,9 @@ export const BoardroomView = () => {
     !!companyId &&
     (processedQuery.isPending ||
       milestonesQuery.isPending ||
+      // Slot (e) (rådets fund 2): uden skridtene ville kortet først vise
+      // «Tilføj det første skridt» og så skifte, når de lander.
+      skridtQuery.isPending ||
       pulseQuery.isPending ||
       weeklyFocusQuery.isPending ||
       actionsQuery.isPending ||

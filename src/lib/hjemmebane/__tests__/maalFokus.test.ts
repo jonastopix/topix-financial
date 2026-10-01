@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
-  dageTilbageTekst, dageTilMaalFrist, foersteSkridtTitel, fristTitel, maalFokus, MAAL_FRIST_DAGE,
+  dageTilbageTekst, dageTilMaalFrist, foersteSkridtTitel, fristTitel, iFristvinduet, maalFokus, MAAL_FOKUS_STI,
+  MAAL_FRIST_DAGE, MAAL_FRIST_EFTER_DAGE, MAAL_FRIST_FREMDRIFT_UNDER,
   type MaalFokusMaal, type MaalFokusSkridt,
 } from "../maalFokus";
+import { planenDom } from "../planen";
 
 // Fast «nu»: 1/10-2026 kl. 10:00 UTC = 12:00 dansk (sommertid) → dansk dato 2026-10-01.
 const NU = new Date("2026-10-01T10:00:00Z");
@@ -89,6 +91,13 @@ describe("maalFokus — tre kilder, ét punkt", () => {
     expect(maalFokus(m, [udloebet], NU)).toMatchObject({ art: "foerste_skridt", maalId: "a", foerste: true });
   });
 
+  it("(2) mål med viste fremdrift ≥ 100 springes over som «alle gjort» (rådets fund 8)", () => {
+    expect(maalFokus([maal({ id: "a", progress: 100 })], [], NU)).toBeNull();
+    expect(maalFokus([maal({ id: "a", progress: 99 })], [], NU)).toMatchObject({ art: "foerste_skridt", foerste: true });
+    // Det næste mål tager over.
+    expect(maalFokus([maal({ id: "a", progress: 100 }), maal({ id: "b" })], [], NU)).toMatchObject({ art: "foerste_skridt", maalId: "b" });
+  });
+
   it("(2) «det næste skridt», når målet har haft skridt; mål med alle skridt gjort springes over", () => {
     const m = [maal({ id: "a" })];
     expect(maalFokus(m, [skridt({ id: "x", maal_id: "a", status: "dropped" })], NU)).toMatchObject({ art: "foerste_skridt", foerste: false });
@@ -97,10 +106,46 @@ describe("maalFokus — tre kilder, ét punkt", () => {
     expect(maalFokus(m, [skridt({ id: "x", maal_id: "a", status: "dismissed" })], NU)).toMatchObject({ foerste: true });
   });
 
+  // (3) nås kun, når målet har et ventende forslag (så (2) springer det over) og intet aktivt skridt.
+  const venter = (id: string) => skridt({ id: `f${id}`, maal_id: id, status: "proposed", due_date: null });
+
   it("(3) frist: ≤ 30 dage, passeret medregnet; over 30 dage giver intet", () => {
+    expect(maalFokus([maal({ id: "a", deadline: "2026-09-20" })], [venter("a")], NU)).toMatchObject({ art: "frist", dageTilbage: -11 });
+    expect(maalFokus([maal({ id: "a", deadline: "2026-11-15" })], [venter("a")], NU)).toBeNull();
+  });
+
+  it("(3) en passeret frist vises kun i højst 30 dage efter fristen (rådets fund 5)", () => {
+    // 1/9 → −30 (sidste dag), 31/8 → −31 (ude).
+    expect(maalFokus([maal({ id: "a", deadline: "2026-09-01" })], [venter("a")], NU)).toMatchObject({ art: "frist", dageTilbage: -MAAL_FRIST_EFTER_DAGE });
+    expect(maalFokus([maal({ id: "a", deadline: "2026-08-31" })], [venter("a")], NU)).toBeNull();
+    expect(iFristvinduet(-30)).toBe(true);
+    expect(iFristvinduet(-31)).toBe(false);
+    expect(iFristvinduet(30)).toBe(true);
+    expect(iFristvinduet(31)).toBe(false);
+    expect(iFristvinduet(null)).toBe(false);
+  });
+
+  it("(3) kun under halvvejs — fremdriften er den, «Din plan» viser (rådets fund 5)", () => {
+    const fremme = maal({ id: "a", deadline: "2026-10-10", progress: 49 });
+    expect(maalFokus([fremme], [venter("a")], NU)).toMatchObject({ art: "frist", dageTilbage: 9 });
+    expect(maalFokus([{ ...fremme, progress: MAAL_FRIST_FREMDRIFT_UNDER }], [venter("a")], NU)).toBeNull();
+    // Beregnet af skridtene: 1 af 2 gjort = 50 % → ingen frist; rækkens progress (0) læses ikke.
+    const toSkridt = [venter("a"), skridt({ id: "d1", maal_id: "a", status: "done" }), skridt({ id: "d2", maal_id: "a", status: "dropped" })];
+    expect(maalFokus([{ ...fremme, progress: 0 }], toSkridt, NU)).toBeNull();
+    // Samme tal som planenDom (Din plan) — én definition.
+    const planensTal = planenDom(
+      [{ ...fremme, progress: 0, category: null, source: null, progress_updated_at: null, completed_at: null }],
+      toSkridt.map((x) => ({ ...x, due_date: x.due_date ?? null, maal_id: x.maal_id ?? null })),
+      NU,
+    ).aktive[0].fremdrift;
+    expect(planensTal).toBe(50);
+    // 1 af 3 gjort = 33 % → fristen vises.
+    expect(maalFokus([{ ...fremme, progress: 0 }], [...toSkridt, skridt({ id: "d3", maal_id: "a", status: "not_done" })], NU)).toMatchObject({ art: "frist" });
+  });
+
+  it("(3) aldrig et mål, hvor alle skridt er gjort", () => {
     const done = (id: string) => skridt({ id: `d${id}`, maal_id: id, status: "done" });
-    expect(maalFokus([maal({ id: "a", deadline: "2026-09-20" })], [done("a")], NU)).toMatchObject({ art: "frist", dageTilbage: -11 });
-    expect(maalFokus([maal({ id: "a", deadline: "2026-11-15" })], [done("a")], NU)).toBeNull();
+    expect(maalFokus([maal({ id: "a", deadline: "2026-10-05" })], [done("a"), venter("a")], NU)).toBeNull();
   });
 
   it("rækkefølgen: (1) slår (2), (2) slår (3)", () => {
@@ -113,7 +158,7 @@ describe("maalFokus — tre kilder, ét punkt", () => {
 
   it("tiden kommer udefra: samme input, andet «nu», andet svar", () => {
     const m = [maal({ id: "a", deadline: "2026-11-15" })];
-    const s = [skridt({ id: "d", maal_id: "a", status: "done" })];
+    const s = [skridt({ id: "f", maal_id: "a", status: "proposed", due_date: null })];
     expect(maalFokus(m, s, NU)).toBeNull();
     expect(maalFokus(m, s, new Date("2026-10-20T10:00:00Z"))).toMatchObject({ art: "frist", dageTilbage: 26 });
   });
@@ -127,5 +172,8 @@ describe("ordene", () => {
     expect(dageTilbageTekst(1)).toBe("1 dag tilbage");
     expect(dageTilbageTekst(0)).toBe("fristen er i dag");
     expect(dageTilbageTekst(-3)).toBe("fristen er passeret");
+  });
+  it("CTA'en peger på forsidens eget anker for «Din plan» (rådets fund 13)", () => {
+    expect(MAAL_FOKUS_STI).toBe("#dine-maal");
   });
 });
