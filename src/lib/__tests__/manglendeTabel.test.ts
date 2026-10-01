@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { erManglendeTabel } from "@/lib/manglendeTabel";
+import { erManglendeKolonne, erManglendeTabel } from "@/lib/manglendeTabel";
 
 /* «Findes tabellen slet ikke?» — kun da må Score-kortet stå roligt «på vej». */
 
@@ -26,5 +26,25 @@ describe("erManglendeTabel", () => {
   it("intet svar er ingen fejl", () => {
     expect(erManglendeTabel(null)).toBe(false);
     expect(erManglendeTabel(undefined)).toBe(false);
+  });
+});
+
+/* «Findes KOLONNEN ikke?» — kun da falder Dine måls læser tilbage på de gamle kolonner (1/10-2026). */
+describe("erManglendeKolonne", () => {
+  it("42703 (SELECT) og PGRST204 (INSERT/UPDATE) er en manglende kolonne", () => {
+    expect(erManglendeKolonne({ code: "42703", message: "column milestones.art does not exist" })).toBe(true);
+    expect(erManglendeKolonne({ code: "PGRST204", message: "Could not find the 'art' column of 'milestones' in the schema cache" })).toBe(true);
+  });
+  it("en manglende TABEL, RLS, en trigger og netværk er IKKE en manglende kolonne", () => {
+    expect(erManglendeKolonne({ code: "PGRST205", message: "Could not find the table 'public.x' in the schema cache" })).toBe(false);
+    expect(erManglendeKolonne({ code: "42P01", message: 'relation "x" does not exist' })).toBe(false);
+    expect(erManglendeKolonne({ code: "42501", message: "permission denied for table milestones" })).toBe(false);
+    expect(erManglendeKolonne({ code: "P0001", message: "column x does not exist" })).toBe(false);
+    expect(erManglendeKolonne({ message: "Failed to fetch" })).toBe(false);
+  });
+  it("uden kode: kun en entydig besked", () => {
+    expect(erManglendeKolonne({ message: 'column "art" does not exist' })).toBe(true);
+    expect(erManglendeKolonne({ message: "Could not find the 'art' column of 'milestones' in the schema cache" })).toBe(true);
+    expect(erManglendeKolonne(null)).toBe(false);
   });
 });

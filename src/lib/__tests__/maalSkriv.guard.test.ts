@@ -46,6 +46,9 @@ const BOGFOERTE_KLIENTSKRIVERE: Record<string, RegExp[]> = {
   [HANDOUT]: [/\.from\("milestones"\)\s*\.insert\(insertData as any\)/],
   "src/pages/LegatDashboard.tsx": [/\.from\("milestones"\)\s*\.update\(\{ progress: 100, status: "completed" \}\)/],
   "src/components/hjemmebane/rapportering/RapporteringView.tsx": [/from\("milestones"\)\.delete\(\)\.eq\("source_report"/],
+  // 1/10-2026 (Dine mål, tal-mål — Jonas 21:04): guidens oprettelse og «Gør målet skarpt»,
+  // medlemmets egen vej som useMilestones; dømt af maalTal.doemNytMaal, «højst tre» af databasen.
+  "src/hooks/dineMaalGrundlag.ts": [/\.from\("milestones"\)\.insert\(payload\)/, /\.from\("milestones"\)\.update\(payload\)\.eq\("id", args\.maalId\)\.is\("art", null\)/],
 };
 
 function alleFiler(rod: string, endelse: RegExp = /\.tsx?$/): string[] {
@@ -83,6 +86,26 @@ export const ingenRlsAendring = (migrationer: readonly { sti: string; sql: strin
     .filter((m) => m.sti > "supabase/migrations/20260917140000")
     .filter((m) => /(create|drop|alter) policy[^;]*on public\.milestones/i.test(udenSqlKommentarer(m.sql)))
     .map((m) => m.sti);
+
+/**
+ * Dom 2-undtagelsen (rådets fund 9, 1/10 aften): den FORBEREDTE stramning
+ * (SECURITY_BASELINE fund 6) står i mappen, men er IKKE kørt og KRÆVER Jonas'
+ * grønne lys. Den er kun tilladt, så længe den (a) bærer den linje som første
+ * linje, (b) kun bruger ALTER POLICY (aldrig CREATE/DROP POLICY) og (c) kun
+ * STRAMMER: hver WITH CHECK indeholder company_id = public.user_company_id(auth.uid()).
+ * Køres den, flippes linjen — og værnet skal ajourføres i samme PR.
+ */
+export const FORBEREDTE_RLS_STRAMNINGER = ["supabase/migrations/20261002090000_milestones_with_check.sql"] as const;
+export const forberedtStramning = (sql: string): boolean => {
+  const krop = udenSqlKommentarer(sql);
+  const checks = [...krop.matchAll(/WITH CHECK \(([^;]*)\);/gi)].map((m) => m[1]);
+  return (
+    sql.split("\n")[0] === "-- IKKE KØRT. KRÆVER JONAS' GRØNNE LYS (RLS-stramning, SECURITY_BASELINE fund 6)." &&
+    !/\b(create|drop)\s+policy\b/i.test(krop) &&
+    (krop.match(/\balter policy\b/gi) ?? []).length === checks.length && checks.length > 0 &&
+    checks.every((c) => c.includes("company_id = public.user_company_id(auth.uid())"))
+  );
+};
 
 /** Dom 3: klientskrivere til milestones = de bogførte. */
 export const klientskrivere = (filer: readonly string[], laesFil: (f: string) => string): string[] =>
@@ -130,9 +153,17 @@ describe("maalSkriv.guard — fase 2: medlemmet ejer sine mål, rådgiveren skri
     expect(maalSkrivHolder(udenKommentarer(laes(MAAL_SKRIV)))).toBe(true);
     expect(laes(CONFIG)).toMatch(/\[functions\.maal-skriv\]\s*\n\s*verify_jwt = true/);
   });
-  it("dom 2: ingen migration efter fase 1 rører milestones' politikker (Jonas: medlemmet ejer sine mål)", () => {
+  it("dom 2: ingen migration efter fase 1 rører milestones' politikker (Jonas: medlemmet ejer sine mål) — undtagen den FORBEREDTE stramning", () => {
     const migrationer = alleFiler("supabase/migrations", /\.sql$/).map((sti) => ({ sti, sql: laes(sti) }));
-    expect(ingenRlsAendring(migrationer)).toEqual([]);
+    expect(ingenRlsAendring(migrationer)).toEqual([...FORBEREDTE_RLS_STRAMNINGER]);
+    for (const sti of FORBEREDTE_RLS_STRAMNINGER) expect(forberedtStramning(laes(sti)), sti).toBe(true);
+  });
+  it("selvbevis 2b: en forberedt stramning, der er flippet, dropper, opretter eller slækker, falder", () => {
+    const f = laes(FORBEREDTE_RLS_STRAMNINGER[0]);
+    expect(forberedtStramning(f.replace(/^[^\n]*/, "-- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik)."))).toBe(false);
+    expect(forberedtStramning(f + '\ndrop policy "x" on public.milestones;')).toBe(false);
+    expect(forberedtStramning(f + '\ncreate policy "x" on public.milestones for insert with check (true);')).toBe(false);
+    expect(forberedtStramning(f.replace(/WITH CHECK \(auth\.uid\(\) = user_id AND company_id = public\.user_company_id\(auth\.uid\(\)\)\)/g, "WITH CHECK (true)"))).toBe(false);
   });
   it("dom 3: klientskrivere til milestones er præcis de bogførte; løftestangen tæller aktive og skriver selv; Planen kun gennem maal-skriv", () => {
     expect(klientskrivere(alleFiler("src"), laes)).toEqual(Object.keys(BOGFOERTE_KLIENTSKRIVERE).sort());

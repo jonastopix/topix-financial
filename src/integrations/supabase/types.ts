@@ -3945,6 +3945,7 @@ export type Database = {
       }
       milestones: {
         Row: {
+          art: string | null
           baseline: string | null
           category: string
           company_id: string
@@ -3954,6 +3955,7 @@ export type Database = {
           deadline: string | null
           description: string | null
           id: string
+          maal_noegle: string | null
           progress: number
           progress_updated_at: string | null
           source: string
@@ -3961,11 +3963,14 @@ export type Database = {
           status: string
           target_value: number | null
           title: string
+          udgangspunkt: number | null
+          udgangspunkt_dato: string | null
           unit: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          art?: string | null
           baseline?: string | null
           category?: string
           company_id: string
@@ -3975,6 +3980,7 @@ export type Database = {
           deadline?: string | null
           description?: string | null
           id?: string
+          maal_noegle?: string | null
           progress?: number
           progress_updated_at?: string | null
           source?: string
@@ -3982,11 +3988,14 @@ export type Database = {
           status?: string
           target_value?: number | null
           title: string
+          udgangspunkt?: number | null
+          udgangspunkt_dato?: string | null
           unit?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          art?: string | null
           baseline?: string | null
           category?: string
           company_id?: string
@@ -3996,6 +4005,7 @@ export type Database = {
           deadline?: string | null
           description?: string | null
           id?: string
+          maal_noegle?: string | null
           progress?: number
           progress_updated_at?: string | null
           source?: string
@@ -4003,6 +4013,8 @@ export type Database = {
           status?: string
           target_value?: number | null
           title?: string
+          udgangspunkt?: number | null
+          udgangspunkt_dato?: string | null
           unit?: string | null
           updated_at?: string
           user_id?: string

@@ -22,6 +22,9 @@ import { resolve } from "node:path";
 //      SKRIVES (B1, `skrevetFrist`), med handlingen «accepteret» (K1);
 //      opgave-udskyd afviser et ikke-aktivt mål (B4, 409) og kalder dommen
 //      for ALLE skridt (K2); «Målet findes ikke» er 404 i begge (K5).
+//   6 (rådets fund 3, 1/10 aften): «Gør målet skarpt» (hooks/dineMaalGrundlag)
+//      kræver et AKTIVT mål og dømmer den nye frist mod de åbne skridt
+//      (doemMaalFristModSkridt) FØR UPDATE; UPDATE guardet på art IS NULL.
 // Selvbevis på kopier: hver regel falder, når kilden ændres tilbage.
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -118,6 +121,29 @@ export const maalSkrivFristHolder = (kilde: string): boolean => {
   );
 };
 
+const DINE_MAAL_GRUNDLAG = "src/hooks/dineMaalGrundlag.ts";
+
+/** Dom 6 (rådets fund 3, 1/10 aften): «Gør målet skarpt» (medlemmets klientvej)
+    kræver et AKTIVT mål og dømmer den nye frist mod målets åbne skridt med
+    doemMaalFristModSkridt FØR UPDATE — samme dom som maal-skriv «rediger» —
+    og UPDATE er guardet på art IS NULL + aktiv (fund 4). */
+export const goerSkarptHolder = (kilde: string): boolean => {
+  const k = udenKommentarer(kilde);
+  const fn = k.slice(k.indexOf("export async function goerMaalSkarpt("));
+  const krop = fn.slice(0, fn.indexOf("\nexport ") > 0 ? fn.indexOf("\nexport ") : undefined);
+  const aktiv = krop.indexOf('if (maal.status !== "active") return');
+  const skridt = krop.indexOf('.in("status", ["active", "proposed"])');
+  const dom = krop.indexOf("doemMaalFristModSkridt(dom.felter.deadline,");
+  const afvis = krop.indexOf("if (fristDom.ok === false) return");
+  const skriv = krop.indexOf('.from("milestones").update(payload)');
+  return (
+    k.includes('import { doemMaalFristModSkridt } from "@/lib/hjemmebane/skridtForslag";') &&
+    aktiv > 0 && skridt > aktiv && dom > skridt && afvis > dom && skriv > afvis &&
+    /\.from\("milestones"\)\.update\(payload\)\.eq\("id", args\.maalId\)\.is\("art", null\)\.eq\("status", "active"\)/.test(krop) &&
+    !/current_value/.test(k.slice(k.indexOf("export function skarpPayload("), k.indexOf("export function skarpPayload(") + 900))
+  );
+};
+
 describe("mål og skridt (1/10-2026)", () => {
   const luk = laes(OPGAVE_LUK);
   const domme = DOMMEN.map(laes);
@@ -166,5 +192,17 @@ describe("mål og skridt (1/10-2026)", () => {
     const ms = laes(MAAL_SKRIV);
     expect(maalSkrivFristHolder(ms.replace("doemMaalFristModSkridt(nyFrist,", "ingenDom(nyFrist,"))).toBe(false);
     expect(maalSkrivFristHolder(ms.replace('.in("status", ["active", "proposed"])', '.in("status", ["active"])'))).toBe(false);
+  });
+  it("dom 6: «Gør målet skarpt» kræver et aktivt mål og dømmer fristen mod de åbne skridt FØR UPDATE; UPDATE guardet på art IS NULL", () => {
+    expect(goerSkarptHolder(laes(DINE_MAAL_GRUNDLAG))).toBe(true);
+  });
+  it("selvbevis 6: uden status-tjek, uden dommen, uden «proposed», uden art-guarden eller med current_value i payloaden falder", () => {
+    const g = laes(DINE_MAAL_GRUNDLAG);
+    expect(goerSkarptHolder(g.replace('if (maal.status !== "active") return', 'if (maal.status === "aldrig") return'))).toBe(false);
+    expect(goerSkarptHolder(g.replace("doemMaalFristModSkridt(dom.felter.deadline,", "ingenDom(dom.felter.deadline,"))).toBe(false);
+    expect(goerSkarptHolder(g.replace('.in("status", ["active", "proposed"])', '.in("status", ["active"])'))).toBe(false);
+    // Kodelinjen, ikke doc-kommentaren (den nævner også `.is("art", null)` og står først).
+    expect(goerSkarptHolder(g.replace('.eq("id", args.maalId).is("art", null).eq("status", "active")', '.eq("id", args.maalId).eq("status", "active")'))).toBe(false);
+    expect(goerSkarptHolder(g.replace("    deadline: f.deadline,\n  };", "    deadline: f.deadline,\n    current_value: null,\n  };"))).toBe(false);
   });
 });

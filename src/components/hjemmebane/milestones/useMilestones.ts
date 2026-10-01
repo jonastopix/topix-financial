@@ -9,6 +9,8 @@ import { afgoerMilepael, sammenlignAktive, statusEfterFremgang, type MilepaelDom
 import { maalFejlTekst } from "@/lib/hjemmebane/maalFejl";
 // 1/10-2026: datovælgerens lokale dag → «YYYY-MM-DD» (toISOString gav dagen før i dansk tid).
 import { lokalDatoStreng } from "@/lib/hjemmebane/dineMaal";
+// 1/10-2026 aften (rådets fund 5): den gamle talvisning kun for mål uden art.
+import { gammelTalvisning } from "@/lib/hjemmebane/maalTal";
 
 /**
  * Datalaget for Hb-milestonefladen — en ren FLYTNING af logikken i
@@ -49,6 +51,9 @@ export interface Milestone {
   target_value: number | null;
   current_value: number | null;
   unit: string | null;
+  /** Dine mål (1/10-2026, migration 20261001190000): målets art. NULL = mål fra før designet — KUN dem viser
+      og skriver den gamle talvisning («X af Y enhed», maalTal.gammelTalvisning). Før migrationen: altid null. */
+  art: string | null;
   /** Fase 3 («Dine mål»): planens felter — fremdriftens stempel, nået-dato og oprettelse (lib/hjemmebane/planen.MaalRaekke). */
   progress_updated_at: string | null;
   completed_at: string | null;
@@ -117,6 +122,7 @@ export function useMilestones({ userId, companyId, isAdvisor }: Args) {
         source: string; source_report: string | null; progress: number | null; category: string | null;
         baseline: string | null; target_value: number | null; current_value: number | null; unit: string | null;
         progress_updated_at: string | null; completed_at: string | null; created_at: string;
+        art?: string | null;
       };
       const nu = new Date();
       const mapped: Milestone[] = ((data || []) as unknown as Raekke[]).map((m) => ({
@@ -134,6 +140,7 @@ export function useMilestones({ userId, companyId, isAdvisor }: Args) {
         target_value: m.target_value ?? null,
         current_value: m.current_value ?? null,
         unit: m.unit ?? null,
+        art: m.art ?? null,
         progress_updated_at: m.progress_updated_at ?? null,
         completed_at: m.completed_at ?? null,
         created_at: m.created_at,
@@ -202,7 +209,8 @@ export function useMilestones({ userId, companyId, isAdvisor }: Args) {
   /** MilestonesList.tsx:656-689. */
   const saetNuvaerendeVaerdi = useCallback(async (id: string, newCurrentValue: number) => {
     const ms = milestones.find((m) => m.id === id);
-    if (!ms || !ms.target_value) return;
+    // Et tal-/begivenhedsmål (art sat) følges af motoren (maalTal) — current ÷ target ville skrive en forkert fremdrift (fund 5).
+    if (!ms || !gammelTalvisning(ms)) return;
     const newProgress = Math.min(100, Math.round((newCurrentValue / ms.target_value) * 100));
     const dbStatus = statusEfterFremgang(newProgress);
     const wasNotDone = !ms.dom.faerdig;

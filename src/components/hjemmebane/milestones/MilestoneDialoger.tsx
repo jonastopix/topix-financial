@@ -12,6 +12,7 @@ import { HbField, HbInput, HbSelect, HbTextarea, hbControlClasses } from "../adm
 import { HbDialog, HbPopover, HbKalender } from "./HbOverlejring";
 import { MAAL_FORKLARING_TEKST, maalEksemplerHjaelp } from "@/lib/hjemmebane/maalForklaring";
 import type { Milestone, NyMilestone } from "./useMilestones";
+import { gammelTalvisning } from "@/lib/hjemmebane/maalTal";
 
 /**
  * Milestone-dialogerne i Hjemmebane — ETAPE 2 (4/9): opret, detalje/
@@ -389,7 +390,7 @@ export const MilestoneDetaljeDialog = ({
           <p className="text-sm text-hb-rust" role="alert" data-maal-frist-fejl>{fristFejl}</p>
         )}
         <div>
-          {ms.target_value && ms.unit ? (
+          {gammelTalvisning(ms) && ms.target_value ? (
             <>
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-xs text-hb-ink-soft">Fremgang</span>
