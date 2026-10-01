@@ -19,7 +19,7 @@ const maal = (over: Partial<EngagementMaalRaekke> & { id: string }): EngagementM
   company_id: "c1", status: "active", progress: 0, deadline: null, progress_updated_at: null, ...over,
 });
 const skridt = (over: Partial<EngagementSkridtRaekke>): EngagementSkridtRaekke => ({
-  maal_id: "a", closed_at: null, created_at: null, ...over,
+  maal_id: "a", status: "active", closed_at: null, created_at: null, ...over,
 });
 
 describe("Aktive mål — afgoerMilepael(...).aktiv, ikke status alene", () => {
@@ -49,7 +49,7 @@ describe("Bevægelse — max(progress_updated_at, skridt lukket, skridt oprettet
   it("tager det seneste af de tre kilder", () => {
     const d = engagementMaalDom(
       [maal({ id: "a", progress_updated_at: "2026-09-01T10:00:00Z" })],
-      [skridt({ closed_at: "2026-09-20T10:00:00Z", created_at: "2026-09-10T10:00:00Z" }), skridt({ created_at: "2026-09-25T10:00:00Z" })],
+      [skridt({ status: "done", closed_at: "2026-09-20T10:00:00Z", created_at: "2026-09-10T10:00:00Z" }), skridt({ created_at: "2026-09-25T10:00:00Z" })],
       NU,
     );
     expect(d.senesteBevaegelse).toBe("2026-09-25T10:00:00Z");
@@ -64,6 +64,27 @@ describe("Bevægelse — max(progress_updated_at, skridt lukket, skridt oprettet
     );
     expect(d.senesteBevaegelse).toBe("2026-09-01T10:00:00Z");
     expect(d.dageSidenBevaegelse).toBe(30);
+  });
+
+  it("et nyt agentforslag (proposed) er IKKE bevægelse — heller ikke dismissed/expired", () => {
+    const d = engagementMaalDom(
+      [maal({ id: "a", progress_updated_at: "2026-09-01T10:00:00Z" })],
+      [
+        skridt({ status: "proposed", created_at: "2026-10-01T06:00:00Z" }),
+        skridt({ status: "dismissed", created_at: "2026-09-30T06:00:00Z", closed_at: "2026-09-30T08:00:00Z" }),
+        skridt({ status: "expired", created_at: "2026-09-29T06:00:00Z", closed_at: "2026-09-30T08:00:00Z" }),
+      ],
+      NU,
+    );
+    expect(d.senesteBevaegelse).toBe("2026-09-01T10:00:00Z");
+    expect(d.dageSidenBevaegelse).toBe(30);
+  });
+
+  it("et taget skridt (active) tæller med created_at, ikke closed_at; closed_at tæller for done/not_done/dropped", () => {
+    expect(engagementMaalDom([maal({ id: "a" })], [skridt({ status: "active", created_at: "2026-09-28T10:00:00Z", closed_at: "2026-09-30T10:00:00Z" })], NU).dageSidenBevaegelse).toBe(3);
+    for (const status of ["done", "not_done", "dropped"]) {
+      expect(engagementMaalDom([maal({ id: "a" })], [skridt({ status, created_at: "2026-09-01T10:00:00Z", closed_at: "2026-09-30T10:00:00Z" })], NU).dageSidenBevaegelse, status).toBe(1);
+    }
   });
 
   it("aktive mål uden noget tidspunkt → antal, men «—»", () => {

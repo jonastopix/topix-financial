@@ -12,11 +12,18 @@
  *                 null er også aktiv). Tallet er det TÆLLEDE, ikke klemt til
  *                 3: en virksomhed med flere end tre står med sit rigtige tal
  *                 (gennemgangen, maal.ts gennemgangVenter).
- *   «Bevægelse»   dage siden seneste bevægelse på et AKTIVT mål:
+ *   «Bevægelse»   dage siden seneste MENNESKELIGE bevægelse på et AKTIVT mål
+ *                 (koordinatoren 1/10: agenten og ugens fokus opretter forslag
+ *                 selv — talte de med, så en virksomhed levende ud, uden at
+ *                 nogen havde rørt målet):
  *                   max( milestones.progress_updated_at,
- *                        company_actions.closed_at for skridt under målet,
- *                        company_actions.created_at for skridt under målet )
- *                 over alle virksomhedens aktive mål. Ingen aktive mål →
+ *                        company_actions.closed_at  for skridt under målet
+ *                          med status done · not_done · dropped (LUKKET_AF_MENNESKE),
+ *                        company_actions.created_at for skridt under målet
+ *                          med status active · done · not_done · dropped
+ *                          (TAGET_AF_MENNESKE — tilføjet eller taget) )
+ *                 Forslag (proposed), dismissed og expired tæller IKKE.
+ *                 Over alle virksomhedens aktive mål. Ingen aktive mål →
  *                 null («—»). Aktive mål uden noget tidspunkt → null («—»).
  *                 Dagene regnes på DANSK kalenderdag (dagsdatoDansk): et
  *                 tidspunkt 23:30 dansk i går er «1 dag», ikke «i dag»,
@@ -25,6 +32,10 @@
  *                 i hele kalenderdage, UTC-aritmetik på de rene datoer, så
  *                 ingen sommertid skrider. Et tidspunkt i fremtiden (ur-skred)
  *                 tæller som 0.
+ *
+ * ADGANG (målt i prod 1/10-2026): rådgiverens SELECT på milestones og
+ * company_actions for alle virksomheder går gennem has_role(advisor).
+ * Fejler hentningen alligevel, er siden fail-soft (hooks/trofaeer.ts).
  */
 import { afgoerMilepael } from "@/lib/milepaelDom";
 import { dagsdatoDansk } from "@/lib/hjemmebane/skridtForslag";
@@ -40,6 +51,8 @@ export interface EngagementMaalRaekke {
 
 export interface EngagementSkridtRaekke {
   maal_id: string | null;
+  /** company_actions.status — afgør, om tidspunkterne er et menneskes. */
+  status: string | null;
   closed_at: string | null;
   created_at: string | null;
 }
@@ -52,6 +65,12 @@ export interface EngagementMaalDom {
   /** Hele danske kalenderdage siden senesteBevaegelse; null uden. */
   dageSidenBevaegelse: number | null;
 }
+
+/** Skridt, et menneske har lukket: closed_at er bevægelse. */
+export const LUKKET_AF_MENNESKE: readonly string[] = ["done", "not_done", "dropped"];
+/** Skridt, et menneske har tilføjet eller taget: created_at er bevægelse.
+    proposed (agentens/ugens fokus' forslag), dismissed og expired er det ikke. */
+export const TAGET_AF_MENNESKE: readonly string[] = ["active", "done", "not_done", "dropped"];
 
 const MS_PER_DOEGN = 86_400_000;
 
@@ -89,8 +108,9 @@ export function engagementMaalDom(
   }
   for (const s of skridt) {
     if (!s.maal_id || !aktiveIds.has(s.maal_id)) continue;
-    seneste = senere(seneste, s.closed_at);
-    seneste = senere(seneste, s.created_at);
+    const status = s.status ?? "";
+    if (LUKKET_AF_MENNESKE.includes(status)) seneste = senere(seneste, s.closed_at);
+    if (TAGET_AF_MENNESKE.includes(status)) seneste = senere(seneste, s.created_at);
   }
   if (aktiveIds.size === 0) return { aktive: 0, senesteBevaegelse: null, dageSidenBevaegelse: null };
   return { aktive: aktiveIds.size, senesteBevaegelse: seneste, dageSidenBevaegelse: seneste ? danskeDageSiden(seneste, nu) : null };

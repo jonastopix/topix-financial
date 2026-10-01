@@ -159,7 +159,7 @@ async function hentMaalGrundlag(): Promise<MaalGrundlag> {
     hentAlleSider<EngagementSkridtRaekke>((fra, til) =>
       supabase
         .from("company_actions")
-        .select("maal_id, closed_at, created_at")
+        .select("maal_id, status, closed_at, created_at")
         .not("maal_id", "is", null)
         .order("id")
         .range(fra, til)
