@@ -33,6 +33,7 @@ import { SamtaleAfsnit } from "./SamtaleAfsnit";
 import { SendTilUnderskrift } from "../virksomhed/SendTilUnderskrift";
 import { AnsoegningRaadgivermail } from "./AnsoegningRaadgivermail";
 import { AnsoegningMails } from "./AnsoegningMails";
+import { WebinarKoblingAfsnit } from "./WebinarKoblingAfsnit";
 
 const Linje = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <div className="grid grid-cols-1 gap-x-4 py-1.5 text-sm sm:grid-cols-[11rem_1fr]">
@@ -227,6 +228,9 @@ export const AnsoegningView = ({ id }: { id: string | undefined }) => {
           </Linje>
           <Linje label="Kilde">{`${KILDE_ORD[a.kilde] ?? a.kilde}${a.kilde_raa ? ` (${a.kilde_raa})` : ""}`}</Linje>
         </div>
+        {/* Webinarkoblingen (1/10): mailen står ikke i eWebinar, men en tilmelding under en anden mail ligner —
+            forslaget og klikket. Komponenten tegner selv intet, når der ikke er noget at vise. */}
+        <WebinarKoblingAfsnit ansoegningId={a.id} navnAf={navnAf} />
       </HbSection>
 
       <HbSection eyebrow="CVR-opslaget" hairline className="mt-12">

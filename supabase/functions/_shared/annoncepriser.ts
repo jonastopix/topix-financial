@@ -14,7 +14,7 @@ import {
   type AnsoegerMail,
   type Tilmelding,
 } from "./webinarDashboard.ts";
-import { ansoegerMails, medlemsMails } from "./webinarDashboard.ts";
+import { ansoegerMails, medlemsMails, medWebinarKobling } from "./webinarDashboard.ts";
 
 // ── Det vi læser ───────────────────────────────────────────────────────────
 
@@ -491,8 +491,9 @@ export interface AnnoncepriserInput {
 /** Ét kald, ét svar. Fladen regner intet. */
 export function annoncepriser(ind: AnnoncepriserInput, nu: Date): Annoncepriser {
   const { tilmeldinger, ansoegninger, dage: alleDage, annoncer, tilstand, valg = "daekning" } = ind;
-  const ansoegte = ansoegerMails(ansoegninger);
-  const medlemmer = medlemsMails(ansoegninger);
+  // Webinarkoblingen (1/10): en rådgiverbekræftet kobling tæller som et mail-match — som dashboardet.
+  const ansoegte = ansoegerMails(medWebinarKobling(ansoegninger));
+  const medlemmer = medlemsMails(medWebinarKobling(ansoegninger));
 
   // ── VINDUET FØRST (rettelse 19/9) ───────────────────────────────────────
   // Tæller og nævner skal dække SAMME periode. Derfor vælges vinduet her, og

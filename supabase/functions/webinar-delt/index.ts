@@ -113,12 +113,32 @@ async function hentTilmeldinger(admin: SupabaseClient): Promise<{ raekker: Tilme
   return { raekker: ((grund.data ?? []) as unknown as Record<string, unknown>[]).map(somTilmelding), sporKolonnerFindes: false };
 }
 
-/** De indsendte ansøgninger + virksomhedens slutdato (fail-soft, som hooken). */
+/**
+ * Webinarkoblingen (udkast 1/10-2026): ansøgnings-id → tilmeldingens mail for de
+ * RÅDGIVERBEKRÆFTEDE koblinger (`ansoegning_webinar_kobling`), som hooken
+ * (src/hooks/webinarKobling.ts: hentKoblingsMails). Manglende tabel (42P01/PGRST205,
+ * migration 20261001090000 ikke kørt) → ingen koblinger; enhver anden fejl kastes.
+ * Mailene forlader aldrig serveren — dommen (medWebinarKobling) bruger dem kun som nøgle.
+ */
+async function hentKoblingsMails(admin: SupabaseClient): Promise<Map<string, string>> {
+  const res = await admin.from("ansoegning_webinar_kobling").select("ansoegning_id, webinar_tilmeldinger(email)").limit(GRAENSE);
+  if (res.error && (res.error.code === "42P01" || res.error.code === "PGRST205")) return new Map();
+  if (res.error) throw new Error(`ansoegning_webinar_kobling: ${res.error.message}`);
+  const kort = new Map<string, string>();
+  for (const r of (res.data ?? []) as unknown as { ansoegning_id: string; webinar_tilmeldinger: { email: string | null } | null }[]) {
+    const m = (r.webinar_tilmeldinger?.email ?? "").trim().toLowerCase();
+    if (m !== "") kort.set(r.ansoegning_id, m);
+  }
+  return kort;
+}
+
+/** De indsendte ansøgninger + virksomhedens slutdato (fail-soft, som hooken) + webinarkoblingen. */
 async function hentAnsoegere(admin: SupabaseClient): Promise<AnsoegerMail[]> {
-  const res = await admin.from("ansoegninger").select("email, indsendt_at, trin, company_id").not("indsendt_at", "is", null).limit(GRAENSE);
+  const res = await admin.from("ansoegninger").select("id, email, indsendt_at, trin, company_id").not("indsendt_at", "is", null).limit(GRAENSE);
   if (res.error) throw new Error(`ansoegninger: ${res.error.message}`);
   const raekker = ((res.data ?? []) as Record<string, unknown>[])
     .map((r) => ({
+      id: String(r.id ?? ""),
       email: String(r.email ?? "").trim().toLowerCase(),
       indsendt_at: (r.indsendt_at as string | null) ?? null,
       trin: (r.trin as AnsoegerMail["trin"]) ?? "ny",
@@ -126,13 +146,18 @@ async function hentAnsoegere(admin: SupabaseClient): Promise<AnsoegerMail[]> {
     }))
     .filter((a) => a.email !== "");
   const ids = [...new Set(raekker.map((r) => r.company_id).filter((id): id is string => !!id))];
+  const koblinger = await hentKoblingsMails(admin);
   const slutdatoer = new Map<string, string | null>();
   if (ids.length > 0) {
     const vRes = await admin.from("companies").select("id, contract_end_date").in("id", ids);
     if (vRes.error) console.error(`${LOG} companies-opslag til «blev medlem» fejlede:`, vRes.error.message);
     for (const v of (vRes.data ?? []) as { id: string; contract_end_date: string | null }[]) slutdatoer.set(v.id, v.contract_end_date);
   }
-  return raekker.map(({ company_id, ...r }) => ({ ...r, virksomhed_slutdato: company_id ? (slutdatoer.get(company_id) ?? null) : null }));
+  return raekker.map(({ company_id, id, ...r }) => ({
+    ...r,
+    virksomhed_slutdato: company_id ? (slutdatoer.get(company_id) ?? null) : null,
+    webinar_email: koblinger.get(id) ?? null,
+  }));
 }
 
 /** Annonceforbruget — tre tilstande, som hooken: mangler (42P01) · tom · har. */

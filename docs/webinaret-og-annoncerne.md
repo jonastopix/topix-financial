@@ -557,6 +557,73 @@ er sat til efter 13/10 (`docs/marketingmotoren.md` §4).
 
 ---
 
+## 7i. Webinarkoblingen — forslag + klik (udkast 1/10-2026)
+
+**Besluttet af Jonas 1/10 kl. 08:25: «forslag + klik».**
+
+**Problemet (målt i prod 30/9 nat af hovedsessionen):** Green Solar
+(`lh@greensolar.dk`) blev medlem; ansøgningen har `kilde = direkte`, og ingen
+webinartilmelding har hendes mail. En sandsynlig tilmelding findes under en
+gmail-adresse (via fb, tilmeldt 8/9 til sessionen 22/9, eWebinar «Missed /
+Didn't join»). Tragten kobler ansøgning ↔ tilmelding KUN på `lower(email)`, så
+hun tæller ikke — hverken som ansøger eller som medlem.
+
+**Løsningen, i tre lag:**
+
+1. **Dommen** `foreslaaWebinarKobling(ansoegning, tilmeldinger)` i
+   `src/lib/webinar/kobling.ts` (ren, `kobling.test.ts`): tilmeldinger under en
+   ANDEN mail, hvis navn matcher (normaliseret: NFC, små bogstaver, trim, flere
+   mellemrum → ét, æøå bevaret; «fuldt» navn ens ELLER første + sidste ord ens —
+   begge kræver mindst to ord, et fornavn alene er ikke nok) og/eller hvis
+   telefon matcher (kun cifre, `0045`/`45`-præfiks fjernet, sidste 8 cifre).
+   Kun tilmeldinger SKARPT FØR ansøgningens `created_at`, højst **90 dage** før
+   (tilmeldingens tid = `registreret_at`, ellers rækkens `created_at`).
+   Rangeret navn + telefon > telefon > navn; fuldt navn før for+efternavn;
+   seneste før ældre. Grunden står i ord. **Et forslag tæller aldrig.**
+2. **Klikket** er en række i `ansoegning_webinar_kobling` (migration
+   `20261001090000`): én pr. ansøgning (UNIQUE), rådgivere SELECT/INSERT/DELETE,
+   ingen medlemsadgang, ingen SECURITY DEFINER. Fladen:
+   `WebinarKoblingAfsnit` under «Svarene» på ansøgningen — «Mulig
+   webinartilmelding» (navn · mail · tilmeldt · titel · status · grund) +
+   «Kobl til webinaret»; efter klikket «Koblet til webinaret 22/9 af {rådgiver}»
+   + «Fjern koblingen». Intet vises, når mailen allerede matcher en tilmelding.
+3. **Tragten tæller koblingen** som et mail-match: `medWebinarKobling` i
+   `dashboard.ts` (spejlet byte-ens i `_shared/webinarDashboard.ts`) giver
+   ansøgningen tilmeldingens mail i stedet for sin egen — ERSTATTER, lægger
+   ikke til (én ansøgning er én ansøger). Kaldt ÉN gang øverst i
+   `webinarDashboard` og i `annoncepriser` (begge spejle). Data hentes i
+   `hooks/webinarDashboard.ts` (`hentKoblingsMails`) og i `webinar-delt`
+   (samme opslag, service role). Fail-soft på en manglende tabel
+   (`erManglendeTabel` / 42P01 · PGRST205): ingen koblinger, intet vælter.
+
+**Vinduet — hvorfor 90 dage:** tragten og annoncesporet har INGEN dagsgrænse
+(tragtens grænse er `indsendt_at > session_tid`, §2). Det eneste vindue i huset
+for «en webinartilmelding før en ansøgning» er Meta-sendingens fbc-led
+(`WEBINAR_FBCLID_MAKS_DAGE = 90`, CLAUDE.md «fbc har nu tre led»). Samme tal.
+
+**ÅBENT — telefonen på tilmeldingen er UMÅLT.** `webinar_tilmeldinger` har ingen
+telefonkolonne (migration `20260919130000`), og om eWebinars `raa` bærer et
+telefonfelt — og under hvilken nøgle — er ikke målt. Dommen kan bruge et nummer,
+når det gives ind; hooken giver `telefon: null`. I dag bærer NAVNET forslaget.
+Målingen, før telefonen kobles på (Lovable SQL editor):
+`SELECT DISTINCT jsonb_object_keys(raa) FROM public.webinar_tilmeldinger WHERE raa IS NOT NULL;`
+
+**Rækkefølgen (merge lægger kilden; den udruller ikke):**
+
+1. Migration `20261001090000` KØRT i Lovable → SQL editor og MÅLT
+   (EFTER-SELECT'en i filhovedet: tabel 1 · rls true · 3 policies · unik 1 ·
+   grant_anon false · grant_update false).
+2. **Eksplicit udrulning af `webinar-delt`** fra build-chatten (den henter nu
+   koblingerne). Beviset: en kobling flytter delingens tal («ansøgt»/«medlem»
+   for sessionen) — functionen er fail-soft på tabellen, så et 200 alene
+   beviser intet.
+3. **Update** i Lovable (ansøgningsfladen + `/webinar`).
+4. Første kobling: Green Solars ansøgning → «Kobl til webinaret» → `/webinar`
+   viser sessionen 22/9 med én mere i «blev medlem» (hvis den gmail-tilmelding
+   er forslaget — det er ikke målt, at navnene matcher).
+
+---
+
 ## 8. 20. september — sporet lukkes fra klik til ansøgning, og fem felter viste sig at være observationer
 
 **Princippet, der binder dagen sammen: et felt, vi ikke selv sætter, er en
