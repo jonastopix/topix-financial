@@ -2,7 +2,7 @@
  * src/lib/gamification/trofaeer.ts — trofæerne (1/10-2026). REN: ingen React,
  * ingen Supabase. Designet: docs/boardroom-score.md «Trofæer».
  *
- * HVAD ET TROFÆ ER: en MILEPÆL — opnået én gang, for altid. Det er ikke et
+ * HVAD ET TROFÆ ER: en MILEPÆL — opnået én gang og siden bevaret. Det er ikke et
  * tal og ikke Boardroom Score (helbredstallet lige nu). Et trofæ kan ikke
  * tabes igen: dommen er «det tidligste tidspunkt, betingelsen var opfyldt».
  *

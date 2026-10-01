@@ -7,11 +7,13 @@ import { HbCard } from "../HbCard";
     docs/boardroom-score.md «Trofæer»). TEGNER KUN: dommen kommer færdig fra
     lib/gamification/trofaeer gennem hooks/trofaeer (kun egne data).
 
-    Trofæer er MILEPÆLE (opnået én gang, for altid) — ikke et tal. Linjen
+    Trofæer er MILEPÆLE (noget medlemmet har nået) — ikke et tal. Linjen
     TROFAE_FORKLARING skiller dem fra scoren.
 
-    KOMPAKT: små fliser, 2 kolonner på mobil (375 px uden vandret scroll —
-    min-w-0 + break-words), 4 på desktop. Opnåede i farve med dato; resten
+    KOMPAKT: små fliser, 1 kolonne under sm (375 px: to kolonner gav ~100 px
+    tekstbredde, og `break-words` (overflow-wrap: break-word) brækker så et ord,
+    der ikke er plads til, midt i — «Budgette|t»), 2 fra sm, 4 fra md.
+    `hyphens-auto` (html lang="da") deler ellers ordet ved en orddeling. Opnåede i farve med dato; resten
     dæmpet med «sådan får du den».
 
     FAIL-SOFT: henter → intet (kortet springer ikke i højden for en sekundær
@@ -32,7 +34,7 @@ export function TrofaeKort({ trofaeer, isError }: { trofaeer: TrofaeDom[] | unde
       </div>
       <p className="mt-1 text-sm text-hb-ink-soft">{TROFAE_FORKLARING}</p>
       {liste.length > 0 && (
-        <ul className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-4">
+        <ul className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-4">
           {liste.map((t) => {
             const opnaaet = t.opnaaetAt !== null;
             return (
@@ -44,8 +46,8 @@ export function TrofaeKort({ trofaeer, isError }: { trofaeer: TrofaeDom[] | unde
               >
                 <Trophy aria-hidden className={cn("mt-0.5 h-4 w-4 shrink-0", opnaaet ? "text-hb-evergreen" : "text-hb-line")} />
                 <div className="min-w-0">
-                  <div className={cn("break-words text-sm font-medium leading-snug", opnaaet ? "text-hb-ink" : "text-hb-ink-soft")}>{t.titel}</div>
-                  <div className="break-words text-xs leading-snug text-hb-ink-soft">
+                  <div className={cn("break-words text-sm font-medium leading-snug hyphens-auto", opnaaet ? "text-hb-ink" : "text-hb-ink-soft")}>{t.titel}</div>
+                  <div className="break-words text-xs leading-snug text-hb-ink-soft hyphens-auto">
                     {opnaaet ? trofaeDato(t.opnaaetAt as string) : t.saadan}
                   </div>
                 </div>

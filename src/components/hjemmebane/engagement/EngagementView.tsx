@@ -29,7 +29,11 @@ const vaerdi = (r: EngagementRaekke, k: Kolonne): string | number => {
   }
 };
 
-export function sorterEngagement(raekker: readonly EngagementRaekke[], k: Kolonne, stigende: boolean): EngagementRaekke[] {
+export function sorterEngagement(
+  raekker: readonly EngagementRaekke[],
+  k: Kolonne,
+  stigende: boolean,
+): EngagementRaekke[] {
   return [...raekker].sort((a, b) => {
     const x = vaerdi(a, k);
     const y = vaerdi(b, k);
@@ -50,7 +54,10 @@ export function EngagementView() {
   const q = useEngagement();
   const [kolonne, setKolonne] = useState<Kolonne>("aktivitet");
   const [stigende, setStigende] = useState(false);
-  const raekker = useMemo(() => (q.data ? sorterEngagement(q.data, kolonne, stigende) : []), [q.data, kolonne, stigende]);
+  const raekker = useMemo(
+    () => (q.data ? sorterEngagement(q.data, kolonne, stigende) : []),
+    [q.data, kolonne, stigende],
+  );
 
   const vaelg = (k: Kolonne) => {
     if (k === kolonne) setStigende((s) => !s);
@@ -65,62 +72,192 @@ export function EngagementView() {
       <div>
         <h1 className="text-2xl font-semibold text-hb-ink">Engagement</h1>
         <p className="mt-1 text-sm text-hb-ink-soft">
-          Kundernes Boardroom Score (helbredstallet lige nu), tal-streak og trofæer (milepæle, nået én gang for altid).
+          Kundernes Boardroom Score (helbredstallet lige nu), tal-streak og
+          trofæer (milepæle, de har nået).
         </p>
       </div>
-      <HbCard className="overflow-x-auto p-0">
+      <HbCard className="p-0 sm:overflow-x-auto">
         {q.isLoading ? (
           <p className="p-5 text-sm text-hb-ink-soft">Henter …</p>
         ) : q.isError ? (
           <div className="p-5 text-sm text-hb-rust">
             Kunne ikke hente overblikket.{" "}
-            <button type="button" className="underline" onClick={() => void q.refetch()}>
+            <button
+              type="button"
+              className="underline"
+              onClick={() => void q.refetch()}
+            >
               Prøv igen
             </button>
           </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-hb-line text-left text-hb-ink-soft">
-                {KOLONNER.map((c) => (
-                  <th key={c.k} className="px-4 py-2 font-medium" aria-sort={c.k === kolonne ? (stigende ? "ascending" : "descending") : "none"}>
-                    <button type="button" onClick={() => vaelg(c.k)} className={cn("hover:text-hb-ink", c.k === kolonne && "text-hb-ink")}>
-                      {c.label}
-                      {c.k === kolonne ? (stigende ? " ↑" : " ↓") : ""}
-                    </button>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
+          <>
+            {/* Under sm: ét stablet kort pr. virksomhed (samme data, samme sortering). */}
+            <ul
+              className="divide-y divide-hb-line sm:hidden"
+              data-engagement-mobil="ja"
+            >
               {raekker.map((r) => {
-                const opnaaede = r.trofaeer.filter((t) => t.opnaaetAt !== null);
+                const antal = r.trofaeer.filter(
+                  (t) => t.opnaaetAt !== null,
+                ).length;
                 return (
-                  <tr key={r.companyId} className="border-b border-hb-line last:border-0" data-engagement-raekke={r.companyId}>
-                    <td className="px-4 py-2">
-                      <Link to={`/virksomhed/${r.companyId}`} className="text-hb-ink underline-offset-4 hover:underline">
-                        {r.navn}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-2 tabular-nums text-hb-ink">{r.dom.score ?? "–"}</td>
-                    <td className="px-4 py-2 tabular-nums text-hb-ink">
-                      <span className="inline-flex items-center gap-1">
-                        <Flame aria-hidden className={cn("h-3.5 w-3.5", r.dom.streak.laengde > 0 ? "text-hb-evergreen" : "text-hb-line")} />
-                        {r.dom.streak.laengde}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2">
-                      <span className="inline-flex items-center gap-1 tabular-nums text-hb-ink" title={opnaaede.map((t) => t.titel).join(", ") || "Ingen endnu"}>
-                        <Trophy aria-hidden className={cn("h-3.5 w-3.5", opnaaede.length > 0 ? "text-hb-evergreen" : "text-hb-line")} />
-                        {opnaaede.length} af {r.trofaeer.length}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 text-hb-ink-soft">{r.senesteAktivitet ? trofaeDato(r.senesteAktivitet) : "–"}</td>
-                  </tr>
+                  <li
+                    key={r.companyId}
+                    className="px-4 py-3"
+                    data-engagement-kort={r.companyId}
+                  >
+                    <Link
+                      to={`/virksomhed/${r.companyId}`}
+                      className="block min-w-0 break-words text-sm font-medium text-hb-ink underline-offset-4 hover:underline"
+                    >
+                      {r.navn}
+                    </Link>
+                    <dl className="mt-1.5 flex flex-wrap items-end gap-x-4 gap-y-1 text-sm tabular-nums text-hb-ink">
+                      <div>
+                        <dt className="text-xs text-hb-ink-soft">Score</dt>
+                        <dd>{r.dom.score ?? "–"}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-hb-ink-soft">Streak</dt>
+                        <dd className="inline-flex items-center gap-1">
+                          <Flame
+                            aria-hidden
+                            className={cn(
+                              "h-3.5 w-3.5",
+                              r.dom.streak.laengde > 0
+                                ? "text-hb-evergreen"
+                                : "text-hb-line",
+                            )}
+                          />
+                          {r.dom.streak.laengde}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-hb-ink-soft">Trofæer</dt>
+                        <dd className="inline-flex items-center gap-1">
+                          <Trophy
+                            aria-hidden
+                            className={cn(
+                              "h-3.5 w-3.5",
+                              antal > 0 ? "text-hb-evergreen" : "text-hb-line",
+                            )}
+                          />
+                          {antal} af {r.trofaeer.length}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-hb-ink-soft">
+                          Seneste aktivitet
+                        </dt>
+                        <dd className="text-hb-ink-soft">
+                          {r.senesteAktivitet
+                            ? trofaeDato(r.senesteAktivitet)
+                            : "–"}
+                        </dd>
+                      </div>
+                    </dl>
+                  </li>
                 );
               })}
-            </tbody>
-          </table>
+            </ul>
+            <table className="hidden w-full text-sm sm:table">
+              <thead>
+                <tr className="border-b border-hb-line text-left text-hb-ink-soft">
+                  {KOLONNER.map((c) => (
+                    <th
+                      key={c.k}
+                      className="px-4 py-2 font-medium"
+                      aria-sort={
+                        c.k === kolonne
+                          ? stigende
+                            ? "ascending"
+                            : "descending"
+                          : "none"
+                      }
+                    >
+                      <button
+                        type="button"
+                        onClick={() => vaelg(c.k)}
+                        className={cn(
+                          "hover:text-hb-ink",
+                          c.k === kolonne && "text-hb-ink",
+                        )}
+                      >
+                        {c.label}
+                        {c.k === kolonne ? (stigende ? " ↑" : " ↓") : ""}
+                      </button>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {raekker.map((r) => {
+                  const opnaaede = r.trofaeer.filter(
+                    (t) => t.opnaaetAt !== null,
+                  );
+                  return (
+                    <tr
+                      key={r.companyId}
+                      className="border-b border-hb-line last:border-0"
+                      data-engagement-raekke={r.companyId}
+                    >
+                      <td className="px-4 py-2">
+                        <Link
+                          to={`/virksomhed/${r.companyId}`}
+                          className="text-hb-ink underline-offset-4 hover:underline"
+                        >
+                          {r.navn}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-2 tabular-nums text-hb-ink">
+                        {r.dom.score ?? "–"}
+                      </td>
+                      <td className="px-4 py-2 tabular-nums text-hb-ink">
+                        <span className="inline-flex items-center gap-1">
+                          <Flame
+                            aria-hidden
+                            className={cn(
+                              "h-3.5 w-3.5",
+                              r.dom.streak.laengde > 0
+                                ? "text-hb-evergreen"
+                                : "text-hb-line",
+                            )}
+                          />
+                          {r.dom.streak.laengde}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2">
+                        <span
+                          className="inline-flex items-center gap-1 tabular-nums text-hb-ink"
+                          title={
+                            opnaaede.map((t) => t.titel).join(", ") ||
+                            "Ingen endnu"
+                          }
+                        >
+                          <Trophy
+                            aria-hidden
+                            className={cn(
+                              "h-3.5 w-3.5",
+                              opnaaede.length > 0
+                                ? "text-hb-evergreen"
+                                : "text-hb-line",
+                            )}
+                          />
+                          {opnaaede.length} af {r.trofaeer.length}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 text-hb-ink-soft">
+                        {r.senesteAktivitet
+                          ? trofaeDato(r.senesteAktivitet)
+                          : "–"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </>
         )}
       </HbCard>
     </div>
