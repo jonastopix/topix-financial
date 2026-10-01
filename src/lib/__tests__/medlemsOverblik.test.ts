@@ -4,6 +4,7 @@ import {
   erNytMedlem,
   IKKE_OMFATTET_FRA,
   iUniverset,
+  jonasRetEfterTilbud,
   MANGLER_STATUSSER,
   manglerAtBooke,
   omfattetAfJonas,
@@ -232,6 +233,24 @@ describe("manglerAtBooke — hvem mangler at booke (Jonas 29/9)", () => {
     const k = { ...KILDER, companies: KILDER.companies.map((c) => (c.id === "aktiv" ? { ...c, jonas_session_tilbudt_at: TILBUDT } : c)) };
     expect(byggOverblik(k, NU).get("aktiv")!.jonasTilbudtAt).toBe(TILBUDT);
     expect(byggOverblik(KILDER, NU).get("ny")!.jonasTilbudtAt).toBeNull();
+  });
+
+  // 1/10 13:46 (Jonas): de fem tilbudte talte ikke — alle havde «brugt» sat fra FØR tilbuddet.
+  it("jonasRetEfterTilbud: tilbuddet overtrumfer en ældre «brugt»; kun en brug EFTER tilbuddet tæller", () => {
+    expect(jonasRetEfterTilbud("2026-09-13T20:52:00Z", TILBUDT)).toBeNull(); // gammel markering (ikke omfattet)
+    expect(jonasRetEfterTilbud(TILBUDT, TILBUDT)).toBeNull(); // samme øjeblik (begge flueben krydset, ANLA)
+    expect(jonasRetEfterTilbud("2026-10-05T09:00:00Z", TILBUDT)).toBe("2026-10-05T09:00:00Z"); // brugt efter tilbuddet
+    expect(jonasRetEfterTilbud("2026-09-13T20:52:00Z", null)).toBe("2026-09-13T20:52:00Z"); // uden tilbud: uændret
+    expect(jonasRetEfterTilbud(null, TILBUDT)).toBeNull();
+  });
+
+  it("byggOverblik: et tilbudt ældre medlem med «brugt» fra 13/9 mangler at booke (målt i prod 1/10)", () => {
+    const k = { ...KILDER, companies: KILDER.companies.map((c) => (c.id === "aktiv" ? { ...c, jonas_session_tilbudt_at: TILBUDT } : c)) };
+    const r = byggOverblik(k, NU).get("aktiv")!;
+    expect(r.sessioner.jonas.status).not.toBe("ikke_omfattet");
+    expect(manglerAtBooke(r).jonas).toBe(true);
+    // Uden tilbuddet tæller det ældre medlem ikke (uændret).
+    expect(manglerAtBooke(byggOverblik(KILDER, NU).get("aktiv")!).jonas).toBe(false);
   });
 
   it("de to domme er uafhængige", () => {
