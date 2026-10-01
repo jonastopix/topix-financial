@@ -33,7 +33,8 @@ const DINE_TAL = {
     { label: "Budget", to: "/budget" },
     // «Dine mål» («Én plan», fase 3, 16/9) — rettet med vilje.
     { label: "Dine mål", to: "/milestones" },
-    { label: "Handouts", to: "/handouts" },
+    // «Handouts» er UDE af medlemmets menu (1/10-2026 nat: handouts hører
+    // til Akademiet som lektionens øvelse — handoutsIAkademiet.guard).
   ],
 };
 
@@ -104,7 +105,7 @@ describe("rådgiverens menu — det I bruger øverst (Jonas 8/9)", () => {
       ["Platform", null, BLOK_PLATFORM],
     ]);
   });
-  it("Dine tal bliver med sine fem; Book session, Dit Boardroom og Opgaver er ude", () => {
+  it("Dine tal bliver med sine fem (Handouts kun her — rådgiverens vej ind i virksomhedens handouts, 1/10); Book session, Dit Boardroom og Opgaver er ude", () => {
     const labels = nav.flatMap((n) => [n.label, ...(n.children ?? []).map((c) => c.label)]);
     expect(nav.find((n) => n.label === "Dine tal")?.children?.map((c) => c.label)).toEqual(["Rapportering", "KPI'er", "Budget", "Dine mål", "Handouts"]);
     for (const l of ["Book session", "Dit Boardroom", "Opgaver", "Din rådgiver", "Chat"]) expect(labels).not.toContain(l);

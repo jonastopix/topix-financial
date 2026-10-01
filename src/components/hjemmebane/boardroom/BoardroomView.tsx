@@ -73,6 +73,7 @@ import {
 import { TilfoejSkridtForm } from "../milestones/HbMaalRaekke";
 import type { MaalRaekke } from "@/lib/hjemmebane/planen";
 import { lektionsSti } from "@/lib/hjemmebane/lektionerForModul";
+import { oevelseLektionSti } from "@/lib/hjemmebane/oevelse";
 import { HbVideoEmbed } from "../akademi/HbVideoEmbed";
 import { deriveFocus, filtrerUdloebneForslag, type FocusItem } from "./nextStep";
 import {
@@ -1807,14 +1808,14 @@ export const BoardroomView = () => {
         .select("handout_id, lever_index")
         .in("handout_id", rows.map((r) => r.id))) as { data: any[] | null; error: { message: string } | null };
       const linked = new Set((kraevRaekker(linksRes, "handout_lever_milestones") as any[]).map((l) => `${l.handout_id}:${l.lever_index}`));
-      const result: { lever: string; moduleTitle: string }[] = [];
+      const result: { lever: string; moduleTitle: string; module: HandoutModule }[] = [];
       for (const module of moduleOrder) {
         const row = rows.find((r) => r.module === module);
         if (!row) continue;
         const levers = (row.levers as string[]) || [];
         levers.forEach((lever, index) => {
           if (lever.trim() && !linked.has(`${row.id}:${index}`)) {
-            result.push({ lever: lever.trim(), moduleTitle: handoutConfigs[module as HandoutModule]?.title ?? module });
+            result.push({ lever: lever.trim(), moduleTitle: handoutConfigs[module as HandoutModule]?.title ?? module, module });
           }
         });
       }
@@ -2003,7 +2004,13 @@ export const BoardroomView = () => {
         })),
         new Date(),
       ),
-      unlinkedLevers: leversQuery.data ?? [],
+      // Handouts i Akademiet (1/10 nat): punktet (h) fører til den lektion,
+      // der bærer øvelsen (oevelseLektionSti på forsidens eget katalog —
+      // lektionerForModul) — Akademiet, hvis ingen lektion bærer modulet.
+      unlinkedLevers: (leversQuery.data ?? []).map((l) => ({
+        ...l,
+        sti: oevelseLektionSti([...akademi.orderedByArea.values()].flat().map((e) => e.item), l.module),
+      })),
       askMeAboutMissing: ownProfileQuery.data === true,
       // Ankomsten (trin 9): uafsluttet tjekliste = kortets eneste kilde;
       // kontraktstarten holder slot (a) fra at bede om tal fra før
@@ -2020,7 +2027,7 @@ export const BoardroomView = () => {
         ? { maal: milestonesQuery.data, skridt: skridtQuery.data as (SkridtTilDineMaal & { expires_at?: string | null })[] }
         : null,
     });
-  }, [companyId, processedQuery.data, committedKeys, pulseQuery.data, unreadQuery.data, weeklyFocusQuery.data, actionsQuery.data, leversQuery.data, ownProfileQuery.data, contractStartQuery.data, tjeklisteData.tjekliste, tjeklisteData.medlemSiden, milestonesQuery.data, skridtQuery.data]);
+  }, [companyId, processedQuery.data, committedKeys, pulseQuery.data, unreadQuery.data, weeklyFocusQuery.data, actionsQuery.data, leversQuery.data, akademi.orderedByArea, ownProfileQuery.data, contractStartQuery.data, tjeklisteData.tjekliste, tjeklisteData.medlemSiden, milestonesQuery.data, skridtQuery.data]);
 
   // Markér ugens fokus som SET når punktet faktisk vises — samme mekanik
   // som DashboardActionCenter:87-98 (mutation + engangs-ref).

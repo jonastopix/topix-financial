@@ -176,7 +176,7 @@ export function komIGangTekst(fornavn: string | null | undefined, harVelkomstvid
     "Præsentér dig i fællesskabet — et opslag om hvem du er.",
     "Din virksomhed — website, branche og CVR, det platformen regner på.",
     `Dine tal — ${historikSaetning(nu)}`,
-    "Dit første handout — start med Overordnet.",
+    "Din første øvelse — øvelserne ligger under lektionerne i Akademiet.",
     "Skriv til din rådgiver — sig hej, så ved vi hvor du er.",
     "Fortæl det videre — dit medlemskab som billede til LinkedIn, så dit netværk ved hvor du får sparring.",
   ];

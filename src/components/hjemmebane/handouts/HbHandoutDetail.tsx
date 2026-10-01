@@ -18,6 +18,7 @@ import {
 import { listPublishedItems } from "@/lib/hjemmebane/akademiApi";
 import { MEDLEM_SKJULTE_OMRAADER } from "@/lib/hjemmebane/adminContentApi";
 import { hoererTilTekst, lektionerForModul, lektionsSti } from "@/lib/hjemmebane/lektionerForModul";
+import { OEVELSE_EYEBROW, oevelseTilbage } from "@/lib/hjemmebane/oevelse";
 import { sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
 import { HbSection } from "../HbSection";
 import { HbCard } from "../HbCard";
@@ -40,9 +41,15 @@ interface HbHandoutDetailProps {
   onBack: () => void;
   userId?: string; // for advisor viewing another member
   onModuleSelect?: (module: HandoutModule) => void;
+  /** Handouts i Akademiet (1/10-2026 nat): medlemmet kom fra Akademiet —
+      eyebrow'en er «Øvelse», og «Tilbage» er et link til den lektion, der
+      bærer modulet (oevelseTilbage: den første, ellers /akademiet), ikke
+      onBack til en liste, som medlemmet ikke har længere. «Næste modul»
+      vises ikke (listen er rådgiverens og legatets). */
+  tilbageTilAkademiet?: boolean;
 }
 
-export const HbHandoutDetail = ({ config, onBack, userId, onModuleSelect }: HbHandoutDetailProps) => {
+export const HbHandoutDetail = ({ config, onBack, userId, onModuleSelect, tilbageTilAkademiet = false }: HbHandoutDetailProps) => {
   const { user, companyId, companyName } = useAuth();
   const [industry, setIndustry] = useState<string | null>(null);
   const effectiveUserId = userId || user?.id;
@@ -76,6 +83,7 @@ export const HbHandoutDetail = ({ config, onBack, userId, onModuleSelect }: HbHa
     config.module,
   );
   const hoererTil = hoererTilTekst(lektioner.length);
+  const tilbage = tilbageTilAkademiet ? oevelseTilbage(lektioner) : null;
 
   // Load handout data (H1a + H1b i motoren)
   const loadData = useCallback(async () => {
@@ -197,14 +205,23 @@ export const HbHandoutDetail = ({ config, onBack, userId, onModuleSelect }: HbHa
       {/* ── Header ── */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <button
-            type="button"
-            onClick={onBack}
-            className="mb-3 inline-flex items-center gap-1.5 text-sm text-hb-ink-soft transition-colors hover:text-hb-ink"
-          >
-            <ArrowLeft className="h-4 w-4" /> Tilbage
-          </button>
-          <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">Handout</p>
+          {tilbage ? (
+            <Link
+              to={tilbage.to}
+              className="mb-3 inline-flex items-center gap-1.5 text-sm text-hb-ink-soft transition-colors hover:text-hb-ink"
+            >
+              <ArrowLeft className="h-4 w-4" /> {tilbage.label}
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={onBack}
+              className="mb-3 inline-flex items-center gap-1.5 text-sm text-hb-ink-soft transition-colors hover:text-hb-ink"
+            >
+              <ArrowLeft className="h-4 w-4" /> Tilbage
+            </button>
+          )}
+          <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">{tilbage ? OEVELSE_EYEBROW : "Handout"}</p>
           <h1 className="mt-2 font-editorial text-3xl font-medium leading-tight text-hb-ink md:text-4xl">{config.title}</h1>
           <p className="mt-2 text-sm text-hb-ink-soft">{config.subtitle} · {progress}% udfyldt</p>
           {/* Fejlet ≠ tom (hentefejl.ts): kunne kataloget ikke hentes, siges det
@@ -386,8 +403,9 @@ export const HbHandoutDetail = ({ config, onBack, userId, onModuleSelect }: HbHa
         </div>
       )}
 
-      {/* Next module prompt after completion */}
-      {isCompleted && (() => {
+      {/* Next module prompt after completion — kun hvor der er en liste at
+          vælge i (onModuleSelect); fra Akademiet er næste skridt lektionen. */}
+      {isCompleted && onModuleSelect && (() => {
         const currentIdx = moduleOrder.indexOf(config.module);
         const nextModule = currentIdx >= 0 && currentIdx < moduleOrder.length - 1
           ? moduleOrder[currentIdx + 1]
