@@ -27,6 +27,7 @@ import { aarsrapportHulTekst, faktaTilKf, manglendeAarsrapportFelter } from "@/l
 import { formatCompact, formatDKK, SHORT_MONTHS } from "@/lib/financialUtils";
 import { KPI_DEFS, VALUE_EXTRACTORS, deriveKpiMetrics, type KpiMetric } from "@/lib/kpiDefs";
 import { maanedOgAar } from "@/lib/maanedTekst";
+import { visEksport } from "@/lib/hjemmebane/noegletalEksport";
 import { INDUSTRY_TEMPLATES, type BenchmarkTemplate } from "@/lib/appConfig";
 import { HbFinancialAnalysis } from "./HbFinancialAnalysis";
 import { usePeriodFilter } from "@/components/PeriodSelector";
@@ -592,11 +593,13 @@ export const NoegletalView = () => {
             <p className="mt-1 max-w-xl text-xs leading-relaxed text-hb-ink-soft">{hulTekst}</p>
           )}
         </div>
+        {/* Ingen eksport af ingenting (m16): knapperne tegnes kun med mindst én måned. */}
+        {visEksport(monthlyData.length) && (
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => void handleExport()}
-            disabled={exporting || monthlyData.length === 0}
+            disabled={exporting}
             className="flex items-center gap-1.5 text-sm text-hb-ink-soft underline-offset-4 transition-colors hover:text-hb-ink hover:underline disabled:opacity-40"
           >
             {exporting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
@@ -605,12 +608,12 @@ export const NoegletalView = () => {
           <button
             type="button"
             onClick={() => void handleCsv()}
-            disabled={monthlyData.length === 0}
-            className="text-sm text-hb-ink-soft underline-offset-4 transition-colors hover:text-hb-ink hover:underline disabled:opacity-40"
+            className="text-sm text-hb-ink-soft underline-offset-4 transition-colors hover:text-hb-ink hover:underline"
           >
             Download CSV
           </button>
         </div>
+        )}
       </section>
 
       {monthlyData.length === 0 ? (

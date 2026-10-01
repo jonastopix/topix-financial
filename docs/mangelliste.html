@@ -3323,9 +3323,10 @@
       <p>Resten af det lukkede kort «Tal der ikke kan passe står på skærmen» (13/9): databasen og ugefokus kalder resultatgraden <code>ebitda_margin_pct</code>, formlen er ebt/omsætning. Noten er tekst; omdøbningen er en migration + alle læsere. Historik: OVERLEVERING DEL 2 «13. september», «17. september» §8.</p>
       <div class="meta"><span class="tag ny">Ny 17/9</span><span class="tag size">Lille</span></div>
     </div>
-    <div class="card new" id="m16-download-uden-tal" data-status="fejl" data-spor="8" data-rammer="medlem">
+    <div class="card new" id="m16-download-uden-tal" data-status="loest" data-spor="8" data-rammer="medlem">
       <h3>Nøgletal viser «Download PDF · Download CSV» på en tom side — knapperne er disabled i kode, men de skal udgå når der ingen tal er</h3>
       <p>Set 16/9 10:03 på /kpis for en ny konto uden tal. <code>NoegletalView.tsx:590, :599</code> gør dem <code>disabled</code> ved <code>monthlyData.length === 0</code>; om de var nedtonet på skærmen er ikke målt. Samme regel som tom-tilstandens kort: ingen eksport af ingenting. Analysens nr. 5. Historik: OVERLEVERING DEL 2 «16. september (formiddag)» §6 fund 6.</p>
+      <p><strong>LØST i kode 1/10 aften</strong> (gren <code>fix/mangel-fejl-1-10</code>): knapperne tegnes kun med mindst én måned (<code>visEksport</code>, test). Kræver Update; bevis: /kpis for en konto uden tal har ingen eksportknapper.</p>
       <div class="meta"><span class="tag gold">Jonas 22/9: senere</span><span class="tag gold">Set på skærm 16/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" data-status="ide" data-spor="senere" data-rammer="medlem">
@@ -3645,6 +3646,7 @@
     <div class="card new" id="w13" data-status="fejl" data-spor="1" data-rammer="medlem">
       <h3>En gæst skal møde en grænse i Community, ikke en fejl — de fem adgangsdomme er uenige om NULL i contract_end_date; efter 22/9</h3>
       <p>Jonas 14/9: gæster ser Community, skriver ikke. I dag ser de to gæster en tom liste og får toasten «Ingen adgang» ved skrivning; tjeklisten beder dem «Præsentér dig». Rammer IKKE en ny ansøger ad Monday-vejen (slutdatoen sættes før invitationen). Rettelsen er en grænse i composeren og et tjeklistepunkt der udgår for gæsten — ikke at klienten skal sige det SQL siger. Historik: OVERLEVERING DEL 2 «14. september» §36; <code>recon-gaestens-graense.md</code>; <code>docs/adgangsdomme.md:20-24</code>.</p>
+      <p><strong>Recon 1/10 aften:</strong> den tomme liste skyldes adgangsdommen, ikke <code>vis_i_netvaerk</code>. <code>get_community_feed</code> og <code>opret_community_traad</code> kræver <code>har_aktivt_medlemskab</code> (slutdato IS NOT NULL og &gt; now()), og gæsterne har NULL. Gæst-feltet læses ingen steder i medlemmets klient. Valg (Jonas): (a) <code>vis_i_netvaerk</code> ind i auth-hentningen og <code>erGaest</code> i AuthContext, eller (b) grænsen bygget på den tilstand, der får skrivningen til at fejle (slutdato).</p>
       <div class="meta"><span class="tag gold">Efter 22/9</span><span class="tag">Gæster ser, skriver ikke — Jonas 14/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new loest" id="w10" data-status="loest" data-spor="7" data-rammer="medlem">
@@ -4017,6 +4019,7 @@
     <div class="card new" id="m16e-monday-body-foer-noegle" data-status="fejl" data-spor="1" data-rammer="ingen">
       <h3>monday-webhook svarer 500 «Unexpected end of JSON input» uden header og med tom body — den læser body'en før nøglen</h3>
       <p>Set ved udrulningen af #922 (13:39 UTC). Bucket C-reglen er signaturverifikation FØR parsing; en tom body skal give 401, ikke 500. Rammer ingen i drift (Monday sender altid JSON), men svaret lyver om årsagen. Ikke målt: linjen i <code>monday-webhook/index.ts</code> hvor <code>req.json()</code> står før værnet. Historik: OVERLEVERING DEL 2 «16. september (eftermiddag og aften)» §13.</p>
+      <p><strong>Recon 1/10 aften:</strong> rækkefølgen er en BEVIDST, værnet kontrakt. Mondays challenge-håndtrin skal kunne besvares uden hemmelighed (<code>_shared/mondayVaern.ts</code>-filhovedet; <code>mondayVaern.guard</code> låser, at challenge står før værnet). At flytte verifikationen frem kræver en måling af, om Mondays challenge-kald bærer <code>?noegle=</code> eller <code>Authorization</code>; det er ikke målt. Mulig mellemvej (Jonas): læs rå tekst; gyldig nøgle → parse (400 ved ugyldig JSON); ellers ekko kun et rent <code>{challenge}</code>, alt andet 401. Det fjerner 500'eren, men parser stadig før verifikation for ekkoet.</p>
       <div class="meta"><span class="tag gold">Set i udrulningssvar</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new loest" id="m16e-messages-indeks" data-status="loest" data-spor="senere" data-rammer="ingen">
