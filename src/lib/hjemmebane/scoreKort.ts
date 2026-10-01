@@ -82,11 +82,11 @@ export function retningTekst(score: number | null, forrige: number | null): stri
   return "Samme som for en måned siden";
 }
 
-/** «Bygget på 3 af 4 søjler» — kun når scoren ikke hviler på alle fire (§2.5). */
+/** «3 af 4 søjler giver point endnu» — kun når ikke alle fire har data (§2.5; uden opskalering giver en søjle uden data 0 point, så linjen må ikke lyde som en opskalering — rådets fund 1/10). */
 export function daekningTekst(dom: Pick<ScoreDom, "score" | "soejler">): string | null {
   if (dom.score === null) return null;
   const medData = SOEJLE_ORDEN.filter((n) => dom.soejler[n].status === "ok").length;
-  return medData < SOEJLE_ORDEN.length ? `Bygget på ${medData} af ${SOEJLE_ORDEN.length} søjler` : null;
+  return medData < SOEJLE_ORDEN.length ? `${medData} af ${SOEJLE_ORDEN.length} søjler giver point endnu` : null;
 }
 
 export interface SoejleLinje {

@@ -216,9 +216,10 @@ daekning = Σ max(søjler med data) / 1000
 
 En søjle uden data giver **0 point**. Færre end 2 søjler med data →
 **scoren er null** («ikke nok data»), og dommen siger, hvad der mangler.
-`daekning` og fladens «Bygget på X af 4 søjler» står uændret, men betyder
-nu «X søjler kan give point» — de øvrige står på kortet som «—», og deres
-handling siger «Låser en søjle op».
+`daekning` står uændret, men betyder nu «X søjler kan give point»; fladens
+linje hedder derfor «X af 4 søjler giver point endnu» (rettet 1/10 efter
+rådets fund — «Bygget på X af 4 søjler» lød som den gamle opskalering). De
+øvrige står på kortet som «—», og deres handling siger «Låser en søjle op».
 
 **Målt i drift 1/10 — Brilleværk:** indtjening 250/250, disciplin 150/250,
 likviditet uden banktal, vækst uden sammenligning.
@@ -236,8 +237,8 @@ Med den nye regel går en søjle fra 0 til ≥ 0 point, når den får data, så
 **mere data kan kun løfte tallet** (prøvet udtømmende i
 `score.test.ts`, «egenskab: at lægge en søjle til kan aldrig sænke
 scoren»). Prisen: et nyt medlem med to søjler står lavt (højst 500), indtil
-de øvrige tal er der — det er sandt, og kortet siger hvorfor («Bygget på 2
-af 4 søjler» + søjlerne med «—»).
+de øvrige tal er der — det er sandt, og kortet siger hvorfor («2 af 4
+søjler giver point endnu» + søjlerne med «—»).
 
 **`MIN_SOEJLER_MED_DATA` = 2 bevares** (ikke ændret). Uden opskalering er
 den ikke længere et værn mod et oppustet tal, men den værner stadig mod et
@@ -300,8 +301,9 @@ likviditet, indtjening, vækst).
 | Vækst | «Fem procent mere omsætning end sammenligningen» | point(vækst + 0,05) − point(vækst) |
 
 Søjler uden data får handlingen «Upload en rapport med bank/…» med gevinst
-= null (kan ikke regnes), og vælges kun, når ingen søjle med data har en
-gevinst > 0. Gevinsten oversættes til samlet score gennem samme skalering
+= null (kan ikke regnes). `loefterMest` vælger den kun, når ingen søjle med
+data har en gevinst > 0; listen «Hvad løfter dit tal» (`loefterMitTal`)
+lægger HØJST ÉN af dem bagest, når der er en ledig plads (se nedenfor). Gevinsten oversættes til samlet score gennem samme skalering
 som §2.5 — efter 1/10 er det 1:1 (et point i en søjle er et point i
 scoren).
 
@@ -310,12 +312,16 @@ REEL gevinst** (søjlen går fra 0 til sine point). Den regnes stadig ikke:
 point afhænger af tal, vi ikke har (bankbeløbet, marginen, væksten), og
 alle tre kurver starter i 0, så den eneste sande nedre grænse er 0 —
 «mindst +0» siger intet. Gevinsten forbliver null, og fladen siger «Låser
-en søjle op». **ÅBENT (beslutning, ikke truffet):** `loefterMitTal` viser
-stadig kun en oplåsende handling, når INGEN handling har en regnet gevinst
-> 0. Før 1/10 var det rigtigt (oplåsning kunne sænke scoren); nu kan en
-oplåsning være mere værd end fx «+25» for disciplin, men skjules af den.
-Kandidat: fyld ledige pladser (op til 3) med oplåsende handlinger efter de
-regnede.
+en søjle op». **LØST 1/10 (rådets fund, grenen `fix/score-uden-opskalering`):**
+`loefterMitTal` viste kun en oplåsende handling, når INGEN handling havde en
+regnet gevinst > 0. Før 1/10 var det rigtigt (oplåsning kunne sænke scoren);
+efter 1/10 skjulte det fx Brilleværks «Upload en rapport med banksaldo» (op
+til 250 point) bag en disciplin-gevinst på +25. Reglen nu: de regnede først
+(størst gevinst, højst 3), og er der en ledig plads, HØJST ÉN oplåsende
+handling bagest — den første i motorens rækkefølge (én, fordi de alle peger
+på den samme næste rapport). Første element er stadig `loefterMest`
+(urørt). Prøvet i `loefter.test.ts` (Brilleværk-tilfældet mod motoren) og
+`scoreKort.test.ts`.
 
 ---
 
@@ -598,8 +604,9 @@ skrives ud»).
 kortet på medlemmets forside — `components/hjemmebane/boardroom/ScoreKort.tsx`,
 ordene i `lib/hjemmebane/scoreKort.ts`, «Hvad løfter dit tal» som den rene
 dom `boardroomScore/loefter.ts:loefterMitTal` (1–3 handlinger med størst
-REGNET gevinst, ved lige disciplin → likviditet → indtjening → vækst; uden
-nogen gevinst > 0 én handling, der låser op; første = `loefterMest`).
+REGNET gevinst, ved lige disciplin → likviditet → indtjening → vækst; på en
+ledig plads højst én handling, der låser op, bagest (1/10, §3); første =
+`loefterMest`).
 Placeringen: egen sektion i fuld bredde under toppens grid og over «Din
 plan» — toppens to kolonner (Jonas «A på alle», 17/9) er urørt. Hooken
 svarer `afventer_migration` (roligt «på vej») i stedet for at kaste, når
