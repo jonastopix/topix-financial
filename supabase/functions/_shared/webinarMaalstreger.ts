@@ -9,8 +9,8 @@
  * src/lib/__tests__/webinarDashboard.paritet.test.ts. Definitionerne og
  * begrundelserne står i src-udgavens filhoved.
  */
-import { SPOR_FORHOLD_FRA, ansoegerTider, medWebinarKobling, taelDeltagelse, type AnsoegerMail, type Tilmelding } from "./webinarDashboard.ts";
-import { annoncepriser, periodeOrd, TROVAERDIG_FRA, type Annoncenavn, type Annoncepriser, type Forbrugsdag, type Forbrugstilstand } from "./annoncepriser.ts";
+import { SPOR_FORHOLD_FRA, ansoegerTider, dagKey, datoKort, medlemsTider, medWebinarKobling, taelDeltagelse, type AnsoegerMail, type Tilmelding } from "./webinarDashboard.ts";
+import { annoncepriser, iVindue, periodeOrd, TROVAERDIG_FRA, type Annoncenavn, type Annoncepriser, type Forbrugsdag, type Forbrugstilstand, type Vindue } from "./annoncepriser.ts";
 import { doemSetGrad } from "./webinarDom.ts";
 import { intervalOrd, wilson } from "./marketingStatistik.ts";
 
@@ -38,15 +38,19 @@ export const MAAL_VALUTA = "DKK";
 
 export type MaalNoegle = "fremmoede" | "ansoegere_blandt_set" | "pris_pr_ansoegning" | "pris_pr_medlem";
 
-/** Er der et tal? «for få» og «ingen data» ERSTATTER tallet — de er ikke et tal. */
-export type MaalVaerdi = "maalt" | "for_faa" | "ingen_data";
+/**
+ * Er der et tal? «for få» og «ingen data» ERSTATTER tallet — de er ikke et tal.
+ * «nul» (kun kronemål): nul tilfælde OG et forbrug — «0 medlemmer for N kr.»;
+ * der er intet at dele med, så der står ingen pris, men forbruget står.
+ */
+export type MaalVaerdi = "maalt" | "nul" | "for_faa" | "ingen_data";
 
-export type MaalUdfald = "over_maalet" | "under_maalet" | "kan_ikke_afgoeres";
+export type MaalUdfald = "naaet" | "ikke_naaet" | "kan_ikke_afgoeres";
 
 /**
  * Barens positioner, 0–1 af barens bredde — regnet HER, så fladen kun tegner.
- * `vaerdi` null = intet tal at tegne (for få / ingen data); `fra`/`til` er
- * Wilson-intervallets ender (null for kronemål og under grænsen); `maal` er
+ * `vaerdi` null = intet tal at tegne (nul / for få / ingen data); `fra`/`til`
+ * er Wilson-intervallets ender (null for kronemål og under grænsen); `maal` er
  * målstregen og står altid.
  */
 export interface MaalBar {
@@ -63,17 +67,19 @@ export interface Maallinje {
   /** «over 55 %» · «under 2.500 kr.». */
   maalOrd: string;
   vaerdi: MaalVaerdi;
-  /** Det, der skal STÅ: «40 % (36–45 %) af 469» · «3.120 kr. af 7 ansøgninger» · «for få» · «ingen data». */
+  /** Det, der skal STÅ: «40 % (36–45 %) af 469» · «3.120 kr. af 7 ansøgninger» · «0 medlemmer for 34.905 kr.» · «for få» · «ingen data». */
   vaerdiOrd: string;
   udfald: MaalUdfald;
-  /** «over målet» · «under målet» · «kan ikke afgøres». */
+  /** «nået» · «ikke nået» · «kan ikke afgøres». */
   udfaldOrd: string;
-  /** Er målet NÅET? Procentmål: over; kronemål: under. null = kan ikke afgøres. */
+  /** Er målet NÅET? Procentmål: hele intervallet over; kronemål: viste kr. under. null = kan ikke afgøres. */
   naaet: boolean | null;
   /** Tælleren: personer (procent) eller øre (kroner). */
   taeller: number;
   /** Nævneren: personer — i begge slags mål. */
   naevner: number;
+  /** Hvad tallet er regnet på, kort: «alle afholdte webinarer 25/8–30/9» · «annoncevinduet 12.–30. september». */
+  grundlagOrd: string;
   /** Hvad tallet er regnet på — til title og skærmlæser. */
   forklaring: string;
   bar: MaalBar;
@@ -94,9 +100,10 @@ export const MAAL_EYEBROW = "Målene";
 export const MAAL_TITEL = `Det styrer vi efter (${MAAL_KILDE})`;
 export const MAAL_FOR_FAA_ORD = "for få";
 export const MAAL_INGEN_DATA_ORD = "ingen data";
+/** R2: ét ord for alle fire mål — om målet er NÅET, ikke hvilken side af stregen tallet står. */
 export const MAAL_UDFALD_ORD: Record<MaalUdfald, string> = {
-  over_maalet: "over målet",
-  under_maalet: "under målet",
+  naaet: "nået",
+  ikke_naaet: "ikke nået",
   kan_ikke_afgoeres: "kan ikke afgøres",
 };
 
@@ -111,6 +118,9 @@ const maalPct = (a: number): string => `${Math.round(a * 100)} %`;
 
 /** Ental og flertal: «1 ansøgning» · «7 ansøgninger». */
 const flertal = (n: number, ental: string, flere: string): string => `${n} ${n === 1 ? ental : flere}`;
+
+/** Udfaldet af `naaet` — ét sted, så ordet aldrig kan skilles fra dommen. */
+const udfaldAf = (naaet: boolean | null): MaalUdfald => (naaet === null ? "kan_ikke_afgoeres" : naaet ? "naaet" : "ikke_naaet");
 
 // ── Hjælpere ───────────────────────────────────────────────────────────────
 
@@ -133,10 +143,11 @@ const position = (v: number, skala: number): number => (skala <= 0 ? 0 : Math.ma
 
 /**
  * Dommen over en andel mod et «over x %»-mål. Regnestykket:
+ *   n = 0                            → ingen data, kan ikke afgøres
  *   n < SPOR_FORHOLD_FRA             → for få, kan ikke afgøres
  *   i = wilson(succes, n)
- *   i.nedre > mål                    → over målet (nået)
- *   i.oevre < mål                    → under målet (ikke nået)
+ *   i.nedre > mål                    → nået
+ *   i.oevre < mål                    → ikke nået
  *   ellers                           → kan ikke afgøres (intervallet rummer målet)
  * Skalaen: mindst det dobbelte af målet (så målstregen står midt på baren),
  * højst 100 %, og altid stor nok til intervallets øvre ende.
@@ -147,23 +158,22 @@ export function procentmaal(
   succes: number,
   n: number,
   maal: number,
+  grundlagOrd: string,
   forklaring: string,
 ): Maallinje {
   const s = Math.max(0, Math.floor(succes));
   const antal = Math.max(0, Math.floor(n));
   const maalOrd = `over ${maalPct(maal)}`;
-  const faelles = { noegle, navn, maalOrd, taeller: s, naevner: antal, forklaring };
-  if (antal === 0) {
-    return { ...faelles, vaerdi: "ingen_data", vaerdiOrd: MAAL_INGEN_DATA_ORD, udfald: "kan_ikke_afgoeres", udfaldOrd: MAAL_UDFALD_ORD.kan_ikke_afgoeres, naaet: null, bar: { vaerdi: null, fra: null, til: null, maal: position(maal, Math.min(1, 2 * maal)) } };
-  }
-  if (antal < SPOR_FORHOLD_FRA) {
-    return { ...faelles, vaerdi: "for_faa", vaerdiOrd: MAAL_FOR_FAA_ORD, udfald: "kan_ikke_afgoeres", udfaldOrd: MAAL_UDFALD_ORD.kan_ikke_afgoeres, naaet: null, bar: { vaerdi: null, fra: null, til: null, maal: position(maal, Math.min(1, 2 * maal)) } };
-  }
+  const faelles = { noegle, navn, maalOrd, taeller: s, naevner: antal, grundlagOrd, forklaring };
+  const tomBar: MaalBar = { vaerdi: null, fra: null, til: null, maal: position(maal, Math.min(1, 2 * maal)) };
+  const uden = (vaerdi: MaalVaerdi, vaerdiOrd: string): Maallinje =>
+    ({ ...faelles, vaerdi, vaerdiOrd, udfald: "kan_ikke_afgoeres", udfaldOrd: MAAL_UDFALD_ORD.kan_ikke_afgoeres, naaet: null, bar: tomBar });
+  if (antal === 0) return uden("ingen_data", MAAL_INGEN_DATA_ORD);
+  if (antal < SPOR_FORHOLD_FRA) return uden("for_faa", MAAL_FOR_FAA_ORD);
   const i = wilson(s, antal);
-  if (i === null) {
-    return { ...faelles, vaerdi: "ingen_data", vaerdiOrd: MAAL_INGEN_DATA_ORD, udfald: "kan_ikke_afgoeres", udfaldOrd: MAAL_UDFALD_ORD.kan_ikke_afgoeres, naaet: null, bar: { vaerdi: null, fra: null, til: null, maal: position(maal, Math.min(1, 2 * maal)) } };
-  }
-  const udfald: MaalUdfald = i.nedre > maal ? "over_maalet" : i.oevre < maal ? "under_maalet" : "kan_ikke_afgoeres";
+  if (i === null) return uden("ingen_data", MAAL_INGEN_DATA_ORD);
+  const naaet = i.nedre > maal ? true : i.oevre < maal ? false : null;
+  const udfald = udfaldAf(naaet);
   const skala = Math.min(1, Math.max(2 * maal, i.oevre));
   return {
     ...faelles,
@@ -171,7 +181,7 @@ export function procentmaal(
     vaerdiOrd: `${intervalOrd(i)} af ${antal}`,
     udfald,
     udfaldOrd: MAAL_UDFALD_ORD[udfald],
-    naaet: udfald === "kan_ikke_afgoeres" ? null : udfald === "over_maalet",
+    naaet,
     bar: { vaerdi: position(i.andel, skala), fra: position(i.nedre, skala), til: position(i.oevre, skala), maal: position(maal, skala) },
   };
 }
@@ -181,10 +191,14 @@ export function procentmaal(
 /**
  * Dommen over en pris mod et «under x kr.»-mål. Regnestykket:
  *   intet forbrug / udækket / anden valuta  → ingen data
+ *   antal = 0 (og et forbrug)               → «0 medlemmer for N kr.», kan ikke afgøres (B6)
  *   antal < TROVAERDIG_FRA                  → for få (INGEN pris), kan ikke afgøres
- *   pris = round(forbrug / antal)           (annoncepriser.ts `pris`)
- *   pris < mål                              → under målet (nået)
- *   pris ≥ mål                              → over målet (ikke nået)
+ *   prisOere = round(forbrug / antal)       (annoncepriser.ts `pris`)
+ *   visteKr  = round(prisOere / 100)        (det tal, `kroner` skriver)
+ *   visteKr < mål/100                       → nået
+ *   visteKr ≥ mål/100                       → ikke nået (K9: dommen falder på det
+ *                                             VISTE tal — 249.960 øre står som
+ *                                             «2.500 kr.» og er IKKE under 2.500)
  * Skalaen: mindst det dobbelte af målet, ellers prisen selv.
  */
 export function kronemaal(
@@ -196,21 +210,23 @@ export function kronemaal(
   enhedEntal: string,
   enhedFlertal: string,
   harData: boolean,
+  grundlagOrd: string,
   forklaring: string,
 ): Maallinje {
   const f = Number.isFinite(forbrugOere) && forbrugOere > 0 ? Math.round(forbrugOere) : 0;
   const n = Number.isFinite(antal) && antal > 0 ? Math.floor(antal) : 0;
   const maalOrd = `under ${kroner(maalOere)} kr.`;
-  const faelles = { noegle, navn, maalOrd, taeller: f, naevner: n, forklaring };
+  const faelles = { noegle, navn, maalOrd, taeller: f, naevner: n, grundlagOrd, forklaring };
   const tomBar: MaalBar = { vaerdi: null, fra: null, til: null, maal: position(maalOere, 2 * maalOere) };
-  if (!harData) {
-    return { ...faelles, vaerdi: "ingen_data", vaerdiOrd: MAAL_INGEN_DATA_ORD, udfald: "kan_ikke_afgoeres", udfaldOrd: MAAL_UDFALD_ORD.kan_ikke_afgoeres, naaet: null, bar: tomBar };
-  }
-  if (n < TROVAERDIG_FRA) {
-    return { ...faelles, vaerdi: "for_faa", vaerdiOrd: MAAL_FOR_FAA_ORD, udfald: "kan_ikke_afgoeres", udfaldOrd: MAAL_UDFALD_ORD.kan_ikke_afgoeres, naaet: null, bar: tomBar };
-  }
+  const uden = (vaerdi: MaalVaerdi, vaerdiOrd: string): Maallinje =>
+    ({ ...faelles, vaerdi, vaerdiOrd, udfald: "kan_ikke_afgoeres", udfaldOrd: MAAL_UDFALD_ORD.kan_ikke_afgoeres, naaet: null, bar: tomBar });
+  if (!harData) return uden("ingen_data", MAAL_INGEN_DATA_ORD);
+  if (n === 0) return uden("nul", `0 ${enhedFlertal} for ${kroner(f)} kr.`);
+  if (n < TROVAERDIG_FRA) return uden("for_faa", MAAL_FOR_FAA_ORD);
   const prisOere = Math.round(f / n);
-  const udfald: MaalUdfald = prisOere < maalOere ? "under_maalet" : "over_maalet";
+  const visteKr = Math.round(prisOere / 100);
+  const naaet = visteKr < maalOere / 100;
+  const udfald = udfaldAf(naaet);
   const skala = Math.max(2 * maalOere, prisOere);
   return {
     ...faelles,
@@ -218,7 +234,7 @@ export function kronemaal(
     vaerdiOrd: `${kroner(prisOere)} kr. af ${flertal(n, enhedEntal, enhedFlertal)}`,
     udfald,
     udfaldOrd: MAAL_UDFALD_ORD[udfald],
-    naaet: udfald === "under_maalet",
+    naaet,
     bar: { vaerdi: position(prisOere, skala), fra: null, til: null, maal: position(maalOere, skala) },
   };
 }
@@ -227,38 +243,104 @@ export function kronemaal(
 
 /**
  * Led 1 og 2 af de AFHOLDTE rækker. Personer (unikke mails), som tragten.
- *   fremmoede: moedteOp / (tilmeldte − kommende)        — taelDeltagelse
+ *   fremmoede: moedteOp / tilmeldte                       — taelDeltagelse på de
+ *              afholdte (kommende er 0 her; Replay uden state/tid = «ukendt» =
+ *              i nævneren, ikke i tælleren — som tragten).
  *   set:       personer med mindst én afholdt række dømt «set» (doemSetGrad);
  *              «set» er den højeste grad, så det er samme person som
  *              taelDeltagelse's saaFaerdigt.
- *   ansoegte:  af dem: indsendt > personens FØRSTE afholdte session (tragtens
- *              grænse, skarpt), eller enhver indsendelse uden sessionstid.
+ *   ansoegte:  af dem: indsendt > personens FØRSTE «SET»-SESSION (K8; tragtens
+ *              form, skarpt), eller enhver indsendelse, når ingen af hendes
+ *              «set»-rækker har et tidspunkt.
+ *   sessioner: første og sidste afholdte sessionstid (til grundlaget) og om
+ *              der er afholdte rækker uden tidspunkt (Replay).
  */
 export function maalTaelling(
   tilmeldinger: readonly Tilmelding[],
   ansoegninger: readonly AnsoegerMail[],
   nu: Date,
-): { moedteOp: number; grundlag: number; set: number; setDerAnsoegte: number } {
+): { moedteOp: number; grundlag: number; set: number; setDerAnsoegte: number; foersteSession: number | null; sidsteSession: number | null; udenTid: boolean } {
   const afholdt = tilmeldinger.filter((r) => erAfholdt(r, nu));
   const d = taelDeltagelse(afholdt, nu);
   const sete = new Set<string>();
-  const foersteSession = new Map<string, number>();
+  const foersteSet = new Map<string, number>();
+  let foersteSession: number | null = null;
+  let sidsteSession: number | null = null;
+  let udenTid = false;
   for (const r of afholdt) {
-    if (doemSetGrad(r, nu) === "set") sete.add(r.email);
     const t = tid(r.session_tid);
+    if (t === null) udenTid = true;
+    else {
+      if (foersteSession === null || t < foersteSession) foersteSession = t;
+      if (sidsteSession === null || t > sidsteSession) sidsteSession = t;
+    }
+    if (doemSetGrad(r, nu) !== "set") continue;
+    sete.add(r.email);
     if (t === null) continue;
-    const haves = foersteSession.get(r.email);
-    if (haves === undefined || t < haves) foersteSession.set(r.email, t);
+    const haves = foersteSet.get(r.email);
+    if (haves === undefined || t < haves) foersteSet.set(r.email, t);
   }
   const tider = ansoegerTider(medWebinarKobling(ansoegninger));
   let setDerAnsoegte = 0;
   for (const mail of sete) {
     const t = tider.get(mail);
     if (t === undefined) continue;
-    const g = foersteSession.get(mail);
+    const g = foersteSet.get(mail);
     if (g === undefined || t > g) setDerAnsoegte++;
   }
-  return { moedteOp: d.moedteOp, grundlag: Math.max(0, d.tilmeldte - d.kommende), set: d.saaFaerdigt, setDerAnsoegte };
+  // Nævneren er `tilmeldte`: `kommende` er 0, fordi rækkerne allerede er de afholdte (K13).
+  return { moedteOp: d.moedteOp, grundlag: d.tilmeldte, set: d.saaFaerdigt, setDerAnsoegte, foersteSession, sidsteSession, udenTid };
+}
+
+/**
+ * Led 3 og 4's TÆLLERE (R1) — ansøgere og nye medlemmer blandt personer, hvis
+ * FØRSTE tilmelding faldt i prisvinduet, og KUN når indsendelsen ligger SKARPT
+ * efter den første tilmelding (eksemplerne i filhovedet, definition 3).
+ *   personer:  første parsebare `registreret_at` pr. mail, dagen (dansk) i vinduet
+ *              — samme tilskrivning som annoncepriser (`foersteTilmeldingPrPerson`).
+ *   ansoegte:  ansoegerTider(mail) > første tilmelding
+ *   medlemmer: medlemsTider(mail)  > første tilmelding
+ * Uden et vindue tælles ingen.
+ */
+export function prisTaelling(
+  tilmeldinger: readonly Tilmelding[],
+  ansoegninger: readonly AnsoegerMail[],
+  vindue: Vindue | null,
+): { personer: number; ansoegte: number; medlemmer: number } {
+  if (vindue === null) return { personer: 0, ansoegte: 0, medlemmer: 0 };
+  const foerste = new Map<string, { t: number; iso: string }>();
+  for (const r of tilmeldinger) {
+    const t = tid(r.registreret_at);
+    if (t === null) continue;
+    const haves = foerste.get(r.email);
+    if (haves === undefined || t < haves.t) foerste.set(r.email, { t, iso: r.registreret_at as string });
+  }
+  const koblet = medWebinarKobling(ansoegninger);
+  const ansoegt = ansoegerTider(koblet);
+  const medlem = medlemsTider(koblet);
+  let personer = 0;
+  let ansoegte = 0;
+  let medlemmer = 0;
+  for (const [mail, f] of foerste) {
+    if (!iVindue(dagKey(f.iso), vindue)) continue;
+    personer++;
+    const a = ansoegt.get(mail);
+    if (a !== undefined && a > f.t) ansoegte++;
+    const m = medlem.get(mail);
+    if (m !== undefined && m > f.t) medlemmer++;
+  }
+  return { personer, ansoegte, medlemmer };
+}
+
+/** «alle afholdte webinarer 25/8–30/9» — grundlaget for led 1 og 2 i ord. */
+function sessionGrundlag(t: { foersteSession: number | null; sidsteSession: number | null; udenTid: boolean }): string {
+  if (t.foersteSession === null || t.sidsteSession === null) {
+    return t.udenTid ? "alle afholdte webinarer (kun Replay uden tidspunkt)" : "ingen afholdte webinarer endnu";
+  }
+  const fra = datoKort(new Date(t.foersteSession).toISOString());
+  const til = datoKort(new Date(t.sidsteSession).toISOString());
+  const spaend = fra === til ? `${fra}` : `${fra}–${til}`;
+  return `alle afholdte webinarer ${spaend}${t.udenTid ? " + Replay uden tidspunkt" : ""}`;
 }
 
 // ── Hele dommen ────────────────────────────────────────────────────────────
@@ -287,35 +369,40 @@ function prisHarData(p: Annoncepriser | null): boolean {
 /** Ét kald, ét svar — fire linjer i Nicklas' rækkefølge. Fladen regner intet. */
 export function maalstreger(ind: MaalstregerInput, nu: Date): Maalstreger {
   const t = maalTaelling(ind.tilmeldinger, ind.ansoegninger, nu);
-  // VINDUET STÅR FAST: «Hele perioden» — se filhovedet.
+  // VINDUET STÅR FAST: «Hele perioden» — se filhovedet. Annoncepriserne giver
+  // vinduet, forbruget og valutaen; tællerne er målstregernes egne (R1).
   const priser = ind.forbrug === null
     ? null
     : annoncepriser({ tilmeldinger: ind.tilmeldinger, ansoegninger: ind.ansoegninger, dage: ind.forbrug.dage, annoncer: ind.forbrug.annoncer, tilstand: ind.forbrug.tilstand, valg: "daekning", hentetTil: ind.forbrug.hentetTil }, nu);
   const harData = prisHarData(priser);
-  const vindueOrd = priser === null ? null : periodeOrd(priser.vindue);
+  const vindue = priser === null ? null : priser.vindue;
+  const vindueOrd = periodeOrd(vindue);
+  const p = prisTaelling(ind.tilmeldinger, ind.ansoegninger, vindue);
   const forbrug = priser?.samlet.forbrugOere ?? 0;
   const iVinduet = vindueOrd === null ? "uden et vindue med forbrug" : `over ${vindueOrd}`;
+  const sessioner = sessionGrundlag(t);
+  const prisGrundlag = vindueOrd === null ? "intet annoncevindue med forbrug" : `annoncevinduet ${vindueOrd}`;
   return {
     kilde: MAAL_KILDE,
     prisvindueOrd: vindueOrd,
     linjer: [
       procentmaal(
-        "fremmoede", "Fremmøde på webinaret", t.moedteOp, t.grundlag, MAAL_FREMMOEDE,
-        `${t.moedteOp} af ${t.grundlag} tilmeldte til et AFHOLDT webinar mødte op (personer, ikke tilmeldinger). Wilson 95 %; under ${SPOR_FORHOLD_FRA} står «for få».`,
+        "fremmoede", "Fremmøde på webinaret", t.moedteOp, t.grundlag, MAAL_FREMMOEDE, sessioner,
+        `${t.moedteOp} af ${t.grundlag} tilmeldte til et AFHOLDT webinar mødte op (personer, ikke tilmeldinger; en Replay uden tilstand tæller som udebleven). Wilson 95 %; under ${SPOR_FORHOLD_FRA} står «for få».`,
       ),
       procentmaal(
-        "ansoegere_blandt_set", "Ansøgere blandt dem, der så det færdigt", t.setDerAnsoegte, t.set, MAAL_ANSOEGERE_BLANDT_SET,
-        `${t.setDerAnsoegte} af ${t.set}, der så det færdigt, har indsendt en ansøgning EFTER deres første afholdte webinar (mailen eller en bekræftet kobling). Ansøgninger kommer dage efter — tallet er lavt lige efter en session.`,
+        "ansoegere_blandt_set", "Ansøgere blandt dem, der så det færdigt", t.setDerAnsoegte, t.set, MAAL_ANSOEGERE_BLANDT_SET, sessioner,
+        `${t.setDerAnsoegte} af ${t.set}, der så det færdigt, har indsendt en ansøgning EFTER det første webinar, de så færdigt (mailen eller en bekræftet kobling). Ansøgninger kommer dage efter — tallet er lavt lige efter en session.`,
       ),
       kronemaal(
-        "pris_pr_ansoegning", "Pris pr. ansøgning", forbrug, priser?.samlet.ansoegte ?? 0, MAAL_PRIS_PR_ANSOEGNING_OERE,
-        "ansøgning", "ansøgninger", harData,
-        `${kroner(forbrug)} kr. brugt ${iVinduet} / ${priser?.samlet.ansoegte ?? 0} ansøgere blandt dem, hvis første tilmelding faldt i samme vindue. Under ${TROVAERDIG_FRA} sættes ingen pris.`,
+        "pris_pr_ansoegning", "Pris pr. ansøgning", forbrug, p.ansoegte, MAAL_PRIS_PR_ANSOEGNING_OERE,
+        "ansøgning", "ansøgninger", harData, prisGrundlag,
+        `${kroner(forbrug)} kr. brugt ${iVinduet} / ${p.ansoegte} ansøgere blandt de ${p.personer}, hvis første tilmelding faldt i samme vindue — kun ansøgninger indsendt EFTER den første tilmelding. Under ${TROVAERDIG_FRA} sættes ingen pris.`,
       ),
       kronemaal(
-        "pris_pr_medlem", "Pris pr. nyt medlem", forbrug, priser?.samlet.medlemmer ?? 0, MAAL_PRIS_PR_MEDLEM_OERE,
-        "medlem", "medlemmer", harData,
-        `${kroner(forbrug)} kr. brugt ${iVinduet} / ${priser?.samlet.medlemmer ?? 0} nye medlemmer (underskrevet OG betalt) blandt dem, hvis første tilmelding faldt i samme vindue. Et medlem tager uger — tallet modnes sidst. Under ${TROVAERDIG_FRA} sættes ingen pris.`,
+        "pris_pr_medlem", "Pris pr. nyt medlem", forbrug, p.medlemmer, MAAL_PRIS_PR_MEDLEM_OERE,
+        "medlem", "medlemmer", harData, prisGrundlag,
+        `${kroner(forbrug)} kr. brugt ${iVinduet} / ${p.medlemmer} nye medlemmer (underskrevet OG betalt) blandt de ${p.personer}, hvis første tilmelding faldt i samme vindue — kun af en ansøgning indsendt EFTER den første tilmelding. Et medlem tager uger — tallet modnes sidst. Under ${TROVAERDIG_FRA} sættes ingen pris.`,
       ),
     ],
   };

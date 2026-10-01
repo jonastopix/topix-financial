@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { RING_INDEN_TIMER, sidenOrd, VARME_LEADS_DAGE, varmeLeads } from "@/lib/webinar/varmeLeads";
+import { relative, resolve } from "node:path";
+import { erInternEllerProeve, INTERNE_DOMAENER, PROEVE_ID_PRAEFIKS, RING_INDEN_TIMER, sidenOrd, VARME_FLAG_INDEN, VARME_LEADS_DAGE, varmeLeads } from "@/lib/webinar/varmeLeads";
 import type { AnsoegerMail, Tilmelding } from "@/lib/webinar/dashboard";
 import { bygDeltSvar, findForbudteNoegler, FORBUDTE_NOEGLER } from "../../../../supabase/functions/_shared/webinarDelingSvar.ts";
 import { FIXTURE } from "../../__tests__/webinarDashboard.paritet.test";
@@ -43,9 +43,10 @@ describe("varmeLeads — dommen", () => {
       R("d@x.dk", foer(24 * H + 1)),                       // 1 ms over: ikke
     ], [], NU);
     expect(l.map((x) => x.email)).toEqual(["a@x.dk", "c@x.dk", "d@x.dk", "b@x.dk"]);
-    expect(l.map((x) => x.inden24Timer)).toEqual([true, true, false, false]);
-    expect(l[0]).toMatchObject({ navn: "Navn A", procent: 80, timerSiden: 3, sidenOrd: "set for 3 timer siden", titel: "Styr på tallene" });
-    expect(l[3]).toMatchObject({ procent: 92, sidenOrd: "set for 5 dage siden" });
+    expect(l.map((x) => x.begyndtInden24Timer)).toEqual([true, true, false, false]);
+    expect(l[0]).toMatchObject({ navn: "Navn A", procent: 80, timerSiden: 3, sidenOrd: "webinaret begyndte for 3 timer siden", titel: "Styr på tallene" });
+    expect(l[3]).toMatchObject({ procent: 92, sidenOrd: "webinaret begyndte for 5 dage siden" });
+    expect(VARME_FLAG_INDEN).toBe("begyndte inden for 24 timer");
   });
 
   it("vinduet: præcis 14 dage er med, 1 ms mere er ikke; en kommende session er ikke med", () => {
@@ -70,17 +71,57 @@ describe("varmeLeads — dommen", () => {
     expect(l[1].procent).toBeNull();
   });
 
-  it("en indsendt ansøgning — på mailen ELLER via koblingen — fjerner personen; en kladde gør ikke", () => {
+  it("B4a: en ansøgning indsendt EFTER sessionen — på mailen ELLER via koblingen — fjerner personen; en før eller en kladde gør ikke", () => {
+    const S = foer(2 * H);
     const l = varmeLeads(
-      [R("a@x.dk", foer(H)), R("b@x.dk", foer(H)), R("c@x.dk", foer(H)), R("d@x.dk", foer(H))],
+      [R("a@x.dk", S), R("b@x.dk", S), R("c@x.dk", S), R("d@x.dk", S), R("e@x.dk", S), R("f@x.dk", S)],
       [
-        A("a@x.dk", "2026-09-01T10:00:00.000Z"),                                 // ansøgte FØR — stadig en ansøger
-        A("privat@firma.dk", "2026-10-01T11:00:00.000Z", { webinar_email: "b@x.dk" }), // koblet af en rådgiver
-        A("c@x.dk", null),                                                        // kladde
+        A("a@x.dk", "2026-09-01T10:00:00.000Z"),                                 // ansøgte FØR sessionen — stadig et lead
+        A("privat@firma.dk", foer(H), { webinar_email: "b@x.dk" }),               // koblet af en rådgiver, EFTER — ikke et lead
+        A("c@x.dk", null),                                                        // kladde — stadig et lead
+        A("e@x.dk", S),                                                           // PRÆCIS ved start — ikke EFTER (skarpt) — stadig et lead
+        A("f@x.dk", new Date(Date.parse(S) + 1).toISOString()),                   // 1 ms efter — ikke et lead
       ],
       NU,
     );
-    expect(l.map((x) => x.email)).toEqual(["c@x.dk", "d@x.dk"]);
+    expect(l.map((x) => x.email)).toEqual(["a@x.dk", "c@x.dk", "d@x.dk", "e@x.dk"]);
+  });
+
+  it("B4a: grænsen er den FØRSTE «set»-session i vinduet — så 22/9 og 29/9, ansøgte imellem → ikke et lead", () => {
+    const l = varmeLeads(
+      [R("a@x.dk", foer(9 * 24 * H)), R("a@x.dk", foer(2 * H))],
+      [A("a@x.dk", foer(5 * 24 * H))],
+      NU,
+    );
+    expect(l).toEqual([]);
+  });
+
+  it("B4b: et medlem (underskrevet OG betalt, mail eller kobling) er aldrig et lead — heller ikke med en gammel ansøgning", () => {
+    const l = varmeLeads(
+      [R("a@x.dk", foer(H)), R("b@x.dk", foer(H)), R("c@x.dk", foer(H))],
+      [
+        A("a@x.dk", "2025-07-08T10:00:00.000Z", { trin: "underskrevet", virksomhed_slutdato: "2026-12-31" }),
+        A("anden@firma.dk", "2025-07-08T10:00:00.000Z", { trin: "underskrevet", virksomhed_slutdato: "2026-12-31", webinar_email: "b@x.dk" }),
+        A("c@x.dk", "2025-07-08T10:00:00.000Z", { trin: "underskrevet", virksomhed_slutdato: null }), // underskrevet, aldrig betalt: ikke medlem
+      ],
+      NU,
+    );
+    expect(l.map((x) => x.email)).toEqual(["c@x.dk"]);
+  });
+
+  it("B4c: prøver (PROEVE-) og husets egne domæner er aldrig leads — et domæne matcher kun helt", () => {
+    expect(PROEVE_ID_PRAEFIKS).toBe("PROEVE-");
+    expect([...INTERNE_DOMAENER]).toEqual(["topix.dk", "theboardroom.dk"]);
+    const l = varmeLeads([
+      R("a@x.dk", foer(H), { ewebinar_id: "PROEVE-123" }),
+      R("jonas@topix.dk", foer(H)),
+      R("kontakt@theboardroom.dk", foer(H)),
+      R("ida@nottopix.dk", foer(H)),
+      R("bo@sub.topix.dk", foer(H)),
+    ], [], NU);
+    expect(l.map((x) => x.email)).toEqual(["bo@sub.topix.dk", "ida@nottopix.dk"]);
+    expect(erInternEllerProeve({ ewebinar_id: "x", email: "JONAS@TOPIX.DK" })).toBe(true);
+    expect(erInternEllerProeve({ ewebinar_id: "proeve-1", email: "a@x.dk" })).toBe(false);
   });
 
   it("én linje pr. person: den nyeste session, hun så færdigt", () => {
@@ -90,15 +131,15 @@ describe("varmeLeads — dommen", () => {
       R("a@x.dk", foer(3 * 24 * H), { set_procent: 95 }),
     ], [], NU);
     expect(l).toHaveLength(1);
-    expect(l[0]).toMatchObject({ procent: 95, sidenOrd: "set for 3 dage siden" });
+    expect(l[0]).toMatchObject({ procent: 95, sidenOrd: "webinaret begyndte for 3 dage siden" });
   });
 
   it("ordene for tiden", () => {
-    expect(sidenOrd(59 * 60_000)).toBe("set for under en time siden");
-    expect(sidenOrd(H)).toBe("set for 1 time siden");
-    expect(sidenOrd(23 * H)).toBe("set for 23 timer siden");
-    expect(sidenOrd(24 * H)).toBe("set for 1 dag siden");
-    expect(sidenOrd(49 * H)).toBe("set for 2 dage siden");
+    expect(sidenOrd(59 * 60_000)).toBe("webinaret begyndte for under en time siden");
+    expect(sidenOrd(H)).toBe("webinaret begyndte for 1 time siden");
+    expect(sidenOrd(23 * H)).toBe("webinaret begyndte for 23 timer siden");
+    expect(sidenOrd(24 * H)).toBe("webinaret begyndte for 1 dag siden");
+    expect(sidenOrd(49 * H)).toBe("webinaret begyndte for 2 dage siden");
   });
 
   it("tom liste, når ingen er varme", () => {
@@ -118,28 +159,34 @@ const udenKommentarer = (k: string) =>
  *   · WebinarVisning tegner kun det, den får ind (`{varme}`) og kalder ikke dommen;
  *   · KUN WebinarView kalder `varmeLeads(` og monterer `<VarmeLeadsAfsnit`.
  */
-export const varmeLeadsKunHosRaadgiveren = (filer: { functions: string[]; delt: string; view: string }): boolean => {
+export interface FunctionFil { sti: string; tekst: string }
+
+export const varmeLeadsKunHosRaadgiveren = (filer: { functions: FunctionFil[]; delt: string; view: string }): boolean => {
   const ORD = /varmeLeads|VarmeLeads|varme=\{/;
-  // I functions er ÉN forekomst tilladt: nøglen i webinarDelingSvar.FORBUDTE_NOEGLER — værnet selv.
-  const ORD_I_FUNCTIONS = /import[^;]*(varmeLeads|VarmeLeads)|varmeLeads\(|VarmtLead|VarmeLeads/;
+  // I functions er ÉN forekomst tilladt: nøglen "varmeLeads" i webinarDelingSvar.FORBUDTE_NOEGLER —
+  // værnet selv, som streng i anførselstegn. ALT andet fanges (B5): en import af FILEN
+  // (`from "…/varmeLeads"` eller `…/varmeLeads.ts`, uanset hvad der importeres), et kald,
+  // typen, komponenten — og en fil under supabase/functions, der selv HEDDER noget med varmeLeads.
+  const udenNoeglen = (k: string) => k.replace(/"varmeLeads"/g, "");
+  const ORD_I_FUNCTIONS = /varmeLeads|VarmeLeads|VarmtLead/;
   const v = udenKommentarer(filer.view);
   const visning = v.slice(v.indexOf("export const WebinarVisning"), v.indexOf("export const WebinarView "));
   const raadgiver = v.slice(v.indexOf("export const WebinarView "));
-  return filer.functions.every((f) => !ORD_I_FUNCTIONS.test(udenKommentarer(f))) &&
+  return filer.functions.every((f) => !/varmeLeads/i.test(f.sti) && !ORD_I_FUNCTIONS.test(udenNoeglen(udenKommentarer(f.tekst)))) &&
     !ORD.test(udenKommentarer(filer.delt)) &&
     visning.length > 100 && visning.includes("{varme}") && !visning.includes("varmeLeads(") && !visning.includes("<VarmeLeadsAfsnit") &&
     raadgiver.includes("varmeLeads(query.data.tilmeldinger, query.data.ansoegninger, nu)") &&
     raadgiver.includes("<VarmeLeadsAfsnit leads={leads} />");
 };
 
-const alleFunctionFiler = (): string[] => {
+const alleFunctionFiler = (): FunctionFil[] => {
   const rod = resolve(process.cwd(), "supabase/functions");
-  const ud: string[] = [];
+  const ud: FunctionFil[] = [];
   const gaa = (dir: string) => {
     for (const e of readdirSync(dir, { withFileTypes: true })) {
       const sti = resolve(dir, e.name);
       if (e.isDirectory()) gaa(sti);
-      else if (/\.(ts|tsx)$/.test(e.name)) ud.push(readFileSync(sti, "utf8"));
+      else if (/\.(ts|tsx)$/.test(e.name)) ud.push({ sti: relative(process.cwd(), sti), tekst: readFileSync(sti, "utf8") });
     }
   };
   gaa(rod);
@@ -154,7 +201,15 @@ describe("kildeværn — varme leads aldrig i den delte flade", () => {
     expect(varmeLeadsKunHosRaadgiveren(filer)).toBe(true);
   });
   it("VÆRNET VIRKER: listen i en function, i den delte side eller i den fælles visning fanges", () => {
-    expect(varmeLeadsKunHosRaadgiveren({ ...filer, functions: [...filer.functions, 'import { varmeLeads } from "./varmeLeads.ts";'] })).toBe(false);
+    const med = (tekst: string, sti = "supabase/functions/x/index.ts") => ({ ...filer, functions: [...filer.functions, { sti, tekst }] });
+    expect(varmeLeadsKunHosRaadgiveren(med('import { varmeLeads } from "./varmeLeads.ts";'))).toBe(false);
+    // Importen af FILEN fanges, også når det importerede hedder noget andet:
+    expect(varmeLeadsKunHosRaadgiveren(med('import { liste as l } from "../../../src/lib/webinar/varmeLeads";'))).toBe(false);
+    expect(varmeLeadsKunHosRaadgiveren(med('import * as v from "./varmeLeads.ts";'))).toBe(false);
+    // En fil, der HEDDER varmeLeads, under functions:
+    expect(varmeLeadsKunHosRaadgiveren(med("export const x = 1;", "supabase/functions/_shared/varmeLeads.ts"))).toBe(false);
+    // Nøglen i anførselstegn alene er værnet selv — den er tilladt:
+    expect(varmeLeadsKunHosRaadgiveren(med('const N = ["varmeLeads"];'))).toBe(true);
     expect(varmeLeadsKunHosRaadgiveren({ ...filer, delt: `${filer.delt}\n<WebinarVisning varme={<VarmeLeadsAfsnit leads={[]} />} />` })).toBe(false);
     expect(varmeLeadsKunHosRaadgiveren({ ...filer, view: filer.view.replace("{varme}", "{<VarmeLeadsAfsnit leads={[]} />}") })).toBe(false);
   });

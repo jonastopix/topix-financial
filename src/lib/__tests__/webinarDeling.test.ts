@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   afvisningAf, delingsOversigt, delingsTilstand, delingsUrl, erDageGyldige, erTokenForm, erVindueValg, forlaengetUdloeb,
   MAKS_DAGE, rensNavn, SPOR_HAENDELSER, STANDARD_DAGE, tilBase64Url, TOKEN_BYTES, TOKEN_FORM, udloebEfter,
 } from "@/lib/webinar/deling";
 import { udenRaekker, webinarDashboard } from "@/lib/webinar/dashboard";
-import { bygDeltSvar, findForbudteNoegler, FORBUDTE_NOEGLER } from "../../../supabase/functions/_shared/webinarDelingSvar.ts";
+import { bygDeltSvar, findForbudteNoegler, findMailVaerdier, FORBUDTE_NOEGLER, MAIL_MOENSTER } from "../../../supabase/functions/_shared/webinarDelingSvar.ts";
 import { FIXTURE } from "./webinarDashboard.paritet.test";
 
 /**
@@ -163,5 +165,25 @@ describe("webinarDeling — svaret til den eksterne bærer ingen persondata", ()
     expect(findForbudteNoegler({ ...svar, dashboard: { ...svar.dashboard, naeste: { ...svar.dashboard.naeste, raekker: [] } } })).toEqual(["dashboard.naeste.raekker"]);
     expect(findForbudteNoegler({ a: { fbclid: null } })).toEqual(["a.fbclid"]);
     expect(findForbudteNoegler(null)).toEqual([]);
+  });
+  it("VÆRN NR. 2 (B5): det rigtige svar har INGEN mail som værdi — hverken med eller uden forbrug", () => {
+    expect(findMailVaerdier(svar)).toEqual([]);
+    expect(findMailVaerdier(bygDeltSvar({ ...ind, dage: [], tilstand: "tom" as const, hentning: null }, NU_FIX))).toEqual([]);
+  });
+  it("VÆRN NR. 2 VIRKER: en mail som værdi under et uskyldigt navn fanges med sin sti — aldrig værdien", () => {
+    const fund = findMailVaerdier({ ...svar, dashboard: { ...svar.dashboard, titel: "kontakt anna@firma.dk" } });
+    expect(fund).toEqual(["dashboard.titel"]);
+    expect(fund.join(" ")).not.toMatch(/@/);
+    expect(findMailVaerdier({ a: [{ b: ["x", "bo@x.dk"] }] })).toEqual(["a[0].b[1]"]);
+    expect(findMailVaerdier("c@d.dk")).toEqual(["(rod)"]);
+    expect(findMailVaerdier({ a: "ikke en mail @ her", b: "a@b", c: 42, d: null })).toEqual([]);
+    expect(MAIL_MOENSTER.source).toBe("[^\\s@]+@[^\\s@]+\\.[^\\s@]+");
+  });
+  it("webinar-delt bruger BEGGE værn før svaret sendes", () => {
+    const kode = readFileSync(resolve(process.cwd(), "supabase/functions/webinar-delt/index.ts"), "utf8");
+    const i = kode.indexOf("findMailVaerdier(svar)");
+    expect(kode.indexOf("findForbudteNoegler(svar)")).toBeGreaterThan(0);
+    expect(i).toBeGreaterThan(kode.indexOf("findForbudteNoegler(svar)"));
+    expect(i).toBeLessThan(kode.indexOf("return json({ ok: true"));
   });
 });

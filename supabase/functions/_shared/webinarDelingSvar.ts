@@ -8,7 +8,8 @@
  * KILDEVÆRNET I DRIFT: findForbudteNoegler går svaret igennem, og functionen
  * nægter at svare (500 svar_afvist), hvis en af tilmeldingens personfelter
  * (email, by, land, enhed, fbclid, origin, referrer, …) er nøgle et sted i
- * objektet. Prøven på det faktiske svar-objekt står i
+ * objektet — og findMailVaerdier (1/10) afviser ethvert svar, hvor en
+ * STRENGVÆRDI ligner en mail. Prøven på det faktiske svar-objekt står i
  * src/lib/__tests__/webinarDeling.test.ts.
  */
 import { type AnsoegerMail, type Tilmelding, udenRaekker, type WebinarDashboardSvar, webinarDashboard } from "./webinarDashboard.ts";
@@ -92,6 +93,34 @@ export function findForbudteNoegler(obj: unknown, sti = ""): string[] {
     const her = sti ? `${sti}.${k}` : k;
     if ((FORBUDTE_NOEGLER as readonly string[]).includes(k)) ud.push(her);
     ud.push(...findForbudteNoegler(v, her));
+  }
+  return ud;
+}
+
+/**
+ * VÆRN NR. 2 (rådets B5, 1/10-2026): nøgle-værnet ovenfor ser kun NAVNENE. En
+ * mail kan stå som VÆRDI under et uskyldigt navn — en titel, et annoncenavn,
+ * en ny liste, nogen tilføjer. Derfor går hele svaret også igennem her: enhver
+ * STRENGVÆRDI, også dybt i arrays og objekter, der matcher MAIL_MOENSTER, gør svaret ulovligt, og
+ * webinar-delt svarer 500 svar_afvist. Stierne returneres — ALDRIG værdien, så
+ * loggen ikke selv bliver lækken.
+ *
+ * Mønstret er bevidst bredt (noget@noget.noget uden mellemrum): hellere et
+ * afvist svar end en mail ude. En falsk alarm ses i loggen med stien.
+ */
+export const MAIL_MOENSTER = /[^\s@]+@[^\s@]+\.[^\s@]+/;
+
+/** Stierne (a.b[0].c) til enhver strengværdi, der ligner en mail — tom liste = rent. */
+export function findMailVaerdier(obj: unknown, sti = ""): string[] {
+  if (typeof obj === "string") return MAIL_MOENSTER.test(obj) ? [sti || "(rod)"] : [];
+  if (obj === null || typeof obj !== "object") return [];
+  const ud: string[] = [];
+  if (Array.isArray(obj)) {
+    obj.forEach((v, i) => ud.push(...findMailVaerdier(v, `${sti}[${i}]`)));
+    return ud;
+  }
+  for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+    ud.push(...findMailVaerdier(v, sti ? `${sti}.${k}` : k));
   }
   return ud;
 }

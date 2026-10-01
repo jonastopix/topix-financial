@@ -11,8 +11,9 @@
 // hele webinar_tilmeldinger (mail, navn, by, enhed, fbclid, referrer) og regner selv.
 // Her hentes rækkerne med service role, dommen regnes på serveren med de SPEJLEDE
 // domme (webinarDashboard.ts, annoncepriser.ts — samme som fladens), og svaret er
-// KUN det færdige dashboard + priserne. findForbudteNoegler går svaret igennem
-// FØR det sendes; er en personfelt-nøgle med, svares 500 svar_afvist frem for at
+// KUN det færdige dashboard + priserne. findForbudteNoegler OG findMailVaerdier
+// (1/10: en mail som værdi hvor som helst) går svaret igennem FØR det sendes; er
+// en personfelt-nøgle eller en mail med, svares 500 svar_afvist frem for at
 // lække. Prøven på det faktiske svar-objekt: src/lib/__tests__/webinarDeling.test.ts.
 //
 // ÉT SVAR UDADTIL for ukendt, udløbet og lukket: 403 { error: "ukendt" } — grunden
@@ -41,7 +42,7 @@ import { corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { ukendteFelter, ukendteFelterBesked } from "../_shared/kendteFelter.ts";
 import { verifyDelingstoken } from "../_shared/delingstokenAuth.ts";
 import { afvisningAf, erTokenForm, erVindueValg, type SporHaendelse } from "../_shared/webinarDeling.ts";
-import { bygDeltSvar, findForbudteNoegler } from "../_shared/webinarDelingSvar.ts";
+import { bygDeltSvar, findForbudteNoegler, findMailVaerdier } from "../_shared/webinarDelingSvar.ts";
 import type { AnsoegerMail, Tilmelding } from "../_shared/webinarDashboard.ts";
 import type { Annoncenavn, Forbrugsdag, HentningStatus } from "../_shared/annoncepriser.ts";
 
@@ -243,6 +244,12 @@ Deno.serve(async (req) => {
     const forbudte = findForbudteNoegler(svar);
     if (forbudte.length > 0) {
       console.error(`${LOG} SVAR AFVIST — personfelter i svaret:`, forbudte.slice(0, 10).join(", "));
+      return json({ error: "svar_afvist" }, 500);
+    }
+    // Værn nr. 2 (B5): en mail som VÆRDI hvor som helst i svaret. Kun stierne logges, aldrig værdien.
+    const mails = findMailVaerdier(svar);
+    if (mails.length > 0) {
+      console.error(`${LOG} SVAR AFVIST — mail som værdi i svaret:`, mails.slice(0, 10).join(", "));
       return json({ error: "svar_afvist" }, 500);
     }
     return json({ ok: true, udloeber_at: dom.raekke.udloeber_at, nu: nu.toISOString(), ...svar });

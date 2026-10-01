@@ -38,6 +38,11 @@ describe("WebinarVisning — målstregerne", () => {
     expect(fremmoede.textContent).toContain(maal.linjer[0].vaerdiOrd);
     expect(fremmoede.textContent).toContain("mål over 55 %");
     expect(container.querySelector("[data-maal='pris_pr_ansoegning']")!.textContent).toContain("ingen data");
+    // B7: grundlaget står under hver række; R2: badgens sr-tekst siger det samme ord som badgen.
+    expect(container.querySelectorAll("[data-maal-grundlag]")).toHaveLength(4);
+    expect(fremmoede.querySelector("[data-maal-grundlag]")!.textContent).toBe(maal.linjer[0].grundlagOrd);
+    expect(fremmoede.querySelector(".sr-only")!.textContent).toContain(`— ${maal.linjer[0].udfaldOrd}.`);
+    expect(["nået", "ikke nået", "kan ikke afgøres"]).toContain(maal.linjer[0].udfaldOrd);
   });
   it("uden `maalstreger` (gammel webinar-delt) tegnes ingen sektion", () => {
     const { container } = render(<WebinarVisning tilstand="klar" dom={dom} priser={null} />);

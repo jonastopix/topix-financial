@@ -142,6 +142,21 @@ describe("webinarDashboard.paritet — dommene", () => {
       expect(denoMaal.maalstreger(ind, NU)).toEqual(webMaal.maalstreger(ind, NU));
     }
   });
+  it("K11: målstregerne med ≥ 5 personer og DKK-forbrug — Wilson- OG kronegrenen sammenlignes", () => {
+    // 12 personer, første tilmelding 10/9 (i forbrugets vindue 10.–11/9), session 15/9 (afholdt ved NU 19/9):
+    // 8 så færdigt, 4 udeblev; 6 af de sete ansøgte 16/9 (EFTER både tilmelding og session) og blev medlemmer.
+    const tilm = Array.from({ length: 12 }, (_, n) =>
+      R(`k${n}@firma.dk`, `K ${n}`, T15, n < 8 ? {} : { state: "Missed", attended: null, set_procent: null }));
+    const ans = Array.from({ length: 6 }, (_, n) => ({ email: `k${n}@firma.dk`, indsendt_at: "2026-09-16T10:00:00.000Z", trin: "underskrevet" as const, virksomhed_slutdato: "2027-09-16" }));
+    const ind = { tilmeldinger: tilm, ansoegninger: ans, forbrug: { dage: FIXTURE.dage, annoncer: FIXTURE.annoncer, tilstand: "har" as const, hentetTil: "2026-09-11" } };
+    const web = webMaal.maalstreger(ind, NU);
+    // Prøven er kun en prøve, hvis grenene faktisk rammes: alle fire linjer har et TAL.
+    expect(web.linjer.map((l) => l.vaerdi)).toEqual(["maalt", "maalt", "maalt", "maalt"]);
+    expect(web.linjer[0].bar.fra).not.toBeNull();
+    expect(web.linjer[2].vaerdiOrd).toBe("667 kr. af 6 ansøgninger");
+    expect(web.linjer[3].vaerdiOrd).toBe("667 kr. af 6 medlemmer");
+    expect(denoMaal.maalstreger(ind, NU)).toEqual(web);
+  });
   it("delingsdommen og blevMedlem svarer ens", () => {
     const nu = new Date("2026-09-21T12:00:00Z");
     const r = { id: "a", navn: "x", oprettet_at: "2026-09-21T10:00:00Z", udloeber_at: "2026-12-20T10:00:00Z", lukket_at: null };

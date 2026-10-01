@@ -680,39 +680,70 @@ Målene står ÉT sted (`MAAL_*`). Definitionerne genbruger husets:
 
 | Mål | Tæller / nævner | Vindue | Genbrugt fra |
 |---|---|---|---|
-| Fremmøde | mødte op / (tilmeldte − kommende), personer | alle afholdte sessioner | `taelDeltagelse` på de afholdte (tragten, «I alt») |
-| Ansøgere blandt så-færdigt | «set» (≥ 75 %) med indsendt ansøgning SKARPT efter første afholdte session / «set» | alle afholdte sessioner | tragtens grænse i tid (`tragt`: `foersteSession` + `faellesEfter`) + `medWebinarKobling` |
-| Pris pr. ansøgning | forbrug / ansøgere blandt personer, hvis første tilmelding faldt i vinduet | «Hele perioden» (`valg: "daekning"`) | `annoncepriser().samlet` (`byggLinje`) |
-| Pris pr. nyt medlem | samme forbrug / `blevMedlem` (underskrevet OG betalt) | samme | samme |
+| Fremmøde | mødte op / tilmeldte på de afholdte rækker, personer (`kommende` er 0 dér; en Replay uden state/tid = «ukendt» = udebleven, som tragten) | alle afholdte sessioner | `taelDeltagelse` på de afholdte (tragten, «I alt») |
+| Ansøgere blandt så-færdigt | «set» (≥ 75 %) med indsendt ansøgning SKARPT efter personens FØRSTE «SET»-SESSION / «set» | alle afholdte sessioner | tragtens grænse-FORM (`faellesEfter`) + `medWebinarKobling` |
+| Pris pr. ansøgning | forbrug / ansøgere blandt personer, hvis første tilmelding faldt i vinduet — KUN indsendt SKARPT efter den første tilmelding (`prisTaelling`) | «Hele perioden» (`valg: "daekning"`) | forbruget: `annoncepriser().samlet`; tællerne: `ansoegerTider` |
+| Pris pr. nyt medlem | samme forbrug / `blevMedlem` (underskrevet OG betalt) med samme grænse | samme | `medlemsTider` (ansøgningens indsendelse) |
 
-Dommen: procentmål med Wilson 95 % — «over/under målet» kun når HELE intervallet
-ligger på én side, ellers «kan ikke afgøres»; under 5 ERSTATTER «for få»
-procenten. Kronemål uden interval; under 5 personer sættes INGEN pris («for
-få»). «Ingen data» uden forbrug, udækket vindue eller anden valuta end DKK.
-**Vinduet står fast på «Hele perioden»** — prisafsnittets periodevælger flytter
-ikke målstregerne. Pris pr. ansøgning har (som annoncepriserne) INGEN grænse i
-tid mod sessionen; fremmøde/ansøgere har tragtens.
+Dommen (R2): ÉT ord pr. linje, `naaet` → «nået» · «ikke nået» · «kan ikke
+afgøres», for alle fire. Procentmål med Wilson 95 % — «nået»/«ikke nået» kun når
+HELE intervallet ligger på én side; under 5 ERSTATTER «for få» procenten.
+Kronemål uden interval, dømt på det VISTE heltal i kroner (2.499,60 kr. står som
+«2.500 kr.» og er IKKE under 2.500); pris = mål er «ikke nået». Under 5 personer
+(`TROVAERDIG_FRA`) sættes INGEN pris («for få»); med 0 og et forbrug står «0
+medlemmer for N kr.». Alle tre er «kan ikke afgøres». «Ingen data» uden forbrug,
+udækket vindue eller anden valuta end DKK. Hver linje bærer `grundlagOrd`
+(«alle afholdte webinarer 25/8–30/9» · «annoncevinduet 12.–30. september»),
+skrevet af dommen og tegnet under rækken på begge flader. **Vinduet står fast på
+«Hele perioden»** — prisafsnittets periodevælger flytter ikke målstregerne.
 
 Fladen (`WebinarView.tsx`, sektionen «Målene» under tragten) skriver kun
 dommens ord og tegner dommens bar-positioner; kildeværn i `maalstreger.test.ts`.
-Den delte side får dommen gennem `webinar-delt` → `bygDeltSvar` som feltet
-`maalstreger` (tal, ingen rækker); uden feltet (gammel function) tegnes intet.
+`WebinarView`s `nu` tikker hvert minut (som `HbMemberShell` og
+`useBoardroomScore`); et `nu` udefra står stille. Den delte side får dommen
+gennem `webinar-delt` → `bygDeltSvar` som feltet `maalstreger` (tal, ingen
+rækker); uden feltet (gammel function) tegnes intet. Den delte sides `nu` er
+serverens ved hvert kald.
 
 **B. Varme leads** (`src/lib/webinar/varmeLeads.ts`, KUN rådgiveren; INTET
 spejl): «set» på en afholdt session med tidspunkt inden for 14 dage (inklusiv),
-UDEN indsendt ansøgning (mail eller kobling), én linje pr. person (nyeste
-session), nyeste først, flaget «inden for 24 timer» regnet fra sessionens
-START. Nicklas' anden betingelse (omsætning over 2 mio.) kan IKKE dømmes:
-`webinar_tilmeldinger` har ingen CVR/omsætning. Husets CVR-opslag
-(`ansoegning-cvr`, `ansoegning-cvr-opslag`, `berig-virksomheder`, DataCVR 25
-opslag/døgn) er bevidst IKKE brugt. Persondata: `varmeLeads` står i
-`FORBUDTE_NOEGLER`, og et kildeværn (`varmeLeads.test.ts`) fælder enhver
-function eller den delte side, der nævner dommen. **Næste skridt:** en
+én linje pr. person (nyeste session), nyeste først. Ude er: (a) den, der har
+indsendt en ansøgning SKARPT efter sin FØRSTE «set»-session i vinduet (tragtens
+grænse; en gammel ansøgning holder hende ikke ude); (b) medlemmer —
+`medlemsMails` over de ansøgninger, hooken allerede henter (et medlem uden
+ansøgning gennem platformen er IKKE i den kilde); (c) prøver (`ewebinar_id`
+«PROEVE-», `ewebinar-proeve`) og husets domæner (`topix.dk`, `theboardroom.dk`)
+— konstanterne `PROEVE_ID_PRAEFIKS`/`INTERNE_DOMAENER` ét sted. **Tiden regnes
+fra sessionens START**, og teksten siger det: «webinaret begyndte for N timer
+siden», flaget «begyndte inden for 24 timer». `webinar_tilmeldinger` har
+`updated_at` og `sidste_haendelse_at`, men ingen er procentens tidspunkt —
+`ewebinar-import` sætter `sidste_haendelse_at` til kørselstiden på hver række,
+den skriver. Nicklas' anden betingelse (omsætning over 2 mio.) kan IKKE dømmes:
+ingen CVR/omsætning på en tilmelding; husets CVR-opslag (`ansoegning-cvr`,
+`ansoegning-cvr-opslag`, `berig-virksomheder`, DataCVR 25 opslag/døgn) er
+bevidst IKKE brugt. Persondata: `varmeLeads` står i `FORBUDTE_NOEGLER`; kildeværnet
+(`varmeLeads.test.ts`) fælder enhver function, der importerer FILEN, kalder
+dommen eller selv hedder `varmeLeads`, og den delte side, der nævner den.
+**Værn nr. 2 i drift:** `findMailVaerdier` (`webinarDelingSvar.ts`) afviser
+ethvert delt-svar, hvor en STRENGVÆRDI matcher `/[^\s@]+@[^\s@]+\.[^\s@]+/` —
+500 `svar_afvist`, stien i loggen, aldrig værdien. **Næste skridt:** en
 «ringet»-markering kræver en tabel.
 
+**Rettet 1/10 efter det tekniske råds fund på `5e0f8d1a`:** R1 pristællerne
+talte gamle ansøgere og eksisterende medlemmer (annoncepriserne har ingen grænse
+i tid) → egen tælling med grænsen «efter første tilmelding»; R2 «over/under
+målet» betød det modsatte for procent og kroner → «nået/ikke nået»; K8 grænsen
+for led 2 var første AFHOLDTE session → første «set»; K9 dommen faldt på øre,
+tallet stod i kroner; B3–B6 som ovenfor; B7 grundlaget i ord; K11 paritetsprøven
+rammer nu Wilson- og kronegrenen (≥ 5 personer, DKK); K12 fodnoten bruger
+`TROVAERDIG_FRA` og uret tikker; K13 kommentaren om nævneren. Annonceprisernes
+egen definition er urørt.
+
 **Rækkefølgen:** merge → **eksplicit udrulning af `webinar-delt`** (den trækker
-en NY delt fil ind, `webinarMaalstreger.ts`) → **beviset:** et delt-svar bærer
-feltet `maalstreger` (fire linjer) → FØRST DEREFTER Update. Ingen migration.
+en NY delt fil ind, `webinarMaalstreger.ts`, og har fået værn nr. 2) →
+**beviset:** et delt-svar bærer feltet `maalstreger` (fire linjer), og hver
+linje bærer `grundlagOrd` — kun den rettede kode svarer med det → FØRST DEREFTER
+Update. Ingen migration.
 
 ---
 

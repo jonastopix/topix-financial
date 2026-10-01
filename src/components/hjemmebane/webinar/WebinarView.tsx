@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HbCard } from "@/components/hjemmebane/HbCard";
@@ -9,7 +9,7 @@ import { VarmeLeadsAfsnit } from "@/components/hjemmebane/webinar/VarmeLeads";
 import { varmeLeads, type VarmtLead } from "@/lib/webinar/varmeLeads";
 import { MAAL_EYEBROW, MAAL_TITEL, maalstreger, type MaalBar, type Maallinje, type Maalstreger } from "@/lib/webinar/maalstreger";
 import { AnnoncepriserAfsnit } from "@/components/hjemmebane/annoncer/AnnoncepriserAfsnit";
-import { PRIS_EYEBROW, PRIS_TITEL } from "@/lib/webinar/annoncepriser";
+import { PRIS_EYEBROW, PRIS_TITEL, TROVAERDIG_FRA } from "@/lib/webinar/annoncepriser";
 import {
   AFHOLDTE_TOM_TEKST,
   bedoemmelseTekst,
@@ -626,7 +626,8 @@ const MaalRaekke = ({ l }: { l: Maallinje }) => (
       </p>
     </div>
     <MaalBarTegning bar={l.bar} />
-    <span className="sr-only">{`${l.navn}, mål ${l.maalOrd}: ${l.vaerdiOrd} — ${l.udfaldOrd}. ${l.forklaring}`}</span>
+    <p className="mt-1.5 text-xs text-hb-ink-soft" data-maal-grundlag>{l.grundlagOrd}</p>
+    <span className="sr-only">{`${l.navn}, mål ${l.maalOrd}: ${l.vaerdiOrd} — ${l.udfaldOrd}. Regnet på ${l.grundlagOrd}. ${l.forklaring}`}</span>
   </li>
 );
 
@@ -635,7 +636,7 @@ const Maalene = ({ m }: { m: Maalstreger }) => (
   <div data-maalstreger={m.linjer.length}>
     <ul>{m.linjer.map((l) => <MaalRaekke key={l.noegle} l={l} />)}</ul>
     <p className="mt-3 text-xs text-hb-ink-soft">
-      Procentmålene er dømt på et 95 %-interval: «over målet» eller «under målet» kun, når HELE intervallet ligger på den ene side af stregen — ellers «kan ikke afgøres». Under {SPOR_FORHOLD_FRA} står «for få» i stedet for et tal, og ingen pris sættes på færre end {SPOR_FORHOLD_FRA}.
+      Procentmålene er dømt på et 95 %-interval: «nået» eller «ikke nået» kun, når HELE intervallet ligger på den ene side af stregen — ellers «kan ikke afgøres». Priserne er dømt på det viste beløb i hele kroner; en pris lig målet er ikke nået, for målet er «under». Under {SPOR_FORHOLD_FRA} står «for få» i stedet for en procent, og ingen pris sættes på færre end {TROVAERDIG_FRA}. Ansøgninger og medlemmer tæller i priserne kun, når ansøgningen er indsendt efter personens første tilmelding.
       {` Priserne er regnet over ${m.prisvindueOrd ?? "den periode, forbruget dækker"} (hele perioden — periodevælgeren længere nede flytter ikke målstregerne).`}
       {" Ansøgninger og især medlemmer kommer dage og uger efter webinaret — de to tal er lavest lige efter en session."}
     </p>
@@ -770,7 +771,18 @@ export const WebinarVisning = ({
 };
 
 /** Rådgiverens /webinar: ÉN kilde (useWebinarDashboard), ÉN dom (webinarDashboard) — og visningen ovenfor. */
-export const WebinarView = ({ nu = new Date() }: { nu?: Date }) => {
+export const WebinarView = ({ nu: nuUdefra }: { nu?: Date }) => {
+  // URET (rådets K12): dommene afhænger af `nu` — afholdt/kommende, 14-dagesvinduet og
+  // 24-timersflaget på de varme leads. Som HbMemberShell og useBoardroomScore tikker det
+  // hvert minut, så et lead skifter flag og en session bliver «afholdt» uden genindlæsning.
+  // Et `nu` udefra (prøverne) står stille.
+  const [nuMs, setNuMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (nuUdefra) return;
+    const id = window.setInterval(() => setNuMs(Date.now()), 60_000);
+    return () => window.clearInterval(id);
+  }, [nuUdefra]);
+  const nu = useMemo(() => nuUdefra ?? new Date(nuMs), [nuUdefra, nuMs]);
   const query = useWebinarDashboard();
   // Forbruget til målstregernes to priser — samme hook og samme cache som prisafsnittet.
   const forbrug = useAnnonceforbrug();
