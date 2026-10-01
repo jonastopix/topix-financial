@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod 1/10-2026 ca. 23:40 via Lovable-MCP (hovedsessionen), FØR merge. FØR: kolonnerne fandtes ikke · 100 milestones (38 aktive) · 10 politikker som kodelæst nedenfor · kun milestones_status_check. EFTER: art/maal_noegle text, udgangspunkt numeric, udgangspunkt_dato date (alle nullable) · tre CHECKs som forventet · 100 rækker, 0 med art · 10 politikker uændret · nye kolonner med samme roller/privilegier. REST med anon-nøglen → 200. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
 --
 -- «DINE MÅL» — TAL-MÅL (motoren, 1/10-2026; Jonas 1/10 kl. 21:04: ja til det nye
 -- design af /milestones). Design: docs/dine-maal-design.md. Motor:
@@ -81,7 +81,7 @@
 --   select '3 aktive', count(*)::text from public.milestones where status = 'active'
 --   union all
 --   select '4 politik ' || p.polname,
---          p.polcmd || ' · ' || case when p.polpermissive then 'PERMISSIVE' else 'RESTRICTIVE' end
+--          p.polcmd::text || ' · ' || case when p.polpermissive then 'PERMISSIVE' else 'RESTRICTIVE' end
 --          || ' · roller=' || coalesce((select string_agg(r.rolname, ',' order by r.rolname) from pg_roles r where r.oid = any (p.polroles)), 'public')
 --          || ' · USING=' || coalesce(pg_get_expr(p.polqual, p.polrelid), '—')
 --          || ' · WITH CHECK=' || coalesce(pg_get_expr(p.polwithcheck, p.polrelid), '—')
@@ -120,7 +120,7 @@
 --   select '4 art sat', count(*)::text from public.milestones where art is not null
 --   union all
 --   select '5 politik ' || p.polname,
---          p.polcmd || ' · ' || case when p.polpermissive then 'PERMISSIVE' else 'RESTRICTIVE' end
+--          p.polcmd::text || ' · ' || case when p.polpermissive then 'PERMISSIVE' else 'RESTRICTIVE' end
 --          || ' · roller=' || coalesce((select string_agg(r.rolname, ',' order by r.rolname) from pg_roles r where r.oid = any (p.polroles)), 'public')
 --          || ' · USING=' || coalesce(pg_get_expr(p.polqual, p.polrelid), '—')
 --          || ' · WITH CHECK=' || coalesce(pg_get_expr(p.polwithcheck, p.polrelid), '—')

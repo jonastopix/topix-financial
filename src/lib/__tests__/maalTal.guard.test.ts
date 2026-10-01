@@ -38,8 +38,8 @@ describe("maalTal.guard", () => {
     expect(checkListe(krop, "maal_noegle")).toEqual([...MAAL_NOEGLER]);
   });
 
-  it("dom 2: migrationens første linje er husets «IKKE KØRT»-linje", () => {
-    expect(sql.split("\n")[0]).toBe("-- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).");
+  it("dom 2: migrationens første linje er husets «IKKE KØRT»-linje — eller «KØRT i prod» efter kørslen (lærestreg dd)", () => {
+    expect(sql.split("\n")[0]).toMatch(/^-- (IKKE KØRT\.|KØRT i prod) /);
   });
 
   it("dom 3: migrationen er kun tilføjende — ingen policy, trigger, funktion, UPDATE eller DROP i kroppen", () => {
