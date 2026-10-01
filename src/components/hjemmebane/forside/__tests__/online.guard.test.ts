@@ -181,6 +181,18 @@ export const skallenTrackerRigtigt = (skal: string): boolean =>
   skal.indexOf("useOnlineTracking(") < skal.indexOf("\n  return (") &&
   !/viewingAsMember/.test(skal);
 
+/** Dom 10 (1/10, Jonas: billederne skal være klikbare til medlemmets chat):
+    hvert billede i feltet står i et rigtigt <Link> til onlineChatSti(m) med
+    aria-label onlineLinkEtiket(m) — og et billede uden link kun, når der
+    ingen virksomhed er (sti null). */
+export const hvertBilledeErEtLink = (flade: string): boolean => {
+  const felt = onlineFelt(flade);
+  return felt.includes("const sti = onlineChatSti(m);") &&
+    /<Link\s+to=\{sti\}\s+aria-label=\{onlineLinkEtiket\(m\)\}/.test(felt) &&
+    felt.includes("return sti ? (") &&
+    !/href=/.test(felt);
+};
+
 describe("online.guard — «Online nu» på rådgiverens forside", () => {
   const raaSql = laes(MIGRATION);
   const sql = udenSqlKommentarer(raaSql);
@@ -225,6 +237,9 @@ describe("online.guard — «Online nu» på rådgiverens forside", () => {
   });
   it("8. ingen realtime-kanal tilbage i den rene dom, hooks og fladen", () => {
     expect(ingenKanalTilbage([ren, tracking, lytter, flade])).toBe(true);
+  });
+  it("10. klikbare billeder: hvert online-billede er et <Link> til virksomhedens chat med aria-label", () => {
+    expect(hvertBilledeErEtLink(flade)).toBe(true);
   });
   it("9. vinduet: husets tal holder (60 s + 20 s < 150 s)", () => {
     expect(vinduetHolder({ hjerteslagMs: ONLINE_HJERTESLAG_MS, minAfstandMs: ONLINE_MIN_AFSTAND_MS, vindueS: ONLINE_VINDUE_S })).toBe(true);
@@ -274,5 +289,9 @@ describe("online.guard — VÆRNET VIRKER på kopier med fejlen indsat", () => {
   it("8. en Presence-kanal tilbage i nogen af filerne fælder dom 8", () => {
     expect(ingenKanalTilbage([ren, tracking, lytter + '\nsupabase.channel("online-medlemmer", { config: { private: true } });', flade])).toBe(false);
     expect(ingenKanalTilbage([ren, tracking.replace("slag();\n    const timer", "void channel.track({});\n    slag();\n    const timer"), lytter, flade])).toBe(false);
+  });
+  it("10. et billede uden link, eller uden aria-label, fælder dom 10", () => {
+    expect(hvertBilledeErEtLink(flade.replace("aria-label={onlineLinkEtiket(m)}", ""))).toBe(false);
+    expect(hvertBilledeErEtLink(flade.replace("const sti = onlineChatSti(m);", "const sti = null;"))).toBe(false);
   });
 });

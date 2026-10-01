@@ -40,7 +40,7 @@ import { IKKE_KOMMET_IGEN_PRAEFIKS, KOHORTE_OVERSKRIFT, ikkeKommetIgenDele, ikke
 import { HbTag } from "@/components/hjemmebane/HbTag";
 import { HbAvatar } from "@/components/hjemmebane/HbAvatar";
 import { ONLINE_DOM_KEY, hentOnlineDom, useOnlineMedlemmer } from "@/hooks/onlineMedlemmer";
-import { onlineMedlemmer, onlineOverskrift, onlineTitel, onlineUdsnit } from "@/lib/hjemmebane/online";
+import { onlineChatSti, onlineLinkEtiket, onlineMedlemmer, onlineOverskrift, onlineTitel, onlineUdsnit } from "@/lib/hjemmebane/online";
 import { HentningsFejl } from "@/lib/kraevRaekker";
 import { cn } from "@/lib/utils";
 import { raadgiverHentefejlTekst } from "@/lib/raadgiverHentefejl";
@@ -797,7 +797,23 @@ export const RaadgiverForsideView = () => {
                 <ul className="mt-2 flex flex-wrap gap-1" data-online-antal={iDag.online.liste.length}>
                   {viste.map((m) => (
                     <li key={m.user_id}>
-                      <HbAvatar navn={m.navn} avatarUrl={m.avatar_url} stoerrelse="sm" title={onlineTitel(m)} />
+                      {/* Klikbart (Jonas 1/10): et rigtigt link direkte til
+                          virksomhedens samtale (onlineChatSti =
+                          /chat?companyId=…); uden virksomhed intet link. */}
+                      {(() => {
+                        const sti = onlineChatSti(m);
+                        const avatar = <HbAvatar navn={m.navn} avatarUrl={m.avatar_url} stoerrelse="sm" title={onlineTitel(m)} />;
+                        return sti ? (
+                          <Link
+                            to={sti}
+                            aria-label={onlineLinkEtiket(m)}
+                            data-online-chat-link
+                            className="block rounded-full transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hb-evergreen focus-visible:ring-offset-2"
+                          >
+                            {avatar}
+                          </Link>
+                        ) : avatar;
+                      })()}
                     </li>
                   ))}
                   {flere > 0 && (

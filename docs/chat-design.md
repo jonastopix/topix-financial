@@ -384,3 +384,42 @@ rådgiver-epicen.
 
 Besvaret 31/8: kvitteringerne slettes (C2), session_prep fjernes
 helt (C3). Afgjort 1/9: feedback-knappen genindføres ikke (C13).
+
+---
+
+## 8. Live-chat med det online medlem (1/10-2026)
+
+Jonas 1/10 09:20: «De små "online" billeder på rådgivernes forside skal
+være klikbare, så vi kommer ind på medlemmets chat … og måske man kunne
+markere tydeligt for det online medlem, at en rådgiver lige har skrevet
+(ikke mail), når det sker.»
+
+**Rådgiveren:** hvert billede i «Online nu» er et `<Link>` til
+`/chat?companyId=<id>` — samme vej som rådgiverens klokke
+(`klokke.chatSti`; `CompanyChatPane` slår samtalen op på virksomheden).
+Virksomheden er online-dommens egen (første KUNDE-virksomhed fra
+`company_members`, `OnlineMedlem.company_id`); uden virksomhed intet link.
+aria-label «Skriv til {navn} ({virksomhed}) — online nu»
+(`onlineChatSti`/`onlineLinkEtiket` i `src/lib/hjemmebane/online.ts`; værn
+`online.guard` dom 10).
+
+**Medlemmet:** realtime virker i dag sådan (målt i koden 1/10):
+`MemberChatPane` lytter på `postgres_changes` INSERT/UPDATE/DELETE på
+`messages` med `conversation_id=eq.<aktiv>` — men kun mens /chat er åben;
+Hb-skallen lyttede ikke på beskeder (klokken lytter på `notifications`).
+Nu lytter `HbMemberShell` (gate: RÅ `isAdvisor`, som hjerteslaget) med
+SAMME mekanisme — INSERT på `messages`, filter
+`conversation_id=in.(medlemmets samtaler)`, RLS afgør — og afsenderen slås
+op med `get_conversation_sender_profiles` (`is_advisor`). Dommen
+`skalViseBanner` (`src/lib/hjemmebane/raadgiverSkrev.ts`): kun
+`message_type = "user"`, ikke egen, afsender ER rådgiver (ukendt = nej),
+og medlemmet står IKKE på /chat. Banneret (`HbRaadgiverSkrev`) står øverst
+til højre i 20 s: «{Rådgivernavn} har lige skrevet til dig», ren-tekst-
+uddrag ≤ 80 tegn og «Åbn chatten». Ingen mail, ingen ny notifikationstype,
+intet skrives, intet markeres læst (læst sker i chatten som før).
+
+**Åbent (umålt):** at Realtime faktisk leverer INSERT til medlemmet med
+`in.(…)`-filteret i prod (samme RLS som `MemberChatPane`s `eq`-filter);
+medlemmer på sider uden Hb-skallen (AppLayout) får intet banner; en
+rådgiver der skriver flere beskeder i træk erstatter banneret med den
+seneste.
