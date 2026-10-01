@@ -44,6 +44,8 @@ import { handoutConfigs, moduleOrder, type HandoutModule } from "@/lib/handoutCo
 import { HbButton } from "../HbButton";
 import { FornyelsesBaand } from "./FornyelsesBaand";
 import { ScoreKort } from "./ScoreKort";
+import { TrofaeKort } from "./TrofaeKort";
+import { useMedlemmetsTrofaeer } from "@/hooks/trofaeer";
 import { useBoardroomScore } from "@/hooks/useBoardroomScore";
 import { HbCard } from "../HbCard";
 import { EstimatMaerke } from "../EstimatMaerke";
@@ -2171,6 +2173,8 @@ export const BoardroomView = () => {
   // BOARDROOM SCORE (30/9 — Jonas D3): ÉN hook (react-query + motoren), kaldt her
   // i topblokken FØR enhver betinget return (React #310). Kortet tegner kun dommen.
   const boardroomScore = useBoardroomScore();
+  // TROFÆER (1/10): samme topblok (React #310). Månederne er scorens grundlag — ingen dobbelt hentning.
+  const trofaeer = useMedlemmetsTrofaeer(companyId ?? undefined, boardroomScore.grundlag, boardroomScore.afventerMigration);
 
   const firstName = profile?.full_name?.split(" ")[0] || user?.email?.split("@")[0] || "dig";
 
@@ -2438,6 +2442,10 @@ export const BoardroomView = () => {
             isError={boardroomScore.isError}
             onProevIgen={boardroomScore.refetch}
           />
+          {/* Trofæer (1/10, docs/boardroom-score.md «Trofæer»): milepæle under scoren. */}
+          <div className="mt-4">
+            <TrofaeKort trofaeer={trofaeer.data} isError={trofaeer.isError} />
+          </div>
         </HbSection>
       )}
 

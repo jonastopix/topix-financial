@@ -81,6 +81,7 @@ const KLIENT_UNDTAGET: Readonly<Record<string, string>> = {
   "src/components/hjemmebane/boardroom/BoardroomView.tsx": "OPSLAG pr. id: ansigtet på den rådgiver, der skrev pushet/skridtet — en tjenestekonto skriver intet",
   "src/components/hjemmebane/events/EventDetailView.tsx": "OPSLAG pr. id: eventets værter — værtsvælgeren (EventEditor) tilbyder aldrig en tjenestekonto",
   "src/components/hjemmebane/ansoegninger/AnsoegningView.tsx": "OPSLAG pr. id: navnet på den rådgiver, der tog beslutningen i sporet",
+  "src/hooks/trofaeer.ts": "ROLLE: «Hjalp et andet medlem» — en tråd fra en rådgiver eller tjenestekonto er ikke et medlems; kontoen skal MED i mængden",
   "src/hooks/useVirksomhed.ts": "OPSLAG pr. id: «Tildelt» — tildelings-vælgeren (CompanyChatPane) tilbyder aldrig en tjenestekonto",
 };
 
