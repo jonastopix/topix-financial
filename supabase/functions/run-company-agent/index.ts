@@ -13,6 +13,7 @@ import { effektivRapportPeriodeKey, rapporteringsStatus } from "../_shared/rappo
 import { skrivUgensFokus } from "../_shared/agentSkriveveje.ts";
 import { maaKoereLive } from "../_shared/agentLiveAdgang.ts";
 import { hentTjenestekonti, udenTjenestekonti } from "../_shared/tjenestekonti.ts";
+import { klokkeRaekker } from "../_shared/agentKlokke.ts";
 // Fase 0a («Én plan»): write_company_action dømmer gennem den delte motor
 // (højst ét åbent forslag pr. virksomhed; ingen gentagelse inden for 30 døgn).
 import { doemSkrivning, SKRIVE_SELECT_KOLONNER, skriveFilter } from "../_shared/skridtForslag.ts";
@@ -600,15 +601,14 @@ async function executeTool(name: string, args: any, adminClient: any, trigger: s
     }
 
     case "notify_advisor": {
-      // Find assigned advisor for this company
+      // Rådgiverne er sammen om alle medlemmer (tildelingen er fjernet 1/10-2026):
+      // klokken ringer hos HVER rådgiver, tjenestekonti inkluderet (de skal se alt).
       const { data: conv } = await adminClient
         .from("conversations")
-        .select("assigned_advisor_id, member_id")
+        .select("member_id")
         .eq("company_id", args.company_id)
         .maybeSingle();
-
-      const advisorId = conv?.assigned_advisor_id;
-      const memberId = conv?.member_id;
+      const memberId = conv?.member_id ?? null;
 
       // Trigger-aware title so the notification reflects the actual event
       // (not always "ny rapport").
@@ -620,23 +620,29 @@ async function executeTool(name: string, args: any, adminClient: any, trigger: s
       };
       const notificationTitle = titleByTrigger[trigger] || "AI-agent har analyseret ny rapport";
 
-      // In-app notification (always, regardless of Slack)
-      if (advisorId) {
-        await adminClient
-          .from("advisor_notifications")
-          .insert({
-            type: "agent_insight",
-            title: notificationTitle,
-            body: args.message,
-            company_id: args.company_id,
-            member_id: memberId || advisorId,
-            advisor_id: advisorId || null,
-            reference_type: "agent",
-          });
+      const { data: roller, error: rolleFejl } = await adminClient
+        .from("user_roles")
+        .select("user_id")
+        .in("role", ["advisor", "admin"]);
+      if (rolleFejl) {
+        console.error("[run-company-agent] notify_advisor: rådgiveropslag fejlede:", rolleFejl.message);
+        return { ok: false, reason: `raadgiveropslag: ${rolleFejl.message}` };
+      }
+      const raekker = klokkeRaekker(
+        ((roller ?? []) as { user_id: string }[]).map((r) => r.user_id),
+        { title: notificationTitle, body: args.message, company_id: args.company_id, member_id: memberId },
+      );
+      if (raekker.length === 0) return { ok: true, in_app: false, slack: false, modtagere: 0 };
+
+      // In-app notification (always, regardless of Slack) — ét batch-insert.
+      const { error: insFejl } = await adminClient.from("advisor_notifications").insert(raekker);
+      if (insFejl) {
+        console.error("[run-company-agent] notify_advisor: insert fejlede:", insFejl.message);
+        return { ok: false, reason: `insert: ${insFejl.message}` };
       }
 
       // Agent insight stays in-app only (advisor bell + company chat). No Slack post.
-      return { ok: true, in_app: !!advisorId, slack: false };
+      return { ok: true, in_app: true, slack: false, modtagere: raekker.length };
     }
 
     // Den idempotente skrivevej bor i _shared/agentSkriveveje.ts — delt
