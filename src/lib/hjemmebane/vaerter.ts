@@ -174,7 +174,7 @@ export interface VaertPlan {
  * Samme rådgiver to gange i udkastet tæller én gang (den første plads);
  * formularen afviser det allerede (validerVaerter), men planen må ikke selv
  * kunne ramme indekset. raekkefoelge er pladsen i det deduplikerede udkast.
- * REN — ingen Supabase; testet i __tests__/vaerter.test.ts.
+ * REN — ingen Supabase; testet i __tests__/vaertPlan.test.ts.
  */
 export function vaertPlan(
   gamle: readonly Pick<VaertRaekke, "id" | "user_id" | "raekkefoelge">[],

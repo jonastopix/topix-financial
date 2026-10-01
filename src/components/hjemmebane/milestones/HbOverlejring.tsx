@@ -153,7 +153,7 @@ export const HbDialog = ({
     wrapper. Lukker ved mousedown udenfor og ved Escape (capture, stoppet så
     dialogen bag ikke lukker); fokus går tilbage til triggeren. */
 export const HbPopover = ({
-  open, onOpenChange, trigger, children, className, inline = false, panelClassName,
+  open, onOpenChange, trigger, children, className, inline = false, panelClassName, ariaLabel,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -167,6 +167,9 @@ export const HbPopover = ({
   /** Erstatter panelets placeringsklasser (default: absolut under triggeren).
       Rammen (kant, flade, skygge) bevares. */
   panelClassName?: string;
+  /** Tilgængeligt navn på panelet (role="dialog" kræver et). Valgfrit, så
+      eksisterende kaldere er uændrede. */
+  ariaLabel?: string;
 }) => {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -202,6 +205,7 @@ export const HbPopover = ({
       {open && (
         <Panel
           role="dialog"
+          aria-label={ariaLabel}
           className={cn(
             "z-30 rounded-hb border border-hb-line bg-hb-surface shadow-hb-hover",
             inline && "block",

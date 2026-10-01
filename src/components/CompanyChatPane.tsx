@@ -286,6 +286,12 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
   // «Foreslå skridt»-popoveren i headeren (1/10, Jonas: «Vi får det ikke
   // brugt, hvis det gemmer sig oppe i hjørnet bag tre streger»).
   const [forslagAaben, setForslagAaben] = useState(false);
+  // Knappen bag popoveren — fokus gives tilbage hertil, når et forslag er
+  // sendt (panelet afmonteres med fokus i sig, og fokus ville ellers falde
+  // til <body>). Escape klarer HbPopover selv.
+  const forslagKnapRef = useRef<HTMLButtonElement | null>(null);
+  // «Kræver ikke svar» kører — knappen er deaktiveret imens (ingen dobbeltklik).
+  const [fjernerKraeverSvar, setFjernerKraeverSvar] = useState(false);
   const [showCompanyDrawer, setShowCompanyDrawer] = useState(false);
   // Foreslå skridt fra chatten (rådgiver, headerens knap) — B1: et forslag,
   // ikke en opgave, før medlemmet siger ja i "Dine skridt" på forsiden.
@@ -1169,12 +1175,18 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
   // kolonnen conversations.assigned_advisor_id står i databasen, men
   // klienten hverken læser eller skriver den (værn: ingenTildeling.guard).
   const handleNoReplyNeeded = async () => {
-    if (!activeConvId || !user) return;
+    if (!activeConvId || !user || fjernerKraeverSvar) return;
     const { table, id } = getOpsTarget();
-    const { error } = await supabase
-      .from(table as any)
-      .update({ awaiting_reply_from: null })
-      .eq("id", id);
+    setFjernerKraeverSvar(true);
+    let error: unknown = null;
+    try {
+      ({ error } = await supabase
+        .from(table as any)
+        .update({ awaiting_reply_from: null })
+        .eq("id", id));
+    } finally {
+      setFjernerKraeverSvar(false);
+    }
     if (error) { toast.error("Kunne ikke opdatere samtalen"); return; }
     setConversations(prev => prev.map(c =>
       c.id === activeConvId ? { ...c, awaiting_reply_from: null } : c
@@ -1228,6 +1240,8 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
       setForslagBegrundelse("");
       setForslagMaalValg("");
       setForslagAaben(false);
+      // Fokus tilbage til knappen, når panelet er afmonteret.
+      requestAnimationFrame(() => forslagKnapRef.current?.focus());
       // INGEN manuel genindlæsning af beskederne: realtime-abonnementet
       // på messages INSERT henter allerede den nye systembesked, og en
       // genindlæsning oveni gav to kopier i state. Målt 31/8: én række
@@ -1245,40 +1259,35 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
   // svar, skal være meget mere let tilgængeligt … foreslå skridt skal også
   // være lettere tilgængelig. Vi får det ikke brugt, hvis det gemmer sig oppe
   // i hjørnet bag tre streger.»). Samme handlinger og samme kald som før i
-  // ⋯-menuen: handleNoReplyNeeded og handleForeslaaOpgave. Desktop: i rækken
-  // efter «Afventer dit svar». Mobil (375 px): egen række under navnet, så
-  // navnets 227 px (regnestykket ved avataren) ikke krymper; «Foreslå skridt»
-  // står først dér, så popoveren kan folde ud mod højre inden for skærmen.
-  // Sekundære pills (HbButton secondary, evergreen-fokus) — den primære
-  // handling i chatten er stadig at skrive. Værn: ingenTildeling.guard.
+  // ⋯-menuen: handleNoReplyNeeded og handleForeslaaOpgave.
+  // PÅ ALLE BREDDER i egen række under navnet (rådets fund 1/10): i samme
+  // række som navnet løb headeren over på smal desktop. Regnestykket, når
+  // samtalen afventer svar: avatar 32 + «Afventer dit svar» 131 + «Kræver
+  // ikke svar» 150 + «Foreslå skridt» 134 + forrige/næste 58 + 5 × 12 gap +
+  // px-6 48 = 613 px, mens /chat ved 1024 har 1024 − sidebar 272 − indbakke
+  // 340 = 412 px — roden er overflow-hidden, så knapperne blev skåret væk.
+  // Én form på alle bredder er det roligste (ingen række, der skifter form
+  // ved et breakpoint). «Foreslå skridt» står først, så popoveren folder ud
+  // mod højre fra venstre kant (left-0) inden for ruden. Sekundære pills
+  // (HbButton secondary, evergreen-fokus) — den primære handling i chatten
+  // er stadig at skrive. Værn: ingenTildeling.guard dom 3 og 5.
   const samtaleHandlinger = (
     <>
-      {activeConv?.awaiting_reply_from === "advisor" && (
-        <HbButton
-          type="button"
-          variant="secondary"
-          onClick={() => void handleNoReplyNeeded()}
-          title="Fjern samtalen fra «Kræver svar» uden at skrive"
-          className="h-8 flex-shrink-0 gap-1.5 px-3 text-xs"
-          data-kraever-ikke-svar
-        >
-          <CheckCheck className="h-3.5 w-3.5" />
-          Kræver ikke svar
-        </HbButton>
-      )}
       <HbPopover
         open={forslagAaben}
         onOpenChange={setForslagAaben}
-        className={cn("flex-shrink-0", isMobile && "order-first")}
-        panelClassName={cn(
-          "absolute top-full mt-2 w-72 max-w-[calc(100vw-1.5rem)] p-3",
-          isMobile ? "left-0" : "right-0",
-        )}
+        className="flex-shrink-0"
+        ariaLabel="Foreslå skridt"
+        panelClassName="absolute left-0 top-full mt-2 w-72 max-w-[calc(100vw-1.5rem)] p-3"
         trigger={(p) => (
           <HbButton
             type="button"
             variant="secondary"
             {...p}
+            ref={(el) => {
+              (p.ref as React.MutableRefObject<HTMLButtonElement | null>).current = el;
+              forslagKnapRef.current = el;
+            }}
             className="h-8 gap-1.5 px-3 text-xs"
             data-foreslaa-skridt-knap
           >
@@ -1340,6 +1349,20 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
           </HbButton>
         </form>
       </HbPopover>
+      {activeConv?.awaiting_reply_from === "advisor" && (
+        <HbButton
+          type="button"
+          variant="secondary"
+          onClick={() => void handleNoReplyNeeded()}
+          disabled={fjernerKraeverSvar}
+          title="Fjern samtalen fra «Kræver svar» uden at skrive"
+          className="h-8 flex-shrink-0 gap-1.5 px-3 text-xs"
+          data-kraever-ikke-svar
+        >
+          <CheckCheck className="h-3.5 w-3.5" />
+          Kræver ikke svar
+        </HbButton>
+      )}
     </>
   );
 
@@ -1646,7 +1669,7 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                       ) : (
                         <ForfatterAvatar navn={activeConv?.companyName || null} avatarUrl={activeConv?.companyLogoUrl || null} className="h-8 w-8" />
                       )}
-                      <div className="flex-1 min-w-0" data-samtale-navn>
+                      <div className="flex-1 min-w-[6rem]" data-samtale-navn>
                         <p className="text-sm font-medium text-hb-ink truncate">
                           {activeConv?.companyName || "Ukendt"}
                         </p>
@@ -1683,14 +1706,21 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                       </div>
                       {/* Primary contextual action — status som HbTag; rust bærer
                           «venter på dig» (en af rusts betydninger: advarsel). */}
+                      {/* Under xl står chippen som ikon alene (ordet i aria-label/
+                          title), så navnet beholder plads: rækken uden handlingerne
+                          ved /chat 1024 (rude 412) = px-6 48 + avatar 32 + chip 30 +
+                          forrige/næste 58 + 3 × 12 gap = 204 → navnet 208 px. */}
                       {!isMobile && activeConv?.awaiting_reply_from === "advisor" && (
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-hb-rust/10 px-2 py-0.5 text-[11px] font-medium text-hb-rust flex-shrink-0">
+                        <span
+                          role="img"
+                          aria-label="Afventer dit svar"
+                          title="Afventer dit svar"
+                          className="inline-flex items-center gap-1.5 rounded-full bg-hb-rust/10 px-2 py-0.5 text-[11px] font-medium text-hb-rust flex-shrink-0"
+                        >
                           <Clock className="h-3.5 w-3.5" />
-                          <span className="hidden sm:inline">Afventer dit svar</span>
+                          <span className="hidden xl:inline" aria-hidden="true">Afventer dit svar</span>
                         </span>
                       )}
-                      {/* Desktop: de to handlinger synligt i rækken (se samtaleHandlinger). */}
-                      {!isMobile && samtaleHandlinger}
                       {/* ⋯-menuen — KUN mobil (1/10): «Se tal» og forrige/næste, som
                           rækken ikke har plads til. HbMenu i DOM-træet, ingen portal.
                           På desktop var den tom, da tildelingen forsvandt og de to
@@ -1759,12 +1789,13 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
                         </div>
                       )}
                     </div>
-                    {/* Mobil: handlingerne på egen række under navnet (se samtaleHandlinger). */}
-                    {isMobile && (
-                      <div className="mt-2 flex items-center gap-2" data-samtale-handlinger>
-                        {samtaleHandlinger}
-                      </div>
-                    )}
+                    {/* Handlingerne på egen række under navnet — på ALLE bredder
+                        (se samtaleHandlinger). flex-wrap: bliver ruden smallere end
+                        de to knapper (134 + 8 + 150 = 292 px), brydes de i stedet
+                        for at blive skåret væk. */}
+                    <div className="mt-2 flex flex-wrap items-center gap-2" data-samtale-handlinger>
+                      {samtaleHandlinger}
+                    </div>
                   </div>
                 ) : null}
 
