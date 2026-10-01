@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { denneUgesFredag, naesteUgesFredag, omEnMaaned, tilDatoStreng } from "../opgaveDato";
+import { denneUgesFredag, efterMaalFrist, fraDatoStreng, naesteUgesFredag, omEnMaaned, tilDatoStreng } from "../opgaveDato";
 
 /** Datoknapperne i opgavefladen (B6/B11). Faste ankre i lokal tid —
     2026-08-31 er en mandag, 2026-09-04 en fredag (doomsday-verificeret). */
@@ -59,5 +59,26 @@ describe("tilDatoStreng — lokal kalenderdag som YYYY-MM-DD", () => {
 
   it("klokkeslæt påvirker ikke dagen (ingen UTC-skridning)", () => {
     expect(tilDatoStreng(new Date(2026, 8, 4, 23, 30))).toBe("2026-09-04");
+  });
+});
+
+describe("målets frist som loft i datovalget (rådets fund B2, 1/10-2026)", () => {
+  it("fristdagen er tilladt, dagen efter er ikke; uden frist ingen grænse", () => {
+    expect(efterMaalFrist(new Date(2026, 9, 10, 15, 0), "2026-10-10")).toBe(false);
+    expect(efterMaalFrist(new Date(2026, 9, 11), "2026-10-10")).toBe(true);
+    expect(efterMaalFrist(new Date(2030, 0, 1), null)).toBe(false);
+    expect(efterMaalFrist(new Date(2030, 0, 1), "")).toBe(false);
+  });
+  it("hurtigknapperne: «Om en måned» falder bort, når målets frist er om ti dage", () => {
+    const nu = new Date(2026, 9, 1); // torsdag
+    expect(efterMaalFrist(denneUgesFredag(nu), "2026-10-10")).toBe(false); // 2/10
+    expect(efterMaalFrist(naesteUgesFredag(nu), "2026-10-10")).toBe(false); // 9/10
+    expect(efterMaalFrist(omEnMaaned(nu), "2026-10-10")).toBe(true); // 29/10
+  });
+  it("fraDatoStreng: lokal midnat for en rigtig dato, ellers null", () => {
+    const d = fraDatoStreng("2026-10-10");
+    expect(d && tilDatoStreng(d)).toBe("2026-10-10");
+    expect(d?.getHours()).toBe(0);
+    for (const v of [null, undefined, "", "2026-02-31", "2026-10-10T00:00:00Z", "10-10-2026"]) expect(fraDatoStreng(v)).toBeNull();
   });
 });

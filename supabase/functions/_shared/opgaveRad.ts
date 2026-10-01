@@ -55,9 +55,15 @@ export function tilDbDato(d: Date): string {
 }
 
 /** Klientens dato-input: kræv "YYYY-MM-DD" og en reel kalenderdato.
-    Returnerer null ved alt andet — kalderen svarer 400. */
+    Returnerer null ved alt andet — kalderen svarer 400.
+    RUNDTUREN (rådets fund B1, 1/10-2026): `new Date("2026-02-31")` er i V8
+    IKKE ugyldig — den ruller over til 2026-03-03, så opgave-accepter dømte
+    «2026-02-31», men skrev tilDbDato = «2026-03-03». En dato, hvis
+    tilbage-formatering (tilDbDato, UTC-kalenderdag — samme vej som
+    skrivningen) ikke er inputtet ordret, afvises. */
 export function parseDatoInput(v: unknown): Date | null {
   if (typeof v !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return null;
   const d = new Date(v);
-  return Number.isNaN(d.getTime()) ? null : d;
+  if (Number.isNaN(d.getTime())) return null;
+  return tilDbDato(d) === v ? d : null;
 }

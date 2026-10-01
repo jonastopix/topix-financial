@@ -209,19 +209,37 @@ export function lokalDatoStreng(d: Date): string {
   return `${d.getFullYear()}-${mm}-${dd}`;
 }
 
-/** Det seneste ÅBNE skridts frist under et mål (status active med frist) —
-    den tidligste dag, målets frist må have (doemMaalFristModSkridt). Ved
-    flere skridt på samme dag: det første i listen. null uden sådanne skridt. */
+/** Det seneste ÅBNE skridts frist under et mål (status active ELLER
+    proposed, med frist — SAMME filter som doemMaalFristModSkridt, rådets
+    fund K3 1/10 eftermiddag; før kun active, så datovælgerens grå dage og
+    dommen kunne være uenige om et forslag med frist) — den tidligste dag,
+    målets frist må have. Ved flere skridt på samme dag: det første i
+    listen. null uden sådanne skridt. */
 export function senesteAabneSkridt(
   skridt: readonly Pick<SkridtTilDineMaal, "status" | "due_date" | "title">[],
 ): { dato: string; titel: string } | null {
   let bedst: { dato: string; titel: string } | null = null;
   for (const s of skridt) {
-    if (s.status !== "active" || !s.due_date) continue;
+    if ((s.status !== "active" && s.status !== "proposed") || !s.due_date) continue;
     const dato = s.due_date.slice(0, 10);
     if (bedst == null || dato > bedst.dato) bedst = { dato, titel: s.title };
   }
   return bedst;
+}
+
+/** Toasten efter «Udskyd» (rådets fund R1, 1/10 eftermiddag): begrænsede
+    opgave-udskyd fristen til målets (svarfeltet begraenset_til_maalets_frist),
+    siger toasten den FAKTISKE nye dato — ellers ville medlemmet tro, at
+    skridtet fik de sædvanlige 14 dage. Uden feltet (gammel kode i drift) eller
+    uden en læselig dato: den normale tekst. */
+export const UDSKUDT_TEKST = "Opgaven er udskudt";
+export function udskudtToastTekst(svar: unknown): string {
+  const s = (svar ?? null) as { begraenset_til_maalets_frist?: unknown; opgave?: { due_date?: unknown } | null } | null;
+  const dato = typeof s?.opgave?.due_date === "string" ? s.opgave.due_date : null;
+  if (s?.begraenset_til_maalets_frist === true && dato && /^\d{4}-\d{2}-\d{2}/.test(dato)) {
+    return `Udskudt til ${danskDato(dato.slice(0, 10)).replace(/ \d{4}$/, "")} — målets frist`;
+  }
+  return UDSKUDT_TEKST;
 }
 
 /** Hjælpeteksten ved detaljens datovælger, når dagene før det seneste åbne

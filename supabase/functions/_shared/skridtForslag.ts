@@ -232,14 +232,20 @@ export function foreslaaetFristModMaal(nu: Date, maalFrist: string | null | unde
     (skridt-tilfoej's svar og formularens fejl). `kode` skiller de tre
     afvisninger ad, så skridt-tilfoej kan svare dem hver for sig (rådets
     fund L1, 1/10): ulæselig målfrist er VORES fejl (500), en passeret
-    målfrist og en skridtfrist efter målets er medlemmets valg (400). */
+    målfrist og en skridtfrist efter målets er medlemmets valg (400).
+    `handling` (rådets fund K1, 1/10 eftermiddag) siger, hvad medlemmet
+    gjorde: «tilføjet» (skridt-tilfoej og formularen — standard, teksterne
+    uændrede) eller «accepteret» (opgave-accepter: et forslag, der tages),
+    så accept-stien ikke svarer «skridtet blev ikke tilføjet». */
 export type FristModMaalKode = "maalets_frist_ulaeselig" | "maalets_frist_passeret" | "efter_maalets_frist";
 export type FristModMaalDom = { ok: true; dato: string } | { ok: false; grund: string; kode: FristModMaalKode };
-export function doemFristModMaal(skridtFrist: string, maalFrist: string | null | undefined, nu: Date): FristModMaalDom {
+export type FristModMaalHandling = "tilføjet" | "accepteret";
+export function doemFristModMaal(skridtFrist: string, maalFrist: string | null | undefined, nu: Date, handling: FristModMaalHandling = "tilføjet"): FristModMaalDom {
   const graense = maalFristDato(maalFrist);
   if (graense == null) return { ok: true, dato: skridtFrist };
-  if (graense === "ulaeselig") return { ok: false, grund: "Målets frist kan ikke læses — skridtet blev ikke tilføjet", kode: "maalets_frist_ulaeselig" };
-  if (graense < dagsdatoDansk(nu)) return { ok: false, grund: `Målets frist (${danskDato(graense)}) er passeret — ryk målets frist, før du tilføjer et skridt`, kode: "maalets_frist_passeret" };
+  const accept = handling === "accepteret";
+  if (graense === "ulaeselig") return { ok: false, grund: accept ? "Målets frist kan ikke læses — skridtet blev ikke taget" : "Målets frist kan ikke læses — skridtet blev ikke tilføjet", kode: "maalets_frist_ulaeselig" };
+  if (graense < dagsdatoDansk(nu)) return { ok: false, grund: `Målets frist (${danskDato(graense)}) er passeret — ryk målets frist, før du ${accept ? "tager skridtet" : "tilføjer et skridt"}`, kode: "maalets_frist_passeret" };
   if (skridtFrist > graense) return { ok: false, grund: `Skridtets frist kan ikke ligge efter målets frist (${danskDato(graense)}) — vælg den dag eller tidligere`, kode: "efter_maalets_frist" };
   return { ok: true, dato: skridtFrist };
 }
@@ -293,9 +299,22 @@ export function doemMaalFristModSkridt(
       - Anden udskydelse (valgt = true): medlemmet VALGTE datoen. En valgt
         dato efter målets frist rykkes ikke stille — den afvises med grunden
         (samme kode som doemFristModMaal, «efter_maalets_frist»).
+      - En VALGT dato før den danske «i dag» afvises («foer_i_dag», rådets
+        fund K2, 1/10 eftermiddag) — også uden mål. Motoren dømmer «fortid»
+        på UTC-kalenderdagen (edge-runtime); mellem dansk midnat og UTC-
+        midnat (22:00/23:00–24:00 UTC) er den danske dag én foran, så
+        motoren alene ville tage «i går» (dansk) som i dag.
+        Eks.: nu 2026-09-30T22:30Z = 1/10 00:30 dansk; valgt 2026-09-30
+        → UTC-dagen 30/9 = valgt (motoren: ok), dansk i dag 1/10 > 30/9 → afvist.
       - Er målets frist passeret (målets frist < i dag), kan intet skridt
         udskydes uden at bryde reglen → afvist («maalets_frist_passeret»).
-        Målets frist I DAG er tilladt: ny frist = i dag.
+      - Er målets frist I DAG, ville udskydelsen højst kunne flytte fristen
+        til i dag — en udskydelse brugt op på ingenting (rådets fund R1,
+        1/10 eftermiddag). Afvist («ved_maalets_frist») UDEN skrivning, så
+        deferral_count ikke tælles op; medlemmet rykker målets frist eller
+        lukker skridtet. (Med målets frist > i dag er den begrænsede frist
+        = målets frist > i dag, og motorens nu + 14 > i dag — så «≤ i dag»
+        kan kun ske, når målets frist er i dag.)
       - Står den gamle frist allerede på (eller efter) målets frist, kan
         udskydelsen ikke flytte noget frem → afvist («ved_maalets_frist»).
         (En udskydelse kræver forfald — gammel < i dag — så med målets frist
@@ -303,7 +322,7 @@ export function doemMaalFristModSkridt(
         hvis frist lå efter målets fra før reglen.)
     Uden målfrist: ok, motorens dato uændret. Fail-closed: en ulæselig
     målfrist afvises («maalets_frist_ulaeselig» — vores data, 500). */
-export type UdskydModMaalKode = FristModMaalKode | "ved_maalets_frist";
+export type UdskydModMaalKode = FristModMaalKode | "ved_maalets_frist" | "foer_i_dag";
 export type UdskydModMaalDom =
   | { ok: true; dato: string; begraenset: boolean }
   | { ok: false; grund: string; kode: UdskydModMaalKode };
@@ -314,11 +333,14 @@ export function doemUdskydModMaal(
   nu: Date,
   valgt: boolean,
 ): UdskydModMaalDom {
+  const idag = dagsdatoDansk(nu);
+  if (valgt && nyFrist < idag) return { ok: false, grund: `Den valgte dato (${danskDato(nyFrist)}) ligger før i dag — vælg i dag eller senere`, kode: "foer_i_dag" };
   const graense = maalFristDato(maalFrist);
   if (graense == null) return { ok: true, dato: nyFrist, begraenset: false };
   if (graense === "ulaeselig") return { ok: false, grund: "Målets frist kan ikke læses — skridtet blev ikke udskudt", kode: "maalets_frist_ulaeselig" };
   const ryk = `Skridtet kan ikke udskydes forbi målets frist (${danskDato(graense)})`;
-  if (graense < dagsdatoDansk(nu)) return { ok: false, grund: `${ryk}, som er passeret — ryk målets frist først`, kode: "maalets_frist_passeret" };
+  if (graense < idag) return { ok: false, grund: `${ryk}, som er passeret — ryk målets frist først`, kode: "maalets_frist_passeret" };
+  if (graense === idag) return { ok: false, grund: `Skridtet kan ikke udskydes — målets frist er i dag (${danskDato(graense)}). Ryk målets frist først, eller marker skridtet gjort/drop det.`, kode: "ved_maalets_frist" };
   if (gammelFrist != null && gammelFrist.slice(0, 10) >= graense) return { ok: false, grund: `${ryk} — ryk målets frist først`, kode: "ved_maalets_frist" };
   if (nyFrist > graense) {
     if (valgt) return { ok: false, grund: `${ryk} — vælg den dag eller tidligere, eller ryk målets frist først`, kode: "efter_maalets_frist" };

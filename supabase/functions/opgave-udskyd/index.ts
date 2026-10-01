@@ -15,9 +15,19 @@
 // ovenpå motorens: ny frist = min(motorens nye frist, målets frist) ved den
 // automatiske udskydelse; en VALGT dato efter målets frist afvises. Svar:
 // 400 «maalets_frist_passeret» · «ved_maalets_frist» · «efter_maalets_frist»
-// (grunden ordret i `error`, koden i `grund`), 500 «maalets_frist_ulaeselig».
-// Et udskudt skridt, der blev begrænset, svarer `begraenset_til_maalets_frist:
-// true` — feltet findes kun i den nye kode (beviset for udrulningen).
+// · «foer_i_dag» (grunden ordret i `error`, koden i `grund`), 500
+// «maalets_frist_ulaeselig». Et udskudt skridt, der blev begrænset, svarer
+// `begraenset_til_maalets_frist: true` — feltet findes kun i den nye kode
+// (beviset for udrulningen).
+// Rådets fund 1/10 eftermiddag:
+//   R1  målets frist I DAG → 400 «ved_maalets_frist» UDEN skrivning
+//       (deferral_count tælles ikke op) — en udskydelse må aldrig bruges op
+//       på at flytte fristen til (højst) i dag.
+//   K2  en valgt dato før DANSK i dag → 400 «foer_i_dag» — dommen kaldes
+//       derfor for ALLE skridt, også uden mål (maalFrist = null).
+//   B4  et skridt under et ikke-aktivt mål → 409 «maalet_ikke_aktivt»
+//       (samme tekst som opgave-accepter).
+//   K5  «Målet findes ikke …» er 404 (som maal-skriv/foreslaa-opgave).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
@@ -97,14 +107,14 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
 
-  // ── 7a. Målets frist lægges ovenpå motorens (Jonas 1/10-2026) ──
+  // ── 7a. Målet: aktivt (B4), og dets frist (Jonas 1/10-2026) ──
   let nyFrist = tilDbDato(resultat.opgave.due_date!);
-  let begraenset = false;
+  let maalFrist: string | null = null;
   const maalId = (rad as Record<string, unknown>).maal_id;
   if (typeof maalId === "string" && maalId !== "") {
     const { data: maal, error: maalErr } = await adminClient
       .from("milestones")
-      .select("id, deadline")
+      .select("id, status, deadline")
       .eq("id", maalId)
       .eq("company_id", opgave.company_id)
       .maybeSingle();
@@ -114,22 +124,32 @@ Deno.serve(async (req) => {
     }
     if (!maal) {
       // FK'en (ON DELETE SET NULL) gør dette til en race med en sletning —
-      // fail-closed frem for at udskyde uden målets grænse.
+      // fail-closed frem for at udskyde uden målets grænse. 404 (K5).
       console.error("[opgave-udskyd] skridtets mål findes ikke:", maalId);
-      return jsonResponse({ error: "Målet findes ikke hos denne virksomhed — genindlæs og prøv igen" }, 409);
+      return jsonResponse({ error: "Målet findes ikke hos denne virksomhed — genindlæs og prøv igen" }, 404);
     }
-    const gammel = opgave.due_date ? tilDbDato(opgave.due_date) : null;
-    const modMaal = doemUdskydModMaal(nyFrist, gammel, (maal as { deadline: string | null }).deadline, nu, opgave.deferral_count > 0);
-    if (!modMaal.ok) {
-      if (modMaal.kode === "maalets_frist_ulaeselig") {
-        console.error("[opgave-udskyd] målets frist kan ikke læses:", maalId);
-        return jsonResponse({ error: modMaal.grund, grund: modMaal.kode }, 500);
-      }
-      return jsonResponse({ error: modMaal.grund, grund: modMaal.kode }, 400);
+    if ((maal as { status: string }).status !== "active") {
+      return jsonResponse({ error: "Målet er ikke aktivt — et skridt kan kun høre til et aktivt mål", grund: "maalet_ikke_aktivt" }, 409);
     }
-    nyFrist = modMaal.dato;
-    begraenset = modMaal.begraenset;
+    maalFrist = (maal as { deadline: string | null }).deadline;
   }
+
+  // ── 7b. Dommen — for ALLE skridt (K2: en valgt dato før dansk i dag),
+  //        med målets frist ovenpå motorens, når der er et mål. En
+  //        afvisning skriver INTET (R1: deferral_count tælles ikke op). ──
+  const gammel = opgave.due_date ? tilDbDato(opgave.due_date) : null;
+  const modMaal = doemUdskydModMaal(nyFrist, gammel, maalFrist, nu, opgave.deferral_count > 0);
+  if (!modMaal.ok) {
+    if (modMaal.kode === "maalets_frist_ulaeselig") {
+      console.error("[opgave-udskyd] målets frist kan ikke læses:", maalId);
+      return jsonResponse({ error: modMaal.grund, grund: modMaal.kode }, 500);
+    }
+    return jsonResponse({ error: modMaal.grund, grund: modMaal.kode }, 400);
+  }
+  nyFrist = modMaal.dato;
+  const begraenset = modMaal.begraenset;
+
+  // ── 8. Skrivningen ──
 
   const { data: opdateret, error: updErr } = await adminClient
     .from("company_actions")

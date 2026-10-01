@@ -18,6 +18,10 @@ import { resolve } from "node:path";
 //      opgave-accepter (doemFristModMaal + målet skal være aktivt, 409),
 //      opgave-udskyd (doemUdskydModMaal: min(motorens, målets), skrevet med
 //      dommens dato) og maal-skriv «rediger» (doemMaalFristModSkridt, 409).
+//   Rådets fund 1/10 eftermiddag: opgave-accepter dømmer den frist, der
+//      SKRIVES (B1, `skrevetFrist`), med handlingen «accepteret» (K1);
+//      opgave-udskyd afviser et ikke-aktivt mål (B4, 409) og kalder dommen
+//      for ALLE skridt (K2); «Målet findes ikke» er 404 i begge (K5).
 // Selvbevis på kopier: hver regel falder, når kilden ændres tilbage.
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -64,13 +68,16 @@ const KODE_SVAR = /if \(!modMaal\.ok\) \{\s*if \(modMaal\.kode === "maalets_fris
 export const accepterHolder = (kilde: string): boolean => {
   const k = udenKommentarer(kilde);
   const aktiv = k.indexOf('.status !== "active") {');
-  const dom = k.indexOf("doemFristModMaal(dato as string,");
+  const dom = k.indexOf('doemFristModMaal(skrevetFrist, (maal as { deadline: string | null }).deadline, nu, "accepteret")');
   const skriv = k.indexOf(".update(");
   return (
     k.includes(".select(`${OPGAVE_KOLONNER}, maal_id`)") &&
     k.includes('.select("id, status, deadline")') &&
     aktiv > 0 && dom > aktiv && skriv > dom &&
+    k.includes("const skrevetFrist = tilDbDato(resultat.opgave.due_date!);") &&
+    /\.update\(\{[^}]*due_date: skrevetFrist,/.test(k) &&
     k.includes('"Målet er ikke aktivt — et skridt kan kun høre til et aktivt mål"') &&
+    k.includes('genindlæs og prøv igen" }, 404);') &&
     KODE_SVAR.test(k)
   );
 };
@@ -78,10 +85,18 @@ export const accepterHolder = (kilde: string): boolean => {
 /** Dom 4: opgave-udskyd skriver dommens dato (min(motorens, målets)), ikke motorens. */
 export const udskydHolder = (kilde: string): boolean => {
   const k = udenKommentarer(kilde);
-  const dom = k.indexOf("doemUdskydModMaal(nyFrist, gammel,");
+  const aktiv = k.indexOf('.status !== "active") {');
+  const dom = k.indexOf("doemUdskydModMaal(nyFrist, gammel, maalFrist,");
   const skriv = k.indexOf(".update(");
+  const maalBlok = k.indexOf('if (typeof maalId === "string" && maalId !== "") {');
+  const maalBlokSlut = k.indexOf("maalFrist = (maal as", maalBlok);
   return (
     k.includes(".select(`${OPGAVE_KOLONNER}, maal_id`)") &&
+    k.includes('.select("id, status, deadline")') &&
+    // K2: dommen kaldes UDEN for mål-blokken (for alle skridt).
+    maalBlok > 0 && maalBlokSlut > maalBlok && aktiv > maalBlok && aktiv < maalBlokSlut && dom > maalBlokSlut &&
+    k.includes('"Målet er ikke aktivt — et skridt kan kun høre til et aktivt mål", grund: "maalet_ikke_aktivt" }, 409);') &&
+    k.includes('genindlæs og prøv igen" }, 404);') &&
     dom > 0 && skriv > dom &&
     k.includes("nyFrist = modMaal.dato;") &&
     /\.update\(\{\s*due_date: nyFrist,/.test(k) &&
@@ -133,13 +148,21 @@ describe("mål og skridt (1/10-2026)", () => {
   });
   it("selvbevis 3–5: uden dommen, uden status-tjek, eller med motorens dato i skrivningen, falder", () => {
     const acc = laes(OPGAVE_ACCEPTER);
-    expect(accepterHolder(acc.replace("doemFristModMaal(dato as string,", "ingenDom(dato as string,"))).toBe(false);
+    expect(accepterHolder(acc.replace("doemFristModMaal(skrevetFrist,", "ingenDom(skrevetFrist,"))).toBe(false);
+    // B1: en skrivning af motorens dato uden om den dømte værdi falder; K1: uden «accepteret» falder.
+    expect(accepterHolder(acc.replace("due_date: skrevetFrist,", "due_date: tilDbDato(resultat.opgave.due_date!),"))).toBe(false);
+    expect(accepterHolder(acc.replace(', nu, "accepteret")', ", nu)"))).toBe(false);
+    // K5: 409 for et forsvundet mål falder.
+    expect(accepterHolder(acc.replace('genindlæs og prøv igen" }, 404);', 'genindlæs og prøv igen" }, 409);'))).toBe(false);
     expect(accepterHolder(acc.replace('.status !== "active") {', '.status === "aldrig") {'))).toBe(false);
     expect(accepterHolder(acc.replace("grund: modMaal.kode }, 500)", "grund: modMaal.kode }, 400)"))).toBe(false);
     const uds = laes(OPGAVE_UDSKYD);
     expect(udskydHolder(uds.replace("due_date: nyFrist,", "due_date: tilDbDato(resultat.opgave.due_date!),"))).toBe(false);
     expect(udskydHolder(uds.replace("nyFrist = modMaal.dato;", ""))).toBe(false);
     expect(udskydHolder(uds.replace("opgave.deferral_count > 0)", "false)"))).toBe(false);
+    // B4: uden status-tjek falder; K5: 409 for et forsvundet mål falder.
+    expect(udskydHolder(uds.replace('.status !== "active") {', '.status === "aldrig") {'))).toBe(false);
+    expect(udskydHolder(uds.replace('genindlæs og prøv igen" }, 404);', 'genindlæs og prøv igen" }, 409);'))).toBe(false);
     const ms = laes(MAAL_SKRIV);
     expect(maalSkrivFristHolder(ms.replace("doemMaalFristModSkridt(nyFrist,", "ingenDom(nyFrist,"))).toBe(false);
     expect(maalSkrivFristHolder(ms.replace('.in("status", ["active", "proposed"])', '.in("status", ["active"])'))).toBe(false);

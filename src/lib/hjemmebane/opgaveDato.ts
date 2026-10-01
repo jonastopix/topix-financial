@@ -44,3 +44,20 @@ export function tilDatoStreng(d: Date): string {
   const dag = String(d.getDate()).padStart(2, "0");
   return `${d.getFullYear()}-${m}-${dag}`;
 }
+
+/** «YYYY-MM-DD» → lokal midnat (datovælgerens form); null ved alt andet.
+    Bruges til kalenderens øvre grænse (målets frist, rådets fund B2). */
+export function fraDatoStreng(s: string | null | undefined): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s ?? "");
+  if (!m) return null;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return tilDatoStreng(d) === s ? d : null;
+}
+
+/** Ligger dagen efter målets frist (`maks`, «YYYY-MM-DD»)? Fristdagen selv er
+    tilladt; uden maks er der ingen grænse. Slår datovalgets hurtigknapper fra
+    (rådets fund B2, 1/10 eftermiddag) — serveren dømmer stadig
+    (doemFristModMaal / doemUdskydModMaal); fladen sparer kun et 400. */
+export function efterMaalFrist(d: Date, maks: string | null | undefined): boolean {
+  return maks != null && maks !== "" && tilDatoStreng(d) > maks;
+}

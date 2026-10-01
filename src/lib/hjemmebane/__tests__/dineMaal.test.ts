@@ -11,6 +11,8 @@ import {
   graenseTekst,
   modMaaletTekst,
   senesteAabneSkridt,
+  udskudtToastTekst,
+  UDSKUDT_TEKST,
   skridtLinjer,
   tidligsteMaalFristTekst,
   type SkridtTilDineMaal,
@@ -221,8 +223,23 @@ describe("rådets fund M2 (1/10-2026): de grå dage i detaljens kalender forklar
     expect(senesteAabneSkridt([sk("A", "active", "2026-11-01"), sk("B", "active", "2026-11-20T00:00:00Z"), sk("C", "done", "2026-12-24")])).toEqual({ dato: "2026-11-20", titel: "B" });
     // Samme dag: det første i listen.
     expect(senesteAabneSkridt([sk("A", "active", "2026-11-20"), sk("B", "active", "2026-11-20")])).toEqual({ dato: "2026-11-20", titel: "A" });
+    // K3 (1/10 eftermiddag): et forslag MED frist tæller som i doemMaalFristModSkridt; uden frist ikke.
+    expect(senesteAabneSkridt([sk("A", "active", "2026-11-01"), sk("P", "proposed", "2026-12-01"), sk("Q", "proposed", null), sk("D", "dropped", "2027-01-01")])).toEqual({ dato: "2026-12-01", titel: "P" });
   });
   it("teksten: dato, skridtets titel og vejen ud", () => {
     expect(tidligsteMaalFristTekst("2026-11-20", "Ring til banken")).toBe("Tidligst 20. nov. 2026 — skridtet «Ring til banken» har frist den dag. Ryk eller luk skridtet først, hvis målet skal slutte før.");
+  });
+});
+
+describe("toasten efter «Udskyd» (rådets fund R1, 1/10 eftermiddag)", () => {
+  it("begrænset til målets frist: den faktiske nye dato", () => {
+    expect(udskudtToastTekst({ ok: true, opgave: { due_date: "2026-10-10" }, begraenset_til_maalets_frist: true })).toBe("Udskudt til 10. okt. — målets frist");
+  });
+  it("ikke begrænset, gammel kode uden feltet, eller uden dato: den normale tekst", () => {
+    expect(UDSKUDT_TEKST).toBe("Opgaven er udskudt");
+    expect(udskudtToastTekst({ ok: true, opgave: { due_date: "2026-10-15" }, begraenset_til_maalets_frist: false })).toBe(UDSKUDT_TEKST);
+    expect(udskudtToastTekst({ ok: true, opgave: { due_date: "2026-10-15" } })).toBe(UDSKUDT_TEKST);
+    expect(udskudtToastTekst({ ok: true, opgave: null, begraenset_til_maalets_frist: true })).toBe(UDSKUDT_TEKST);
+    expect(udskudtToastTekst(null)).toBe(UDSKUDT_TEKST);
   });
 });
