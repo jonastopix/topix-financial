@@ -4,15 +4,17 @@ import { Flame, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEngagement, type EngagementRaekke } from "@/hooks/trofaeer";
 import { antalOpnaaet, trofaeDato } from "@/lib/gamification/trofaeer";
+import { bevaegelseTekst, MAAL_HENTEFEJL_TEKST } from "@/lib/hjemmebane/engagementMaal";
 import { HbCard } from "../HbCard";
 
 /** /engagement — rådgivernes overblik (1/10-2026, docs/boardroom-score.md
     «Trofæer»): én række pr. kundevirksomhed med Boardroom Score, tal-streak,
-    trofæer og seneste aktivitet. Sorterbar. Til rådgiverne — det er IKKE en
+    trofæer, seneste aktivitet, aktive mål og bevægelse på dem (engagementMaal.ts;
+    fail-soft: fejler målene, står de to kolonner med «—» og en rolig linje). Sorterbar. Til rådgiverne — det er IKKE en
     rangliste, medlemmerne ser (medlemmet ser kun sin egen virksomhed).
     Data: hentEngagement (ét batch, samme motor som forsiden). */
 
-type Kolonne = "navn" | "score" | "streak" | "trofaeer" | "aktivitet";
+type Kolonne = "navn" | "score" | "streak" | "trofaeer" | "aktivitet" | "maal" | "bevaegelse";
 
 const vaerdi = (r: EngagementRaekke, k: Kolonne): string | number => {
   switch (k) {
@@ -26,6 +28,10 @@ const vaerdi = (r: EngagementRaekke, k: Kolonne): string | number => {
       return antalOpnaaet(r.trofaeer);
     case "aktivitet":
       return r.senesteAktivitet ? Date.parse(r.senesteAktivitet) : -1;
+    case "maal":
+      return r.maal ? r.maal.aktive : -1;
+    case "bevaegelse":
+      return r.maal?.dageSidenBevaegelse ?? -1;
   }
 };
 
@@ -48,14 +54,20 @@ const KOLONNER: readonly { k: Kolonne; label: string }[] = [
   { k: "streak", label: "Streak" },
   { k: "trofaeer", label: "Trofæer" },
   { k: "aktivitet", label: "Seneste aktivitet" },
+  { k: "maal", label: "Aktive mål" },
+  { k: "bevaegelse", label: "Bevægelse" },
 ];
+
+/** «—» når målene ikke kunne hentes; ellers tallet. */
+const aktiveMaalTekst = (r: EngagementRaekke): string => (r.maal ? String(r.maal.aktive) : "—");
+const bevaegelse = (r: EngagementRaekke): string => bevaegelseTekst(r.maal?.dageSidenBevaegelse ?? null);
 
 export function EngagementView() {
   const q = useEngagement();
   const [kolonne, setKolonne] = useState<Kolonne>("aktivitet");
   const [stigende, setStigende] = useState(false);
   const raekker = useMemo(
-    () => (q.data ? sorterEngagement(q.data, kolonne, stigende) : []),
+    () => (q.data ? sorterEngagement(q.data.raekker, kolonne, stigende) : []),
     [q.data, kolonne, stigende],
   );
 
@@ -73,9 +85,22 @@ export function EngagementView() {
         <h1 className="text-2xl font-semibold text-hb-ink">Engagement</h1>
         <p className="mt-1 text-sm text-hb-ink-soft">
           Kundernes Boardroom Score (helbredstallet lige nu), tal-streak og
-          trofæer (milepæle, de har nået).
+          trofæer (milepæle, de har nået) — og målene: antal aktive og dage
+          siden seneste bevægelse på dem.
         </p>
       </div>
+      {q.data && q.data.maalHentefejl.length > 0 && (
+        <p className="text-sm text-hb-rust" data-engagement-maalfejl="ja">
+          {MAAL_HENTEFEJL_TEKST}{" "}
+          <button
+            type="button"
+            className="underline-offset-4 hover:underline"
+            onClick={() => void q.refetch()}
+          >
+            Prøv igen
+          </button>
+        </p>
+      )}
       <HbCard className="p-0 sm:overflow-x-auto">
         {q.isLoading ? (
           <p className="p-5 text-sm text-hb-ink-soft">Henter …</p>
@@ -155,6 +180,14 @@ export function EngagementView() {
                             ? trofaeDato(r.senesteAktivitet)
                             : "–"}
                         </dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-hb-ink-soft">Aktive mål</dt>
+                        <dd>{aktiveMaalTekst(r)}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-hb-ink-soft">Bevægelse</dt>
+                        <dd className="text-hb-ink-soft">{bevaegelse(r)}</dd>
                       </div>
                     </dl>
                   </li>
@@ -251,6 +284,12 @@ export function EngagementView() {
                         {r.senesteAktivitet
                           ? trofaeDato(r.senesteAktivitet)
                           : "–"}
+                      </td>
+                      <td className="px-4 py-2 tabular-nums text-hb-ink">
+                        {aktiveMaalTekst(r)}
+                      </td>
+                      <td className="px-4 py-2 tabular-nums text-hb-ink-soft">
+                        {bevaegelse(r)}
                       </td>
                     </tr>
                   );

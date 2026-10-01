@@ -14,7 +14,11 @@
  *       «er tråden skrevet af en rådgiver?». Filtreres BEVIDST ikke (en
  *       tjenestekontos tråd er heller ikke et medlems — den skal MED i mængden).
  *   hentEngagement(nu) — RÅDGIVERENS /engagement: alle kundevirksomheder i ét
- *       batch (hentAlleSider; ingen kald pr. virksomhed).
+ *       batch (hentAlleSider; ingen kald pr. virksomhed). Målene (Aktive mål,
+ *       Bevægelse — lib/hjemmebane/engagementMaal.ts) hentes i samme batch,
+ *       men FAIL-SOFT: fejler milestones/company_actions, står kolonnerne med
+ *       «—» og siden med en rolig linje (maalHentefejl = kilderne) — resten
+ *       af siden vælter ikke.
  *
  * Fejl er en fejl (husets regel): kraevRaekker kaster HentningsFejl. Fladen er
  * fail-soft — kortet står roligt uden trofæer.
@@ -30,6 +34,14 @@ import { hentTjenestekonti } from "@/hooks/tjenestekonti";
 import { erKunde } from "@/lib/raadgiverensKunder";
 import { boardroomScore, tidligsteGodkendelse, type ScoreDom, type ScoreMaaned } from "@/lib/boardroomScore";
 import { trofaeDom, type TrofaeDom, type TrofaeGrundlag } from "@/lib/gamification/trofaeer";
+import { kildeAf } from "@/lib/hjemmebane/hentefejl";
+import {
+  engagementMaalPrVirksomhed,
+  INGEN_MAAL,
+  type EngagementMaalDom,
+  type EngagementMaalRaekke,
+  type EngagementSkridtRaekke,
+} from "@/lib/hjemmebane/engagementMaal";
 import type { Json } from "@/integrations/supabase/types";
 
 const side = <T,>(kilde: string) =>
@@ -119,6 +131,44 @@ export interface EngagementRaekke {
   trofaeer: TrofaeDom[];
   /** Seneste tidspunkt for godkendte tal, mål nået, refleksion, opslag eller svar. */
   senesteAktivitet: string | null;
+  /** Aktive mål og bevægelse (engagementMaal.ts); null = målene kunne ikke hentes («—»). */
+  maal: EngagementMaalDom | null;
+}
+
+export interface EngagementSvar {
+  raekker: EngagementRaekke[];
+  /** Kilderne (HentningsFejl.kilde), der fejlede for målkolonnerne; tom = alt hentet. */
+  maalHentefejl: string[];
+}
+
+/** grundlag = null, når blot én af de to hentninger fejlede (kilder siger hvilke). */
+type MaalGrundlag = { grundlag: { maal: EngagementMaalRaekke[]; skridt: EngagementSkridtRaekke[] } | null; kilder: string[] };
+
+/** Målene og skridtene under mål — alle virksomheder, ét batch. Fejl er en fejl
+    (kraevRaekker), men fanges HER: kolonnerne er sekundære for siden. */
+async function hentMaalGrundlag(): Promise<MaalGrundlag> {
+  const [maal, skridt] = await Promise.allSettled([
+    hentAlleSider<EngagementMaalRaekke>((fra, til) =>
+      supabase
+        .from("milestones")
+        .select("id, company_id, status, progress, deadline, progress_updated_at")
+        .order("id")
+        .range(fra, til)
+        .then(side("milestones")),
+    ),
+    hentAlleSider<EngagementSkridtRaekke>((fra, til) =>
+      supabase
+        .from("company_actions")
+        .select("maal_id, closed_at, created_at")
+        .not("maal_id", "is", null)
+        .order("id")
+        .range(fra, til)
+        .then(side("company_actions")),
+    ),
+  ]);
+  const kilder = [maal, skridt].filter((r): r is PromiseRejectedResult => r.status === "rejected").map((r) => kildeAf(r.reason));
+  if (maal.status === "fulfilled" && skridt.status === "fulfilled") return { grundlag: { maal: maal.value, skridt: skridt.value }, kilder: [] };
+  return { grundlag: null, kilder };
 }
 
 interface VirksomhedRaekke {
@@ -174,7 +224,7 @@ function senest(vaerdier: readonly (string | null | undefined)[]): string | null
   return bedst;
 }
 
-export async function hentEngagement(nu: Date): Promise<EngagementRaekke[]> {
+export async function hentEngagement(nu: Date): Promise<EngagementSvar> {
   const aar = kbhDele(nu).aar;
   const virksomheder = (kraevRaekker(
     await supabase
@@ -184,7 +234,7 @@ export async function hentEngagement(nu: Date): Promise<EngagementRaekke[]> {
   ) as VirksomhedRaekke[]).filter(iEngagementUniverset);
   const ids = new Set(virksomheder.map((v) => v.id));
 
-  const [facts, hukommelseRes, medlemmer, maal, budget, kpi, refleksioner, traade, svar, raadgivere] = await Promise.all([
+  const [facts, hukommelseRes, medlemmer, maal, budget, kpi, refleksioner, traade, svar, raadgivere, maalGrundlag] = await Promise.all([
     hentAlleSider<{ company_id: string; period_key: string; data_basis: string; metrics: Json; created_at: string }>((fra, til) =>
       supabase.from("financial_report_facts").select("company_id, period_key, data_basis, metrics, created_at").order("id").range(fra, til).then(side("financial_report_facts")),
     ),
@@ -215,8 +265,10 @@ export async function hentEngagement(nu: Date): Promise<EngagementRaekke[]> {
       supabase.from("community_svar").select("forfatter_id, traad_id, created_at").eq("status", "aktiv").order("id").range(fra, til).then(side("community_svar")),
     ),
     hentRaadgiverListe(),
+    hentMaalGrundlag(),
   ]);
 
+  const maalDomPr = maalGrundlag.grundlag ? engagementMaalPrVirksomhed(maalGrundlag.grundlag.maal, maalGrundlag.grundlag.skridt, nu) : null;
   const hukommelse = new Map((hukommelseRes as { company_id: string; period_key: string; foerst_godkendt_at: string | null }[]).map((h) => [`${h.company_id}|${h.period_key}`, h.foerst_godkendt_at]));
   const factsPr = grupper(facts, (f) => f.company_id);
   const brugerePr = grupper(medlemmer, (m) => m.company_id);
@@ -230,7 +282,7 @@ export async function hentEngagement(nu: Date): Promise<EngagementRaekke[]> {
   const traadePr = grupper(traade, (t) => virksomhedAfBruger.get(t.forfatter_id));
   const svarPr = grupper(svar, (s) => virksomhedAfBruger.get(s.forfatter_id));
 
-  return virksomheder.map((v) => {
+  const raekker = virksomheder.map((v) => {
     const maaneder: ScoreMaaned[] = (factsPr.get(v.id) ?? []).map((f) => ({
       key: f.period_key,
       basis: f.data_basis === "estimated" ? "estimated" : "measured",
@@ -270,8 +322,10 @@ export async function hentEngagement(nu: Date): Promise<EngagementRaekke[]> {
       ...egneTraade.map((t) => t.created_at),
       ...egneSvar.map((s) => s.created_at),
     ]);
-    return { companyId: v.id, navn: v.name, dom, trofaeer, senesteAktivitet };
+    const maalDom = maalDomPr ? (maalDomPr.get(v.id) ?? INGEN_MAAL) : null;
+    return { companyId: v.id, navn: v.name, dom, trofaeer, senesteAktivitet, maal: maalDom };
   });
+  return { raekker, maalHentefejl: maalGrundlag.kilder };
 }
 
 export function useEngagement() {
