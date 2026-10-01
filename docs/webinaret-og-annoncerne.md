@@ -713,12 +713,29 @@ grænse; en gammel ansøgning holder hende ikke ude); (b) medlemmer —
 `medlemsMails` over de ansøgninger, hooken allerede henter (et medlem uden
 ansøgning gennem platformen er IKKE i den kilde); (c) prøver (`ewebinar_id`
 «PROEVE-», `ewebinar-proeve`) og husets domæner (`topix.dk`, `theboardroom.dk`)
-— konstanterne `PROEVE_ID_PRAEFIKS`/`INTERNE_DOMAENER` ét sted. **Tiden regnes
-fra sessionens START**, og teksten siger det: «webinaret begyndte for N timer
-siden», flaget «begyndte inden for 24 timer». `webinar_tilmeldinger` har
-`updated_at` og `sidste_haendelse_at`, men ingen er procentens tidspunkt —
-`ewebinar-import` sætter `sidste_haendelse_at` til kørselstiden på hver række,
-den skriver. Nicklas' anden betingelse (omsætning over 2 mio.) kan IKKE dømmes:
+— konstanterne `PROEVE_ID_PRAEFIKS`/`INTERNE_DOMAENER` ét sted. **Tiden (B3):**
+først regnet fra sessionens START («webinaret begyndte for N timer siden»), fordi
+`webinar_tilmeldinger` kun har `updated_at` og `sidste_haendelse_at`, og ingen af
+dem er procentens tidspunkt — `ewebinar-import` sætter `sidste_haendelse_at` til
+kørselstiden på hver række, den skriver. **Målt i prod 1/10 aften:** `raa` bærer
+eWebinars `leftTime` (ISO, fx «2026-08-25T07:10:19.000Z») og `joinedTime` — 191
+af 839 rækker, og ALLE 132 med `set_procent` ≥ 75 har `leftTime`. **Rettet
+samme aften:** rådgiverens hentning (`hooks/webinarDashboard.ts`
+`hentTilmeldingerMedSpor`, alle tre forsøg) beder om PRÆCIS stien
+`forlod:raa->>leftTime` (`FORLOD_KOLONNE` i `varmeLeads.ts`) — aldrig hele `raa`,
+IKKE i `TILMELDING_KOLONNER` (som `webinar-delt` spejler ordret, værn
+`webinarDeling.guard` dom 3) og IKKE i `webinar-delt`. Feltet er en observation:
+den rene `forlodTid` godtager det kun som ISO-tid MED tidszone, SKARPT efter
+sessionens start og ikke efter `nu`; ellers (mangler, ugyldig, før start,
+fremtid) falder tiden fail-soft tilbage på sessionens start. Linjen bærer
+`tidKilde` og siger hvilken: «så webinaret for N timer siden» / flaget «så det
+inden for 24 timer» (forlod) mod «webinaret begyndte for N timer siden» /
+«begyndte inden for 24 timer» (start). 24-timersflaget (`inden24Timer`, før
+`begyndtInden24Timer`) og sorteringen (nyeste først) regnes fra det VALGTE
+tidspunkt; vinduet (14 dage) og ansøgningsgrænsen regnes stadig fra sessionen.
+Værn: `forlodHentesKunHosRaadgiveren` i `varmeLeads.test.ts` (stien kun i
+rådgiverens hentning, aldrig i en function, aldrig hele `raa`). Kun frontend:
+**Update** — ingen migration, ingen function. Nicklas' anden betingelse (omsætning over 2 mio.) kan IKKE dømmes:
 ingen CVR/omsætning på en tilmelding; husets CVR-opslag (`ansoegning-cvr`,
 `ansoegning-cvr-opslag`, `berig-virksomheder`, DataCVR 25 opslag/døgn) er
 bevidst IKKE brugt. Persondata: `varmeLeads` står i `FORBUDTE_NOEGLER`; kildeværnet

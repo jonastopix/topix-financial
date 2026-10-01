@@ -2,8 +2,6 @@ import { HbSection } from "@/components/hjemmebane/HbSection";
 import { cn } from "@/lib/utils";
 import {
   VARME_EYEBROW,
-  VARME_FLAG_INDEN,
-  VARME_FLAG_SENERE,
   VARME_FORKLARING,
   VARME_TITEL,
   VARME_TOM_TEKST,
@@ -15,7 +13,9 @@ import {
  *
  * Nicklas: «Jonas ringer til alle, der har set mindst 75 % og omsætter over 2
  * mio., inden for 24 timer.» Listen er dommens (`varmeLeads` i
- * lib/webinar/varmeLeads.ts) — fladen tegner den, nyeste først, og regner intet.
+ * lib/webinar/varmeLeads.ts) — fladen tegner den, nyeste først, og regner intet:
+ * tiden («så webinaret for …» / «webinaret begyndte for …») og flagets ord er
+ * dommens (`sidenOrd`, `flagOrd`), valgt efter `tidKilde`.
  *
  * PERSONDATA: navn og mail. Komponenten monteres KUN af WebinarView
  * (rådgiveren) gennem WebinarVisnings `varme`-prop; DeltWebinar giver den aldrig
@@ -31,7 +31,7 @@ export const VarmeLeadsAfsnit = ({ leads }: { leads: readonly VarmtLead[] }) => 
     ) : (
       <ul data-varme-leads={leads.length}>
         {leads.map((l) => (
-          <li key={l.email} className="border-t border-hb-line py-3 last:border-b" data-varmt-lead={l.begyndtInden24Timer ? "inden-24" : "senere"}>
+          <li key={l.email} className="border-t border-hb-line py-3 last:border-b" data-varmt-lead={l.inden24Timer ? "inden-24" : "senere"} data-tid-kilde={l.tidKilde}>
             <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
               <p className="min-w-0 text-sm">
                 <span className="font-medium text-hb-ink">{l.navn ?? "uden navn"}</span>
@@ -40,10 +40,10 @@ export const VarmeLeadsAfsnit = ({ leads }: { leads: readonly VarmtLead[] }) => 
               <span
                 className={cn(
                   "rounded-full border px-1.5 text-[10px]",
-                  l.begyndtInden24Timer ? "border-hb-rust/40 text-hb-rust" : "border-hb-line text-hb-ink-soft",
+                  l.inden24Timer ? "border-hb-rust/40 text-hb-rust" : "border-hb-line text-hb-ink-soft",
                 )}
               >
-                {l.begyndtInden24Timer ? VARME_FLAG_INDEN : VARME_FLAG_SENERE}
+                {l.flagOrd}
               </span>
             </div>
             <p className="mt-1 text-xs text-hb-ink-soft">

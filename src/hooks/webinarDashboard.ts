@@ -32,6 +32,10 @@
  * som `webinar_email`; dommen (medWebinarKobling) lader dem tælle som et
  * mail-match. Manglende tabel (migrationen ikke kørt) → ingen koblinger.
  *
+ * HVORNÅR PERSONEN FORLOD WEBINARET (1/10-2026): `forlod` = `raa->>leftTime`
+ * (FORLOD_KOLONNE i lib/webinar/varmeLeads.ts) hentes kun til de varme leads;
+ * dommen `forlodTid` afgør, om værdien kan bruges.
+ *
  * kraevRaekker-mønstret (recon-tavse-fejl.md): begge opslag kaster med
  * kildens navn, så en fejl bliver isError og ikke «der er ingen tilmeldte».
  */
@@ -41,7 +45,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { HentningsFejl, kraevRaekker } from "@/lib/kraevRaekker";
 import { TILMELDING_KOLONNER } from "@/hooks/webinar";
 import { erUkendtKolonne, medAnnoncespor, medUdledte, udenAnnoncespor } from "@/lib/webinar/kolonner";
-import type { AnsoegerMail, Tilmelding } from "@/lib/webinar/dashboard";
+import type { AnsoegerMail } from "@/lib/webinar/dashboard";
+import { FORLOD_KOLONNE, type VarmTilmelding } from "@/lib/webinar/varmeLeads";
 import { hentKoblingsMails } from "@/hooks/webinarKobling";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -50,13 +55,18 @@ const tabel = (navn: string) => supabase.from(navn as any) as any;
 export const WEBINAR_DASHBOARD_KEY = ["webinar", "dashboard"] as const;
 
 /** numeric kommer som streng fra PostgREST — tallet skal være et tal for dommen. */
-function somRaekke(r: Record<string, unknown>): Tilmelding {
+function somRaekke(r: Record<string, unknown>): VarmTilmelding {
   const p = r.set_procent;
-  return { ...(r as unknown as Tilmelding), set_procent: p === null || p === undefined ? null : Number(p) };
+  const f = r.forlod;
+  return {
+    ...(r as unknown as VarmTilmelding),
+    set_procent: p === null || p === undefined ? null : Number(p),
+    forlod: typeof f === "string" ? f : null,
+  };
 }
 
 export interface WebinarDashboardData {
-  tilmeldinger: Tilmelding[];
+  tilmeldinger: VarmTilmelding[];
   ansoegninger: AnsoegerMail[];
   sporKolonnerFindes: boolean;
 }
@@ -64,9 +74,15 @@ export interface WebinarDashboardData {
 const GRAENSE = 5000;
 
 /** Tilmeldingerne + svaret på om annoncespor-kolonnerne findes. Kaster ved enhver anden fejl. */
-export async function hentTilmeldingerMedSpor(): Promise<{ raekker: Tilmelding[]; sporKolonnerFindes: boolean }> {
+export async function hentTilmeldingerMedSpor(): Promise<{ raekker: VarmTilmelding[]; sporKolonnerFindes: boolean }> {
+  // `forlod` (eWebinars leftTime, målt i prod 1/10: 191 af 839 rækker, alle 132
+  // med ≥ 75 % set) lægges på HVER af de tre forsøg — KUN her, i rådgiverens
+  // hentning: ikke i TILMELDING_KOLONNER (som webinar-delt spejler ordret,
+  // webinarDeling.guard dom 3) og ikke i webinar-delt. Præcis stien, aldrig hele
+  // `raa`; `raa` har altid været der (migration 20260919130000), så stien kan
+  // ikke give 42703 — mangler nøglen i JSON'en, svarer PostgREST null.
   const q = (kolonner: string) =>
-    tabel("webinar_tilmeldinger").select(kolonner).order("session_tid", { ascending: false, nullsFirst: false }).limit(GRAENSE);
+    tabel("webinar_tilmeldinger").select(`${kolonner}, ${FORLOD_KOLONNE}`).order("session_tid", { ascending: false, nullsFirst: false }).limit(GRAENSE);
 
   // Tre forsøg, hver ét trin fattigere — og KUN når kolonnen mangler (42703):
   //   1. sporet + de udledte (ad_id_udledt, migration 20260921130000)

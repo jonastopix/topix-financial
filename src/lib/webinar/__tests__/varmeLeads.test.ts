@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import { relative, resolve } from "node:path";
-import { erInternEllerProeve, INTERNE_DOMAENER, PROEVE_ID_PRAEFIKS, RING_INDEN_TIMER, sidenOrd, VARME_FLAG_INDEN, VARME_LEADS_DAGE, varmeLeads } from "@/lib/webinar/varmeLeads";
+import { erInternEllerProeve, FORLOD_KOLONNE, forlodTid, INTERNE_DOMAENER, PROEVE_ID_PRAEFIKS, RING_INDEN_TIMER, sidenOrd, VARME_FLAG, VARME_LEADS_DAGE, varmeLeads, type VarmTilmelding } from "@/lib/webinar/varmeLeads";
 import type { AnsoegerMail, Tilmelding } from "@/lib/webinar/dashboard";
 import { bygDeltSvar, findForbudteNoegler, FORBUDTE_NOEGLER } from "../../../../supabase/functions/_shared/webinarDelingSvar.ts";
 import { FIXTURE } from "../../__tests__/webinarDashboard.paritet.test";
@@ -20,11 +20,11 @@ const NU = new Date("2026-10-01T12:00:00.000Z");
 const H = 3_600_000;
 const foer = (ms: number) => new Date(NU.getTime() - ms).toISOString();
 
-const R = (email: string, session_tid: string | null, ekstra: Partial<Tilmelding> = {}): Tilmelding => ({
+const R = (email: string, session_tid: string | null, ekstra: Partial<VarmTilmelding> = {}): VarmTilmelding => ({
   ewebinar_id: `id-${email}-${session_tid}`, email, navn: `Navn ${email[0].toUpperCase()}`, webinar_id: "w1", webinar_titel: "Styr på tallene",
   session_tid, session_type: "Scheduled", registreret_at: "2026-09-10T09:00:00.000Z", state: "Watched", sidste_action: null,
   attended: "true", subscribed: null, set_procent: 80, set_procent_kilde: "watchedPercentage", ...ekstra,
-}) as Tilmelding;
+}) as VarmTilmelding;
 const A = (email: string, indsendt_at: string | null, ekstra: Partial<AnsoegerMail> = {}): AnsoegerMail => ({
   email, indsendt_at, trin: "ny", virksomhed_slutdato: null, ...ekstra,
 });
@@ -43,10 +43,12 @@ describe("varmeLeads — dommen", () => {
       R("d@x.dk", foer(24 * H + 1)),                       // 1 ms over: ikke
     ], [], NU);
     expect(l.map((x) => x.email)).toEqual(["a@x.dk", "c@x.dk", "d@x.dk", "b@x.dk"]);
-    expect(l.map((x) => x.begyndtInden24Timer)).toEqual([true, true, false, false]);
-    expect(l[0]).toMatchObject({ navn: "Navn A", procent: 80, timerSiden: 3, sidenOrd: "webinaret begyndte for 3 timer siden", titel: "Styr på tallene" });
-    expect(l[3]).toMatchObject({ procent: 92, sidenOrd: "webinaret begyndte for 5 dage siden" });
-    expect(VARME_FLAG_INDEN).toBe("begyndte inden for 24 timer");
+    expect(l.map((x) => x.inden24Timer)).toEqual([true, true, false, false]);
+    expect(l.map((x) => x.tidKilde)).toEqual(["start", "start", "start", "start"]);
+    expect(l[0]).toMatchObject({ navn: "Navn A", procent: 80, timerSiden: 3, sidenOrd: "webinaret begyndte for 3 timer siden", titel: "Styr på tallene", flagOrd: "begyndte inden for 24 timer" });
+    expect(l[3]).toMatchObject({ procent: 92, sidenOrd: "webinaret begyndte for 5 dage siden", flagOrd: "begyndte for over 24 timer siden" });
+    expect(VARME_FLAG.start.inden).toBe("begyndte inden for 24 timer");
+    expect(VARME_FLAG.forlod).toEqual({ inden: "så det inden for 24 timer", senere: "så det for over 24 timer siden" });
   });
 
   it("vinduet: præcis 14 dage er med, 1 ms mere er ikke; en kommende session er ikke med", () => {
@@ -134,12 +136,72 @@ describe("varmeLeads — dommen", () => {
     expect(l[0]).toMatchObject({ procent: 95, sidenOrd: "webinaret begyndte for 3 dage siden" });
   });
 
-  it("ordene for tiden", () => {
-    expect(sidenOrd(59 * 60_000)).toBe("webinaret begyndte for under en time siden");
-    expect(sidenOrd(H)).toBe("webinaret begyndte for 1 time siden");
-    expect(sidenOrd(23 * H)).toBe("webinaret begyndte for 23 timer siden");
-    expect(sidenOrd(24 * H)).toBe("webinaret begyndte for 1 dag siden");
-    expect(sidenOrd(49 * H)).toBe("webinaret begyndte for 2 dage siden");
+  it("ordene for tiden — kilden afgør forleddet", () => {
+    expect(sidenOrd(59 * 60_000, "start")).toBe("webinaret begyndte for under en time siden");
+    expect(sidenOrd(H, "start")).toBe("webinaret begyndte for 1 time siden");
+    expect(sidenOrd(23 * H, "start")).toBe("webinaret begyndte for 23 timer siden");
+    expect(sidenOrd(24 * H, "start")).toBe("webinaret begyndte for 1 dag siden");
+    expect(sidenOrd(49 * H, "start")).toBe("webinaret begyndte for 2 dage siden");
+    expect(sidenOrd(59 * 60_000, "forlod")).toBe("så webinaret for under en time siden");
+    expect(sidenOrd(H, "forlod")).toBe("så webinaret for 1 time siden");
+    expect(sidenOrd(3 * H, "forlod")).toBe("så webinaret for 3 timer siden");
+    expect(sidenOrd(49 * H, "forlod")).toBe("så webinaret for 2 dage siden");
+  });
+
+  it("forlodTid — normaliseringen: gyldig, ugyldig, før start, fremtid, mangler", () => {
+    const start = Date.parse("2026-09-30T09:00:00.000Z");
+    const nu = NU.getTime();
+    // gyldig: ISO med tidszone, skarpt efter start, ikke efter nu
+    expect(forlodTid("2026-09-30T10:10:19.000Z", start, nu)).toBe(Date.parse("2026-09-30T10:10:19.000Z"));
+    expect(forlodTid(" 2026-09-30T12:10:19+02:00 ", start, nu)).toBe(Date.parse("2026-09-30T10:10:19.000Z"));
+    expect(forlodTid(NU.toISOString(), start, nu)).toBe(nu);                       // præcis nu: gyldig
+    // ugyldig
+    expect(forlodTid("i går", start, nu)).toBeNull();
+    expect(forlodTid("2026-09-30", start, nu)).toBeNull();                          // ingen tid
+    expect(forlodTid("2026-09-30T10:10:19", start, nu)).toBeNull();                 // ingen tidszone: browserens lokale tid
+    expect(forlodTid("2026-13-40T10:10:19.000Z", start, nu)).toBeNull();            // umulig dato
+    expect(forlodTid(String(start + H), start, nu)).toBeNull();                     // epoch som tekst
+    expect(forlodTid(start + H, start, nu)).toBeNull();                             // ikke en streng
+    // før start — og præcis ved start (skarpt efter kræves)
+    expect(forlodTid("2026-09-30T08:59:59.000Z", start, nu)).toBeNull();
+    expect(forlodTid("2026-09-30T09:00:00.000Z", start, nu)).toBeNull();
+    // i fremtiden
+    expect(forlodTid(new Date(nu + 1).toISOString(), start, nu)).toBeNull();
+    // mangler
+    expect(forlodTid(null, start, nu)).toBeNull();
+    expect(forlodTid(undefined, start, nu)).toBeNull();
+    expect(forlodTid("", start, nu)).toBeNull();
+  });
+
+  it("forlod: tiden, flaget og ordene regnes fra da personen forlod — ellers fra start, og linjen siger hvilken", () => {
+    const S = foer(30 * H);                                     // sessionen begyndte for 30 t siden
+    const l = varmeLeads([
+      R("a@x.dk", S, { forlod: foer(29 * H) }),                // forlod for 29 t siden: over 24 t
+      R("b@x.dk", foer(25 * H), { forlod: foer(23 * H) }),     // begyndte for 25 t, forlod for 23 t: inden for 24 t
+      R("c@x.dk", foer(25 * H), { forlod: "noget sludder" }),  // ugyldig → start (25 t): over
+      R("d@x.dk", foer(25 * H), { forlod: foer(26 * H) }),     // før start → start
+      R("e@x.dk", foer(25 * H), { forlod: new Date(NU.getTime() + H).toISOString() }), // fremtid → start
+      R("f@x.dk", foer(25 * H)),                                // mangler → start
+    ], [], NU);
+    const pr = new Map(l.map((x) => [x.email, x]));
+    expect(pr.get("a@x.dk")).toMatchObject({ tidKilde: "forlod", timerSiden: 29, inden24Timer: false, sidenOrd: "så webinaret for 1 dag siden", flagOrd: "så det for over 24 timer siden", tidspunkt: foer(29 * H), sessionTid: S });
+    expect(pr.get("b@x.dk")).toMatchObject({ tidKilde: "forlod", timerSiden: 23, inden24Timer: true, sidenOrd: "så webinaret for 23 timer siden", flagOrd: "så det inden for 24 timer" });
+    for (const m of ["c@x.dk", "d@x.dk", "e@x.dk", "f@x.dk"]) {
+      expect(pr.get(m)).toMatchObject({ tidKilde: "start", timerSiden: 25, inden24Timer: false, sidenOrd: "webinaret begyndte for 1 dag siden", flagOrd: "begyndte for over 24 timer siden", tidspunkt: foer(25 * H) });
+    }
+  });
+
+  it("sorteringen er nyeste først på det VALGTE tidspunkt — ikke på sessionens start", () => {
+    const l = varmeLeads([
+      R("a@x.dk", foer(10 * H)),                                 // start for 10 t siden
+      R("b@x.dk", foer(12 * H), { forlod: foer(2 * H) }),        // ældre session, men forlod for 2 t siden
+      R("c@x.dk", foer(11 * H), { forlod: foer(10 * H + 1) }),   // forlod 1 ms før a's start
+    ], [], NU);
+    expect(l.map((x) => x.email)).toEqual(["b@x.dk", "a@x.dk", "c@x.dk"]);
+  });
+
+  it("hentningen beder om PRÆCIS stien — aldrig hele raa", () => {
+    expect(FORLOD_KOLONNE).toBe("forlod:raa->>leftTime");
   });
 
   it("tom liste, når ingen er varme", () => {
@@ -193,6 +255,18 @@ const alleFunctionFiler = (): FunctionFil[] => {
   return ud;
 };
 
+/**
+ * `forlod` (raa->>leftTime) hentes KUN i rådgiverens hentning (hooks/webinarDashboard.ts) —
+ * aldrig i TILMELDING_KOLONNER (som webinar-delt spejler) og aldrig i en function.
+ */
+export const forlodHentesKunHosRaadgiveren = (filer: { functions: FunctionFil[]; webinarHook: string; dashboardHook: string }): boolean => {
+  const kol = udenKommentarer(filer.webinarHook).match(/export const TILMELDING_KOLONNER =\s*\n?\s*"([^"]+)"/)?.[1] ?? "";
+  const d = udenKommentarer(filer.dashboardHook);
+  return kol.length > 50 && !/leftTime|forlod/.test(kol) &&
+    filer.functions.every((f) => !/leftTime|FORLOD_KOLONNE/.test(udenKommentarer(f.tekst))) &&
+    d.includes(".select(`${kolonner}, ${FORLOD_KOLONNE}`)") && !/["'`,]\s*raa\s*["'`,]/.test(d);
+};
+
 describe("kildeværn — varme leads aldrig i den delte flade", () => {
   const filer = { functions: alleFunctionFiler(), delt: laes("src/pages/DeltWebinar.tsx"), view: laes("src/components/hjemmebane/webinar/WebinarView.tsx") };
 
@@ -212,6 +286,14 @@ describe("kildeværn — varme leads aldrig i den delte flade", () => {
     expect(varmeLeadsKunHosRaadgiveren(med('const N = ["varmeLeads"];'))).toBe(true);
     expect(varmeLeadsKunHosRaadgiveren({ ...filer, delt: `${filer.delt}\n<WebinarVisning varme={<VarmeLeadsAfsnit leads={[]} />} />` })).toBe(false);
     expect(varmeLeadsKunHosRaadgiveren({ ...filer, view: filer.view.replace("{varme}", "{<VarmeLeadsAfsnit leads={[]} />}") })).toBe(false);
+  });
+  it("forlod (leftTime) hentes kun i rådgiverens hentning — og værnet virker", () => {
+    const f = { functions: filer.functions, webinarHook: laes("src/hooks/webinar.ts"), dashboardHook: laes("src/hooks/webinarDashboard.ts") };
+    expect(forlodHentesKunHosRaadgiveren(f)).toBe(true);
+    expect(forlodHentesKunHosRaadgiveren({ ...f, webinarHook: f.webinarHook.replace("interactions:raa->>interactionsSummary", "interactions:raa->>interactionsSummary, forlod:raa->>leftTime") })).toBe(false);
+    expect(forlodHentesKunHosRaadgiveren({ ...f, functions: [...f.functions, { sti: "supabase/functions/x/index.ts", tekst: 'const k = "forlod:raa->>leftTime";' }] })).toBe(false);
+    expect(forlodHentesKunHosRaadgiveren({ ...f, dashboardHook: f.dashboardHook.replace(".select(`${kolonner}, ${FORLOD_KOLONNE}`)", ".select(kolonner)") })).toBe(false);
+    expect(forlodHentesKunHosRaadgiveren({ ...f, dashboardHook: f.dashboardHook.replace(".select(`${kolonner}, ${FORLOD_KOLONNE}`)", ".select(`${kolonner}, raa`)") })).toBe(false);
   });
   it("et delt-svar med listen afvises af findForbudteNoegler — og det rigtige svar bærer den ikke", () => {
     expect(FORBUDTE_NOEGLER).toContain("varmeLeads");
