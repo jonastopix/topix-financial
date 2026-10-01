@@ -90,11 +90,74 @@ describe("deriveFocus — hver kilde for sig", () => {
     expect(deriveFocus(base({ weeklyFocus: null })).some((i) => i.kind === "weekly-focus")).toBe(false);
   });
 
-  it("(e) UDGÅET (fase 3, 16/9): ingen milepæls-kilde i fokusmotoren — inputtet findes ikke, og ingen kind hedder milestone-deadline", () => {
-    // Målet står i forsidens «Dine mål» (dineMaal.ts); fokuskortet nævner det ikke.
+  it("(e) den gamle milepæls-kilde er stadig væk: et `milestones`-input og kind «milestone-deadline» findes ikke", () => {
     const items = deriveFocus({ ...base(), ...({ milestones: [{ title: "x", deadline: daysFromNow(2), progress: 10, status: "active" }] } as object) });
     expect(items.some((i) => (i.kind as string) === "milestone-deadline")).toBe(false);
     expect(items).toEqual([]);
+  });
+
+  // (e) MÅLET (1/10-2026): ét punkt fra maalFokus — dommen selv testes i
+  // src/lib/hjemmebane/__tests__/maalFokus.test.ts; her placeringen og formen.
+  const maalRaekke = (o: Record<string, unknown>) => ({ id: "m1", title: "Ny sælger", status: "active", progress: 0, deadline: null, created_at: "2026-07-01T00:00:00Z", ...o });
+  const skridtRaekke = (o: Record<string, unknown>) => ({ id: "s1", title: "Skriv jobopslag", status: "active", due_date: "2026-08-20", maal_id: "m1", ...o });
+
+  it("(e) mål uden skridt → «Tilføj det første skridt mod …» til /milestones", () => {
+    const items = deriveFocus(base({ maalPlan: { maal: [maalRaekke({})], skridt: [] } }));
+    expect(items).toEqual([
+      expect.objectContaining({ kind: "maal", priority: 5, title: "Tilføj det første skridt mod Ny sælger", ctaHref: "/milestones", sourceId: "m1" }),
+    ]);
+  });
+
+  it("(e) aktivt skridt under målet → «mod målet: …», og (f) nævner ikke samme skridt igen", () => {
+    const items = deriveFocus(base({
+      maalPlan: { maal: [maalRaekke({})], skridt: [skridtRaekke({})] },
+      openActions: [
+        { id: "s1", title: "Skriv jobopslag", priority: "high", status: "active", due_date: "2026-08-20" },
+        { id: "s9", title: "Løst skridt", priority: "low", status: "active", due_date: "2026-08-12" },
+      ],
+    }));
+    expect(items.map((i) => i.key)).toEqual(["maal:skridt:s1", "action:s9"]);
+    expect(items[0]).toMatchObject({ kind: "maal", title: "Skriv jobopslag", ctaHref: "#dine-skridt", sourceId: "s1" });
+    expect(items[0].description).toBe("Skal være gjort senest 20. august — mod målet: Ny sælger.");
+  });
+
+  it("(e) målets frist ≤ 30 dage står i skridtets linje", () => {
+    const items = deriveFocus(base({ maalPlan: { maal: [maalRaekke({ deadline: "2026-08-30" })], skridt: [skridtRaekke({})] } }));
+    expect(items[0].description).toBe("Skal være gjort senest 20. august — mod målet: Ny sælger. Målets frist: 20 dage tilbage.");
+  });
+
+  it("(e) står UNDER rapport og beskeder og OVER løse skridt, pulse og profil", () => {
+    const items = deriveFocus(base({
+      processedPeriodKeys: new Set([JUNI]),
+      committedPeriodKeys: new Set([JUNI]),
+      unreadUserMessages: 1,
+      askMeAboutMissing: true,
+      openActions: [{ id: "x", title: "Løst", priority: "high", status: "active", due_date: "2026-08-12" }],
+      maalPlan: { maal: [maalRaekke({})], skridt: [] },
+    }));
+    expect(items.map((i) => i.kind)).toEqual(["missing-report", "unread-messages", "maal", "company-action", "empty-profile"]);
+  });
+
+  it("(e) ét punkt, aldrig flere — også med tre mål", () => {
+    const items = deriveFocus(base({ maalPlan: { maal: [maalRaekke({ id: "a" }), maalRaekke({ id: "b" }), maalRaekke({ id: "c" })], skridt: [] } }));
+    expect(items.filter((i) => i.kind === "maal")).toHaveLength(1);
+  });
+
+  it("(e) uden maalPlan (fx en fejlet hentning) → intet målpunkt", () => {
+    expect(deriveFocus(base({ maalPlan: null }))).toEqual([]);
+  });
+
+  it("(e) én stemme med Score-kortet: målets punkt siger aldrig Score-løfterens «Sæt dit første mål.» og peger aldrig på /kpis", () => {
+    for (const maalPlan of [
+      { maal: [maalRaekke({})], skridt: [] },
+      { maal: [maalRaekke({})], skridt: [skridtRaekke({})] },
+      { maal: [maalRaekke({ deadline: "2026-08-15" })], skridt: [skridtRaekke({ status: "proposed", due_date: null })] },
+    ]) {
+      const [punkt] = deriveFocus(base({ maalPlan }));
+      expect(punkt.kind).toBe("maal");
+      expect(punkt.title).not.toMatch(/Sæt dit første mål/);
+      expect(punkt.ctaHref).not.toBe("/kpis");
+    }
   });
 
   it("(f) company_actions: kalderens orden bevares, sourceId følger med", () => {

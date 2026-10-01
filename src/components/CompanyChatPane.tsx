@@ -59,6 +59,7 @@ import { useKpiBenchmarks } from "@/hooks/useKpiBenchmarks";
 import { deriveKpiMetrics, getTargetStatus, type KpiMetric } from "@/lib/kpiDefs";
 import { useCompanyCommentary } from "@/hooks/useCompanyCommentary";
 import { laesAnalysisData } from "@/lib/financialAnalysis";
+import { forslagMaalDom, MAAL_KRAEVES_GRUND } from "@/lib/maalValg";
 import { format, formatDistanceToNow, startOfDay } from "date-fns";
 import { da } from "date-fns/locale";
 // Delt med MemberChatPane efter C1-splittet (docs/chat-design.md):
@@ -295,11 +296,11 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
   const [showCompanyDrawer, setShowCompanyDrawer] = useState(false);
   // Foreslå skridt fra chatten (rådgiver, headerens knap) — B1: et forslag,
   // ikke en opgave, før medlemmet siger ja i "Dine skridt" på forsiden.
-  // Fase 3 («Én plan») — JONAS 16/9 (ordret: «B»): målvælgeren er VALGFRI.
-  // Standard = det ældste aktive mål (aktiveMaalQuery er sorteret ældst
-  // først); «Uden mål» er et tydeligt valg; ingen aktive mål → intet valg
-  // vises, og forslaget sendes uden mål. forslagMaalValg: "" = urørt
-  // (standarden), "uden" = uden mål, ellers et mål-id.
+  // MÅLET KRÆVES (1/10-2026; før: Jonas «B» 16/9, valgfrit med det ældste
+  // som standard): har virksomheden aktive mål, SKAL rådgiveren vælge et —
+  // ingen standard, intet «Uden mål». Ingen aktive mål → intet valg vises,
+  // og forslaget sendes uden mål. Dommen er forslagMaalDom (lib/maalValg,
+  // spejlet i foreslaa-opgave). forslagMaalValg: "" = intet valgt, ellers et mål-id.
   const [forslagTitel, setForslagTitel] = useState("");
   const [forslagBegrundelse, setForslagBegrundelse] = useState("");
   const [forslagMaalValg, setForslagMaalValg] = useState("");
@@ -1021,8 +1022,12 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
     staleTime: 60_000,
   });
   const aktiveMaal = aktiveMaalQuery.data ?? [];
-  // Det mål forslaget sendes med: standarden (ældste aktive) når vælgeren er urørt; null = uden mål.
-  const valgtMaalId: string | null = forslagMaalValg === "" ? (aktiveMaal[0]?.id ?? null) : forslagMaalValg === "uden" ? null : forslagMaalValg;
+  // Dommen (1/10): må forslaget sendes, og med hvilket mål? Intet valg = intet mål — der er ingen standard.
+  const forslagDom = forslagMaalDom(
+    aktiveMaalQuery.isError ? "fejl" : aktiveMaalQuery.isPending ? "henter" : "klar",
+    aktiveMaal,
+    forslagMaalValg === "" ? null : forslagMaalValg,
+  );
 
   // Modtageren i skrivefeltet (og den tomme tilstand): rådgiveren skriver
   // TIL virksomheden. Låst (blok 4): virksomhedens navn, samme tone som
@@ -1201,7 +1206,8 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
   // og vises ordret (opgaveMutation-mønstret fra BoardroomView).
   const handleForeslaaOpgave = async () => {
     const companyId = activeConv?.company_id;
-    if (!companyId || !activeConvId || foreslaarOpgave || !forslagTitel.trim()) return;
+    if (!companyId || !activeConvId || foreslaarOpgave || !forslagTitel.trim() || !forslagDom.kanSendes) return;
+    const maalId = forslagDom.maalId;
     setForeslaarOpgave(true);
     try {
       // Samtalen sendes med — serveren må ikke gætte den ud fra
@@ -1214,8 +1220,8 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
           conversationId: activeConvId,
           titel: forslagTitel,
           ...(forslagBegrundelse.trim() ? { begrundelse: forslagBegrundelse } : {}),
-          // Fase 3 (Jonas «B»): målet er valgfrit — udeladt = uden mål; et valgt mål valideres af serveren (404/409).
-          ...(valgtMaalId ? { maalId: valgtMaalId } : {}),
+          // Målet KRÆVES når der er aktive mål (1/10); uden aktive mål sendes intet maalId. Serveren dømmer det samme (400 maal_kraeves) og validerer det valgte (404/409).
+          ...(maalId ? { maalId } : {}),
         },
       });
       if (error) {
@@ -1223,6 +1229,8 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
         try {
           const svar = await (error as any).context?.json?.();
           if (svar?.error) besked = svar.error;
+          // Et mål er kommet til, siden listen blev hentet — hent den igen, så vælgeren viser det.
+          if (svar?.grund === MAAL_KRAEVES_GRUND) void aktiveMaalQuery.refetch();
         } catch { /* behold error.message */ }
         toast.error("Forslaget blev ikke sendt", { description: besked });
         return;
@@ -1299,28 +1307,29 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
         {/* Foreslå skridt — rådgiverens ikke-besked-handling. Forslaget
             lander i medlemmets "Dine skridt" (B1: intet er en opgave før
             medlemmet siger ja; B6: medlemmet vælger datoen ved accept).
-            Fase 3 (Jonas «B»): målvælgeren er valgfri — standard er det
-            ældste aktive mål, «Uden mål» er et tydeligt valg; uden aktive
-            mål vises intet valg, og skridtet sendes uden mål. */}
+            1/10-2026: har virksomheden aktive mål, SKAL et vælges (ingen
+            standard, intet «Uden mål»); uden aktive mål vises intet valg,
+            og skridtet sendes uden mål. Dommen: lib/maalValg. */}
         <form
           data-foreslaa-skridt
           onSubmit={(e) => { e.preventDefault(); void handleForeslaaOpgave(); }}
         >
           <p className="text-[10px] text-hb-rust font-medium uppercase tracking-[0.14em] mb-2">Foreslå skridt</p>
           {aktiveMaalQuery.isError ? (
-            <p className="mb-1.5 text-xs text-hb-rust">Virksomhedens mål kunne ikke hentes — skridtet sendes uden mål.</p>
+            <p className="mb-1.5 text-xs text-hb-rust">Virksomhedens mål kunne ikke hentes — prøv igen om lidt.</p>
           ) : aktiveMaal.length > 0 ? (
             <select
-              value={valgtMaalId ?? "uden"}
+              value={forslagMaalValg}
               onChange={(e) => setForslagMaalValg(e.target.value)}
               aria-label="Målet skridtet hører til"
+              required
               className={`${hbControlClasses} mb-1.5 px-2 py-1.5 text-xs max-md:text-[16px]`}
               data-maalvaelger
             >
+              <option value="" disabled>Vælg målet skridtet hører til</option>
               {aktiveMaal.map((m) => (
                 <option key={m.id} value={m.id}>Mod målet: {m.title}</option>
               ))}
-              <option value="uden">Uden mål</option>
             </select>
           ) : null}
           <input
@@ -1342,7 +1351,7 @@ const CompanyChatPane = ({ laastTilCompanyId }: { laastTilCompanyId?: string } =
           />
           <HbButton
             type="submit"
-            disabled={foreslaarOpgave || !forslagTitel.trim()}
+            disabled={foreslaarOpgave || !forslagTitel.trim() || !forslagDom.kanSendes}
             className="h-8 w-full px-2 text-xs"
           >
             {foreslaarOpgave ? "Sender…" : "Foreslå skridt"}

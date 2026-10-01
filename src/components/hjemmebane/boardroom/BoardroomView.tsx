@@ -1751,7 +1751,9 @@ export const BoardroomView = () => {
     queryFn: async () => {
       const skridtRes = await supabase
         .from("company_actions")
-        .select("id, title, status, due_date, maal_id, closed_at")
+        // expires_at (1/10): fokusmotorens slot (e) tæller et udløbet forslag
+        // som «intet i gang» (maalFokus) — samme hentning, én kolonne mere.
+        .select("id, title, status, due_date, maal_id, closed_at, expires_at")
         .eq("company_id", companyId!)
         .not("maal_id", "is", null)
         .order("created_at", { ascending: true })
@@ -2008,8 +2010,14 @@ export const BoardroomView = () => {
       // Erfarent medlem (30/9): > 30 døgn siden profiles.created_at →
       // tjeklisten slipper kortet (tjeklistenStyrerForsiden, ankomst.ts).
       medlemSiden: tjeklisteData.medlemSiden,
+      // Slot (e), målet (1/10): de mål og skridt «Din plan» allerede henter —
+      // ingen ny hentning. Kun når BEGGE er hentet: et halvt billede (mål uden
+      // skridt) ville give et forkert «Tilføj det første skridt».
+      maalPlan: milestonesQuery.data && skridtQuery.data
+        ? { maal: milestonesQuery.data, skridt: skridtQuery.data as (SkridtTilDineMaal & { expires_at?: string | null })[] }
+        : null,
     });
-  }, [companyId, processedQuery.data, committedKeys, pulseQuery.data, unreadQuery.data, weeklyFocusQuery.data, actionsQuery.data, leversQuery.data, ownProfileQuery.data, contractStartQuery.data, tjeklisteData.tjekliste, tjeklisteData.medlemSiden]);
+  }, [companyId, processedQuery.data, committedKeys, pulseQuery.data, unreadQuery.data, weeklyFocusQuery.data, actionsQuery.data, leversQuery.data, ownProfileQuery.data, contractStartQuery.data, tjeklisteData.tjekliste, tjeklisteData.medlemSiden, milestonesQuery.data, skridtQuery.data]);
 
   // Markér ugens fokus som SET når punktet faktisk vises — samme mekanik
   // som DashboardActionCenter:87-98 (mutation + engangs-ref).
@@ -2209,7 +2217,9 @@ export const BoardroomView = () => {
   // proposed_by) — dommen er raadgiverAnsigt; fokus-motoren er urørt.
   const fokusAnsigt = useMemo<Ansigt | null>(() => {
     const primaer = focus[0];
-    if (!primaer || primaer.kind !== "company-action" || !primaer.sourceId) return null;
+    // Også målets punkt, når det er et skridt (slot (e) «skridt», 1/10).
+    const erSkridt = primaer?.kind === "company-action" || primaer?.key.startsWith("maal:skridt:");
+    if (!primaer || !erSkridt || !primaer.sourceId) return null;
     const raekke = aftaleRaekker.find((r) => r.id === primaer.sourceId);
     return raekke ? raadgiverAnsigt(raekke, raadgivere) : null;
   }, [focus, aftaleRaekker, raadgivere]);

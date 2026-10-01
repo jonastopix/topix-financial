@@ -9,8 +9,9 @@ const NOW = new Date(2026, 7, 10);
 const JUNI = "2026-06";
 
 /* Milepæls-kilden (slot (e), «milestone-deadline») er UDE siden «Én plan»
-   fase 3 (16/9): målet står i forsidens «Dine mål», ikke i fokuskortet.
-   Testene 3/3b er fjernet med vilje. */
+   fase 3 (16/9). Slot (e) er genindført 1/10-2026 som MÅLET (maalFokus) —
+   men kun i deriveFocus (focus.test.ts); den tynde wrapper deriveNextStep
+   giver det ikke input, så testene 3/3b forbliver fjernet. */
 
 const base = (overrides: Partial<NextStepInputs> = {}): NextStepInputs => ({
   now: NOW,

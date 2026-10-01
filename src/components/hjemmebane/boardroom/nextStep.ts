@@ -2,6 +2,11 @@ import { DANISH_MONTHS } from "@/lib/financialUtils";
 import { PROFIL_STI } from "@/lib/hjemmebane/profilUdfyldt";
 import type { Tjekliste } from "@/lib/onboardingTjekliste";
 import { tjeklistenStyrerForsiden } from "@/lib/hjemmebane/ankomst";
+import {
+  dageTilbageTekst, foersteSkridtTitel, fristTitel, maalFokus, modMaaletLinje,
+  MAAL_FOKUS_MAAL_CTA, MAAL_FOKUS_SKRIDT_CTA, MAAL_FOKUS_STI, MAAL_FOKUS_TILFOEJ_CTA,
+  type MaalFokusMaal, type MaalFokusSkridt,
+} from "@/lib/hjemmebane/maalFokus";
 
 /** FOKUS-MOTOREN (forside PR 1, hb-forside-recon §D/§G): ÉN samlet,
     testbar prioriteringsdom for forsidens lag 1 — nu som PRIORITERET
@@ -39,10 +44,13 @@ import { tjeklistenStyrerForsiden } from "@/lib/hjemmebane/ankomst";
           — over de to seneste afsluttede måneder, ældste først (30/9)
       (c) ubesvaret besked (rådgiver før agent — ActionCenter-ordenen)
       (d) weekly_focus (denne uge, ikke set)
-      (e) — UDGÅET («Én plan» fase 3, 16/9): milestone-deadline ≤14 dage
-          var fokuskortets milepælspunkt; målet lever nu i forsidens
-          «Dine mål» (fremdrift og frist), ikke som fokuspunkt. Slot-
-          numrene (prioriteterne) beholdes, så (f)–(j) er uændrede.
+      (e) MÅLET — ÉT punkt (genindført 1/10-2026, maal-produkt.md §4;
+          dommen er maalFokus i src/lib/hjemmebane/maalFokus.ts): (1)
+          nærmeste aktive skridt under et aktivt mål «mod målet: X», (2)
+          aktivt mål uden noget i gang → «Tilføj det første skridt mod
+          X», (3) målfrist ≤ 30 dage → «X: N dage tilbage». Under rapport
+          og beskeder, over løse skridt. (Fra 16/9 til 1/10 var slottet
+          UDGÅET — målet stod kun i «Din plan» længere nede.)
       (f) åbne company_actions (kalderens prioritetsorden)
       (g) pulse-nudge                  (h) løftestang uden milestone
       (i) tom netværksprofil (ask_me_about mangler) — LAVEST: en tom
@@ -139,6 +147,12 @@ export interface FocusInputs extends NextStepInputs {
       kortet (tjeklistenStyrerForsiden). Valgfri: udeladt/null = ny = som
       før 30/9. */
   medlemSiden?: string | null;
+  /** Slot (e), målet (1/10-2026): de mål og skridt med maal_id, forsiden
+      ALLEREDE henter (milestonesQuery + skridtQuery). Dommen er maalFokus
+      (ren, tiden = `now`). Valgfri: udeladt/null = intet målpunkt (fx når
+      en af de to hentninger fejlede — et halvt billede må ikke give et
+      forkert «tilføj det første skridt»). */
+  maalPlan?: { maal: readonly MaalFokusMaal[]; skridt: readonly MaalFokusSkridt[] } | null;
 }
 
 export type FocusKind =
@@ -148,6 +162,7 @@ export type FocusKind =
   | "unread-messages"
   | "unread-agent"
   | "weekly-focus"
+  | "maal"
   | "company-action"
   | "pulse"
   | "unlinked-lever"
@@ -385,9 +400,50 @@ export function deriveFocus(inputs: FocusInputs): FocusItem[] {
     });
   }
 
-  // (e) UDGÅET (fase 3, 16/9): milestone-deadline ≤14 dage. Målet står i
-  // forsidens «Dine mål» med fremdrift og frist — et fokuspunkt oveni
-  // sagde det samme to steder. Prioritet 5 er ledig med vilje.
+  // (e) MÅLET — ét punkt, aldrig flere (1/10-2026). Fra 16/9 var slottet
+  // UDGÅET («et fokuspunkt oveni sagde det samme to steder»); målt 1/10:
+  // 6 af 36 aktive mål havde et skridt — kortet øverst skal pege på målet.
+  // Dommen og kildernes rækkefølge står i maalFokus.ts. Er punktet et
+  // skridt, springer (f) netop det skridt over (samme ting to gange).
+  const maalPunkt = inputs.maalPlan ? maalFokus(inputs.maalPlan.maal, inputs.maalPlan.skridt, now) : null;
+  if (maalPunkt?.art === "skridt") {
+    const fristLinje = maalPunkt.maalDageTilbage != null ? ` Målets frist: ${dageTilbageTekst(maalPunkt.maalDageTilbage)}.` : "";
+    items.push({
+      key: `maal:skridt:${maalPunkt.skridtId}`,
+      kind: "maal",
+      priority: 5,
+      title: maalPunkt.skridtTitel,
+      description: `Skal være gjort senest ${formatDanskDato(maalPunkt.frist)} — ${modMaaletLinje(maalPunkt.maalTitel)}.${fristLinje}`,
+      ctaLabel: MAAL_FOKUS_SKRIDT_CTA,
+      ctaHref: "#dine-skridt",
+      sourceId: maalPunkt.skridtId,
+    });
+  } else if (maalPunkt?.art === "foerste_skridt") {
+    items.push({
+      key: `maal:foerste:${maalPunkt.maalId}`,
+      kind: "maal",
+      priority: 5,
+      title: foersteSkridtTitel(maalPunkt.maalTitel, maalPunkt.foerste),
+      description: maalPunkt.foerste
+        ? "Et mål uden skridt flytter sig ikke. Hvad er det første, I gør?"
+        : "Intet er i gang under målet lige nu. Hvad er det næste, I gør?",
+      ctaLabel: MAAL_FOKUS_TILFOEJ_CTA,
+      ctaHref: MAAL_FOKUS_STI,
+      sourceId: maalPunkt.maalId,
+    });
+  } else if (maalPunkt?.art === "frist") {
+    items.push({
+      key: `maal:frist:${maalPunkt.maalId}`,
+      kind: "maal",
+      priority: 5,
+      title: fristTitel(maalPunkt.maalTitel, maalPunkt.dageTilbage),
+      description: "Hvad skal der til for at nå målet? Se skridtene og fristen.",
+      ctaLabel: MAAL_FOKUS_MAAL_CTA,
+      ctaHref: MAAL_FOKUS_STI,
+      sourceId: maalPunkt.maalId,
+    });
+  }
+  const maalSkridtId = maalPunkt?.art === "skridt" ? maalPunkt.skridtId : null;
 
   // (f) Åbne handlinger — kalderens orden bevares (ActionCenter:205-208:
   // high → medium → low, dernæst ældste først). 'proposed' udelades
@@ -403,6 +459,7 @@ export function deriveFocus(inputs: FocusInputs): FocusItem[] {
   // sektionen.
   for (const action of inputs.openActions) {
     if (action.status === "proposed") continue;
+    if (action.id === maalSkridtId) continue; // står allerede som målets punkt (e)
     /* context er handlingens egen begrundelse fra AI-analysen og siger
        HVORFOR — fallbacken bevares, fordi kolonnen er nullable, men
        den er sidste udvej, ikke normen. */

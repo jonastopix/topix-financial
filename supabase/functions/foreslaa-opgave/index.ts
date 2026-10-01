@@ -4,12 +4,14 @@
 // 'advisor', status 'proposed', 30 dages udløb (B10), proposed_by =
 // rådgiveren. due_date sættes IKKE — B6: datoen vælges af den der
 // forpligter sig, ved accept i "Dine skridt" på forsiden.
-// «Én plan» FASE 3 — JONAS 16/9 (ordret: «B»): maalId er VALGFRIT.
-// Rådgiveren vælger et mål når der er et; uden valg lander skridtet som
-// «uden mål (fra før planen)» i Planen. Et VALGT mål slås op hos SAMME
-// virksomhed (404) og skal være aktivt (409). Kun AI'en er bundet til mål
-// (fase 5). Kalderne (chatten, Planen) foreslår det ældste aktive mål som
-// standard med et tydeligt «Uden mål»-valg.
+// «Én plan» FASE 3 — JONAS 16/9 (ordret: «B»): maalId var VALGFRIT.
+// SKÆRPET 1/10-2026 («Dine mål» skal være «meget skarpere … et vigtigt
+// fundament for hele arbejdet over 12 mdr»; maal-produkt.md §4 «Chatten»):
+// har virksomheden AKTIVE mål, SKAL maalId være med — ellers 400 med
+// grund «maal_kraeves» (dommen kraeverMaalValg i _shared/maalValg.ts,
+// spejlet i src/lib). Uden aktive mål er «uden mål» stadig lovligt og
+// uændret. Et VALGT mål slås op hos SAMME virksomhed (404) og skal være
+// aktivt (409). Kalderne (chatten, Planen) kræver valget i dialogen.
 //
 // Bucket A-form fra opgave-accepter:
 //   1. CORS-preflight.
@@ -35,6 +37,7 @@ import { normaliserBegrundelse, validerTitel } from "../_shared/foreslaaOpgaveVa
 // (generate-weekly-focus, run-company-agent). Dommen kaldes med
 // { skriver: "raadgiver" } nedenfor.
 import { doemSkrivning, SKRIVE_SELECT_KOLONNER, skriveFilter } from "../_shared/skridtForslag.ts";
+import { kraeverMaalValg, MAAL_KRAEVES_GRUND, MAAL_KRAEVES_TEKST } from "../_shared/maalValg.ts";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -65,7 +68,7 @@ Deno.serve(async (req) => {
     conversationId?: unknown;
     titel?: unknown;
     begrundelse?: unknown;
-    /** Fase 3 («Én plan», Jonas «B»): VALGFRIT — det aktive mål skridtet hører til; udeladt = uden mål. */
+    /** Det aktive mål skridtet hører til. KRÆVET når virksomheden har aktive mål (1/10-2026); ellers udeladt = uden mål. */
     maalId?: unknown;
   };
   if (typeof companyId !== "string" || companyId.trim() === "") {
@@ -153,6 +156,25 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Virksomheden har intet medlem — forslaget ville ingen modtager have" }, 404);
   }
 
+  // 1/10-2026: et mål KRÆVES, når virksomheden har aktive mål — efter auth,
+  // RLS-opslagene og rolletjekket, før dubletkontrollen og skrivningen. Samme
+  // regel som milestones-triggeren og fladerne: status = 'active'. Uden
+  // aktive mål (eller med maalId) er adfærden uændret.
+  if (!oensketMaalId) {
+    const { data: aktiveMaal, error: aktiveErr } = await adminClient
+      .from("milestones")
+      .select("id")
+      .eq("company_id", companyId)
+      .eq("status", "active");
+    if (aktiveErr) {
+      console.error("[foreslaa-opgave] opslag af aktive mål fejlede:", aktiveErr);
+      return jsonResponse({ error: "Intern fejl" }, 500);
+    }
+    if (kraeverMaalValg(aktiveMaal ?? [])) {
+      return jsonResponse({ error: MAAL_KRAEVES_TEKST, grund: MAAL_KRAEVES_GRUND }, 400);
+    }
+  }
+
   // Fase 0a: dommen FØR insert. JONAS 16/9, VALG A: rådgiverens egne
   // forslag spærres ALDRIG af et ventende forslag — kun af dubletkontrollen
   // (samme titel inden for 30 døgn); det er AI'en der stopper når der
@@ -187,7 +209,7 @@ Deno.serve(async (req) => {
   // være aktivt (parkerede og nåede mål får ingen skridt). Service role +
   // company-filter er dommen; et mål fra en anden virksomhed ser ud som
   // «findes ikke» (404), aldrig som et link på tværs. Kun når et mål ER valgt
-  // (Jonas «B»: valgfrit) — værnet for det valgte mål bliver.
+  // (uden valg er der ingen aktive mål — dommen ovenfor) — værnet bliver.
   if (oensketMaalId) {
     const { data: maal, error: maalErr } = await adminClient
       .from("milestones")
@@ -222,7 +244,7 @@ Deno.serve(async (req) => {
       priority: "medium",
       proposed_by: callerId,
       expires_at: beregnUdloeb("advisor", new Date()).toISOString(),
-      // Fase 3 (Jonas «B»): skridtets mål — NULL når rådgiveren ikke valgte et («uden mål» i Planen).
+      // Skridtets mål — NULL kun når virksomheden ingen aktive mål har (1/10-2026).
       maal_id: oensketMaalId,
     })
     .select("id")

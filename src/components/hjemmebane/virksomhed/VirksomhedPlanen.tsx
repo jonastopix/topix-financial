@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { erMedlemmetsEget, fremdriftTekst, MEDLEMMETS_EGET_TEKST, planenDom, udenBevaegelseTekst, type MaalIPlanen, type MaalRaekke, type SkridtRaekke } from "@/lib/hjemmebane/planen";
 import { MAX_AKTIVE_MAAL } from "@/lib/hjemmebane/maal";
+import { forslagMaalDom, MAAL_KRAEVES_TEKST } from "@/lib/maalValg";
 import { HbButton } from "../HbButton";
 import { HbSection } from "../HbSection";
 import { HbField, HbInput, HbTextarea, hbControlClasses } from "../admin/HbField";
@@ -29,10 +30,11 @@ import { HbField, HbInput, HbTextarea, hbControlClasses } from "../admin/HbField
  * «Foreslå skridt» (fase 3): samme vej som chattens «Foreslå skridt» — edge
  * function foreslaa-opgave med companyId, samtalen (samtaleId fra Blok6: den
  * med seneste besked; null = ingen samtale → knappen er slået fra og siger
- * hvorfor) og et VALGFRIT maalId. JONAS 16/9 (ordret: «B»): målvælgeren er
- * valgfri — standard er målet knappen står under (ellers det ældste aktive),
- * «Uden mål» er et tydeligt valg; ingen aktive mål → knappen står under
- * kortet uden valg, og skridtet sendes uden mål (lander som «uden mål»).
+ * hvorfor) og maalId. MÅLET KRÆVES (1/10-2026; før Jonas «B» 16/9, valgfrit):
+ * under et mål er standarden målet knappen står under, og vælgeren har KUN de
+ * aktive mål — intet «Uden mål»; ingen aktive mål → knappen står under
+ * kortet uden valg, og skridtet sendes uden mål. Dommen er forslagMaalDom
+ * (lib/maalValg), samme som chatten og foreslaa-opgave (400 maal_kraeves).
  * Forslaget lander i medlemmets «Dine skridt» på forsiden; skridtet står som
  * «venter» her.
  *
@@ -117,10 +119,13 @@ export function VirksomhedPlanen({
   const foreslaaSkridt = async () => {
     const t = skridtTitel.trim();
     if (!t || !samtaleId) return;
-    const maalId = skridtMaalValg === "uden" ? null : skridtMaalValg;
+    // Dommen (1/10): med aktive mål SKAL et af dem være valgt; uden aktive mål sendes intet maalId.
+    const maalDom = forslagMaalDom("klar", dom.aktive.map((a) => ({ id: a.maal.id })), skridtMaalValg === "uden" ? null : skridtMaalValg);
+    if (!maalDom.kanSendes) { toast.error("Skridtet blev ikke foreslået", { description: MAAL_KRAEVES_TEKST }); return; }
+    const maalId = maalDom.maalId;
     setArbejder(`skridt:${foreslaaFor ?? "uden"}`);
     try {
-      // Jonas «B»: maalId kun med når et mål er valgt — uden lander skridtet som «uden mål».
+      // maalId kun med når der er aktive mål (så er det krævet); uden aktive mål lander skridtet som «uden mål».
       const r = await kaldForeslaaOpgave({ companyId, conversationId: samtaleId, titel: t, ...(skridtBegrundelse.trim() ? { begrundelse: skridtBegrundelse.trim() } : {}), ...(maalId ? { maalId } : {}) });
       if (r.ok === false) {
         toast.error("Skridtet blev ikke foreslået", { description: r.fejl });
@@ -309,8 +314,8 @@ export function VirksomhedPlanen({
 }
 
 /** Formularen «Foreslå skridt» — under et mål (med målvælger: standard = målet
-    knappen står under, ellers de andre aktive, og «Uden mål») eller under
-    kortet uden aktive mål (ingen vælger). */
+    knappen står under, ellers de andre aktive — intet «Uden mål», 1/10-2026)
+    eller under kortet uden aktive mål (ingen vælger). */
 function SkridtForm({
   noegle, aktive, maalValg, onMaalValg, titel, begrundelse, onTitel, onBegrundelse, sender, laast, onSend,
 }: {
@@ -321,10 +326,9 @@ function SkridtForm({
   return (
     <form className="mt-2 space-y-2" onSubmit={(e) => { e.preventDefault(); onSend(); }} data-skridt-form={noegle}>
       {aktive.length > 0 && (
-        <HbField label="Mod målet" htmlFor={`skridt-maal-${noegle}`} help="Valgfrit — «Uden mål» lander som skridt uden mål.">
-          <select id={`skridt-maal-${noegle}`} value={maalValg} onChange={(e) => onMaalValg(e.target.value)} className={hbControlClasses} data-maalvaelger>
+        <HbField label="Mod målet" htmlFor={`skridt-maal-${noegle}`} help="Et skridt hører altid til et af de aktive mål.">
+          <select id={`skridt-maal-${noegle}`} value={maalValg} onChange={(e) => onMaalValg(e.target.value)} className={hbControlClasses} required data-maalvaelger>
             {aktive.map((m) => <option key={m.id} value={m.id}>{m.title}</option>)}
-            <option value="uden">Uden mål</option>
           </select>
         </HbField>
       )}

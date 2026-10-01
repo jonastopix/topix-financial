@@ -8,18 +8,23 @@ import { join, resolve } from "node:path";
 // opgaver selv»; «A» — 100 % = alle skridt gjort, målet vises som færdigt;
 // fladen får «Marker som nået». Syv ting låses:
 //   1. Menuen: «Dine mål» på stien /milestones (hbNav), og siden er DineMaalView.
-//   2. Fokusmotoren har INGEN milepæls-kilde (slot (e) ude): hverken
-//      `milestones:` i inputtet, kind "milestone-deadline" eller "/milestones"
-//      som ctaHref — og BoardroomView giver deriveFocus ingen `milestones:`.
+//   2. Fokusmotoren har INGEN gammel milepæls-kilde: hverken `milestones:` i
+//      inputtet, kind "milestone-deadline" eller en hårdkodet "/milestones"
+//      som ctaHref. RETTET 1/10-2026: slot (e) er genindført som MÅLET — men
+//      KUN gennem den rene dom maalFokus (maalFokus.ts, tiden = now), og
+//      forsiden giver den `maalPlan` af milestonesQuery + skridtQuery (ingen
+//      ny hentning), kun når begge er hentet.
 //   3. Skyderen kun for mål UDEN skridt: HbMaalRaekke's klikbare bar er
 //      låst til dommens kanSaetteFremdrift, og dommen sætter den fra `!x.beregnet`.
 //   4. Medlemmet ejer sine mål: DineMaalView bruger useMilestones' opret, slet,
 //      opdaterFelt og markerNaaet; og INGEN migration i repoet hedder
 //      «maal_skrives_af_raadgiveren» (planens RLS-migration UDGÅR).
-//   5. JONAS 16/9 (ordret: «B»): maalId er VALGFRIT i foreslaa-opgave — ingen
-//      400 «Målet mangler»; et VALGT mål valideres stadig (404/409). Begge
-//      kaldere — chatten og Planen — sender maalId kun når et mål er valgt, og
-//      har et tydeligt «Uden mål»-valg.
+//   5. RETTET 1/10-2026 (før: Jonas «B» 16/9, maalId valgfrit): har
+//      virksomheden AKTIVE mål, KRÆVER foreslaa-opgave maalId — 400 med grund
+//      «maal_kraeves» (kraeverMaalValg, _shared/maalValg.ts), lagt EFTER
+//      rolletjekket; et VALGT mål valideres stadig (404/409). Begge kaldere —
+//      chatten og Planen — dømmer med forslagMaalDom (lib/maalValg) og har
+//      INTET «Uden mål»-valg; chatten har ingen standard (valget kræves).
 //   8. Fulde titler i Planen (Jonas 16/9: «Vi kan ikke se hele opgaveskriften
 //      på virksomhedssiden»): ingen truncate/line-clamp i VirksomhedPlanen.
 //   6. «Måske relevant»: MODUL_FOR_KATEGORI kender præcis milestoneCategories'
@@ -116,14 +121,18 @@ export const menuenHolder = (nav: string, side: string): boolean =>
   side.includes('import { DineMaalView } from "@/components/hjemmebane/milestones/DineMaalView";') &&
   side.includes("<DineMaalView />");
 
-/** Dom 2: ingen milepæls-kilde i fokusmotoren; forsiden giver ingen. */
+/** Dom 2: ingen gammel milepæls-kilde i fokusmotoren; målet (slot (e), 1/10) kun gennem maalFokus. */
 export const motorenUdenMilepaele = (motor: string, forside: string): boolean => {
   const focusKald = forside.slice(forside.indexOf("return deriveFocus({"), forside.indexOf("});", forside.indexOf("return deriveFocus({")));
   return !/milestone-deadline/.test(motor) &&
     !/^\s*milestones:/m.test(motor) &&
     !/ctaHref: "\/milestones"/.test(motor) &&
     !/NextStepMilestone/.test(motor) &&
-    focusKald.length > 0 && !/milestones:/.test(focusKald);
+    /const maalPunkt = inputs\.maalPlan \? maalFokus\(inputs\.maalPlan\.maal, inputs\.maalPlan\.skridt, now\) : null;/.test(motor) &&
+    (motor.match(/maalFokus\(/g) ?? []).length === 1 &&
+    !/Date\.now\(\)/.test(motor) &&
+    focusKald.length > 0 && !/milestones:/.test(focusKald) &&
+    /maalPlan: milestonesQuery\.data && skridtQuery\.data\s*\?\s*\{ maal: milestonesQuery\.data, skridt: skridtQuery\.data/.test(focusKald);
 };
 
 /** Dom 3: skyderen kun uden skridt. */
@@ -144,18 +153,31 @@ export const medlemmetEjer = (view: string, migrationer: readonly string[]): boo
   !/functions\.invoke\("maal-skriv"/.test(view) &&
   !migrationer.some((m) => /maal_skrives_af_raadgiveren/.test(m));
 
-/** Dom 5 (Jonas «B»): maalId valgfrit — det valgte mål valideres; kalderne sender kun et valgt mål og har «Uden mål». */
-export const maaletErValgfrit = (fn: string, chat: string, planen: string): boolean =>
-  !/Målet mangler/.test(fn) &&
-  fn.includes('if (maalId !== undefined && maalId !== null && (typeof maalId !== "string" || maalId.trim() === "")) {') &&
-  fn.includes("if (oensketMaalId) {") &&
-  /status !== "active"/.test(fn) && /Målet findes ikke hos denne virksomhed/.test(fn) &&
-  /\.\.\.\(valgtMaalId \? \{ maalId: valgtMaalId \} : \{\}\),/.test(chat) &&
-  !/\|\| !forslagMaalId\) return;/.test(chat) &&
-  /<option value="uden">Uden mål<\/option>/.test(chat) &&
-  /functions\.invoke\("foreslaa-opgave"/.test(planen) &&
-  /\.\.\.\(maalId \? \{ maalId \} : \{\}\) \}\);/.test(planen) &&
-  /<option value="uden">Uden mål<\/option>/.test(planen);
+/** Dom 5 (1/10-2026): målet kræves, når der er aktive mål — serveren efter rolletjekket, kalderne gennem forslagMaalDom, intet «Uden mål». */
+export const maaletKraeves = (fn: string, chat: string, planen: string): boolean => {
+  const rolle = fn.indexOf('_role: "advisor"');
+  const kraev = fn.indexOf("if (kraeverMaalValg(aktiveMaal ?? [])) {");
+  const insert = fn.indexOf('.from("company_actions")\n    .insert(');
+  return !/Målet mangler/.test(fn) &&
+    fn.includes('import { kraeverMaalValg, MAAL_KRAEVES_GRUND, MAAL_KRAEVES_TEKST } from "../_shared/maalValg.ts";') &&
+    fn.includes('if (maalId !== undefined && maalId !== null && (typeof maalId !== "string" || maalId.trim() === "")) {') &&
+    /if \(!oensketMaalId\) \{\s*const \{ data: aktiveMaal, error: aktiveErr \} = await adminClient\s*\.from\("milestones"\)\s*\.select\("id"\)\s*\.eq\("company_id", companyId\)\s*\.eq\("status", "active"\);/.test(fn) &&
+    fn.includes("return jsonResponse({ error: MAAL_KRAEVES_TEKST, grund: MAAL_KRAEVES_GRUND }, 400);") &&
+    rolle > 0 && kraev > rolle && insert > kraev &&
+    fn.includes("if (oensketMaalId) {") &&
+    /status !== "active"/.test(fn) && /Målet findes ikke hos denne virksomhed/.test(fn) &&
+    /const forslagDom = forslagMaalDom\(/.test(chat) &&
+    /!forslagDom\.kanSendes\) return;/.test(chat) &&
+    /disabled=\{foreslaarOpgave \|\| !forslagTitel\.trim\(\) \|\| !forslagDom\.kanSendes\}/.test(chat) &&
+    /\.\.\.\(maalId \? \{ maalId \} : \{\}\),/.test(chat) &&
+    !/aktiveMaal\[0\]\?\.id/.test(chat) &&
+    !/>Uden mål</.test(chat) &&
+    /functions\.invoke\("foreslaa-opgave"/.test(planen) &&
+    /const maalDom = forslagMaalDom\("klar", dom\.aktive\.map/.test(planen) &&
+    /if \(!maalDom\.kanSendes\)/.test(planen) &&
+    /\.\.\.\(maalId \? \{ maalId \} : \{\}\) \}\);/.test(planen) &&
+    !/>Uden mål</.test(planen);
+};
 
 /** Dom 8: fulde titler i Planen — ingen klipning. */
 export const fuldeTitler = (planen: string): boolean => !/\b(truncate|line-clamp-\d+)\b/.test(planen);
@@ -202,7 +224,7 @@ describe("dineMaal.guard — fase 3: medlemmets mål, uden milepæls-slot, skyde
   it("dom 1: menuen siger «Dine mål» på /milestones, og siden er DineMaalView", () => {
     expect(menuenHolder(nav, side)).toBe(true);
   });
-  it("dom 2: fokusmotoren har ingen milepæls-kilde, og forsiden giver den ingen", () => {
+  it("dom 2: fokusmotoren har ingen gammel milepæls-kilde; målet (slot (e), 1/10) kun gennem maalFokus med forsidens egne rækker", () => {
     expect(motorenUdenMilepaele(motor, forside)).toBe(true);
   });
   it("dom 3: skyderen (klik på baren) kun når dommen siger kanSaetteFremdrift — og dommen siger det kun uden tællende skridt", () => {
@@ -211,8 +233,8 @@ describe("dineMaal.guard — fase 3: medlemmets mål, uden milepæls-slot, skyde
   it("dom 4: medlemmet ejer sine mål — opret/omdøb/parkér/slet/nået gennem useMilestones; ingen RLS-migration «maal_skrives_af_raadgiveren»", () => {
     expect(medlemmetEjer(view, migrationer)).toBe(true);
   });
-  it("dom 5 (Jonas «B»): maalId er valgfrit i foreslaa-opgave, et valgt mål valideres; chatten og Planen sender kun et valgt mål og har «Uden mål»", () => {
-    expect(maaletErValgfrit(fn, chat, planen)).toBe(true);
+  it("dom 5 (1/10-2026): har virksomheden aktive mål, kræver foreslaa-opgave maalId (400 maal_kraeves efter rolletjekket); chatten og Planen dømmer med forslagMaalDom og har intet «Uden mål»", () => {
+    expect(maaletKraeves(fn, chat, planen)).toBe(true);
   });
   it("dom 8: fulde titler i Planen — ingen truncate/line-clamp", () => {
     expect(fuldeTitler(planen)).toBe(true);
@@ -234,9 +256,12 @@ describe("dineMaal.guard — fase 3: medlemmets mål, uden milepæls-slot, skyde
     expect(menuenHolder(nav.replace('label: "Dine mål"', 'label: "Milestones"'), side)).toBe(false);
     expect(menuenHolder(nav, side.replace("<DineMaalView />", "<MilestonesView />"))).toBe(false);
   });
-  it("selvbevis 2: slot (e) tilbage i motoren, eller `milestones:` i forsidens deriveFocus-kald, falder", () => {
+  it("selvbevis 2: den gamle kilde tilbage, `milestones:` i forsidens kald, målet uden om maalFokus, eller et halvt billede, falder", () => {
     expect(motorenUdenMilepaele(motor + '\n  items.push({ kind: "milestone-deadline" });', forside)).toBe(false);
     expect(motorenUdenMilepaele(motor, forside.replace("return deriveFocus({", "return deriveFocus({\n      milestones: milestonesQuery.data ?? [],"))).toBe(false);
+    expect(motorenUdenMilepaele(motor.replace("const maalPunkt = inputs.maalPlan ? maalFokus(", "const maalPunkt = inputs.maalPlan ? egenDom("), forside)).toBe(false);
+    expect(motorenUdenMilepaele(motor + "\nconst t = Date.now();", forside)).toBe(false);
+    expect(motorenUdenMilepaele(motor, forside.replace("maalPlan: milestonesQuery.data && skridtQuery.data", "maalPlan: milestonesQuery.data"))).toBe(false);
   });
   it("selvbevis 3: en bar der er klikbar uanset skridt, eller en dom der giver skyderen til mål med skridt, falder", () => {
     expect(skyderenHolder(raekke.replace("const klikbarBar = h.kanSaetteFremdrift && !maalbar;", "const klikbarBar = !maalbar;"), dom)).toBe(false);
@@ -247,11 +272,15 @@ describe("dineMaal.guard — fase 3: medlemmets mål, uden milepæls-slot, skyde
     expect(medlemmetEjer(view + '\nawait supabase.functions.invoke("maal-skriv", {});', migrationer)).toBe(false);
     expect(medlemmetEjer(view, [...migrationer, "supabase/migrations/20260917160000_maal_skrives_af_raadgiveren.sql"])).toBe(false);
   });
-  it("selvbevis 5: «Målet mangler» tilbage i functionen, et værn der er væk, eller en kalder uden «Uden mål» falder", () => {
-    expect(maaletErValgfrit(fn + '\n  return jsonResponse({ error: "Målet mangler" }, 400);', chat, planen)).toBe(false);
-    expect(maaletErValgfrit(fn.replace("if (oensketMaalId) {", "{"), chat, planen)).toBe(false);
-    expect(maaletErValgfrit(fn, chat.replace('<option value="uden">Uden mål</option>', ""), planen)).toBe(false);
-    expect(maaletErValgfrit(fn, chat, planen.replace("...(maalId ? { maalId } : {}) });", "maalId });"))).toBe(false);
+  it("selvbevis 5: kravet væk i functionen, kravet før rolletjekket, et værn der er væk, en standard eller «Uden mål» i en kalder, falder", () => {
+    expect(maaletKraeves(fn.replace("if (kraeverMaalValg(aktiveMaal ?? [])) {", "if (false) {"), chat, planen)).toBe(false);
+    expect(maaletKraeves(fn.replace('_role: "advisor"', '_role: "advisor_x"') + '\n_role: "advisor"', chat, planen)).toBe(false);
+    expect(maaletKraeves(fn.replace("if (oensketMaalId) {", "{"), chat, planen)).toBe(false);
+    expect(maaletKraeves(fn, chat + '\n<option value="uden">Uden mål</option>', planen)).toBe(false);
+    expect(maaletKraeves(fn, chat + "\nconst std = aktiveMaal[0]?.id;", planen)).toBe(false);
+    expect(maaletKraeves(fn, chat.replace("|| !forslagDom.kanSendes}", "}"), planen)).toBe(false);
+    expect(maaletKraeves(fn, chat, planen + '\n<option value="uden">Uden mål</option>')).toBe(false);
+    expect(maaletKraeves(fn, chat, planen.replace("if (!maalDom.kanSendes)", "if (false)"))).toBe(false);
   });
   it("selvbevis 8: en truncate på en titel i Planen falder", () => {
     expect(fuldeTitler(planen.replace("min-w-0 break-words text-hb-ink", "min-w-0 truncate text-hb-ink"))).toBe(false);
