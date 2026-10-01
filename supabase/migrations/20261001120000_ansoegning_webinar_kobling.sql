@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod 1/10-2026 ca. 13:45 via Lovable-MCP (hovedsessionen). FØR: tabellen fandtes ikke (14 ansøgninger, 836 tilmeldinger). EFTER: tabel · rls true · 3 policies (r/a/d) · unik 2 · anon false · update false · 0 rækker. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
 --
 -- WEBINARKOBLINGEN (udkast 1/10-2026 — Jonas 1/10 08:25: «forslag + klik»).
 --
