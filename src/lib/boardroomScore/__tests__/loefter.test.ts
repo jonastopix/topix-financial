@@ -28,9 +28,15 @@ describe("loefterMitTal — reglen", () => {
     expect(ud).toHaveLength(1);
     expect(ud[0].tekst).toBe("upload bank");
   });
-  it("en låse-op-handling fylder aldrig op ved siden af regnede gevinster", () => {
-    const ud = loefterMitTal({ handlinger: [h("disciplin", 25), h("likviditet", null)] });
-    expect(ud.map((x) => x.soejle)).toEqual(["disciplin"]);
+  it("regnede først, højst én låse-op til sidst (rådets fund 1/10: uden opskalering er en søjle uden data 0 point værd)", () => {
+    const ud = loefterMitTal({ handlinger: [h("disciplin", 25), h("likviditet", null), h("vaekst", null)] });
+    expect(ud.map((x) => x.soejle)).toEqual(["disciplin", "likviditet"]);
+    expect(ud[1].gevinst).toBeNull();
+  });
+  it("låse-op kun på en ledig plads: tre regnede → ingen låse-op", () => {
+    const ud = loefterMitTal({ handlinger: [h("disciplin", 5), h("likviditet", null), h("indtjening", 12), h("vaekst", 20)] });
+    expect(ud.map((x) => x.soejle)).toEqual(["vaekst", "indtjening", "disciplin"]);
+    expect(loefterMitTal({ handlinger: [h("disciplin", 5), h("likviditet", null)] }, 1).map((x) => x.soejle)).toEqual(["disciplin"]);
   });
   it("intet at gøre → tom liste; maks 0 → tom liste", () => {
     expect(loefterMitTal({ handlinger: [h("disciplin", 0)] })).toEqual([]);
@@ -79,14 +85,40 @@ describe("loefterMitTal — mod motoren", () => {
       expect(ud.length).toBeLessThanOrEqual(3);
       expect(ud[0] ?? null).toEqual(dom.loefterMest);
       const regnede = ud.filter((x) => x.gevinst !== null);
-      if (regnede.length > 0) {
-        expect(regnede).toHaveLength(ud.length);
-        for (let i = 1; i < regnede.length; i++) expect(regnede[i - 1].gevinst! >= regnede[i].gevinst!).toBe(true);
-      } else {
-        expect(ud.length).toBeLessThanOrEqual(1);
-      }
+      const laaserOp = ud.filter((x) => x.gevinst === null);
+      // Regnede først (faldende), højst én låse-op — og kun bagest.
+      expect(laaserOp.length).toBeLessThanOrEqual(1);
+      expect(ud.slice(0, regnede.length)).toEqual(regnede);
+      for (const x of regnede) expect(x.gevinst! > 0).toBe(true);
+      for (let i = 1; i < regnede.length; i++) expect(regnede[i - 1].gevinst! >= regnede[i].gevinst!).toBe(true);
       // Hver handling er motorens egen (samme objekt), aldrig en ny tekst.
       for (const x of ud) expect(dom.handlinger).toContain(x);
     });
   }
+});
+
+/* Brilleværk-tilfældet (rådets fund 1/10-2026): indtjening og vækst mættede,
+   disciplin med en lille regnet gevinst (budget mangler), likviditet uden data
+   (intet banktal). Uden opskalering står likviditet på 0 af 250 — medlemmet
+   SKAL se banksaldo-handlingen, men bag den regnede gevinst. */
+describe("loefterMitTal — Brilleværk: lille regnet gevinst + likviditet uden data", () => {
+  const voksende = (k: string) =>
+    k >= "2026"
+      ? sund(k, { revenue: 150_000, gross_profit: 105_000, ebt: 45_000, cash: null })
+      : sund(k, { ebt: 30_000, cash: null });
+  const dom = boardroomScore(grundlag(keys("2025-06", 15).map(voksende), { harBudgetForAaret: false }), NU);
+  it("forudsætningerne holder: indtjening og vækst mættede, likviditet uden data, disciplin med lille gevinst", () => {
+    expect(dom.soejler.indtjening).toMatchObject({ status: "ok", point: 250 });
+    expect(dom.soejler.vaekst).toMatchObject({ status: "ok", point: 250 });
+    expect(dom.soejler.likviditet.status).not.toBe("ok");
+    const d = dom.handlinger.find((x) => x.soejle === "disciplin")!;
+    expect(d.gevinst).toBeGreaterThan(0);
+    expect(d.gevinst!).toBeLessThan(250);
+  });
+  it("begge vises: disciplin først (= loefterMest), likviditetens låse-op bagest", () => {
+    const ud = loefterMitTal(dom);
+    expect(ud.map((x) => x.soejle)).toEqual(["disciplin", "likviditet"]);
+    expect(ud[0]).toEqual(dom.loefterMest);
+    expect(ud[1].gevinst).toBeNull();
+  });
 });

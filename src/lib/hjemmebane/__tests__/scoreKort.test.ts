@@ -80,10 +80,23 @@ describe("daekningTekst", () => {
   it("fire søjler: ingen linje", () => {
     expect(daekningTekst(FULD)).toBeNull();
   });
-  it("uden bank: «Bygget på 3 af 4 søjler»", () => {
+  it("uden bank: «3 af 4 søjler giver point endnu»", () => {
     const d = boardroomScore(grundlag(keys("2025-06", 15).map((k) => sund(k, { cash: null }))), NU);
     expect(d.score).not.toBeNull();
-    expect(daekningTekst(d)).toBe("Bygget på 3 af 4 søjler");
+    expect(daekningTekst(d)).toBe("3 af 4 søjler giver point endnu");
+  });
+  it("uden opskalering (1/10-2026): scoren er summen af søjlernes point — likviditet uden data giver 0, ikke de andres gennemsnit", () => {
+    const med = boardroomScore(grundlag(keys("2025-06", 15).map((k) => sund(k))), NU);
+    const uden = boardroomScore(grundlag(keys("2025-06", 15).map((k) => sund(k, { cash: null }))), NU);
+    const sum = (d: typeof uden) => soejleLinjer(d).reduce((a, l) => a + (l.point ?? 0), 0);
+    expect(Math.abs((uden.score as number) - sum(uden))).toBeLessThanOrEqual(2);
+    expect(soejleLinjer(uden).find((l) => l.navn === "likviditet")).toMatchObject({ point: null, andel: 0 });
+    // At lægge banktallet ind kan kun løfte tallet.
+    expect(med.score as number).toBeGreaterThanOrEqual(uden.score as number);
+    // Handlingen, der låser likviditeten op, har ingen regnet gevinst (bankbeløbet er ukendt, kurven starter i 0).
+    const laas = uden.handlinger.find((h) => h.soejle === "likviditet")!;
+    expect(laas.gevinst).toBeNull();
+    expect(effektTekst(laas, uden)).toBe(EFFEKT_LAASER_OP);
   });
 });
 
@@ -207,7 +220,7 @@ describe("loefterLinjer — handlingerne ORDRET fra motoren", () => {
     const d = boardroomScore(grundlag(keys("2025-06", 15).map((k) => sund(k)), { harBudgetForAaret: false, harMaal: false }), NU);
     const l = loefterLinjer(d);
     expect(l.map((x) => x.tekst)).toEqual(loefterMitTal(d).map((h) => h.tekst));
-    for (const x of l) expect(x.effekt).toMatch(/^\+\d+ point$/);
+    for (const x of l) expect(x.effekt).toMatch(/^\+\d+ point$|^Låser en søjle op$/);
   });
   it("intet uploadet: højst én linje, og den lover aldrig point", () => {
     const l = loefterLinjer(TOM);
@@ -233,6 +246,18 @@ describe("loefterLinjer — handlingerne ORDRET fra motoren", () => {
     expect(en).toHaveLength(1);
     expect(EN_UDEN_START.soejler[en[0].soejle].status).not.toBe("ok");
     expect(en[0].effekt).toBe(EFFEKT_LAASER_OP);
+  });
+  it("rådets fund 1/10 (Brilleværk): lille regnet disciplin-gevinst + likviditet uden data → begge linjer, likviditet bagest med «Låser en søjle op»", () => {
+    const voksende = (k: string) =>
+      k >= "2026"
+        ? sund(k, { revenue: 150_000, gross_profit: 105_000, ebt: 45_000, cash: null })
+        : sund(k, { ebt: 30_000, cash: null });
+    const d = boardroomScore(grundlag(keys("2025-06", 15).map(voksende), { harBudgetForAaret: false }), NU);
+    const l = loefterLinjer(d);
+    expect(l.map((x) => x.soejle)).toEqual(["disciplin", "likviditet"]);
+    expect(l[0].tekst).toBe(d.loefterMest!.tekst);
+    expect(l[0].effekt).toMatch(/^\+\d+ point$/);
+    expect(l[1].effekt).toBe(EFFEKT_LAASER_OP);
   });
   it("effektTekst: alle fire grene", () => {
     const med = { score: 600, soejler: FULD.soejler };

@@ -3,9 +3,10 @@ import { boardroomScore, enMaanedTilbage, grundlagPaa, krTekst, MIN_SOEJLER_MED_
 import { naesteMaaned } from "@/lib/boardroomScore/streak";
 import type { Handling, ScoreGrundlag, ScoreMaaned, SoejleDom, SoejleNavn } from "@/lib/boardroomScore/typer";
 
-/* Den samlede score (docs/boardroom-score.md §2.5–§3): Σ point / Σ max × 1000
-   over søjler med data; null under MIN_SOEJLER_MED_DATA; forrige = én måned
-   tilbage; handlinger som marginal effekt på den samlede score. */
+/* Den samlede score (docs/boardroom-score.md §2.5–§3): Σ point over ALLE fire
+   søjler, en søjle uden data giver 0 (Jonas 1/10-2026: «drop opskaleringen»);
+   null under MIN_SOEJLER_MED_DATA; forrige = én måned tilbage; handlinger som
+   marginal effekt på den samlede score. */
 
 const NU = new Date("2026-09-30T10:00:00Z");
 
@@ -42,9 +43,43 @@ describe("samlet", () => {
     const s = samlet({ likviditet: ok("likviditet", 158.33), indtjening: ok("indtjening", 200), vaekst: ok("vaekst", 125), disciplin: ok("disciplin", 250) });
     expect(s).toEqual({ score: 733, daekning: 1, medData: 4 });
   });
-  it("tre søjler skaleres op — dækningen siger det: (200 + 125 + 250) / 750 × 1000 = 767", () => {
+  it("tre søjler skaleres IKKE op — likviditet uden data giver 0: 0 + 200 + 125 + 250 = 575 (før 1/10: 767)", () => {
     const s = samlet({ likviditet: mangler("likviditet"), indtjening: ok("indtjening", 200), vaekst: ok("vaekst", 125), disciplin: ok("disciplin", 250) });
-    expect(s).toEqual({ score: 767, daekning: 0.75, medData: 3 });
+    expect(s).toEqual({ score: 575, daekning: 0.75, medData: 3 });
+  });
+  it("Brilleværk (målt i drift 1/10): indtjening 250 + disciplin 150 + to søjler uden data = 400, ikke (250 + 150) / 500 × 1000 = 800", () => {
+    const s = samlet({ likviditet: mangler("likviditet"), indtjening: ok("indtjening", 250), vaekst: mangler("vaekst"), disciplin: ok("disciplin", 150) });
+    expect(s).toEqual({ score: 400, daekning: 0.5, medData: 2 });
+  });
+  it("egenskab: at lægge en søjle til kan aldrig sænke scoren — alle delmængder × alle pointniveauer", () => {
+    // Uden fast-check i huset: udtømmende over et gitter. For hver tilstand (hver søjle enten uden data
+    // eller med et af NIVEAUER) og hver søjle uden data: tilføj den med hvert niveau og sammenlign.
+    const NAVNE: SoejleNavn[] = ["likviditet", "indtjening", "vaekst", "disciplin"];
+    const NIVEAUER = [0, 0.4, 37.5, 125, 158.33, 249.6, 250];
+    const VALG: (number | null)[] = [null, ...NIVEAUER];
+    const byg = (v: (number | null)[]) =>
+      Object.fromEntries(NAVNE.map((n, i) => [n, v[i] === null ? mangler(n) : ok(n, v[i] as number)])) as Parameters<typeof samlet>[0];
+    let sammenligninger = 0;
+    const rek = (v: (number | null)[]): void => {
+      if (v.length < NAVNE.length) {
+        for (const x of VALG) rek([...v, x]);
+        return;
+      }
+      const foer = samlet(byg(v)).score;
+      v.forEach((x, i) => {
+        if (x !== null) return;
+        for (const p of NIVEAUER) {
+          const efter = samlet(byg(v.map((y, j) => (j === i ? p : y)))).score;
+          // null → tal er et løft (scoren opstår); tal → null kan ikke ske (flere søjler med data).
+          const medDataEfter = v.filter((y) => y !== null).length + 1;
+          if (medDataEfter >= MIN_SOEJLER_MED_DATA) expect(efter).not.toBeNull();
+          if (foer !== null) expect(efter as number).toBeGreaterThanOrEqual(foer);
+          sammenligninger++;
+        }
+      });
+    };
+    rek([]);
+    expect(sammenligninger).toBeGreaterThan(1000);
   });
   it(`under ${MIN_SOEJLER_MED_DATA} søjler → null, aldrig et opdigtet tal`, () => {
     const s = samlet({ likviditet: mangler("likviditet"), indtjening: mangler("indtjening"), vaekst: mangler("vaekst"), disciplin: ok("disciplin", 250) });
@@ -125,11 +160,11 @@ describe("boardroomScore — kanter", () => {
     expect(Object.values(d.soejler).every((s) => s.status === "ikke_nok_data")).toBe(true);
   });
 
-  it("to måneder: indtjening + disciplin bærer scoren, dækning 0,5", () => {
+  it("to måneder: indtjening + disciplin bærer scoren, dækning 0,5 — de to andre giver 0", () => {
     const d = boardroomScore(grundlag([sund("2026-07", { cash: null }), sund("2026-08", { cash: null })]), NU);
     expect(d.daekning).toBe(0.5);
-    // indtjening 200 + disciplin (2/6 målte: 50 + 50 + 25 + 25 = 150) = 350 / 500 → 700.
-    expect(d.score).toBe(700);
+    // indtjening 200 + disciplin (2/6 målte: 50 + 50 + 25 + 25 = 150) + 0 + 0 = 350 (før 1/10: 350 / 500 × 1000 = 700).
+    expect(d.score).toBe(350);
     expect(d.soejler.likviditet.status).toBe("ikke_nok_data");
     expect(d.soejler.vaekst.status).toBe("ikke_nok_data");
   });

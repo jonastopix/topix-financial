@@ -110,9 +110,9 @@ export interface Handling {
 }
 
 export interface ScoreDom {
-  /** 0–1000, eller null når færre end MIN_SOEJLER_MED_DATA søjler har data. */
+  /** 0–1000 = Σ point over alle fire søjler (uden data = 0), eller null når færre end MIN_SOEJLER_MED_DATA søjler har data. */
   score: number | null;
-  /** Andel af de 1000 point, scoren hviler på (Σ max for søjler med data / 1000). */
+  /** Andel af de 1000 point, der KAN optjenes nu (Σ max for søjler med data / 1000). Søjler uden data giver 0 point (1/10-2026). */
   daekning: number;
   soejler: Soejler;
   /** Samme dom med `nu` én måned tilbage på de måneder, der DA var godkendt — retningen; null når den ikke kan regnes. Budget/mål regnes som nu. */

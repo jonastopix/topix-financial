@@ -8,6 +8,7 @@ import { loefterMitTal } from "@/lib/boardroomScore/loefter";
 import type { ScoreGrundlag, ScoreMaaned } from "@/lib/boardroomScore/typer";
 import {
   EFFEKT_FOERSTE_SCORE,
+  EFFEKT_LAASER_OP,
   LOEFTER_MAAL_MAERKE,
   ringBue,
   SCORE_AFVENTER_OVERSKRIFT,
@@ -118,6 +119,37 @@ describe("ScoreKort", () => {
       else expect(a).toBeNull();
     });
     expect(screen.getByText(SCORE_FORBEHOLD)).toBeTruthy();
+  });
+
+  it("uden opskalering (1/10-2026): to søjler uden data står «—», og tallet er summen af barernes point", () => {
+    // Brilleværk-formen: ingen bank, for kort historik til vækst. Før 1/10 blev Σ point skaleret op til 1000.
+    const dom = boardroomScore(grundlag([sund("2026-07", { cash: null }), sund("2026-08", { cash: null })]), NU);
+    expect(dom.score).not.toBeNull();
+    const { container } = tegn({ dom });
+    const point = [...container.querySelectorAll("[data-soejle]")].map((el) => el.getAttribute("data-soejle-point"));
+    expect(container.querySelector('[data-soejle="likviditet"]')!.getAttribute("data-soejle-point")).toBe("ingen");
+    expect(container.querySelector('[data-soejle="vaekst"]')!.getAttribute("data-soejle-point")).toBe("ingen");
+    expect(container.querySelector('[data-soejle="likviditet"] dd')!.textContent).toBe("—");
+    const sum = point.filter((p) => p !== "ingen").reduce((a, p) => a + Number(p), 0);
+    // Barerne viser afrundede point; scoren er den afrundede sum — højst ½ point pr. søjle fra hinanden.
+    expect(Math.abs((dom.score as number) - sum)).toBeLessThanOrEqual(2);
+    expect(container.querySelector("[data-score-daekning-tekst]")!.textContent).toBe("2 af 4 søjler giver point endnu");
+  });
+
+  it("rådets fund 1/10 (Brilleværk): disciplin øverst, banksaldo-linjen bagest i detaljerne med «Låser en søjle op»", () => {
+    // Indtjening og vækst mættede, budget mangler (lille regnet disciplin-gevinst), intet banktal.
+    const voksende = (k: string) =>
+      k >= "2026"
+        ? sund(k, { revenue: 150_000, gross_profit: 105_000, ebt: 45_000, cash: null })
+        : sund(k, { ebt: 30_000, cash: null });
+    const dom = boardroomScore(grundlag(keys("2025-06", 15).map(voksende), { harBudgetForAaret: false }), NU);
+    const { container } = tegn({ dom });
+    expect(container.querySelector("[data-loefter-soejle]")!.getAttribute("data-loefter-soejle")).toBe("disciplin");
+    aabnDetaljer();
+    const rækker = [...container.querySelectorAll("[data-loefter-soejle]")];
+    expect(rækker.map((r) => r.getAttribute("data-loefter-soejle"))).toEqual(["disciplin", "likviditet"]);
+    expect(rækker[1].textContent).toContain(EFFEKT_LAASER_OP);
+    expect(rækker[0].textContent).not.toContain(EFFEKT_LAASER_OP);
   });
 
   it("uden score: «Ikke nok tal endnu», streaken står stadig", () => {
