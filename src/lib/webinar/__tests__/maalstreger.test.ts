@@ -6,9 +6,9 @@ import {
   kroner,
   MAAL_ANSOEGERE_BLANDT_SET,
   MAAL_FREMMOEDE,
-  MAAL_KILDE,
   MAAL_PRIS_PR_ANSOEGNING_OERE,
   MAAL_PRIS_PR_MEDLEM_OERE,
+  MAAL_TITEL,
   MAAL_UDFALD_ORD,
   maalstreger,
   prisTaelling,
@@ -21,9 +21,9 @@ import { TROVAERDIG_FRA } from "@/lib/webinar/annoncepriser";
 import * as deno from "../../../../supabase/functions/_shared/webinarMaalstreger.ts";
 
 /**
- * Nicklas' målstreger (udkast 1/10-2026). Fire ting prøves:
+ * Vores målstreger (udkast 1/10-2026; rettet 1/10 kl. 20:13). Fire ting prøves:
  *   1. PROCENTMÅLET: Wilson, «for få» ERSTATTER tallet under 5, og «over/under
- *      målet» kun når HELE intervallet ligger på én side — med Nicklas' egne tal
+ *      målet» kun når HELE intervallet ligger på én side — med tallene ved start
  *      (469 → 189 mødte; 132 så færdigt → 6 ansøgte).
  *   2. KRONEMÅLET: ingen pris under 5 personer, pris < mål = «under målet»,
  *      ingen data uden forbrug, udækket vindue eller anden valuta.
@@ -47,14 +47,16 @@ const A = (email: string, indsendt_at: string | null, ekstra: Partial<AnsoegerMa
 });
 
 describe("målene står ét sted", () => {
-  it("Nicklas' fire tal og hans navn", () => {
+  it("vores fire tal — og intet navn (Jonas 1/10 kl. 20:13)", () => {
     expect(MAAL_FREMMOEDE).toBe(0.55);
     expect(MAAL_ANSOEGERE_BLANDT_SET).toBe(0.1);
     expect(MAAL_PRIS_PR_ANSOEGNING_OERE).toBe(250_000);
-    expect(MAAL_PRIS_PR_MEDLEM_OERE).toBe(1_500_000);
-    expect(MAAL_KILDE).toBe("Nicklas, 1/10");
+    // 7.500 kr. = 3 × 2.500 kr.: vi lukker ca. hver tredje ansøger.
+    expect(MAAL_PRIS_PR_MEDLEM_OERE).toBe(750_000);
+    expect(MAAL_PRIS_PR_MEDLEM_OERE).toBe(3 * MAAL_PRIS_PR_ANSOEGNING_OERE);
+    expect(MAAL_TITEL).toBe("Vores mål");
     expect(kroner(250_000)).toBe("2.500");
-    expect(kroner(1_500_000)).toBe("15.000");
+    expect(kroner(750_000)).toBe("7.500");
   });
   it("R2: tre ord for alle fire mål", () => {
     expect(MAAL_UDFALD_ORD).toEqual({ naaet: "nået", ikke_naaet: "ikke nået", kan_ikke_afgoeres: "kan ikke afgøres" });
@@ -66,7 +68,7 @@ describe("målene står ét sted", () => {
 });
 
 describe("procentmålet — Wilson mod stregen", () => {
-  it("Nicklas' fremmøde: 189 af 469 = 40 % (36–45 %) — hele intervallet under 55 %", () => {
+  it("fremmødet ved start: 189 af 469 = 40 % (36–45 %) — hele intervallet under 55 %", () => {
     const l = procentmaal("fremmoede", "Fremmøde", 189, 469, MAAL_FREMMOEDE, "", "");
     expect(l.vaerdiOrd).toBe("40 % (36–45 %) af 469");
     expect(l.udfald).toBe("ikke_naaet");
@@ -74,7 +76,7 @@ describe("procentmålet — Wilson mod stregen", () => {
     expect(l.naaet).toBe(false);
     expect(l.maalOrd).toBe("over 55 %");
   });
-  it("Nicklas' ansøgere: 6 af 132 = 5 % (2–10 %) — øvre 9,6 % < 10 %: ikke nået", () => {
+  it("ansøgerne ved start: 6 af 132 = 5 % (2–10 %) — øvre 9,6 % < 10 %: ikke nået", () => {
     const l = procentmaal("ansoegere_blandt_set", "Ansøgere", 6, 132, MAAL_ANSOEGERE_BLANDT_SET, "", "");
     expect(l.vaerdiOrd).toBe("5 % (2–10 %) af 132");
     expect(l.udfald).toBe("ikke_naaet");
@@ -134,11 +136,11 @@ describe("kronemålet — ingen pris under 5", () => {
     expect(kronemaal("pris_pr_ansoegning", "P", 1_247_450, 5, 250_000, "ansøgning", "ansøgninger", true, "", "")).toMatchObject({ vaerdiOrd: "2.495 kr. af 5 ansøgninger", naaet: true, udfaldOrd: "nået" });
   });
   it("4 personer: «for få» og INGEN pris; 0 personer med forbrug: «0 medlemmer for N kr.» (B6)", () => {
-    const l = kronemaal("pris_pr_medlem", "M", 3_490_500, 4, 1_500_000, "medlem", "medlemmer", true, "", "");
+    const l = kronemaal("pris_pr_medlem", "M", 3_490_500, 4, 750_000, "medlem", "medlemmer", true, "", "");
     expect(l).toMatchObject({ vaerdi: "for_faa", vaerdiOrd: "for få", udfald: "kan_ikke_afgoeres", naaet: null });
     expect(l.bar.vaerdi).toBeNull();
     expect(l.vaerdiOrd).not.toMatch(/kr\./);
-    const nul = kronemaal("pris_pr_medlem", "M", 3_490_500, 0, 1_500_000, "medlem", "medlemmer", true, "", "");
+    const nul = kronemaal("pris_pr_medlem", "M", 3_490_500, 0, 750_000, "medlem", "medlemmer", true, "", "");
     expect(nul).toMatchObject({ vaerdi: "nul", vaerdiOrd: "0 medlemmer for 34.905 kr.", udfald: "kan_ikke_afgoeres", udfaldOrd: "kan ikke afgøres", naaet: null });
     expect(nul.bar.vaerdi).toBeNull();
     expect(kronemaal("pris_pr_ansoegning", "P", 500_000, 0, 250_000, "ansøgning", "ansøgninger", true, "", "").vaerdiOrd).toBe("0 ansøgninger for 5.000 kr.");
@@ -251,9 +253,11 @@ describe("hele dommen", () => {
     annoncer: [], tilstand: "har", hentetTil: "2026-09-30",
   };
 
-  it("fire linjer i Nicklas' rækkefølge, med kilden og prisvinduet", () => {
+  it("fire linjer i fast rækkefølge, med prisvinduet — og intet navn", () => {
     const m = maalstreger({ tilmeldinger, ansoegninger, forbrug }, NU);
-    expect(m.kilde).toBe("Nicklas, 1/10");
+    expect(m).not.toHaveProperty("kilde");
+    expect(JSON.stringify(m)).not.toMatch(/Nicklas/i);
+    expect(m.linjer[3].maalOrd).toBe("under 7.500 kr.");
     expect(m.linjer.map((l) => l.noegle)).toEqual(["fremmoede", "ansoegere_blandt_set", "pris_pr_ansoegning", "pris_pr_medlem"]);
     expect(m.prisvindueOrd).toBe("10.–20. september");
     // B7: grundlaget i ord på hver linje.
@@ -336,12 +340,17 @@ describe("kildeværn — målstregerne", () => {
     expect(maalFladenSkriverKunDommensOrd(v.replace("{maal && (", "{("))).toBe(false);
     expect(maalFladenSkriverKunDommensOrd(v.replace(">{l.grundlagOrd}</p>", ">alle webinarer</p>"))).toBe(false);
   });
-  it("målene står ét sted: tallene 0.55 · 0.1 · 250_000 · 1_500_000 kun i dommen", () => {
+  it("målene står ét sted: tallene 0.55 · 0.1 · 250_000 · 750_000 kun i dommen", () => {
     const d = udenKommentarer(laes("src/lib/webinar/maalstreger.ts"));
     expect(d).toContain("export const MAAL_FREMMOEDE = 0.55;");
-    expect(d).toContain("export const MAAL_PRIS_PR_MEDLEM_OERE = 1_500_000;");
+    expect(d).toContain("export const MAAL_PRIS_PR_MEDLEM_OERE = 750_000;");
     for (const sti of [VIEW, "src/pages/DeltWebinar.tsx", "supabase/functions/_shared/webinarDelingSvar.ts"]) {
-      expect(udenKommentarer(laes(sti)), sti).not.toMatch(/\b(250_?000|1_?500_?000)\b/);
+      expect(udenKommentarer(laes(sti)), sti).not.toMatch(/\b(250_?000|750_?000|1_?500_?000)\b/);
+    }
+  });
+  it("ingen persons navn på målene — hverken i dommen, spejlet eller fladerne (Jonas 1/10 kl. 20:13)", () => {
+    for (const sti of ["src/lib/webinar/maalstreger.ts", "supabase/functions/_shared/webinarMaalstreger.ts", VIEW, "src/pages/DeltWebinar.tsx"]) {
+      expect(laes(sti), sti).not.toMatch(/Nicklas/i);
     }
   });
   it("dommen bruger lag 6's Wilson og husets grænser — ingen egen formel", () => {

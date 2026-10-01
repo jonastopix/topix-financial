@@ -5,8 +5,6 @@ import { HbCard } from "@/components/hjemmebane/HbCard";
 import { HbSection } from "@/components/hjemmebane/HbSection";
 import { useWebinarDashboard } from "@/hooks/webinarDashboard";
 import { useAnnonceforbrug } from "@/hooks/annonceforbrug";
-import { VarmeLeadsAfsnit } from "@/components/hjemmebane/webinar/VarmeLeads";
-import { varmeLeads, type VarmtLead } from "@/lib/webinar/varmeLeads";
 import { MAAL_EYEBROW, MAAL_TITEL, maalstreger, type MaalBar, type Maallinje, type Maalstreger } from "@/lib/webinar/maalstreger";
 import { AnnoncepriserAfsnit } from "@/components/hjemmebane/annoncer/AnnoncepriserAfsnit";
 import { PRIS_EYEBROW, PRIS_TITEL, TROVAERDIG_FRA } from "@/lib/webinar/annoncepriser";
@@ -583,8 +581,8 @@ const Kobling = ({ dom }: { dom: WebinarDashboardSvar }) => {
 };
 
 /**
- * MÅLSTREGERNE (udkast 1/10-2026) — Nicklas' fire styretal med en tynd bar og
- * en målstreg. Fladen skriver KUN dommens ord (`maalOrd`, `vaerdiOrd`,
+ * MÅLSTREGERNE (udkast 1/10-2026) — vores fire mål med en tynd bar og en
+ * målstreg. Fladen skriver KUN dommens ord (`maalOrd`, `vaerdiOrd`,
  * `udfaldOrd`) og tegner dommens positioner (`bar`, 0–1); den regner ingen
  * procent og ingen pris selv, og under grænsen står «for få» — der findes da
  * intet tal at tegne (`bar.vaerdi` er null). Samme komponent på /delt/webinar:
@@ -668,15 +666,12 @@ export const WebinarVisning = ({
   dom,
   priser,
   maal = null,
-  varme = null,
 }: {
   tilstand: "henter" | "fejl" | "klar";
   dom: WebinarDashboardSvar | null;
   priser: ReactNode;
-  /** Nicklas' målstreger — samme færdige dom på begge flader. null = ingen (fx gammel webinar-delt). */
+  /** Vores målstreger — samme færdige dom på begge flader. null = ingen (fx gammel webinar-delt). */
   maal?: Maalstreger | null;
-  /** Varme leads — KUN rådgiveren giver dem ind. Den delte side gør det aldrig (persondata). */
-  varme?: ReactNode;
 }) => {
   const [kunNaeste, setKunNaeste] = useState(false);
   const spor = dom === null ? null : kunNaeste && dom.sporNaeste !== null ? dom.sporNaeste : dom.spor;
@@ -695,9 +690,10 @@ export const WebinarVisning = ({
         <p className="mt-8 text-sm text-hb-ink-soft" data-webinar="tom">{WEBINAR_TOM_TEKST}</p>
       ) : (
         <>
-          {/* ØVERST, FØR ALT ANDET (Jonas 19/9, punkt 5): hele historien på én linje. */}
-          <HbSection eyebrow={TRAGT_EYEBROW} title={TRAGT_TITEL} hairline className="mt-8">
-            <Tragten t={dom.tragt} />
+          {/* RÆKKEFØLGEN (Jonas 1/10 20:13): «Det næste webinar» ØVERST, så vores
+              mål, så «Afholdt», så tragten «Fra tilmeldt til medlem» — resten som før. */}
+          <HbSection eyebrow="Det næste webinar" title="Hvem der venter, og hvornår" hairline className="mt-8">
+            <NaesteAfsnit naeste={dom.naeste} />
           </HbSection>
 
           {maal && (
@@ -706,18 +702,16 @@ export const WebinarVisning = ({
             </HbSection>
           )}
 
-          {varme}
-
-          <HbSection eyebrow="Det næste webinar" title="Hvem der venter, og hvornår" hairline className={sektion}>
-            <NaesteAfsnit naeste={dom.naeste} />
-          </HbSection>
-
           <HbSection eyebrow="Afholdt" title="Session for session" hairline className={sektion}>
             <p className="mb-4 text-sm text-hb-ink-soft">
               Sessionen er enheden, ikke webinaret — det samme webinar kører mange gange, og et fremmøde på tværs af måneder er ikke ét tal.
               I alt: {dom.samlet.tilmeldte} tilmeldte · {dom.samlet.moedteOp} mødte op ({pct(dom.samlet.fremmoedeAndel)}) · {dom.samlet.saaFaerdigt} så det færdigt.
             </p>
             <Afholdte dom={dom} />
+          </HbSection>
+
+          <HbSection eyebrow={TRAGT_EYEBROW} title={TRAGT_TITEL} hairline className={sektion}>
+            <Tragten t={dom.tragt} />
           </HbSection>
 
           <HbSection eyebrow="Hvor kom de fra" title="Fra annoncen til ansøgningen" hairline className={sektion}>
@@ -772,9 +766,9 @@ export const WebinarVisning = ({
 
 /** Rådgiverens /webinar: ÉN kilde (useWebinarDashboard), ÉN dom (webinarDashboard) — og visningen ovenfor. */
 export const WebinarView = ({ nu: nuUdefra }: { nu?: Date }) => {
-  // URET (rådets K12): dommene afhænger af `nu` — afholdt/kommende, 14-dagesvinduet og
-  // 24-timersflaget på de varme leads. Som HbMemberShell og useBoardroomScore tikker det
-  // hvert minut, så et lead skifter flag og en session bliver «afholdt» uden genindlæsning.
+  // URET (rådets K12): dommene afhænger af `nu` — afholdt/kommende og vinduerne. Som
+  // HbMemberShell og useBoardroomScore tikker det hvert minut, så en session bliver
+  // «afholdt» uden genindlæsning.
   // Et `nu` udefra (prøverne) står stille.
   const [nuMs, setNuMs] = useState(() => Date.now());
   useEffect(() => {
@@ -802,17 +796,11 @@ export const WebinarView = ({ nu: nuUdefra }: { nu?: Date }) => {
         : null,
     [query.data, forbrug.data, forbrug.isPending, nu],
   );
-  // KUN her — rådgiverens egen flade. WebinarVisning tegner kun det, den får ind.
-  const leads = useMemo<VarmtLead[] | null>(
-    () => (query.data ? varmeLeads(query.data.tilmeldinger, query.data.ansoegninger, nu) : null),
-    [query.data, nu],
-  );
   return (
     <WebinarVisning
       tilstand={query.isError ? "fejl" : query.isPending ? "henter" : "klar"}
       dom={dom}
       maal={maal}
-      varme={leads === null ? null : <VarmeLeadsAfsnit leads={leads} />}
       priser={<AnnoncepriserAfsnit tilmeldinger={query.data?.tilmeldinger ?? []} ansoegninger={query.data?.ansoegninger ?? []} nu={nu} />}
     />
   );

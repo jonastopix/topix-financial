@@ -1,5 +1,7 @@
 # Marketingmotoren — Nicklas' oplæg (1/10-2026) og hvad platformen gør ved det
 
+> **Rettet 1/10 kl. 20:13 (Jonas):** (1) **Varme leads er fjernet** fra /webinar — «Jeg kommer ikke til at sidde og ringe til folk. Punktum.»; en liste med mails gør overblikket ligegyldigt, og segmentering hører til i Klaviyo. Alt herunder om at ringe til dem, der så færdigt, er derfor IKKE platformens. (2) **Målene er VORES**, ikke en persons — overskriften er «Vores mål», og ingen persons navn står på målene i platformen. (3) **Pris pr. nyt medlem: under 7.500 kr.** (var 15.000) = 3 × 2.500 kr., fordi vi lukker ca. hver tredje ansøger; målet gælder annoncekronerne — bureauets faste fee (4.000 kr./md.) og 8 % pr. medlem kommer OVENI og er ikke regnet med. (4) **Rækkefølgen på /webinar:** «Det næste webinar» øverst → «Vores mål» → «Afholdt» → tragten → resten. Detaljerne: `docs/webinaret-og-annoncerne.md` §7j.
+
 **Kilde:** Nicklas' dokument «Min TED Talk om The Boardroom» (oaksmond.dk, fortroligt, delt med Jonas 1/10-2026). Dokumentet ligger ikke i repoet. Det følgende refererer det og vurderer det. Hvor der står «Nicklas», er det hans forslag; hvor der står «Claude», er det min vurdering. Skillelinjen holdes skarp, så måling og mening ikke blandes.
 
 Relateret: `docs/webinaret-og-annoncerne.md` (tragt, annoncespor, målstreger §7j), `docs/mailplan-14-dage-og-sms.md` (14 dage + SMS), `docs/tracking.md` (hvad der sendes til Meta), `docs/marketingmotoren.md` (de seks lag), `docs/agentarkitektur.md` (agenterne).

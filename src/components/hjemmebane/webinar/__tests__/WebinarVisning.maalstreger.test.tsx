@@ -1,9 +1,11 @@
 /**
- * Målstregerne og de varme leads på fladen (udkast 1/10-2026):
+ * Målstregerne på fladen (udkast 1/10-2026; rettet af Jonas 1/10 kl. 20:13):
  *   · målene tegnes med dommens ord og en målstreg; uden `maalstreger` (gammel
  *     webinar-delt) tegnes intet — siden dør ikke;
- *   · varme leads står KUN, når de gives ind (rådgiveren) — WebinarVisning alene
- *     (som den delte side bruger den) viser dem aldrig.
+ *   · overskriften er «Vores mål» — ingen persons navn på målene;
+ *   · rækkefølgen: «Det næste webinar» ØVERST, så målene, så «Afholdt», så
+ *     tragten («Hele vejen»), så resten;
+ *   · varme leads er FJERNET — ingen sektion, ingen mail på fladen.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render } from "@testing-library/react";
@@ -11,10 +13,8 @@ import { cleanup, render } from "@testing-library/react";
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 
 import { WebinarVisning } from "../WebinarView";
-import { VarmeLeadsAfsnit } from "../VarmeLeads";
-import { udenRaekker, webinarDashboard, type Tilmelding } from "@/lib/webinar/dashboard";
-import { maalstreger } from "@/lib/webinar/maalstreger";
-import { varmeLeads } from "@/lib/webinar/varmeLeads";
+import { TRAGT_EYEBROW, udenRaekker, webinarDashboard, type Tilmelding } from "@/lib/webinar/dashboard";
+import { MAAL_EYEBROW, MAAL_TITEL, maalstreger } from "@/lib/webinar/maalstreger";
 
 const NU = new Date("2026-09-22T12:00:00.000Z");
 const S = "2026-09-22T07:00:00.000Z";
@@ -50,21 +50,26 @@ describe("WebinarVisning — målstregerne", () => {
   });
 });
 
-describe("varme leads — kun når rådgiveren giver dem ind", () => {
-  it("WebinarVisning alene (den delte sides brug) viser ingen leads og ingen mail", () => {
+describe("Jonas 1/10 kl. 20:13 — vores mål, rækkefølgen, ingen varme leads", () => {
+  it("overskriften er «Vores mål», og ingen persons navn står på fladen", () => {
+    const { container } = render(<WebinarVisning tilstand="klar" dom={dom} priser={null} maal={maal} />);
+    expect(MAAL_TITEL).toBe("Vores mål");
+    expect(container.textContent).toContain("Vores mål");
+    expect(container.innerHTML).not.toMatch(/Nicklas/i);
+    expect(container.textContent).not.toMatch(/Det styrer vi efter/);
+  });
+  it("«Det næste webinar» øverst, så målene, så «Afholdt», så tragten, så «Hvor kom de fra»", () => {
+    const { container } = render(<WebinarVisning tilstand="klar" dom={dom} priser={null} maal={maal} />);
+    const eyebrows = Array.from(container.querySelectorAll("section"))
+      .filter((s) => s.parentElement?.closest("section") === null)
+      .map((s) => s.querySelector("p")?.textContent);
+    expect(eyebrows.slice(0, 5)).toEqual(["Det næste webinar", MAAL_EYEBROW, "Afholdt", TRAGT_EYEBROW, "Hvor kom de fra"]);
+  });
+  it("ingen varme leads og ingen mail på fladen", () => {
     const { container } = render(<WebinarVisning tilstand="klar" dom={dom} priser={null} maal={maal} />);
     expect(container.querySelector("[data-varme-leads]")).toBeNull();
+    expect(container.querySelectorAll("a[href^='mailto:']")).toHaveLength(0);
     expect(container.textContent).not.toMatch(/@/);
-  });
-  it("rådgiverens flade: seks varme med mailto, alle inden for 24 timer", () => {
-    const leads = varmeLeads(TILMELDINGER, [], NU);
-    const { container } = render(<WebinarVisning tilstand="klar" dom={dom} priser={null} maal={maal} varme={<VarmeLeadsAfsnit leads={leads} />} />);
-    expect(container.querySelector("[data-varme-leads='6']")).not.toBeNull();
-    expect(container.querySelectorAll("a[href^='mailto:']")).toHaveLength(6);
-    expect(container.querySelectorAll("[data-varmt-lead='inden-24']")).toHaveLength(6);
-  });
-  it("tom liste har sin sætning", () => {
-    const { container } = render(<VarmeLeadsAfsnit leads={[]} />);
-    expect(container.querySelector("[data-varme-leads='tom']")).not.toBeNull();
+    expect(container.textContent).not.toMatch(/Varme leads/i);
   });
 });

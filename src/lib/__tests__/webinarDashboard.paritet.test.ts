@@ -42,7 +42,7 @@ const PAR: [string, string, Record<string, string>][] = [
   ["src/lib/webinar/annoncepriser.ts", "supabase/functions/_shared/annoncepriser.ts", {
     "@/lib/metaAnnoncer": "./metaAnnoncer.ts", "@/lib/webinar/dashboard": "./webinarDashboard.ts",
   }],
-  // Nicklas' målstreger (1/10-2026) — samme dom i rådgiverens flade og i webinar-delt.
+  // Vores målstreger (1/10-2026) — samme dom i rådgiverens flade og i webinar-delt.
   ["src/lib/webinar/maalstreger.ts", "supabase/functions/_shared/webinarMaalstreger.ts", {
     "@/lib/webinar/dashboard": "./webinarDashboard.ts", "@/lib/webinar/annoncepriser": "./annoncepriser.ts",
     "@/lib/webinarDom": "./webinarDom.ts", "@/lib/marketing/statistik": "./marketingStatistik.ts",

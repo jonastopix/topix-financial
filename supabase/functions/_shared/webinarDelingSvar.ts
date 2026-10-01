@@ -25,8 +25,9 @@ export const FORBUDTE_NOEGLER = [
   // svar til en ekstern, uanset hvor dybt i objektet de måtte ligge.
   "join_link", "kalender_link", "replay_link",
   // Varme leads (1/10-2026): navn + mail på dem, der så færdigt og ikke har
-  // ansøgt — KUN rådgiverens /webinar (src/lib/webinar/varmeLeads.ts). Står
-  // listen nogensinde i et delt-svar, afvises svaret.
+  // ansøgt. Listen er FJERNET fra platformen (Jonas 1/10 kl. 20:13 — vi ringer
+  // ikke; segmentering hører til i Klaviyo). Nøglen står som forsvar: dukker
+  // den nogensinde op i et delt-svar, afvises svaret.
   "varmeLeads",
 ] as const;
 
@@ -54,10 +55,11 @@ export interface DeltSvar {
    */
   koblinger_talt: number;
   /**
-   * NICKLAS' MÅLSTREGER (udkast 1/10-2026, `webinarMaalstreger.ts`): fire linjer
+   * VORES MÅLSTREGER (udkast 1/10-2026, `webinarMaalstreger.ts`): fire linjer
    * med tal, ord og bar-positioner — aldrig en række, aldrig en mail. Regnet over
    * «Hele perioden» uanset `valg`. Feltet er BEVISET for udrulningen af
-   * webinar-delt: kun den nye kode svarer med det.
+   * webinar-delt: kun den nye kode svarer med det. Rettelsen 1/10 kl. 20:13
+   * bevises af fjerde linjes `maalOrd` «under 7.500 kr.» og et svar UDEN `kilde`.
    */
   maalstreger: Maalstreger;
 }

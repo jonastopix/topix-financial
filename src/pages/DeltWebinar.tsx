@@ -30,7 +30,7 @@ interface DeltSvar {
   priser: Annoncepriser;
   hentning: HentningStatus | null;
   valg: VindueValg;
-  /** Nicklas' målstreger (1/10-2026). Valgfri: den gamle webinar-delt svarer uden — så tegnes de ikke. */
+  /** Vores målstreger (1/10-2026). Valgfri: den gamle webinar-delt svarer uden — så tegnes de ikke. */
   maalstreger?: Maalstreger;
 }
 

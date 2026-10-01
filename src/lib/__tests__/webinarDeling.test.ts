@@ -141,7 +141,10 @@ describe("webinarDeling — svaret til den eksterne bærer ingen persondata", ()
     expect(svar.valg).toBe("daekning");
   });
   it("MÅLSTREGERNE (1/10-2026) går ud som TAL — feltet `maalstreger` er beviset for udrulningen", () => {
-    expect(svar.maalstreger.kilde).toBe("Nicklas, 1/10");
+    // Jonas 1/10 kl. 20:13: målene er VORES — intet navn i svaret; medlemsmålet er 7.500 kr.
+    expect(svar.maalstreger).not.toHaveProperty("kilde");
+    expect(JSON.stringify(svar.maalstreger)).not.toMatch(/Nicklas/i);
+    expect(svar.maalstreger.linjer[3].maalOrd).toBe("under 7.500 kr.");
     expect(svar.maalstreger.linjer.map((l) => l.noegle)).toEqual(["fremmoede", "ansoegere_blandt_set", "pris_pr_ansoegning", "pris_pr_medlem"]);
     // Fixturen: 4 afholdte personer (15/9) — under 5, så «for få» ERSTATTER procenten.
     expect(svar.maalstreger.linjer[0]).toMatchObject({ vaerdi: "for_faa", naevner: 4 });
