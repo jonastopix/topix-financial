@@ -144,6 +144,28 @@ export interface AnsoegerMail {
   trin: Trin;
   /** companies.contract_end_date gennem company_id — null når ansøgningen ikke blev en betalt virksomhed. */
   virksomhed_slutdato: string | null;
+  /**
+   * WEBINARKOBLINGEN (udkast 1/10-2026): mailen på den webinartilmelding, en
+   * RÅDGIVER har bekræftet hører til ansøgningen (`ansoegning_webinar_kobling`).
+   * Valgfri: uden kobling er den udeladt eller null, og ansøgningen kobles på
+   * sin egen mail som altid. Se `medWebinarKobling`.
+   */
+  webinar_email?: string | null;
+}
+
+/**
+ * En bekræftet kobling tæller SOM OM MAILEN MATCHEDE (Jonas 1/10 08:25,
+ * «forslag + klik»): ansøgningen bærer tilmeldingens mail i stedet for sin
+ * egen — i tragten, sessionerne, tiden, annoncesporet og koblingstallet, alle
+ * på én gang, fordi de alle læser `email`. ERSTATTER, lægger ikke til: én
+ * ansøgning er stadig én ansøger (ellers ville `ansoegereIAlt` tælle hende to
+ * gange). Et forslag når aldrig hertil — kun en række i koblingstabellen.
+ */
+export function medWebinarKobling(ansoegninger: readonly AnsoegerMail[]): AnsoegerMail[] {
+  return ansoegninger.map((a) => {
+    const k = tekst(a.webinar_email ?? null)?.toLowerCase();
+    return k === undefined || k === null ? a : { ...a, email: k };
+  });
 }
 
 // ── Små hjælpere ───────────────────────────────────────────────────────────
@@ -1417,7 +1439,9 @@ export function udenRaekker(dom: WebinarDashboard): WebinarDashboardSvar {
 
 /** Ét kald, ét svar. Fladen regner intet selv. */
 export function webinarDashboard(ind: DashboardInput, nu: Date): WebinarDashboard {
-  const { tilmeldinger, ansoegninger, sporKolonnerFindes } = ind;
+  const { tilmeldinger, sporKolonnerFindes } = ind;
+  // Webinarkoblingen (1/10): en bekræftet kobling tæller som et mail-match — ÉT sted, før alt andet.
+  const ansoegninger = medWebinarKobling(ind.ansoegninger);
   // TO FORMER AF SAMME MÆNGDE: tragten (§2) skal kende TIDSPUNKTET for at
   // kunne sætte grænsen; annoncesporet (§3) og koblingen (§4) spørger om noget
   // andet og bruger stadig mailene alene — se filhovedet.

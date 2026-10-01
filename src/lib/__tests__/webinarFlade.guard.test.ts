@@ -274,8 +274,9 @@ export const graensenBorIDommen = (dom: string, view: string, hook: string, delt
     !/t >= g/.test(d) &&
     d.includes("const a = faellesEfter(mails, ansoegte, graense);") &&
     d.includes("const m = faellesEfter(mails, medlemmer, graense);") &&
-    /select\("email, indsendt_at, trin, company_id"\)/.test(udenKommentarer(hook)) &&
-    /select\("email, indsendt_at, trin, company_id"\)/.test(udenKommentarer(delt)) &&
+    // `id` med siden webinarkoblingen (1/10-2026): koblingen slås op pr. ansøgnings-id.
+    /select\("id, email, indsendt_at, trin, company_id"\)/.test(udenKommentarer(hook)) &&
+    /select\("id, email, indsendt_at, trin, company_id"\)/.test(udenKommentarer(delt)) &&
     !v.includes("indsendt_at") &&
     !/session_tid[\s\S]{0,40}[<>]/.test(v)
   );

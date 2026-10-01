@@ -883,6 +883,14 @@ skrivende edge functions bruger `SUPABASE_SERVICE_ROLE_KEY`.
 - **Opbevaring 12 måneder (Jonas 21/9):** cron-jobbet `webinar-delinger-opbevaring` (`52 4 * * *`, migration `20260922021000`, ren SQL) sletter delinger 12 måneder efter det tidligste passerede af `lukket_at`/`udloeber_at`; sporet følger med cascaden. Antallet står i `cron.job_run_details.return_message` («DELETE n»).
 - **Sporet er append-only:** INSERT/SELECT for service_role, SELECT for rådgivere, ingen UPDATE/DELETE-politik, og `protect_webinar_deling_spor` (§3) nægter UPDATE altid og DELETE direkte (cascaden fra `webinar_delinger` slipper igennem). Hver visning og afvisning PÅ EN KENDT DELING logges med IP/user-agent (`deling_id NOT NULL`); et ukendt token skrives aldrig i sporet (det kan ikke slettes, og der er ingen rate-limit) — kun i functionens log, uden tokenet.
 
+### Webinarkoblingen (`ansoegning_webinar_kobling`) — udkast 1/10-2026, migration `20261001120000`
+
+- **Kun rådgivere:** SELECT/INSERT/DELETE TO authenticated med `has_role(auth.uid(), 'advisor')` (admin arver). Ingen UPDATE (en kobling rettes ved at fjerne og koble igen), ingen medlemsadgang, anon intet (REVOKE). INSERT kræver `koblet_af = auth.uid()` (default `auth.uid()`), så ingen kobler i en andens navn.
+- **Ingen SECURITY DEFINER, ingen funktion, ingen trigger.** `webinar-delt` læser tabellen med service role (RLS gælder ikke) og bruger tilmeldingens mail KUN som nøgle i dommen — den forlader aldrig serveren.
+- **Data:** ansøgnings-id, tilmeldings-id, rådgiverens uid, tidspunkt, forslagets grund i ord. FK'erne er `ON DELETE CASCADE` begge veje: en slettet ansøgning eller tilmelding (persondata) tager koblingen med. To UNIQUE'er: én kobling pr. ansøgning og én pr. tilmelding (tragtens mailsæt ville ellers tælle to ansøgninger som én).
+- **Det delte svar** (`webinar-delt`) bærer kun antallet `koblinger_talt` — aldrig koblingens mail; prøvet gennem `findForbudteNoegler` i `src/lib/webinar/__tests__/kobling.test.ts`. Rådgiverens kandidat-opslag henter kun de felter, forslaget og fladen bruger (intet annoncespor, ingen by/enhed, ingen `raa`).
+- Kildeværn: `src/lib/__tests__/webinarKobling.guard.test.ts` (9 domme). Design: `docs/webinaret-og-annoncerne.md` §7i.
+
 ### Boardroom Score — hukommelsen `maaned_foerste_godkendelse` (30/9-2026, migration `20260930130000`)
 
 - **Read-only for every client.** SELECT for company members (`company_id = user_company_id(auth.uid())`) and advisors (`has_role(auth.uid(), 'advisor')`); no INSERT/UPDATE/DELETE policy for anyone. The only writer is the trigger `husk_foerste_godkendelse` (§3) on `financial_report_facts`; the only DELETE is the cascade from `companies`. UPDATE is refused by `protect_maaned_foerste_godkendelse` (§3).
