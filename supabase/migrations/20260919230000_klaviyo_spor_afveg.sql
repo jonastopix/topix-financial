@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor, FØR den nye udgave af
+-- KØRT i prod (målt 1/10-2026: filens markørobjekter findes i prod; hovedet vendt efterfølgende). DEPLOY: manuelt i Lovable → SQL editor, FØR den nye udgave af
 -- klaviyo-motor udrulles. `skrivSpor` indsætter hele SporPost-objektet, så en
 -- manglende kolonne får PostgREST til at afvise HVER ENESTE sporskrivning —
 -- ikke kun den nye oplysning. Rækkefølgen er derfor ikke til forhandling:

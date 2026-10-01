@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge, EFTER
+-- KØRT i prod (målt 1/10-2026: filens markørobjekter findes i prod; hovedet vendt efterfølgende). DEPLOY: manuelt i Lovable → SQL editor efter merge, EFTER
 -- 20260918200000_ansoegninger.sql og efter edge functionen
 -- ansoegning-rykker-cron er live («View code»).
 --

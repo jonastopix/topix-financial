@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod (målt 1/10-2026: filens markørobjekter findes i prod; hovedet vendt efterfølgende). DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
 --
 -- Værter på events (medlemmets forside PR 4b, 17/9-2026). Jonas 17/9 (ordret):
 -- «Ja events har vært på. Og vi skal gerne kunne sætte flere værter på. Ofte

@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter Ø2's migration B
+-- KØRT i prod (målt 1/10-2026: filens markørobjekter findes i prod; hovedet vendt efterfølgende). DEPLOY: manuelt i Lovable → SQL editor efter Ø2's migration B
 -- (20260918120000, kørt 17/9 13:22). Ændrer en SECURITY DEFINER-funktion —
 -- GRØNT LYS GIVET: JONAS 17/9 (ordret): «Ja. Hvis der kommer det bedste
 -- resultat ud af det.» (CLAUDE.md FORBIDDEN uden eksplicit grønt lys.)

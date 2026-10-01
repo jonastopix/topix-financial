@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod (målt 1/10-2026: filens markørobjekter findes i prod; hovedet vendt efterfølgende). DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
 -- RÆKKEFØLGE — LÆS DEN: kør den FØR merge. Den er additiv (en nullable
 -- kolonne, en tom tabel, en funktion, to cron-jobs), så den gamle function
 -- tåler den. Omvendt tåler den NYE function ikke at mangle den: merge udruller
