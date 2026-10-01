@@ -4,19 +4,21 @@ import { Flame, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEngagement, type EngagementRaekke } from "@/hooks/trofaeer";
 import { antalOpnaaet, trofaeDato } from "@/lib/gamification/trofaeer";
-import { bevaegelseTekst, MAAL_HENTEFEJL_TEKST } from "@/lib/hjemmebane/engagementMaal";
+import { bevaegelseSorteringsnoegle, bevaegelseTekst, MAAL_HENTEFEJL_TEKST } from "@/lib/hjemmebane/engagementMaal";
 import { HbCard } from "../HbCard";
 
 /** /engagement — rådgivernes overblik (1/10-2026, docs/boardroom-score.md
     «Trofæer»): én række pr. kundevirksomhed med Boardroom Score, tal-streak,
-    trofæer, seneste aktivitet, aktive mål og bevægelse på dem (engagementMaal.ts;
+    trofæer, seneste aktivitet, aktive mål og «Sidst rørt» (engagementMaal.ts;
     fail-soft: fejler målene, står de to kolonner med «—» og en rolig linje). Sorterbar. Til rådgiverne — det er IKKE en
     rangliste, medlemmerne ser (medlemmet ser kun sin egen virksomhed).
     Data: hentEngagement (ét batch, samme motor som forsiden). */
 
 type Kolonne = "navn" | "score" | "streak" | "trofaeer" | "aktivitet" | "maal" | "bevaegelse";
 
-const vaerdi = (r: EngagementRaekke, k: Kolonne): string | number => {
+/** null = står ALTID nederst, uanset retning (kun «Sidst rørt»: ingen aktive
+    mål eller hentefejl — bevaegelseSorteringsnoegle, B5). */
+const vaerdi = (r: EngagementRaekke, k: Kolonne): string | number | null => {
   switch (k) {
     case "navn":
       return r.navn.toLocaleLowerCase("da-DK");
@@ -31,7 +33,7 @@ const vaerdi = (r: EngagementRaekke, k: Kolonne): string | number => {
     case "maal":
       return r.maal ? r.maal.aktive : -1;
     case "bevaegelse":
-      return r.maal?.dageSidenBevaegelse ?? -1;
+      return bevaegelseSorteringsnoegle(r.maal);
   }
 };
 
@@ -43,19 +45,30 @@ export function sorterEngagement(
   return [...raekker].sort((a, b) => {
     const x = vaerdi(a, k);
     const y = vaerdi(b, k);
+    // Nederst-gruppen vendes ikke med retningen; inden i den: navn stigende.
+    if (x === null || y === null) {
+      if (x !== null) return -1;
+      if (y !== null) return 1;
+      return a.navn.localeCompare(b.navn, "da-DK");
+    }
     const c = x < y ? -1 : x > y ? 1 : a.navn.localeCompare(b.navn, "da-DK");
     return stigende ? c : -c;
   });
 }
 
-const KOLONNER: readonly { k: Kolonne; label: string }[] = [
+const KOLONNER: readonly { k: Kolonne; label: string; title?: string }[] = [
   { k: "navn", label: "Virksomhed" },
   { k: "score", label: "Score" },
   { k: "streak", label: "Streak" },
   { k: "trofaeer", label: "Trofæer" },
   { k: "aktivitet", label: "Seneste aktivitet" },
   { k: "maal", label: "Aktive mål" },
-  { k: "bevaegelse", label: "Bevægelse" },
+  {
+    k: "bevaegelse",
+    label: "Sidst rørt",
+    title:
+      "Danske kalenderdage siden et menneske sidst rørte et aktivt mål. Faldende (↓): længst siden først — aktive mål uden registreret bevægelse øverst. Virksomheder uden aktive mål står altid nederst.",
+  },
 ];
 
 /** «—» når målene ikke kunne hentes; ellers tallet. */
@@ -85,8 +98,8 @@ export function EngagementView() {
         <h1 className="text-2xl font-semibold text-hb-ink">Engagement</h1>
         <p className="mt-1 text-sm text-hb-ink-soft">
           Kundernes Boardroom Score (helbredstallet lige nu), tal-streak og
-          trofæer (milepæle, de har nået) — og målene: antal aktive og dage
-          siden seneste bevægelse på dem.
+          trofæer (milepæle, de har nået) — og målene: antal aktive og hvornår
+          et menneske sidst rørte dem.
         </p>
       </div>
       {q.data && q.data.maalHentefejl.length > 0 && (
@@ -94,7 +107,7 @@ export function EngagementView() {
           {MAAL_HENTEFEJL_TEKST}{" "}
           <button
             type="button"
-            className="underline-offset-4 hover:underline"
+            className="inline-flex min-h-11 items-center underline-offset-4 hover:underline"
             onClick={() => void q.refetch()}
           >
             Prøv igen
@@ -109,7 +122,7 @@ export function EngagementView() {
             Kunne ikke hente overblikket.{" "}
             <button
               type="button"
-              className="underline"
+              className="inline-flex min-h-11 items-center underline"
               onClick={() => void q.refetch()}
             >
               Prøv igen
@@ -138,7 +151,7 @@ export function EngagementView() {
                     >
                       {r.navn}
                     </Link>
-                    <dl className="mt-1.5 flex flex-wrap items-end gap-x-4 gap-y-1 text-sm tabular-nums text-hb-ink">
+                    <dl className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-2 text-sm tabular-nums text-hb-ink">
                       <div>
                         <dt className="text-xs text-hb-ink-soft">Score</dt>
                         <dd>{r.dom.score ?? "–"}</dd>
@@ -186,7 +199,7 @@ export function EngagementView() {
                         <dd>{aktiveMaalTekst(r)}</dd>
                       </div>
                       <div>
-                        <dt className="text-xs text-hb-ink-soft">Bevægelse</dt>
+                        <dt className="text-xs text-hb-ink-soft">Sidst rørt</dt>
                         <dd className="text-hb-ink-soft">{bevaegelse(r)}</dd>
                       </div>
                     </dl>
@@ -212,6 +225,7 @@ export function EngagementView() {
                       <button
                         type="button"
                         onClick={() => vaelg(c.k)}
+                        title={c.title}
                         className={cn(
                           "hover:text-hb-ink",
                           c.k === kolonne && "text-hb-ink",

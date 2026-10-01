@@ -15,10 +15,10 @@
  *       tjenestekontos tråd er heller ikke et medlems — den skal MED i mængden).
  *   hentEngagement(nu) — RÅDGIVERENS /engagement: alle kundevirksomheder i ét
  *       batch (hentAlleSider; ingen kald pr. virksomhed). Målene (Aktive mål,
- *       Bevægelse — lib/hjemmebane/engagementMaal.ts) hentes i samme batch,
- *       men FAIL-SOFT: fejler milestones/company_actions, står kolonnerne med
- *       «—» og siden med en rolig linje (maalHentefejl = kilderne) — resten
- *       af siden vælter ikke.
+ *       Sidst rørt — lib/hjemmebane/engagementMaal.ts) hentes i samme batch,
+ *       men FAIL-SOFT: fejler milestones/company_actions — eller er
+ *       mållæsningen tom — står kolonnerne med «—» og siden med en rolig
+ *       linje (maalHentefejl = kilderne) — resten af siden vælter ikke.
  *
  * Fejl er en fejl (husets regel): kraevRaekker kaster HentningsFejl. Fladen er
  * fail-soft — kortet står roligt uden trofæer.
@@ -38,6 +38,10 @@ import { kildeAf } from "@/lib/hjemmebane/hentefejl";
 import {
   engagementMaalPrVirksomhed,
   INGEN_MAAL,
+  MAAL_ID_BID,
+  STATUSSER_I_HENTNINGEN,
+  TOM_MAAL_LAESNING,
+  tomMaalLaesning,
   type EngagementMaalDom,
   type EngagementMaalRaekke,
   type EngagementSkridtRaekke,
@@ -141,33 +145,54 @@ export interface EngagementSvar {
   maalHentefejl: string[];
 }
 
-/** grundlag = null, når blot én af de to hentninger fejlede (kilder siger hvilke). */
+/** grundlag = null, når blot én af de to hentninger fejlede eller læsningen
+    var tom (kilder siger hvilke). */
 type MaalGrundlag = { grundlag: { maal: EngagementMaalRaekke[]; skridt: EngagementSkridtRaekke[] } | null; kilder: string[] };
 
-/** Målene og skridtene under mål — alle virksomheder, ét batch. Fejl er en fejl
-    (kraevRaekker), men fanges HER: kolonnerne er sekundære for siden. */
-async function hentMaalGrundlag(): Promise<MaalGrundlag> {
+/** Målene for universets virksomheder (company_id IN ids i bidder á
+    MAAL_ID_BID — URL-længden) og skridtene under mål med de statusser,
+    dommen bruger (STATUSSER_I_HENTNINGEN). Ikke et statusfilter på
+    milestones: not.in taber status null (engagementMaal.ts filhoved, B3).
+    Fejl er en fejl (kraevRaekker), men fanges HER: kolonnerne er sekundære
+    for siden. En tom læsning (kundevirksomheder, 0 målrækker, ingen fejl)
+    er en hentefejl (B4, tomMaalLaesning). */
+async function hentMaalGrundlag(ids: readonly string[]): Promise<MaalGrundlag> {
+  const hentMaal = async (): Promise<EngagementMaalRaekke[]> => {
+    const alle: EngagementMaalRaekke[] = [];
+    for (let i = 0; i < ids.length; i += MAAL_ID_BID) {
+      const bid = ids.slice(i, i + MAAL_ID_BID);
+      alle.push(
+        ...(await hentAlleSider<EngagementMaalRaekke>((fra, til) =>
+          supabase
+            .from("milestones")
+            .select("id, company_id, status, progress, deadline, progress_updated_at, created_at")
+            .in("company_id", bid)
+            .order("id")
+            .range(fra, til)
+            .then(side("milestones")),
+        )),
+      );
+    }
+    return alle;
+  };
   const [maal, skridt] = await Promise.allSettled([
-    hentAlleSider<EngagementMaalRaekke>((fra, til) =>
-      supabase
-        .from("milestones")
-        .select("id, company_id, status, progress, deadline, progress_updated_at")
-        .order("id")
-        .range(fra, til)
-        .then(side("milestones")),
-    ),
+    hentMaal(),
     hentAlleSider<EngagementSkridtRaekke>((fra, til) =>
       supabase
         .from("company_actions")
-        .select("maal_id, status, closed_at, created_at")
+        .select("maal_id, status, accepted_at, closed_at, created_at, source_type")
         .not("maal_id", "is", null)
+        .in("status", [...STATUSSER_I_HENTNINGEN])
         .order("id")
         .range(fra, til)
         .then(side("company_actions")),
     ),
   ]);
   const kilder = [maal, skridt].filter((r): r is PromiseRejectedResult => r.status === "rejected").map((r) => kildeAf(r.reason));
-  if (maal.status === "fulfilled" && skridt.status === "fulfilled") return { grundlag: { maal: maal.value, skridt: skridt.value }, kilder: [] };
+  if (maal.status === "fulfilled" && skridt.status === "fulfilled") {
+    if (tomMaalLaesning(ids.length, maal.value.length)) return { grundlag: null, kilder: [TOM_MAAL_LAESNING] };
+    return { grundlag: { maal: maal.value, skridt: skridt.value }, kilder: [] };
+  }
   return { grundlag: null, kilder };
 }
 
@@ -265,7 +290,7 @@ export async function hentEngagement(nu: Date): Promise<EngagementSvar> {
       supabase.from("community_svar").select("forfatter_id, traad_id, created_at").eq("status", "aktiv").order("id").range(fra, til).then(side("community_svar")),
     ),
     hentRaadgiverListe(),
-    hentMaalGrundlag(),
+    hentMaalGrundlag([...ids]),
   ]);
 
   const maalDomPr = maalGrundlag.grundlag ? engagementMaalPrVirksomhed(maalGrundlag.grundlag.maal, maalGrundlag.grundlag.skridt, nu) : null;
