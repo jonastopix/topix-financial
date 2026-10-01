@@ -251,3 +251,86 @@ export function doemFristModMaal(skridtFrist: string, maalFrist: string | null |
   if (skridtFrist > graense) return { ok: false, grund: `Skridtets frist kan ikke ligge efter målets frist (${danskDato(graense)}) — vælg den dag eller tidligere`, kode: "efter_maalets_frist" };
   return { ok: true, dato: skridtFrist };
 }
+
+/** MÅLETS NYE FRIST MOD SKRIDTENES (Jonas 1/10-2026: et skridt må ikke have
+    en frist længere ude end målet). Rykkes målets frist til FØR et åbent
+    skridts frist, NÆGTES ændringen med en tydelig besked — VALGET (det
+    roligste): ingen skridt rykkes stille. Medlemmet/rådgiveren kan vælge en
+    senere målfrist, eller lukke/droppe skridtet først. Flyttet hertil fra
+    dineMaal.ts 1/10 eftermiddag, så maal-skriv «rediger» (rådgiverens vej)
+    dømmer med SAMME dom som medlemmets flade (dineMaal re-eksporterer den).
+    ÅBNE skridt tæller (status active eller proposed) MED en frist —
+    gjorte/droppede er historik, og et forslag har normalt ingen frist før
+    accept (B6). Ingen ny frist (null = fristen fjernes) → ok. Samme dag er
+    tilladt. Datoerne er «YYYY-MM-DD» (de første ti tegn), så
+    strengsammenligning er kalendersammenligning. */
+export type MaalFristDom = { ok: true } | { ok: false; grund: string; senesteSkridtFrist: string; antal: number };
+export function doemMaalFristModSkridt(
+  nyFrist: string | null,
+  skridt: readonly { status: string; due_date: string | null; title: string }[],
+): MaalFristDom {
+  if (nyFrist == null || nyFrist === "") return { ok: true };
+  const ny = nyFrist.slice(0, 10);
+  const efter = skridt.filter((s) => (s.status === "active" || s.status === "proposed") && s.due_date && s.due_date.slice(0, 10) > ny);
+  if (efter.length === 0) return { ok: true };
+  const frister = efter.map((s) => (s.due_date as string).slice(0, 10)).sort();
+  const seneste = frister[frister.length - 1];
+  const hvem = efter.length === 1 ? `Skridtet «${efter[0].title}» har frist ${danskDato(seneste)}` : `${efter.length} skridt har en senere frist — det seneste ${danskDato(seneste)}`;
+  return {
+    ok: false,
+    grund: `Målets frist kan ikke ligge før skridtenes. ${hvem}. Vælg ${danskDato(seneste)} eller senere — eller luk skridtet først.`,
+    senesteSkridtFrist: seneste,
+    antal: efter.length,
+  };
+}
+
+/** UDSKYDELSEN MOD MÅLETS FRIST (Jonas 1/10-2026, ordret: «Det er heller ikke
+    smart, at et skridt kan have en deadline længere ude i fremtiden end
+    selve målet.»). opgave-udskyd: motoren (opgaveEngine.udskyd) dømmer
+    overgangen og giver den nye frist; DENNE dom lægger målets frist ovenpå.
+
+    REGNESTYKKET (alle datoer «YYYY-MM-DD», strengsammenligning =
+    kalendersammenligning; «i dag» er den DANSKE kalenderdag, dagsdatoDansk):
+      - Første udskydelse (valgt = false): motoren giver ny = nu + 14 dage
+        (regnet fra «nu», ikke fra den gamle frist — B11, ellers kunne den
+        nye frist lande i fortiden).
+        ny frist = min(ny, målets frist).
+        Eks.: nu 2026-10-01, målets frist 2026-10-10 → nu + 14 = 2026-10-15
+        > 2026-10-10 → ny frist 2026-10-10 (begraenset = true).
+        Eks.: målets frist 2026-12-01 → 2026-10-15 ≤ 2026-12-01 → 2026-10-15.
+      - Anden udskydelse (valgt = true): medlemmet VALGTE datoen. En valgt
+        dato efter målets frist rykkes ikke stille — den afvises med grunden
+        (samme kode som doemFristModMaal, «efter_maalets_frist»).
+      - Er målets frist passeret (målets frist < i dag), kan intet skridt
+        udskydes uden at bryde reglen → afvist («maalets_frist_passeret»).
+        Målets frist I DAG er tilladt: ny frist = i dag.
+      - Står den gamle frist allerede på (eller efter) målets frist, kan
+        udskydelsen ikke flytte noget frem → afvist («ved_maalets_frist»).
+        (En udskydelse kræver forfald — gammel < i dag — så med målets frist
+        ≥ i dag fanges dette normalt af «passeret»; grenen står for et skridt,
+        hvis frist lå efter målets fra før reglen.)
+    Uden målfrist: ok, motorens dato uændret. Fail-closed: en ulæselig
+    målfrist afvises («maalets_frist_ulaeselig» — vores data, 500). */
+export type UdskydModMaalKode = FristModMaalKode | "ved_maalets_frist";
+export type UdskydModMaalDom =
+  | { ok: true; dato: string; begraenset: boolean }
+  | { ok: false; grund: string; kode: UdskydModMaalKode };
+export function doemUdskydModMaal(
+  nyFrist: string,
+  gammelFrist: string | null,
+  maalFrist: string | null | undefined,
+  nu: Date,
+  valgt: boolean,
+): UdskydModMaalDom {
+  const graense = maalFristDato(maalFrist);
+  if (graense == null) return { ok: true, dato: nyFrist, begraenset: false };
+  if (graense === "ulaeselig") return { ok: false, grund: "Målets frist kan ikke læses — skridtet blev ikke udskudt", kode: "maalets_frist_ulaeselig" };
+  const ryk = `Skridtet kan ikke udskydes forbi målets frist (${danskDato(graense)})`;
+  if (graense < dagsdatoDansk(nu)) return { ok: false, grund: `${ryk}, som er passeret — ryk målets frist først`, kode: "maalets_frist_passeret" };
+  if (gammelFrist != null && gammelFrist.slice(0, 10) >= graense) return { ok: false, grund: `${ryk} — ryk målets frist først`, kode: "ved_maalets_frist" };
+  if (nyFrist > graense) {
+    if (valgt) return { ok: false, grund: `${ryk} — vælg den dag eller tidligere, eller ryk målets frist først`, kode: "efter_maalets_frist" };
+    return { ok: true, dato: graense, begraenset: true };
+  }
+  return { ok: true, dato: nyFrist, begraenset: false };
+}

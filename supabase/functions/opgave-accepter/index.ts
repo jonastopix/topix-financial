@@ -15,10 +15,21 @@
 //      felter motoren ændrede, med optimistisk lås på status så et
 //      dobbeltklik eller en cron-race ikke overskriver en mellemkommen
 //      overgang.
+//   6b. MÅLET (Jonas 1/10-2026: «Det er heller ikke smart, at et skridt kan
+//      have en deadline længere ude i fremtiden end selve målet.»): har
+//      skridtet et maal_id, slås målet op (service role, efter ejerskabs-
+//      tjekket) hos SAMME virksomhed. Et mål, der ikke er aktivt (parkeret/
+//      nået), får ingen nye aktive skridt → 409 med samme tekst som
+//      skridt-tilfoej. Den valgte dato dømmes med doemFristModMaal — samme
+//      dom og samme svarkoder som skridt-tilfoej: 400 «efter_maalets_frist»
+//      og «maalets_frist_passeret» (medlemmets valg), 500
+//      «maalets_frist_ulaeselig» (vores data). `grund` i svaret er koden —
+//      kun den nye kode svarer med den (beviset for udrulningen).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { accepter } from "../_shared/opgaveEngine.ts";
+import { doemFristModMaal } from "../_shared/skridtForslag.ts";
 import { OPGAVE_KOLONNER, radTilOpgave, tilDbDato, parseDatoInput } from "../_shared/opgaveRad.ts";
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -57,7 +68,7 @@ Deno.serve(async (req) => {
   // ── 4. Opgaven, med KALDERENS klient (RLS gater company-medlemskab) ──
   const { data: rad, error: radErr } = await callerClient
     .from("company_actions")
-    .select(OPGAVE_KOLONNER)
+    .select(`${OPGAVE_KOLONNER}, maal_id`)
     .eq("id", opgaveId)
     .maybeSingle();
 
@@ -76,16 +87,52 @@ Deno.serve(async (req) => {
 
   // ── 6. Motoren dømmer — den ene sandhed for overgange ──
   const opgave = radTilOpgave(rad as Record<string, unknown>);
-  const resultat = accepter(opgave, dueDate, new Date());
+  const nu = new Date();
+  const resultat = accepter(opgave, dueDate, nu);
   if (!resultat.ok) {
     return jsonResponse({ error: resultat.grund }, 409);
   }
 
-  // ── 7. Service-role write — adminClient konstrueres FØRST nu ──
+  // ── 7. Service-role — adminClient konstrueres FØRST nu ──
   const adminClient = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
+
+  // ── 6b. Målet: aktivt, og fristen højst målets (Jonas 1/10-2026) ──
+  const maalId = (rad as Record<string, unknown>).maal_id;
+  if (typeof maalId === "string" && maalId !== "") {
+    const { data: maal, error: maalErr } = await adminClient
+      .from("milestones")
+      .select("id, status, deadline")
+      .eq("id", maalId)
+      .eq("company_id", opgave.company_id)
+      .maybeSingle();
+    if (maalErr) {
+      console.error("[opgave-accepter] mål-opslag fejlede:", maalErr);
+      return jsonResponse({ error: "Intern fejl" }, 500);
+    }
+    if (!maal) {
+      // FK'en (ON DELETE SET NULL) gør dette til en race med en sletning —
+      // fail-closed: intet aktivt skridt under et mål, vi ikke kan se.
+      console.error("[opgave-accepter] skridtets mål findes ikke:", maalId);
+      return jsonResponse({ error: "Målet findes ikke hos denne virksomhed — genindlæs og prøv igen" }, 409);
+    }
+    if ((maal as { status: string }).status !== "active") {
+      return jsonResponse({ error: "Målet er ikke aktivt — et skridt kan kun høre til et aktivt mål", grund: "maalet_ikke_aktivt" }, 409);
+    }
+    // dato er allerede valideret «YYYY-MM-DD» af parseDatoInput.
+    const modMaal = doemFristModMaal(dato as string, (maal as { deadline: string | null }).deadline, nu);
+    if (!modMaal.ok) {
+      if (modMaal.kode === "maalets_frist_ulaeselig") {
+        console.error("[opgave-accepter] målets frist kan ikke læses:", maalId);
+        return jsonResponse({ error: modMaal.grund, grund: modMaal.kode }, 500);
+      }
+      return jsonResponse({ error: modMaal.grund, grund: modMaal.kode }, 400);
+    }
+  }
+
+  // ── 8. Skrivningen ──
 
   const { data: opdateret, error: updErr } = await adminClient
     .from("company_actions")

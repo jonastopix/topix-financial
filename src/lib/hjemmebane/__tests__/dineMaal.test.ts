@@ -128,6 +128,12 @@ describe("doemMaalFristModSkridt — målets frist mod skridtenes (Jonas 1/10-20
     expect(d.ok === false && d.senesteSkridtFrist).toBe("2026-12-03");
     expect(d.ok === false && d.grund).toContain("2 skridt har en senere frist — det seneste 3. dec. 2026");
   });
+  it("et forslag MED frist er også åbent (maal-skriv «rediger» 1/10 eftermiddag); timestamptz læses på datoen", () => {
+    const d = doemMaalFristModSkridt("2026-11-01", [s("a", "proposed", "2026-11-02")]);
+    expect(d).toMatchObject({ ok: false, senesteSkridtFrist: "2026-11-02", antal: 1 });
+    expect(doemMaalFristModSkridt("2026-11-02T00:00:00+00:00", [s("a", "proposed", "2026-11-02")])).toEqual({ ok: true });
+    expect(doemMaalFristModSkridt("", [s("a", "active", "2030-01-01")])).toEqual({ ok: true });
+  });
 });
 
 describe("lokalDatoStreng — den dag der blev klikket", () => {

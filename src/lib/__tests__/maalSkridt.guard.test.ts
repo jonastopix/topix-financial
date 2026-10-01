@@ -13,6 +13,11 @@ import { resolve } from "node:path";
 //      og dømmer doemFristModMaal FØR insert (samme dom som formularen) —
 //      og svarer dommens kode (rådets fund L1): 400 for efter_maalets_frist
 //      og maalets_frist_passeret, 500 for maalets_frist_ulaeselig.
+//   3–5 (1/10 eftermiddag, recon maal-teknik §3/§5.5): de tre andre veje til
+//      et skridts frist eller målets frist dømmer det samme —
+//      opgave-accepter (doemFristModMaal + målet skal være aktivt, 409),
+//      opgave-udskyd (doemUdskydModMaal: min(motorens, målets), skrevet med
+//      dommens dato) og maal-skriv «rediger» (doemMaalFristModSkridt, 409).
 // Selvbevis på kopier: hver regel falder, når kilden ændres tilbage.
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -50,6 +55,54 @@ export const fristModMaalHolder = (tilfoej: string): boolean => {
   );
 };
 
+const OPGAVE_ACCEPTER = "supabase/functions/opgave-accepter/index.ts";
+const OPGAVE_UDSKYD = "supabase/functions/opgave-udskyd/index.ts";
+const MAAL_SKRIV = "supabase/functions/maal-skriv/index.ts";
+const KODE_SVAR = /if \(!modMaal\.ok\) \{\s*if \(modMaal\.kode === "maalets_frist_ulaeselig"\) \{[\s\S]*?return jsonResponse\(\{ error: modMaal\.grund, grund: modMaal\.kode \}, 500\);\s*\}\s*return jsonResponse\(\{ error: modMaal\.grund, grund: modMaal\.kode \}, 400\);/;
+
+/** Dom 3: opgave-accepter dømmer målets status og fristen FØR skrivningen. */
+export const accepterHolder = (kilde: string): boolean => {
+  const k = udenKommentarer(kilde);
+  const aktiv = k.indexOf('.status !== "active") {');
+  const dom = k.indexOf("doemFristModMaal(dato as string,");
+  const skriv = k.indexOf(".update(");
+  return (
+    k.includes(".select(`${OPGAVE_KOLONNER}, maal_id`)") &&
+    k.includes('.select("id, status, deadline")') &&
+    aktiv > 0 && dom > aktiv && skriv > dom &&
+    k.includes('"Målet er ikke aktivt — et skridt kan kun høre til et aktivt mål"') &&
+    KODE_SVAR.test(k)
+  );
+};
+
+/** Dom 4: opgave-udskyd skriver dommens dato (min(motorens, målets)), ikke motorens. */
+export const udskydHolder = (kilde: string): boolean => {
+  const k = udenKommentarer(kilde);
+  const dom = k.indexOf("doemUdskydModMaal(nyFrist, gammel,");
+  const skriv = k.indexOf(".update(");
+  return (
+    k.includes(".select(`${OPGAVE_KOLONNER}, maal_id`)") &&
+    dom > 0 && skriv > dom &&
+    k.includes("nyFrist = modMaal.dato;") &&
+    /\.update\(\{\s*due_date: nyFrist,/.test(k) &&
+    k.includes("opgave.deferral_count > 0)") &&
+    KODE_SVAR.test(k)
+  );
+};
+
+/** Dom 5: maal-skriv «rediger» nægter en målfrist før et åbent skridts. */
+export const maalSkrivFristHolder = (kilde: string): boolean => {
+  const k = udenKommentarer(kilde);
+  const rediger = k.indexOf('if (handling === "rediger") {');
+  const dom = k.indexOf("doemMaalFristModSkridt(nyFrist,");
+  const skriv = k.indexOf(".update(patch)");
+  return (
+    rediger > 0 && dom > rediger && skriv > dom &&
+    /\.eq\("maal_id", maalId as string\)\s*\.in\("status", \["active", "proposed"\]\)/.test(k) &&
+    /return jsonResponse\(\{ error: fristDom\.grund, grund: "foer_skridtets_frist"[^}]*\}, 409\);/.test(k)
+  );
+};
+
 describe("mål og skridt (1/10-2026)", () => {
   const luk = laes(OPGAVE_LUK);
   const domme = DOMMEN.map(laes);
@@ -72,5 +125,23 @@ describe("mål og skridt (1/10-2026)", () => {
     // L1: én fast grund for alle tre afvisninger (før rettelsen) falder.
     expect(fristModMaalHolder(tilfoej.replace("grund: modMaal.kode }, 400)", 'grund: "efter_maalets_frist" }, 400)'))).toBe(false);
     expect(fristModMaalHolder(tilfoej.replace("grund: modMaal.kode }, 500)", "grund: modMaal.kode }, 400)"))).toBe(false);
+  });
+  it("dom 3–5: opgave-accepter, opgave-udskyd og maal-skriv «rediger» dømmer målets frist", () => {
+    expect(accepterHolder(laes(OPGAVE_ACCEPTER))).toBe(true);
+    expect(udskydHolder(laes(OPGAVE_UDSKYD))).toBe(true);
+    expect(maalSkrivFristHolder(laes(MAAL_SKRIV))).toBe(true);
+  });
+  it("selvbevis 3–5: uden dommen, uden status-tjek, eller med motorens dato i skrivningen, falder", () => {
+    const acc = laes(OPGAVE_ACCEPTER);
+    expect(accepterHolder(acc.replace("doemFristModMaal(dato as string,", "ingenDom(dato as string,"))).toBe(false);
+    expect(accepterHolder(acc.replace('.status !== "active") {', '.status === "aldrig") {'))).toBe(false);
+    expect(accepterHolder(acc.replace("grund: modMaal.kode }, 500)", "grund: modMaal.kode }, 400)"))).toBe(false);
+    const uds = laes(OPGAVE_UDSKYD);
+    expect(udskydHolder(uds.replace("due_date: nyFrist,", "due_date: tilDbDato(resultat.opgave.due_date!),"))).toBe(false);
+    expect(udskydHolder(uds.replace("nyFrist = modMaal.dato;", ""))).toBe(false);
+    expect(udskydHolder(uds.replace("opgave.deferral_count > 0)", "false)"))).toBe(false);
+    const ms = laes(MAAL_SKRIV);
+    expect(maalSkrivFristHolder(ms.replace("doemMaalFristModSkridt(nyFrist,", "ingenDom(nyFrist,"))).toBe(false);
+    expect(maalSkrivFristHolder(ms.replace('.in("status", ["active", "proposed"])', '.in("status", ["active"])'))).toBe(false);
   });
 });

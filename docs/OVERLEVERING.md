@@ -11527,6 +11527,14 @@ Teknisk råd: 2 RET FØRST, 5 BØR, 7 KAN. Alle er rettet af en anden agent i `a
   - klokken til alle rådgivere i `run-company-agent`;
   - designtjek af #1211 efter Update.
 
+#### 6. Skridtets frist ≤ målets — de tre sidste veje (gren `fix/frist-mod-maal-resten`)
+Jonas 1/10 11:37: «Det er heller ikke smart, at et skridt kan have en deadline længere ude i fremtiden end selve målet.» #1206 dækkede formularen og `skridt-tilfoej`; recon (maal-teknik §3/§5.5) fandt tre veje uden reglen. Nu dømmer alle tre med husets domme i `skridtForslag.ts` (begge spejle, paritetstest):
+- **`opgave-accepter`:** et forslag under et mål accepteres kun, når målet er AKTIVT (409 «Målet er ikke aktivt …», `grund: "maalet_ikke_aktivt"` — før blev et forslag under et parkeret/nået mål accepteret), og den valgte dato dømmes med `doemFristModMaal` — samme svar som `skridt-tilfoej` (400 `efter_maalets_frist`/`maalets_frist_passeret`, 500 `maalets_frist_ulaeselig`).
+- **`opgave-udskyd`:** ny ren dom `doemUdskydModMaal` (regnestykket i kommentaren): første udskydelse = min(nu + 14, målets frist) — motoren regner fra «nu», ikke fra den gamle frist (B11); en VALGT dato (anden udskydelse) efter målets frist afvises (400 `efter_maalets_frist`); målets frist passeret → 400 `maalets_frist_passeret`; gammel frist allerede på målets → 400 `ved_maalets_frist`. Målets frist i dag (dansk) er tilladt. Svaret bærer `begraenset_til_maalets_frist`.
+- **`maal-skriv` «rediger»:** en ny målfrist før et åbent (active/proposed) skridts frist → 409 med `doemMaalFristModSkridt`s grund og `grund: "foer_skridtets_frist"`. Dommen er flyttet fra `dineMaal.ts` til `skridtForslag.ts` (dineMaal re-eksporterer), så rådgiverens og medlemmets vej dømmer ens; den tæller nu også et forslag MED frist.
+- Fladerne (`BoardroomView`, `VirksomhedPlanen`) viser allerede serverens `error` ordret. Værn: `maalSkridt.guard` dom 3–5.
+- **Udrulning:** merge udruller ikke — `opgave-accepter`, `opgave-udskyd` og `maal-skriv` skal udrulles EKSPLICIT fra build-chatten (alle tre trækker `_shared/skridtForslag.ts`). **Beviset pr. function** (en svarkode kun den nye kode giver): `opgave-accepter` → `grund: "maalet_ikke_aktivt"` (forslag under et parkeret mål) eller `grund: "efter_maalets_frist"`; `opgave-udskyd` → feltet `begraenset_til_maalets_frist` i et 200-svar (eller `grund: "ved_maalets_frist"`); `maal-skriv` → 409 `grund: "foer_skridtets_frist"`. Ingen migration, ingen frontend-Update nødvendig.
+
 ---
 
 ## DEL 3 · Det der venter

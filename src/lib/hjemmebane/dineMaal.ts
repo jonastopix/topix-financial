@@ -231,37 +231,13 @@ export function tidligsteMaalFristTekst(dato: string, titel: string): string {
   return `Tidligst ${danskDato(dato)} — skridtet «${titel}» har frist den dag. Ryk eller luk skridtet først, hvis målet skal slutte før.`;
 }
 
-export type MaalFristDom = { ok: true } | { ok: false; grund: string; senesteSkridtFrist: string; antal: number };
-
 /**
  * MÅLETS NYE FRIST MOD SKRIDTENES (Jonas 1/10-2026: et skridt må ikke have en
  * frist længere ude end målet). Rykkes målets frist til FØR et åbent skridts
  * frist, NÆGTES ændringen med en tydelig besked — VALGET (det roligste):
- * ingen skridt rykkes stille. At «tilbyde at rykke skridtene» kræver en
- * skrivning på company_actions.due_date, som medlemmets klient ikke har
- * (company_actions er SELECT-only for klienter; skridt skrives af edge
- * functions) — en ny skrivevej er en senere beslutning, ikke en del af
- * rettelsen. Medlemmet kan vælge en senere målfrist, eller lukke/droppe
- * skridtet først.
- * Kun ÅBNE skridt tæller (status active — de eneste med en frist, der stadig
- * gælder; gjorte/droppede er historik, forslag har ingen frist før accept).
- * Ingen ny frist (null = fristen fjernes) → ok. Samme dag er tilladt.
+ * ingen skridt rykkes stille. Dommen bor siden 1/10 eftermiddag i
+ * skridtForslag.ts (spejlet i _shared), fordi maal-skriv «rediger» —
+ * rådgiverens vej — dømmer med den SAMME dom som medlemmets flade; den
+ * gentages her som re-eksport, så fladerne importerer som før.
  */
-export function doemMaalFristModSkridt(
-  nyFrist: string | null,
-  skridt: readonly Pick<SkridtTilDineMaal, "status" | "due_date" | "title">[],
-): MaalFristDom {
-  if (nyFrist == null || nyFrist === "") return { ok: true };
-  const ny = nyFrist.slice(0, 10);
-  const efter = skridt.filter((s) => s.status === "active" && s.due_date && s.due_date.slice(0, 10) > ny);
-  if (efter.length === 0) return { ok: true };
-  const frister = efter.map((s) => (s.due_date as string).slice(0, 10)).sort();
-  const seneste = frister[frister.length - 1];
-  const hvem = efter.length === 1 ? `Skridtet «${efter[0].title}» har frist ${danskDato(seneste)}` : `${efter.length} skridt har en senere frist — det seneste ${danskDato(seneste)}`;
-  return {
-    ok: false,
-    grund: `Målets frist kan ikke ligge før skridtenes. ${hvem}. Vælg ${danskDato(seneste)} eller senere — eller luk skridtet først.`,
-    senesteSkridtFrist: seneste,
-    antal: efter.length,
-  };
-}
+export { doemMaalFristModSkridt, type MaalFristDom } from "./skridtForslag";
