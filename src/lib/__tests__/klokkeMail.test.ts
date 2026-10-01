@@ -103,7 +103,7 @@ describe("klokkeMail — typerne står ét sted", () => {
     expect(MORGEN_TYPER).toContain("ansoegning_webhook_afvist"); // det faktiske navn (RAADGIVER_BESKED.webhook_afvist) — ikke «avist»
     expect(MORGEN_TYPER).toContain("ansoegning_samtale_booket");
     expect(MORGEN_TYPER).toContain("stille_ingen_login");
-    expect(Object.keys(ALDRIG_TYPER)).toEqual(["ansoegning_ny", "ansoegning_afholdt", "community_svar"]);
+    expect(Object.keys(ALDRIG_TYPER)).toEqual(["ansoegning_ny", "ansoegning_afholdt", "community_svar", "agent_insight"]);
     expect(klassificer("community_svar")).toBe("aldrig"); // Jonas 21/9: klokke, ikke mail
     expect(ALDRIG_TYPER.community_svar).toContain("klokke, ikke mail");
     expect(VINDUE_DAGE).toBe(7);
