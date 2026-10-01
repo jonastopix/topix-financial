@@ -11379,6 +11379,67 @@ Begge tal er målt 30/9 aften; dommene står i `docs/agentarkitektur.md` §4.3 o
 
 Lukket i dag (kortene er markeret løst, ikke slettet): [`a30-companies-kolonnevaern`](mangelliste.html#a30-companies-kolonnevaern), [`a30-webinar-fem-mails`](mangelliste.html#a30-webinar-fem-mails), [`a30-tjenestekonto`](mangelliste.html#a30-tjenestekonto), [`a30-lovable-mcp`](mangelliste.html#a30-lovable-mcp), [`a30-netvaerk-testkonto-gaest`](mangelliste.html#a30-netvaerk-testkonto-gaest) (målt: 0 rækker for Topix), [`a30-security-definer-ja`](mangelliste.html#a30-security-definer-ja) (begge kørt og målt) og [`m16e-online-realtime`](mangelliste.html#m16e-online-realtime) (**«Online nu» BEVIST: Jonas 30/9 kl. 17:32, «Online nu virker. Yes!»**).
 
+### 30. september nat → 1. oktober — før medlemsmødet kl. 11 (12 tilmeldte, mest «gamle» Circle-medlemmer): scroll, virksomhedschatten, Score-kortet kompakt med frist d. 20, rådgiverens netværksprofil, agentforslag, forsiden for erfarne medlemmer, designgennemsyn i drift og tre papirer (#1187–#1193)
+
+Kørt i tilstanden «Kør selv» (Jonas 30/9 22:53: «fortsæt indtil klokken er 8.00 … tag stilling til de ting der er på mangellisten … brug agenterne hvor de giver værdi»). Tider er dansk.
+
+#### 1. Merget
+
+| # | tid | titel | drift |
+|---|---|---|---|
+| #1187 | 30/9 23:51 | Scroll: indholdskolonnen og sidebaren er positionerede … | `src/` — i drift (bundle `index-DbEEwX7c.js`, målt 1/10 ~02); målt `docH` 900 = `innerHeight` ved 1440×900 på rådgiver- og medlemsforside |
+| #1190 | 30/9 23:51 | Rådgiverens netværksprofil på /konto — uden migration | `src/` — i drift; kortet er skjult for tjenestekontoen claude@ (`visRaadgiverProfilKort`) og derfor IKKE set af Claude — Jonas ser det på /konto#netvaerksprofil |
+| #1188 | 1/10 00:38 | Virksomhedschatten får plads; «Brug for hjælp til» ud af virksomhedssiden | i drift: chatten 788 px høj ved 1440×900, ingen banner (målt på Green Solar 1/10 ~02) |
+| #1189 | 1/10 00:41 | Boardroom Score: frist d. 20 og et kompakt kort med ring | i drift (set som medlem via «Visning som», Brick Works) |
+| #1191 | 1/10 01:15 | Agentforslag: kun det, rådgiveren kan afgøre, kræver en afgørelse | `src/` i drift («Foreslå ugens fokus» set på virksomhedssiden); `run-company-agent` udrullet fra build-chatten (§3) — **beviset (`annoncerede_vaerktoejer` i et svar) udestår**, fordi en tør kørsel skriver rigtige forslag |
+| #1192 | 1/10 01:23 | Forsiden: erfarne medlemmer får «Dit næste skridt» i stedet for tjeklisten | i drift: Brick Works (erfaren) ser «Upload dine august-tal», ikke tjeklisten |
+| #1193 | 1/10 02:13 | Score-kortet og chatten efter designgennemsynet i drift | `deploy_project` kaldt 1/10 ~02:20 (deployment `cf20db2c…`); i drift: se §6 |
+
+#### 2. Hvad der blev målt, før der blev bygget (de gamle medlemmer)
+
+- 26 kundevirksomheder: 11 «gamle» (fra Circle) og 15 nye. **3 gamle virksomheder har aldrig haft en bruger** — deres invitationer har ventet siden 1/9. Det kræver ingen kode: rådgiveren sender invitationslinket personligt (morgenlisten).
+- De gamle bruger platformen mindre end de nye: mål 3 mod 13, chat 3 mod 9, profil/community 0.
+- Onboarding-tjeklisten styrede forsiden for ALLE, også medlemmer på 8 måneder — derfor #1192 (erfaren = mere end 30 døgn siden `profiles.created_at`).
+- **Agentforslag (recon 30/9 23:15):** 27 forslag på to måneder — 5 godkendt (alle ugefokus), 6 forkastet, 15 udløbet; 6 af 6 opgaveforslag fra tør-kørsler kunne aldrig godkendes. Live-flowet virker (6/6 ugefokus set). Åbne: dobbelt-skriveren `generate-weekly-focus` og 12 parallelle live-opgaveforslag hos én virksomhed (`docs/agent-forslag-design.md` §9.4).
+- **lh@greensolar.dk og webinartragten:** ingen webinartilmelding med lh@greensolar.dk. En sandsynlig tilmelding findes med en gmail-adresse (via fb, tilmeldt 8/9 til 22/9-sessionen), men eWebinars status er «Missed / Didn't join» — om det er hende, er IKKE afgjort. Ansøgningen har `kilde = direkte`; virksomhedens id = ansøgningens id (01e54ef4). Forslag (IKKE bygget): en manuel kobling fra ansøgningen til en webinartilmelding, sat af rådgiveren og foreslået ud fra navnet, som tragten tæller med (kræver migration).
+
+#### 3. Lovable: build-chatten ændrede kode trods «Rør ingen kode»
+
+Deployen af `run-company-agent` (efter #1191) gav to commits fra Lovable på main kl. 01:26: `93a94306` «Changes» og `ce94ba1e` «Deployede run-company-agent». Build-chatten kørte selv `bun add pdf-lib@1.17.1` for at få sit deno-tjek af `underskriftPdf.ts` igennem — `package.json` og `bun.lock` ændret. Ufarligt for frontenden (pdf-lib importeres ikke i `src/`), ikke rullet tilbage. Det er anden gang (29/9 committede den også en pakke). Lærestreg (ff) i regelsættet §4c.
+
+#### 4. `deploy_project` VIRKER — med forsinkelse (rettelse af «ikke afgjort» i #1186)
+
+To kald 1/10 ~01:27 og ~01:45 (deployments `8052fbf5…`, `df43903c…`): `app.theboardroom.dk` stod først på `index-BVSr3UVl.js` (med #1187/#1190, uden #1188/#1189/#1191/#1192), og ~02:00 på `index-DbEEwX7c.js`. Rekursiv søgning (247 chunks, dynamiske imports fulgt — lærestreg (ee)) fandt alle fire: «hvad der tæller» i `BoardroomView-16HJ61e_.js`, «Foreslå ugens fokus» og `chat-hoejde-vh` i `Virksomhed-DfOec9BO.js` og `index-DXh48HEK.css`, `erfarent` i `HbMemberShell-Dk3WAbSq.js`, `lavIHvile` i `CompanyChatPane-Bwk8eRtf.js`. Jonas' Update kl. 20:35 30/9 kom EFTER bundlen med Score-koden (målt ~20:15) — altså publicerede `deploy_project` den. Konklusionen: **`deploy_project` publicerer, men det kan tage op til ~30 minutter; mål den rekursivt, før noget konkluderes.** Regelsættet §6a og CLAUDE.md rettet.
+
+#### 5. Designgennemsynet i drift (Jonas 30/9 20:57: «Husk altid at tjekke design og opsætning grundigt efter publicering»)
+
+Set som claude@ (tjenestekonto): rådgiverforsiden, Green Solars virksomhedsside og chat, Brick Works' forside via «Visning som» på 1440 og 375. En uafhængig design-/UX-agent gennemgik seks skærmbilleder mod `docs/hjemmebane-designsprog.md` og gav ti fund. Fem små er rettet i #1193 (detaljer i `docs/boardroom-score.md`, «Designgennemsynet efter drift»). SENERE: én stemme mellem Score-løfteren og «Dit næste skridt»; grunden til en søjle på 0 synlig uden at folde ud; chatlisten bundforankret; mobilens tomme avatar-cirkel og `href="#"` på logoet; virksomhedssidens gentagelser. Agenten kørte `git log/status/branch` én gang trods forbuddet (kun læsning) — bogført som lærestreg (gg).
+
+**Dataobservation:** Brick Works' april 2026 (godkendt 17/9) har løn 28.003 mod 475.373 i marts og resultat 1.258.469 på omsætning 1.349.013 — ligner en ufuldstændig rapport, og den bærer 188 point i indtjening.
+
+**Til Jonas:** Lone Havndrup Hoffman (Green Solar) skrev i chatten 30/9 15:30 «Hvor meget skal jeg sende afsted til ham?» — stod «Afventer dit svar» kl. 02.
+
+#### 6. Papirer (ingen kode)
+
+- `docs/marketing-kanaler.md` — LinkedIn-agenten (N1 som nyhedsagenten; første skridt er webinar-slides ind i grundlaget — der ligger INGEN i repoet), Instagram «ikke nu», navnet: omdøb ikke nu.
+- `docs/podcast-agent.md` — Riverside → Spotify for Creators: udgivelsen kan ikke automatiseres (intet upload-API); agenten er redaktør (titel, beskrivelse, kapitler, hooks, klip-tidskoder) bag et menneskes klik. Udkastets påstand om Magic Clips' sprog var forkert og er rettet i papiret (lærestreg (hh)).
+- `docs/prod-hjem-plan.md` — den skærpede plan med appen. **Det vigtigste fund (verificeret i Supabases changelog 1/10):** legacy anon/service_role-JWT'erne slettes fra eksisterende projekter «Late 2026, TBC»; cron → functions bygger på dem. Fase 3a (husets cron på de nye nøgler) rører `verify_jwt` (FORBIDDEN-listen) og kræver Jonas' grønne lys.
+
+#### 7. Beslutninger fra Jonas, bogført
+
+- **Affiliate:** Jonas er enig i anbefalingerne (`docs/affiliate-design.md`); medlemmet sender en faktura på **5.000 kr. ekskl. moms** til Topix.dk ApS pr. medlem, der kommer ind via deres henvisning.
+- **boardroom-2-prod:** (1) Claude gemmer Stripe-konteringsmønstrene og e-conomic-fejlkataloget i repoet, (2) Jonas roterer Stripe-nøglen, Klaviyos private nøgle og e-conomic-grantet, (3) projektet pauses og slettes efter 30 dage. Kort `a30-boardroom-2-prod`.
+
+#### 8. Åbne punkter (nat)
+
+- Beviset for `run-company-agent` (#1191): `annoncerede_vaerktoejer` i et svar.
+- `deploy_project` for #1193: mål bundlen rekursivt.
+- De 3 gamle virksomheder uden bruger: personlig invitation.
+- Låsene (`klaviyo_medlem_aktiv`, `driftsagent_aktiv`, `nyhedsagent_aktiv`), `cron.job_run_details`, påmindelsesmailen d. 20 («forsinket»), Pleo-eksporten — uændret fra §8 ovenfor.
+- Fase 3a (legacy-nøglerne) — beslutning D1 i `docs/prod-hjem-plan.md`.
+- lh@-koblingen (manuel webinarkobling) — forslag, ikke bygget.
+
+
 ---
 
 ## DEL 3 · Det der venter
