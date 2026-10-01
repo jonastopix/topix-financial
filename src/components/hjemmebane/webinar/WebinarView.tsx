@@ -4,6 +4,10 @@ import { cn } from "@/lib/utils";
 import { HbCard } from "@/components/hjemmebane/HbCard";
 import { HbSection } from "@/components/hjemmebane/HbSection";
 import { useWebinarDashboard } from "@/hooks/webinarDashboard";
+import { useAnnonceforbrug } from "@/hooks/annonceforbrug";
+import { VarmeLeadsAfsnit } from "@/components/hjemmebane/webinar/VarmeLeads";
+import { varmeLeads, type VarmtLead } from "@/lib/webinar/varmeLeads";
+import { MAAL_EYEBROW, MAAL_TITEL, maalstreger, type MaalBar, type Maallinje, type Maalstreger } from "@/lib/webinar/maalstreger";
 import { AnnoncepriserAfsnit } from "@/components/hjemmebane/annoncer/AnnoncepriserAfsnit";
 import { PRIS_EYEBROW, PRIS_TITEL } from "@/lib/webinar/annoncepriser";
 import {
@@ -578,6 +582,66 @@ const Kobling = ({ dom }: { dom: WebinarDashboardSvar }) => {
   );
 };
 
+/**
+ * MÅLSTREGERNE (udkast 1/10-2026) — Nicklas' fire styretal med en tynd bar og
+ * en målstreg. Fladen skriver KUN dommens ord (`maalOrd`, `vaerdiOrd`,
+ * `udfaldOrd`) og tegner dommens positioner (`bar`, 0–1); den regner ingen
+ * procent og ingen pris selv, og under grænsen står «for få» — der findes da
+ * intet tal at tegne (`bar.vaerdi` er null). Samme komponent på /delt/webinar:
+ * målstregerne er tal, ikke personer.
+ */
+const MaalBarTegning = ({ bar }: { bar: MaalBar }) => (
+  <span className="relative mt-2 block h-1.5 w-full rounded-full bg-hb-line" aria-hidden="true" data-maal-bar>
+    {bar.fra !== null && bar.til !== null && (
+      <span
+        className="absolute inset-y-0 rounded-full bg-hb-sage/35"
+        style={{ left: `${(bar.fra * 100).toFixed(1)}%`, width: `${((bar.til - bar.fra) * 100).toFixed(1)}%` }}
+      />
+    )}
+    {bar.vaerdi !== null && (
+      <span className="absolute inset-y-0 left-0 rounded-full bg-hb-sage" style={{ width: `${(bar.vaerdi * 100).toFixed(1)}%` }} />
+    )}
+    <span className="absolute -top-1 h-3.5 w-0.5 -translate-x-1/2 rounded-full bg-hb-ink" style={{ left: `${(bar.maal * 100).toFixed(1)}%` }} data-maal-streg />
+  </span>
+);
+
+const MaalRaekke = ({ l }: { l: Maallinje }) => (
+  <li className="border-t border-hb-line py-3 last:border-b" data-maal={l.noegle} data-maal-udfald={l.udfald} title={l.forklaring}>
+    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+      <p className="min-w-0 text-sm font-medium text-hb-ink">
+        {l.navn}
+        <span className="ml-2 text-xs font-normal text-hb-ink-soft">mål {l.maalOrd}</span>
+      </p>
+      <p className="flex items-baseline gap-2 text-sm">
+        <span className={cn("tabular-nums", l.vaerdi === "maalt" ? "text-hb-ink" : "italic text-hb-ink-soft")} aria-hidden="true">{l.vaerdiOrd}</span>
+        <span
+          aria-hidden="true"
+          className={cn(
+            "rounded-full border px-1.5 text-[10px]",
+            l.naaet === true ? "border-hb-evergreen/40 text-hb-evergreen" : l.naaet === false ? "border-hb-rust/40 text-hb-rust" : "border-hb-line text-hb-ink-soft",
+          )}
+        >
+          {l.udfaldOrd}
+        </span>
+      </p>
+    </div>
+    <MaalBarTegning bar={l.bar} />
+    <span className="sr-only">{`${l.navn}, mål ${l.maalOrd}: ${l.vaerdiOrd} — ${l.udfaldOrd}. ${l.forklaring}`}</span>
+  </li>
+);
+
+/** De fire linjer. Fail-soft: et delt-svar fra den gamle webinar-delt har ingen `maalstreger` — så tegnes intet. */
+const Maalene = ({ m }: { m: Maalstreger }) => (
+  <div data-maalstreger={m.linjer.length}>
+    <ul>{m.linjer.map((l) => <MaalRaekke key={l.noegle} l={l} />)}</ul>
+    <p className="mt-3 text-xs text-hb-ink-soft">
+      Procentmålene er dømt på et 95 %-interval: «over målet» eller «under målet» kun, når HELE intervallet ligger på den ene side af stregen — ellers «kan ikke afgøres». Under {SPOR_FORHOLD_FRA} står «for få» i stedet for et tal, og ingen pris sættes på færre end {SPOR_FORHOLD_FRA}.
+      {` Priserne er regnet over ${m.prisvindueOrd ?? "den periode, forbruget dækker"} (hele perioden — periodevælgeren længere nede flytter ikke målstregerne).`}
+      {" Ansøgninger og især medlemmer kommer dage og uger efter webinaret — de to tal er lavest lige efter en session."}
+    </p>
+  </div>
+);
+
 const Skelet = () => (
   <div className="animate-pulse space-y-4" data-webinar="henter">
     <div className="h-28 rounded-hb bg-hb-line/60" />
@@ -602,10 +666,16 @@ export const WebinarVisning = ({
   tilstand,
   dom,
   priser,
+  maal = null,
+  varme = null,
 }: {
   tilstand: "henter" | "fejl" | "klar";
   dom: WebinarDashboardSvar | null;
   priser: ReactNode;
+  /** Nicklas' målstreger — samme færdige dom på begge flader. null = ingen (fx gammel webinar-delt). */
+  maal?: Maalstreger | null;
+  /** Varme leads — KUN rådgiveren giver dem ind. Den delte side gør det aldrig (persondata). */
+  varme?: ReactNode;
 }) => {
   const [kunNaeste, setKunNaeste] = useState(false);
   const spor = dom === null ? null : kunNaeste && dom.sporNaeste !== null ? dom.sporNaeste : dom.spor;
@@ -628,6 +698,14 @@ export const WebinarVisning = ({
           <HbSection eyebrow={TRAGT_EYEBROW} title={TRAGT_TITEL} hairline className="mt-8">
             <Tragten t={dom.tragt} />
           </HbSection>
+
+          {maal && (
+            <HbSection eyebrow={MAAL_EYEBROW} title={MAAL_TITEL} hairline className={sektion}>
+              <Maalene m={maal} />
+            </HbSection>
+          )}
+
+          {varme}
 
           <HbSection eyebrow="Det næste webinar" title="Hvem der venter, og hvornår" hairline className={sektion}>
             <NaesteAfsnit naeste={dom.naeste} />
@@ -694,14 +772,35 @@ export const WebinarVisning = ({
 /** Rådgiverens /webinar: ÉN kilde (useWebinarDashboard), ÉN dom (webinarDashboard) — og visningen ovenfor. */
 export const WebinarView = ({ nu = new Date() }: { nu?: Date }) => {
   const query = useWebinarDashboard();
+  // Forbruget til målstregernes to priser — samme hook og samme cache som prisafsnittet.
+  const forbrug = useAnnonceforbrug();
   const dom = useMemo<WebinarDashboard | null>(
     () => (query.data ? webinarDashboard(query.data, nu) : null),
+    [query.data, nu],
+  );
+  // Venter på forbruget, så «ingen data» ikke blinker, før det er hentet; fejler det, står priserne som «ingen data».
+  const maal = useMemo<Maalstreger | null>(
+    () =>
+      query.data && !forbrug.isPending
+        ? maalstreger({
+            tilmeldinger: query.data.tilmeldinger,
+            ansoegninger: query.data.ansoegninger,
+            forbrug: forbrug.data ? { dage: forbrug.data.dage, annoncer: forbrug.data.annoncer, tilstand: forbrug.data.tilstand, hentetTil: forbrug.data.hentning?.hentet_til ?? null } : null,
+          }, nu)
+        : null,
+    [query.data, forbrug.data, forbrug.isPending, nu],
+  );
+  // KUN her — rådgiverens egen flade. WebinarVisning tegner kun det, den får ind.
+  const leads = useMemo<VarmtLead[] | null>(
+    () => (query.data ? varmeLeads(query.data.tilmeldinger, query.data.ansoegninger, nu) : null),
     [query.data, nu],
   );
   return (
     <WebinarVisning
       tilstand={query.isError ? "fejl" : query.isPending ? "henter" : "klar"}
       dom={dom}
+      maal={maal}
+      varme={leads === null ? null : <VarmeLeadsAfsnit leads={leads} />}
       priser={<AnnoncepriserAfsnit tilmeldinger={query.data?.tilmeldinger ?? []} ansoegninger={query.data?.ansoegninger ?? []} nu={nu} />}
     />
   );

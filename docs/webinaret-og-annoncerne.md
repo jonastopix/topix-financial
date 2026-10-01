@@ -666,6 +666,56 @@ Målingen, før telefonen kobles på (Lovable SQL editor):
 
 ---
 
+## 7j. Målstregerne og de varme leads (udkast 1/10-2026)
+
+**Kilden:** Nicklas' dokument 1/10, «Det styrer vi efter — mål ved start»:
+fremmøde over 55 % · ansøgere blandt dem, der ser det færdigt, over 10 % · pris
+pr. ansøgning under 2.500 kr. · pris pr. nyt medlem under 15.000 kr. Hans egne
+tal (25/8 + 22/9): 469 tilmeldt · 189 mødte · 132 så færdigt · 6 ansøgte · 0
+medlemmer — tragten knækker efter webinaret.
+
+**A. Målstregerne** (`src/lib/webinar/maalstreger.ts`, spejlet ordret som
+`_shared/webinarMaalstreger.ts`, paritet i `webinarDashboard.paritet.test.ts`).
+Målene står ÉT sted (`MAAL_*`). Definitionerne genbruger husets:
+
+| Mål | Tæller / nævner | Vindue | Genbrugt fra |
+|---|---|---|---|
+| Fremmøde | mødte op / (tilmeldte − kommende), personer | alle afholdte sessioner | `taelDeltagelse` på de afholdte (tragten, «I alt») |
+| Ansøgere blandt så-færdigt | «set» (≥ 75 %) med indsendt ansøgning SKARPT efter første afholdte session / «set» | alle afholdte sessioner | tragtens grænse i tid (`tragt`: `foersteSession` + `faellesEfter`) + `medWebinarKobling` |
+| Pris pr. ansøgning | forbrug / ansøgere blandt personer, hvis første tilmelding faldt i vinduet | «Hele perioden» (`valg: "daekning"`) | `annoncepriser().samlet` (`byggLinje`) |
+| Pris pr. nyt medlem | samme forbrug / `blevMedlem` (underskrevet OG betalt) | samme | samme |
+
+Dommen: procentmål med Wilson 95 % — «over/under målet» kun når HELE intervallet
+ligger på én side, ellers «kan ikke afgøres»; under 5 ERSTATTER «for få»
+procenten. Kronemål uden interval; under 5 personer sættes INGEN pris («for
+få»). «Ingen data» uden forbrug, udækket vindue eller anden valuta end DKK.
+**Vinduet står fast på «Hele perioden»** — prisafsnittets periodevælger flytter
+ikke målstregerne. Pris pr. ansøgning har (som annoncepriserne) INGEN grænse i
+tid mod sessionen; fremmøde/ansøgere har tragtens.
+
+Fladen (`WebinarView.tsx`, sektionen «Målene» under tragten) skriver kun
+dommens ord og tegner dommens bar-positioner; kildeværn i `maalstreger.test.ts`.
+Den delte side får dommen gennem `webinar-delt` → `bygDeltSvar` som feltet
+`maalstreger` (tal, ingen rækker); uden feltet (gammel function) tegnes intet.
+
+**B. Varme leads** (`src/lib/webinar/varmeLeads.ts`, KUN rådgiveren; INTET
+spejl): «set» på en afholdt session med tidspunkt inden for 14 dage (inklusiv),
+UDEN indsendt ansøgning (mail eller kobling), én linje pr. person (nyeste
+session), nyeste først, flaget «inden for 24 timer» regnet fra sessionens
+START. Nicklas' anden betingelse (omsætning over 2 mio.) kan IKKE dømmes:
+`webinar_tilmeldinger` har ingen CVR/omsætning. Husets CVR-opslag
+(`ansoegning-cvr`, `ansoegning-cvr-opslag`, `berig-virksomheder`, DataCVR 25
+opslag/døgn) er bevidst IKKE brugt. Persondata: `varmeLeads` står i
+`FORBUDTE_NOEGLER`, og et kildeværn (`varmeLeads.test.ts`) fælder enhver
+function eller den delte side, der nævner dommen. **Næste skridt:** en
+«ringet»-markering kræver en tabel.
+
+**Rækkefølgen:** merge → **eksplicit udrulning af `webinar-delt`** (den trækker
+en NY delt fil ind, `webinarMaalstreger.ts`) → **beviset:** et delt-svar bærer
+feltet `maalstreger` (fire linjer) → FØRST DEREFTER Update. Ingen migration.
+
+---
+
 ## 8. 20. september — sporet lukkes fra klik til ansøgning, og fem felter viste sig at være observationer
 
 **Princippet, der binder dagen sammen: et felt, vi ikke selv sætter, er en

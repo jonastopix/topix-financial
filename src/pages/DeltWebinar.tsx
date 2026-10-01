@@ -9,6 +9,7 @@ import { WebinarVisning } from "@/components/hjemmebane/webinar/WebinarView";
 import { AnnoncepriserVisning } from "@/components/hjemmebane/annoncer/AnnoncepriserAfsnit";
 import type { WebinarDashboardSvar } from "@/lib/webinar/dashboard";
 import type { Annoncepriser, HentningStatus, VindueValg } from "@/lib/webinar/annoncepriser";
+import type { Maalstreger } from "@/lib/webinar/maalstreger";
 import { TOKEN_PARAM } from "@/lib/webinar/deling";
 import { formaterDanskTid } from "@/lib/revisionsspor";
 
@@ -29,6 +30,8 @@ interface DeltSvar {
   priser: Annoncepriser;
   hentning: HentningStatus | null;
   valg: VindueValg;
+  /** Nicklas' målstreger (1/10-2026). Valgfri: den gamle webinar-delt svarer uden — så tegnes de ikke. */
+  maalstreger?: Maalstreger;
 }
 
 type Opslag =
@@ -122,6 +125,7 @@ export default function DeltWebinar() {
       <WebinarVisning
         tilstand={svar ? "klar" : "henter"}
         dom={svar?.dashboard ?? null}
+        maal={svar?.maalstreger ?? null}
         priser={
           svar ? (
             <div className="relative" data-delt-priser={priserHenter ? "henter" : "klar"}>

@@ -138,6 +138,17 @@ describe("webinarDeling — svaret til den eksterne bærer ingen persondata", ()
     expect(svar.priser.samlet.forbrugOere).toBe(400000);
     expect(svar.valg).toBe("daekning");
   });
+  it("MÅLSTREGERNE (1/10-2026) går ud som TAL — feltet `maalstreger` er beviset for udrulningen", () => {
+    expect(svar.maalstreger.kilde).toBe("Nicklas, 1/10");
+    expect(svar.maalstreger.linjer.map((l) => l.noegle)).toEqual(["fremmoede", "ansoegere_blandt_set", "pris_pr_ansoegning", "pris_pr_medlem"]);
+    // Fixturen: 4 afholdte personer (15/9) — under 5, så «for få» ERSTATTER procenten.
+    expect(svar.maalstreger.linjer[0]).toMatchObject({ vaerdi: "for_faa", naevner: 4 });
+    expect(findForbudteNoegler(svar.maalstreger)).toEqual([]);
+    expect(JSON.stringify(svar.maalstreger)).not.toMatch(/@/);
+    // Samme vindue uanset periodevælgeren: «Hele perioden».
+    const syv = bygDeltSvar({ ...ind, valg: "7dage" }, NU_FIX);
+    expect(syv.maalstreger).toEqual(svar.maalstreger);
+  });
   it("udenRaekker fjerner PRÆCIS naeste.raekker — og intet andet", () => {
     const fuld = webinarDashboard({ tilmeldinger: FIXTURE.tilmeldinger, ansoegninger: FIXTURE.ansoegninger, sporKolonnerFindes: true }, NU_FIX);
     expect(fuld.naeste?.raekker.length).toBe(2);

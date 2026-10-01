@@ -13,6 +13,7 @@
  */
 import { type AnsoegerMail, type Tilmelding, udenRaekker, type WebinarDashboardSvar, webinarDashboard } from "./webinarDashboard.ts";
 import { type Annoncenavn, annoncepriser, type Annoncepriser, type Forbrugsdag, type Forbrugstilstand, type HentningStatus, type VindueValg } from "./annoncepriser.ts";
+import { maalstreger, type Maalstreger } from "./webinarMaalstreger.ts";
 
 /** Tilmeldingens personfelter — må ALDRIG være nøgle i svaret (kolonnerne i hooks/webinar.ts TILMELDING_KOLONNER + annoncesporet). */
 export const FORBUDTE_NOEGLER = [
@@ -22,6 +23,10 @@ export const FORBUDTE_NOEGLER = [
   // for netop den person. De hører i en mail til personen selv — aldrig i et
   // svar til en ekstern, uanset hvor dybt i objektet de måtte ligge.
   "join_link", "kalender_link", "replay_link",
+  // Varme leads (1/10-2026): navn + mail på dem, der så færdigt og ikke har
+  // ansøgt — KUN rådgiverens /webinar (src/lib/webinar/varmeLeads.ts). Står
+  // listen nogensinde i et delt-svar, afvises svaret.
+  "varmeLeads",
 ] as const;
 
 export interface DeltInput {
@@ -47,6 +52,13 @@ export interface DeltSvar {
    * svarer med det (0 er et gyldigt svar — også før migrationen er kørt).
    */
   koblinger_talt: number;
+  /**
+   * NICKLAS' MÅLSTREGER (udkast 1/10-2026, `webinarMaalstreger.ts`): fire linjer
+   * med tal, ord og bar-positioner — aldrig en række, aldrig en mail. Regnet over
+   * «Hele perioden» uanset `valg`. Feltet er BEVISET for udrulningen af
+   * webinar-delt: kun den nye kode svarer med det.
+   */
+  maalstreger: Maalstreger;
 }
 
 /** Ansøgningerne, der bærer en bekræftet kobling (en ikke-tom `webinar_email`) — kun antallet. */
@@ -61,7 +73,11 @@ export function bygDeltSvar(ind: DeltInput, nu: Date): DeltSvar {
     { tilmeldinger: ind.tilmeldinger, ansoegninger: ind.ansoegninger, dage: ind.dage, annoncer: ind.annoncer, tilstand: ind.tilstand, valg: ind.valg, hentetTil: ind.hentning?.hentet_til ?? null },
     nu,
   );
-  return { dashboard, priser, hentning: ind.hentning, valg: ind.valg, koblinger_talt: koblingerTalt(ind.ansoegninger) };
+  const maal = maalstreger(
+    { tilmeldinger: ind.tilmeldinger, ansoegninger: ind.ansoegninger, forbrug: { dage: ind.dage, annoncer: ind.annoncer, tilstand: ind.tilstand, hentetTil: ind.hentning?.hentet_til ?? null } },
+    nu,
+  );
+  return { dashboard, priser, hentning: ind.hentning, valg: ind.valg, koblinger_talt: koblingerTalt(ind.ansoegninger), maalstreger: maal };
 }
 
 /** Stierne (a.b[0].c) til enhver forbudt nøgle i objektet — tom liste = rent. Går hele træet, også arrays. */
