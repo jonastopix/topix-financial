@@ -11,6 +11,8 @@ import {
   graenseTekst,
   modMaaletTekst,
   senesteAabneSkridt,
+  udskudtToastTekst,
+  UDSKUDT_TEKST,
   skridtLinjer,
   tidligsteMaalFristTekst,
   type SkridtTilDineMaal,
@@ -128,6 +130,12 @@ describe("doemMaalFristModSkridt — målets frist mod skridtenes (Jonas 1/10-20
     expect(d.ok === false && d.senesteSkridtFrist).toBe("2026-12-03");
     expect(d.ok === false && d.grund).toContain("2 skridt har en senere frist — det seneste 3. dec. 2026");
   });
+  it("et forslag MED frist er også åbent (maal-skriv «rediger» 1/10 eftermiddag); timestamptz læses på datoen", () => {
+    const d = doemMaalFristModSkridt("2026-11-01", [s("a", "proposed", "2026-11-02")]);
+    expect(d).toMatchObject({ ok: false, senesteSkridtFrist: "2026-11-02", antal: 1 });
+    expect(doemMaalFristModSkridt("2026-11-02T00:00:00+00:00", [s("a", "proposed", "2026-11-02")])).toEqual({ ok: true });
+    expect(doemMaalFristModSkridt("", [s("a", "active", "2030-01-01")])).toEqual({ ok: true });
+  });
 });
 
 describe("lokalDatoStreng — den dag der blev klikket", () => {
@@ -215,8 +223,23 @@ describe("rådets fund M2 (1/10-2026): de grå dage i detaljens kalender forklar
     expect(senesteAabneSkridt([sk("A", "active", "2026-11-01"), sk("B", "active", "2026-11-20T00:00:00Z"), sk("C", "done", "2026-12-24")])).toEqual({ dato: "2026-11-20", titel: "B" });
     // Samme dag: det første i listen.
     expect(senesteAabneSkridt([sk("A", "active", "2026-11-20"), sk("B", "active", "2026-11-20")])).toEqual({ dato: "2026-11-20", titel: "A" });
+    // K3 (1/10 eftermiddag): et forslag MED frist tæller som i doemMaalFristModSkridt; uden frist ikke.
+    expect(senesteAabneSkridt([sk("A", "active", "2026-11-01"), sk("P", "proposed", "2026-12-01"), sk("Q", "proposed", null), sk("D", "dropped", "2027-01-01")])).toEqual({ dato: "2026-12-01", titel: "P" });
   });
   it("teksten: dato, skridtets titel og vejen ud", () => {
     expect(tidligsteMaalFristTekst("2026-11-20", "Ring til banken")).toBe("Tidligst 20. nov. 2026 — skridtet «Ring til banken» har frist den dag. Ryk eller luk skridtet først, hvis målet skal slutte før.");
+  });
+});
+
+describe("toasten efter «Udskyd» (rådets fund R1, 1/10 eftermiddag)", () => {
+  it("begrænset til målets frist: den faktiske nye dato", () => {
+    expect(udskudtToastTekst({ ok: true, opgave: { due_date: "2026-10-10" }, begraenset_til_maalets_frist: true })).toBe("Udskudt til 10. okt. — målets frist");
+  });
+  it("ikke begrænset, gammel kode uden feltet, eller uden dato: den normale tekst", () => {
+    expect(UDSKUDT_TEKST).toBe("Opgaven er udskudt");
+    expect(udskudtToastTekst({ ok: true, opgave: { due_date: "2026-10-15" }, begraenset_til_maalets_frist: false })).toBe(UDSKUDT_TEKST);
+    expect(udskudtToastTekst({ ok: true, opgave: { due_date: "2026-10-15" } })).toBe(UDSKUDT_TEKST);
+    expect(udskudtToastTekst({ ok: true, opgave: null, begraenset_til_maalets_frist: true })).toBe(UDSKUDT_TEKST);
+    expect(udskudtToastTekst(null)).toBe(UDSKUDT_TEKST);
   });
 });

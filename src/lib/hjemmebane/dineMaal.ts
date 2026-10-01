@@ -209,19 +209,37 @@ export function lokalDatoStreng(d: Date): string {
   return `${d.getFullYear()}-${mm}-${dd}`;
 }
 
-/** Det seneste ÅBNE skridts frist under et mål (status active med frist) —
-    den tidligste dag, målets frist må have (doemMaalFristModSkridt). Ved
-    flere skridt på samme dag: det første i listen. null uden sådanne skridt. */
+/** Det seneste ÅBNE skridts frist under et mål (status active ELLER
+    proposed, med frist — SAMME filter som doemMaalFristModSkridt, rådets
+    fund K3 1/10 eftermiddag; før kun active, så datovælgerens grå dage og
+    dommen kunne være uenige om et forslag med frist) — den tidligste dag,
+    målets frist må have. Ved flere skridt på samme dag: det første i
+    listen. null uden sådanne skridt. */
 export function senesteAabneSkridt(
   skridt: readonly Pick<SkridtTilDineMaal, "status" | "due_date" | "title">[],
 ): { dato: string; titel: string } | null {
   let bedst: { dato: string; titel: string } | null = null;
   for (const s of skridt) {
-    if (s.status !== "active" || !s.due_date) continue;
+    if ((s.status !== "active" && s.status !== "proposed") || !s.due_date) continue;
     const dato = s.due_date.slice(0, 10);
     if (bedst == null || dato > bedst.dato) bedst = { dato, titel: s.title };
   }
   return bedst;
+}
+
+/** Toasten efter «Udskyd» (rådets fund R1, 1/10 eftermiddag): begrænsede
+    opgave-udskyd fristen til målets (svarfeltet begraenset_til_maalets_frist),
+    siger toasten den FAKTISKE nye dato — ellers ville medlemmet tro, at
+    skridtet fik de sædvanlige 14 dage. Uden feltet (gammel kode i drift) eller
+    uden en læselig dato: den normale tekst. */
+export const UDSKUDT_TEKST = "Opgaven er udskudt";
+export function udskudtToastTekst(svar: unknown): string {
+  const s = (svar ?? null) as { begraenset_til_maalets_frist?: unknown; opgave?: { due_date?: unknown } | null } | null;
+  const dato = typeof s?.opgave?.due_date === "string" ? s.opgave.due_date : null;
+  if (s?.begraenset_til_maalets_frist === true && dato && /^\d{4}-\d{2}-\d{2}/.test(dato)) {
+    return `Udskudt til ${danskDato(dato.slice(0, 10)).replace(/ \d{4}$/, "")} — målets frist`;
+  }
+  return UDSKUDT_TEKST;
 }
 
 /** Hjælpeteksten ved detaljens datovælger, når dagene før det seneste åbne
@@ -231,37 +249,13 @@ export function tidligsteMaalFristTekst(dato: string, titel: string): string {
   return `Tidligst ${danskDato(dato)} — skridtet «${titel}» har frist den dag. Ryk eller luk skridtet først, hvis målet skal slutte før.`;
 }
 
-export type MaalFristDom = { ok: true } | { ok: false; grund: string; senesteSkridtFrist: string; antal: number };
-
 /**
  * MÅLETS NYE FRIST MOD SKRIDTENES (Jonas 1/10-2026: et skridt må ikke have en
  * frist længere ude end målet). Rykkes målets frist til FØR et åbent skridts
  * frist, NÆGTES ændringen med en tydelig besked — VALGET (det roligste):
- * ingen skridt rykkes stille. At «tilbyde at rykke skridtene» kræver en
- * skrivning på company_actions.due_date, som medlemmets klient ikke har
- * (company_actions er SELECT-only for klienter; skridt skrives af edge
- * functions) — en ny skrivevej er en senere beslutning, ikke en del af
- * rettelsen. Medlemmet kan vælge en senere målfrist, eller lukke/droppe
- * skridtet først.
- * Kun ÅBNE skridt tæller (status active — de eneste med en frist, der stadig
- * gælder; gjorte/droppede er historik, forslag har ingen frist før accept).
- * Ingen ny frist (null = fristen fjernes) → ok. Samme dag er tilladt.
+ * ingen skridt rykkes stille. Dommen bor siden 1/10 eftermiddag i
+ * skridtForslag.ts (spejlet i _shared), fordi maal-skriv «rediger» —
+ * rådgiverens vej — dømmer med den SAMME dom som medlemmets flade; den
+ * gentages her som re-eksport, så fladerne importerer som før.
  */
-export function doemMaalFristModSkridt(
-  nyFrist: string | null,
-  skridt: readonly Pick<SkridtTilDineMaal, "status" | "due_date" | "title">[],
-): MaalFristDom {
-  if (nyFrist == null || nyFrist === "") return { ok: true };
-  const ny = nyFrist.slice(0, 10);
-  const efter = skridt.filter((s) => s.status === "active" && s.due_date && s.due_date.slice(0, 10) > ny);
-  if (efter.length === 0) return { ok: true };
-  const frister = efter.map((s) => (s.due_date as string).slice(0, 10)).sort();
-  const seneste = frister[frister.length - 1];
-  const hvem = efter.length === 1 ? `Skridtet «${efter[0].title}» har frist ${danskDato(seneste)}` : `${efter.length} skridt har en senere frist — det seneste ${danskDato(seneste)}`;
-  return {
-    ok: false,
-    grund: `Målets frist kan ikke ligge før skridtenes. ${hvem}. Vælg ${danskDato(seneste)} eller senere — eller luk skridtet først.`,
-    senesteSkridtFrist: seneste,
-    antal: efter.length,
-  };
-}
+export { doemMaalFristModSkridt, type MaalFristDom } from "./skridtForslag";

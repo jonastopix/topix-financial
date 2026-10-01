@@ -21,7 +21,8 @@ import {
 import { AREAS, getAssetPreviewUrl, type ContentItem } from "@/lib/hjemmebane/adminContentApi";
 import { bunnyThumbnailUrl } from "@/lib/hjemmebane/bunnyMedia";
 import { getISOWeekKey } from "@/lib/hjemmebane/week";
-import { denneUgesFredag, naesteUgesFredag, omEnMaaned, tilDatoStreng } from "@/lib/hjemmebane/opgaveDato";
+import { denneUgesFredag, efterMaalFrist, fraDatoStreng, naesteUgesFredag, omEnMaaned, tilDatoStreng } from "@/lib/hjemmebane/opgaveDato";
+import { danskDato, senesteSkridtFrist } from "@/lib/hjemmebane/skridtForslag";
 import { forslagMetaLinje, fristTekst } from "@/lib/hjemmebane/aftaler";
 import { afsender, aktiveMedlemmer, INGEN_RAADGIVERE, raadgiverAnsigt, raadgiverOpslag, synligeMedlemmer, type Ansigt } from "@/lib/hjemmebane/ansigter";
 import { listMemberDirectory } from "@/lib/hjemmebane/memberProfile";
@@ -64,7 +65,7 @@ import { isTrackedEntry, useAkademiData, type AkademiItem } from "../akademi/use
 import { afgoerForloeb, forloebslinje, type Forloebslinje } from "@/lib/hjemmebane/forloeb";
 import { maaskeRelevant, MAASKE_RELEVANT_PRAEFIKS } from "@/lib/hjemmebane/maaskeRelevant";
 import { afgoerMilepael } from "@/lib/milepaelDom";
-import { ALLE_SKRIDT_GJORT_TEKST, dineMaalDom, DINE_MAAL_FEJL_TEKST, DINE_SKRIDT_FEJL_TEKST, TILFOEJ_SKRIDT_FEJL_TEKST, TILFOEJ_SKRIDT_KNAP_TEKST, TILFOEJ_SKRIDT_OK_TEKST, type SkridtTilDineMaal } from "@/lib/hjemmebane/dineMaal";
+import { ALLE_SKRIDT_GJORT_TEKST, dineMaalDom, DINE_MAAL_FEJL_TEKST, DINE_SKRIDT_FEJL_TEKST, TILFOEJ_SKRIDT_FEJL_TEKST, TILFOEJ_SKRIDT_KNAP_TEKST, TILFOEJ_SKRIDT_OK_TEKST, udskudtToastTekst, type SkridtTilDineMaal } from "@/lib/hjemmebane/dineMaal";
 import {
   ANDRE_MAAL_OVERSKRIFT, FEJRING_VARIGHED_MS, fejring as lavFejring, forsidePlanDom, MAAL_UDEN_SKRIDT_TEKST, PLAN_INGEN_AKTIVE_TEKST, PLAN_TOM_BOOK, PLAN_TOM_SAET_MAAL, PLAN_TOM_TEKST, SE_HELE_PLANEN, UDEN_MAAL_OVERSKRIFT,
   type Fejring, type PlanSkridt,
@@ -1005,17 +1006,26 @@ type OpgaveKald =
     jeg" — forside PR 3) vises kun ved forfald: motoren afviser udskydelse før
     fristen er passeret (B2, opgaveEngine.ts:146-148), og en knap der
     altid svarer 409 er ingen handling. Dommen over overgangen er
-    stadig motorens — fladen gater kun visningen. */
+    stadig motorens — fladen gater kun visningen.
+
+    MÅLETS FRIST (rådets fund B2, 1/10 eftermiddag): `maalFrist` er den
+    seneste frist, skridtet må have (senesteSkridtFrist af målets deadline —
+    fra forsidens mål-hentning, ingen ny hentning). Hurtigknapper, der lander
+    efter den, slås fra, og kalenderen har den som øvre grænse — serveren
+    (doemFristModMaal / doemUdskydModMaal) dømmer stadig; fladen sparer kun
+    medlemmet et 400. */
 const OpgaveKnapper = ({
   handling,
   busy,
   onKald,
   className,
+  maalFrist = null,
 }: {
   handling: OpgaveHandling;
   busy: boolean;
   onKald: (kald: OpgaveKald) => void;
   className?: string;
+  maalFrist?: string | null;
 }) => {
   /** null = grundknapperne; ellers er datovalget åbent for accept (B6)
       eller anden udskydelse (B11). */
@@ -1031,17 +1041,23 @@ const OpgaveKnapper = ({
     setKalenderAaben(false);
   };
 
+  // Kalenderens øvre grænse (B2). To matchere i en liste frem for ét
+  // { before, after }-objekt: i react-day-picker v8 bliver det til et LUKKET
+  // interval (kun dagene MELLEM), hvis målets frist ligger før i dag.
+  const maksDato = fraDatoStreng(maalFrist);
+  const kalenderFra = maksDato ? [{ before: idag }, { after: maksDato }] : { before: idag };
+
   if (datoFormaal) {
     return (
       <div className={cn("flex flex-wrap items-center gap-2", className)}>
         <span className="mr-1 text-sm text-hb-ink-soft">Hvornår?</span>
-        <HbButton variant="secondary" className="h-9 px-4" disabled={busy} onClick={() => sendDato(denneUgesFredag(idag))}>
+        <HbButton variant="secondary" className="h-9 px-4" disabled={busy || efterMaalFrist(denneUgesFredag(idag), maalFrist)} onClick={() => sendDato(denneUgesFredag(idag))}>
           Denne uge
         </HbButton>
-        <HbButton variant="secondary" className="h-9 px-4" disabled={busy} onClick={() => sendDato(naesteUgesFredag(idag))}>
+        <HbButton variant="secondary" className="h-9 px-4" disabled={busy || efterMaalFrist(naesteUgesFredag(idag), maalFrist)} onClick={() => sendDato(naesteUgesFredag(idag))}>
           Næste uge
         </HbButton>
-        <HbButton variant="secondary" className="h-9 px-4" disabled={busy} onClick={() => sendDato(omEnMaaned(idag))}>
+        <HbButton variant="secondary" className="h-9 px-4" disabled={busy || efterMaalFrist(omEnMaaned(idag), maalFrist)} onClick={() => sendDato(omEnMaaned(idag))}>
           Om en måned
         </HbButton>
         <Popover open={kalenderAaben} onOpenChange={setKalenderAaben}>
@@ -1058,7 +1074,7 @@ const OpgaveKnapper = ({
           <PopoverContent className="w-auto border-hb-line bg-white p-0" align="start">
             <Calendar
               mode="single"
-              disabled={{ before: idag }}
+              disabled={kalenderFra}
               onSelect={(d) => d && sendDato(d)}
               initialFocus
               className="p-3 pointer-events-auto text-hb-ink"
@@ -1077,6 +1093,7 @@ const OpgaveKnapper = ({
         >
           Fortryd
         </button>
+        {maksDato && <span className="basis-full text-xs text-hb-ink-soft" data-maalets-frist={maalFrist}>Senest {danskDato(maalFrist!)} — målets frist</span>}
       </div>
     );
   }
@@ -1369,7 +1386,7 @@ const FocusCard = ({
     begrundelsen (forslag), og OpgaveKnapper — SAMME knapper og kald som
     «Dine skridt» havde. Knapperne er søskende til teksten (ingen klikbar
     handling i et anker). */
-const PlanSkridtRaekke = ({ skridt, slags, busy, onKald, ansigt = null }: { skridt: PlanSkridt; slags: "aktiv" | "forslag"; busy: boolean; onKald: (kald: OpgaveKald) => void; ansigt?: Ansigt | null }) => {
+const PlanSkridtRaekke = ({ skridt, slags, busy, onKald, ansigt = null, maalFrist = null }: { skridt: PlanSkridt; slags: "aktiv" | "forslag"; busy: boolean; onKald: (kald: OpgaveKald) => void; ansigt?: Ansigt | null; maalFrist?: string | null }) => {
   const meta = slags === "forslag" ? forslagMetaLinje(skridt, new Date()) : null;
   // PR 4: med et ansigt siger første led «Fra Morten» i stedet for «Fra din rådgiver» (aftaler.forslagKilde er fald-tilbage).
   const metaDele = meta ? (ansigt ? [ansigt.linje, ...meta.dele.slice(1)] : meta.dele) : [];
@@ -1409,6 +1426,7 @@ const PlanSkridtRaekke = ({ skridt, slags, busy, onKald, ansigt = null }: { skri
             : { slags: "forslag", opgaveId: skridt.id, deferralCount: skridt.deferral_count ?? 0, dueDate: null }}
           busy={busy}
           onKald={onKald}
+          maalFrist={maalFrist}
         />
       </div>
     </li>
@@ -2073,7 +2091,7 @@ export const BoardroomView = () => {
         kald.type === "accepter"
           ? "Aftalen er registreret"
           : kald.type === "udskyd"
-            ? "Opgaven er udskudt"
+            ? udskudtToastTekst(data) // R1: «Udskudt til 10. okt. — målets frist», når fristen blev begrænset
             : kald.udfald === "done"
               ? "Registreret som gjort"
               : kald.udfald === "dropped"
@@ -2262,6 +2280,11 @@ export const BoardroomView = () => {
     }
   };
   const planBusy = opgaveMutation.isPending || tilfoejMutation.isPending;
+  // Målets frist som loft i skridtets datovalg (rådets fund B2) — af
+  // forsidens EGEN mål-hentning (milestonesQuery, alle virksomhedens mål med
+  // deadline); ingen ny hentning. Uden mål eller frist: ingen grænse.
+  const maalFristFor = (s: PlanSkridt): string | null =>
+    s.maal_id ? senesteSkridtFrist((milestonesQuery.data ?? []).find((m) => m.id === s.maal_id)?.deadline ?? null) : null;
 
   if (akademi.loading || factsLoading) {
     return <p className="text-sm text-hb-ink-soft">Henter dit Boardroom…</p>;
@@ -2530,10 +2553,10 @@ export const BoardroomView = () => {
                   {(x.aktive.length > 0 || x.forslag.length > 0) && (
                     <ul className="mt-3 border-l-2 border-hb-line pl-4">
                       {x.aktive.map((a) => (
-                        <PlanSkridtRaekke key={a.id} skridt={a} slags="aktiv" busy={planBusy} onKald={(kald) => opgaveMutation.mutate(kald)} />
+                        <PlanSkridtRaekke key={a.id} skridt={a} slags="aktiv" busy={planBusy} maalFrist={maalFristFor(a)} onKald={(kald) => opgaveMutation.mutate(kald)} />
                       ))}
                       {x.forslag.map((f) => (
-                        <PlanSkridtRaekke key={f.id} skridt={f} slags="forslag" ansigt={raadgiverAnsigt(f, raadgivere)} busy={planBusy} onKald={(kald) => opgaveMutation.mutate(kald)} />
+                        <PlanSkridtRaekke key={f.id} skridt={f} slags="forslag" ansigt={raadgiverAnsigt(f, raadgivere)} busy={planBusy} maalFrist={maalFristFor(f)} onKald={(kald) => opgaveMutation.mutate(kald)} />
                       ))}
                     </ul>
                   )}
@@ -2560,10 +2583,10 @@ export const BoardroomView = () => {
               <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{UDEN_MAAL_OVERSKRIFT}</p>
               <ul className="mt-2">
                 {plan.udenMaal.aktive.map((a) => (
-                  <PlanSkridtRaekke key={a.id} skridt={a} slags="aktiv" busy={planBusy} onKald={(kald) => opgaveMutation.mutate(kald)} />
+                  <PlanSkridtRaekke key={a.id} skridt={a} slags="aktiv" busy={planBusy} maalFrist={maalFristFor(a)} onKald={(kald) => opgaveMutation.mutate(kald)} />
                 ))}
                 {plan.udenMaal.forslag.map((f) => (
-                  <PlanSkridtRaekke key={f.id} skridt={f} slags="forslag" ansigt={raadgiverAnsigt(f, raadgivere)} busy={planBusy} onKald={(kald) => opgaveMutation.mutate(kald)} />
+                  <PlanSkridtRaekke key={f.id} skridt={f} slags="forslag" ansigt={raadgiverAnsigt(f, raadgivere)} busy={planBusy} maalFrist={maalFristFor(f)} onKald={(kald) => opgaveMutation.mutate(kald)} />
                 ))}
               </ul>
             </div>
@@ -2573,10 +2596,10 @@ export const BoardroomView = () => {
               <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{ANDRE_MAAL_OVERSKRIFT}</p>
               <ul className="mt-2">
                 {plan.andre.aktive.map((a) => (
-                  <PlanSkridtRaekke key={a.id} skridt={a} slags="aktiv" busy={planBusy} onKald={(kald) => opgaveMutation.mutate(kald)} />
+                  <PlanSkridtRaekke key={a.id} skridt={a} slags="aktiv" busy={planBusy} maalFrist={maalFristFor(a)} onKald={(kald) => opgaveMutation.mutate(kald)} />
                 ))}
                 {plan.andre.forslag.map((f) => (
-                  <PlanSkridtRaekke key={f.id} skridt={f} slags="forslag" ansigt={raadgiverAnsigt(f, raadgivere)} busy={planBusy} onKald={(kald) => opgaveMutation.mutate(kald)} />
+                  <PlanSkridtRaekke key={f.id} skridt={f} slags="forslag" ansigt={raadgiverAnsigt(f, raadgivere)} busy={planBusy} maalFrist={maalFristFor(f)} onKald={(kald) => opgaveMutation.mutate(kald)} />
                 ))}
               </ul>
             </div>
