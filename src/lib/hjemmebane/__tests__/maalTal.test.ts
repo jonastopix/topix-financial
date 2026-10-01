@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { likviditet, type ScoreMaaned } from "@/lib/boardroomScore";
 import {
   dageMellem,
+  doemMaalFrist,
   doemNytMaal,
   fristTekst,
   kraeverPrMaanedFor,
@@ -719,5 +720,24 @@ describe("foreslaaTitel — guidens titel af nøglen og måltallet", () => {
     expect(foreslaaTitel("andet_tal", 12, "kunder")).toBe("12 kunder");
     expect(foreslaaTitel("andet_tal", 12, "")).toBeNull();
     expect(foreslaaTitel("omsaetning_aarstakt", null)).toBeNull();
+  });
+});
+
+describe("doemMaalFrist — én fristdom for guiden og «Redigér» (fund 5)", () => {
+  const nu = new Date("2026-10-01T10:00:00Z");
+  it("efter i dag og højst 36 måneder frem (inklusive)", () => {
+    expect(doemMaalFrist("2026-10-02", nu)).toEqual({ ok: true, dato: "2026-10-02" });
+    expect(doemMaalFrist("2029-10-01", nu)).toEqual({ ok: true, dato: "2029-10-01" });
+    expect(doemMaalFrist("2026-10-01", nu)).toEqual({ ok: false, grund: "Fristen skal ligge efter i dag" });
+    expect(doemMaalFrist("2026-09-30", nu)).toEqual({ ok: false, grund: "Fristen skal ligge efter i dag" });
+    expect(doemMaalFrist("2029-10-02", nu).ok).toBe(false);
+  });
+  it("tom, null eller ikke en dato → «Vælg en frist»", () => {
+    expect(doemMaalFrist("", nu)).toEqual({ ok: false, grund: "Vælg en frist" });
+    expect(doemMaalFrist(null, nu)).toEqual({ ok: false, grund: "Vælg en frist" });
+    expect(doemMaalFrist("2026-13-45", nu)).toEqual({ ok: false, grund: "Vælg en frist" });
+  });
+  it("doemNytMaal dømmer fristen med den samme dom", () => {
+    expect(doemNytMaal({ titel: "Ansat", art: "begivenhed", frist: "2026-10-01" }, nu)).toEqual({ ok: false, grund: "Fristen skal ligge efter i dag" });
   });
 });

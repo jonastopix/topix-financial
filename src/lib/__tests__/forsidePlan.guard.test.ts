@@ -131,9 +131,11 @@ export const enKildeTreSteder = (filer: Record<string, string>): boolean => {
     // 2. /milestones' tomme tilstand: åben FØR «Sæt et mål»; den gamle sætning væk
     view.includes('import { HbMaalForklaring } from "./HbMaalForklaring";') && viewTom.includes("<HbMaalForklaring />") &&
     !view.includes("Et mål er det I arbejder hen imod") &&
-    // 3. Guiden «Sæt et mål» (fladen 1/10): teksten som dialogens beskrivelse i trin 1
-    dialog.includes('import { MAAL_FORKLARING_TEKST } from "@/lib/hjemmebane/maalForklaring";') &&
-    dialog.includes("beskrivelse={trin === 1 ? MAAL_FORKLARING_TEKST : undefined}");
+    // 3. Guiden «Sæt et mål» (fladen 1/10): teksten som dialogens beskrivelse i trin 1 — og eksemplerne
+    //    (maalEksemplerHjaelp, rådets fund 19) under kortene i trin 1, så de ikke er død kode.
+    dialog.includes('import { MAAL_FORKLARING_TEKST, maalEksemplerHjaelp } from "@/lib/hjemmebane/maalForklaring";') &&
+    dialog.includes("beskrivelse={trin === 1 ? MAAL_FORKLARING_TEKST : undefined}") &&
+    dialog.includes("{trin === 1 && <p") && dialog.includes("data-guide-eksempler>{maalEksemplerHjaelp()}</p>}");
 };
 
 describe("forsidePlan.guard — PR 3: én sektion, skridt under mål, samme functions, invitationen, fejringen, «Hvad er et mål?»", () => {
@@ -181,6 +183,7 @@ describe("forsidePlan.guard — PR 3: én sektion, skridt under mål, samme func
     expect(enKildeTreSteder({ ...filer, [FORSIDE]: filer[FORSIDE] + '\nconst kopi = "Et mål er det, du vil nå med din virksomhed det næste halve til hele år.";' })).toBe(false);
     expect(enKildeTreSteder({ ...filer, [VIEW]: filer[VIEW].replace("<HbMaalForklaring />", "") })).toBe(false);
     expect(enKildeTreSteder({ ...filer, [DIALOG]: filer[DIALOG].replace("beskrivelse={trin === 1 ? MAAL_FORKLARING_TEKST : undefined}", 'beskrivelse="Definer dit mål og vælg en kategori."') })).toBe(false);
+    expect(enKildeTreSteder({ ...filer, [DIALOG]: filer[DIALOG].replace("data-guide-eksempler>{maalEksemplerHjaelp()}</p>}", "data-guide-eksempler>Fx</p>}") })).toBe(false);
     expect(enKildeTreSteder({ ...filer, [FORSIDE]: filer[FORSIDE].replace('<details className="-mt-2 mb-4" data-maal-forklaring-fold>', '<details open className="-mt-2 mb-4" data-maal-forklaring-fold>') })).toBe(false);
   });
   it("selvbevis 5: en fejring der regner procenten selv, eller uden FejringRaekke, falder", () => {

@@ -4,6 +4,7 @@ import { maalKort, MAAL_NOEGLER, tidslinje, type MaalMedTal, type SkridtTilMaal 
 import {
   bane,
   chipTone,
+  danskTal,
   eyebrowTekst,
   flereSkridtTekst,
   guideKort,
@@ -142,5 +143,38 @@ describe("rejsen", () => {
   it("tom uden skridt og frister", () => {
     const t = tidslinje([], [], "2026-04-01", NU);
     expect(tidslinjeTegning(t).tom).toBe(true);
+  });
+});
+
+describe("danskTal — ét dansk tal fra et inputfelt (fund 4)", () => {
+  it("tusindtalspunktum og decimalkomma", () => {
+    expect(danskTal("1.500")).toBe(1500);
+    expect(danskTal("1.500,5")).toBe(1500.5);
+    expect(danskTal("2.000.000")).toBe(2_000_000);
+    expect(danskTal("1500")).toBe(1500);
+    expect(danskTal("1,5")).toBe(1.5);
+    expect(danskTal("-200.000")).toBe(-200_000);
+    expect(danskTal("+40")).toBe(40);
+    expect(danskTal(" 1 500 ")).toBe(1500);
+    expect(danskTal("1\u00a0500,25")).toBe(1500.25);
+    expect(danskTal("0,5")).toBe(0.5);
+  });
+  it("det tvetydige «1.5» (ét punktum, ikke tre cifre efter) læses som decimal — «1.500» er altid 1500", () => {
+    expect(danskTal("1.5")).toBe(1.5);
+    expect(danskTal("1.25")).toBe(1.25);
+    expect(danskTal("12.5")).toBe(12.5);
+    expect(danskTal("1.500")).toBe(1500);
+  });
+  it("tomt og ugyldigt → null", () => {
+    expect(danskTal("")).toBeNull();
+    expect(danskTal("   ")).toBeNull();
+    expect(danskTal("abc")).toBeNull();
+    expect(danskTal("1,5,5")).toBeNull();
+    expect(danskTal("1.50,5")).toBeNull();
+    expect(danskTal("1.")).toBeNull();
+    expect(danskTal(".5")).toBeNull();
+    expect(danskTal("1.5.000")).toBeNull();
+    expect(danskTal("1.500.00")).toBeNull();
+    expect(danskTal("1e5")).toBeNull();
   });
 });

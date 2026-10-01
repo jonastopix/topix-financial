@@ -328,8 +328,56 @@ oversættes af `maalFejlTekst` gennem `opretMaalMedTal`.
   (siden oppefra, tre aktive, ingen mål, henter/fejl); motoren fik `skridtKilde` og `foreslaaTitel`
   i `maalTal.test.ts`.
 
+### Det tekniske råds fund på fladen (1/10-2026 sent, rettet på `feat/dine-maal-flade`)
+
+- **(1) Ét mål pr. åbning:** guiden husker det oprettede id (`oprettetId`); fejler skridtet, gentager
+  et nyt klik KUN skridtet, «Spring over» lukker, og «Tilbage» er låst (en rettelse i trin 2 ville
+  ellers tabes stille). Dobbelt Enter/klik stoppes synkront af en ref (`gemmerRef`) — state'en er
+  ikke synkron.
+- **(2) Redigér nulstiller ikke under indtastning:** effekten afhænger af `[open, kort?.id]`, start-
+  værdierne læses gennem en ref — kortet er et nyt objekt hvert minut (hookets ur) og ved genhentning.
+- **(3) Rådgiveren retter ikke retningen:** `gemRetning` skriver på den indloggedes eget `user_id`,
+  så rådgiverens «Ret» ville skrive i rådgiverens egen handout-række. `kanRette = !isAdvisor` —
+  rådgiveren læser; den tomme tilstand siger «Virksomheden har ikke skrevet sin retning endnu».
+- **(4) Dansk tal:** `dineMaalFlade.danskTal` (testet) — «1.500» = 1500, «1.500,5», «2.000.000»,
+  «-200.000», «1,5»; det tvetydige «1.5» (ét punktum uden tre cifre efter) læses som 1,5. Guiden og
+  Redigér bruger den.
+- **(5) Fristen i Redigér:** for et mål med art dømmes den af `maalTal.doemMaalFrist` (udtrukket af
+  `doemNytMaal`, samme dom): efter i dag, højst 36 mdr., aldrig tom. Et gammelt mål (art null) må
+  stadig stå uden frist.
+- **(6) Retningens egen hentning:** hooket giver `retningHenter`; fladen viser skelettet, til den er
+  færdig. Fail-closed i to lag: fladen afviser tre tomme svar oven på svar (`RETNING_TOM_KLADDE_TEKST`),
+  og `gemRetning` afviser det igen (`RETNING_TOM_OVER_SVAR_TEKST`) — tre tomme på en række UDEN svar
+  må gerne gemmes.
+- **(7)** Ved fejl i mål-hentningen vises hverken hovedlinje eller chips.
+- **(8)** «Gør målet skarpt» forudfylder målets EGEN frist (`GuideTilstand.frist`), når den er sat og
+  efter i dag; ellers forslaget.
+- **(9)** Dommens grund står i ÉN synlig `role="alert"`-linje nederst i trinnet (`data-guide-fejl`).
+- **(10)** «hvor I burde være pr. …» står synligt på alle bredder (egen linje på mobil).
+- **(11) Rejsen er HTML:** linjen en div, mærkerne elementer med `left: x %` — prikker er runde på
+  375 px; listen i ord er synlig på mobil og sr-only fra sm.
+- **(12)** Et kort, dommen ikke kender, får ALLE handlinger false (`INGEN_HANDLINGER`).
+- **(13)** `useMilestones.opdaterFelt` svarer `{ok} | {ok:false, grund}`, SELECT'er id og dømmer nul
+  rækker som fejl (`OPDATER_NUL_RAEKKER_TEKST`); Redigér holder sig åben ved nej.
+- **(14)** «Skrevet af en anden i virksomheden», når `retning.userId !== user.id` (åbent punkt 12).
+- **(16)** `nu` er hookets tikkende ur (`DineMaalSvar.nu`); guiden får sit ÅBNINGSTIDSPUNKT, så dens
+  nulstilling (deps `[open, tilstand, nu]`, fund 20, uden eslint-disable) ikke tikker.
+- **(17)** Et begivenhedsmåls «N af M skridt gjort» står kun i chippen. **(18)** `HbMaalRaekke`
+  viser procentbaren kun for art null. **(19)** Eksemplerne («Fx: …», `maalEksemplerHjaelp`) står
+  under kortene i guidens trin 1, og `forsidePlan.guard` dom 6 kræver dem. **(20)** `aria-pressed`
+  fjernet fra kortene. **(21)** «Gør målet skarpt» er låst, når den rå række mangler.
+- **Tests:** `RedigerMaalDialog.test.tsx`, `Rejsen.test.tsx`, guiden (dobbelt submit, skridt-fejl →
+  prøv igen uden dobbelt mål, dansk tal, alert-linjen, egen frist), retningen (rådgiver ser ikke
+  «Ret», tom kladde, skrevet af anden), `danskTal` og `doemMaalFrist`.
+
 ### Åbne punkter efter fladen
 
 9. «Foreslået af <navn>» viser rollen, ikke navnet — et navn kræver et profilopslag pr. skridt.
 10. Kategori, beskrivelse og baseline på gamle mål vises ikke længere på fladen (data står).
 11. Handoutets side bærer stadig de tre retningsspørgsmål (§7) — dobbelt indgang, samme række.
+12. **Retning for flerbruger-virksomheder (rådets fund 14):** svarene BOR pr. bruger (UNIQUE
+    (user_id, module)), og et medlem ser kun sin EGEN række (RLS, §7). Fladen siger «Skrevet af en
+    anden i virksomheden», når rækken ikke er den indloggedes — det ses i praksis kun af rådgiveren
+    (et medlem får aldrig en medejers række). Et NAVN kræver et profilopslag og er ikke bygget. Og
+    to medejere, der hver skriver sin retning, giver to rækker — hvilken, der er «virksomhedens»,
+    er ikke besluttet (rådgiveren får den nyeste, `vaelgRetningsRaekke`).

@@ -62,7 +62,22 @@ import { RedigerMaalDialog } from "./RedigerMaalDialog";
  *
  * Ingen confirm(): slet bekræftes i siden (SletMilestoneDialog). Fejl og tomme
  * tilstande er rolige (kraevRaekker/HentningsFejl bag hooken; «Prøv igen»).
+ *
+ * Rådets fund (1/10 aften): (3) rådgiveren LÆSER retningen, retter den ikke
+ * (gemRetning skriver på den indloggedes eget user_id — kanRette = !isAdvisor);
+ * (6) retningen tegnes først, når dens egen hentning er færdig (retningHenter),
+ * og en tom kladde gemmes aldrig oven på svar; (7) ved fejl i mål-hentningen
+ * vises hverken hovedlinje eller chips; (12) et kort uden dom får ALLE
+ * handlinger false (fail-closed); (13) «Redigér» holder sig åben, når
+ * opdaterFelt svarer nej; (14) «Skrevet af en anden i virksomheden», når
+ * retningens række ikke er den indloggedes; (16) `nu` er hookets tikkende ur —
+ * guiden får ÅBNINGSTIDSPUNKTET, så dens nulstilling ikke tikker; (21) «Gør
+ * målet skarpt» er låst, når den rå række mangler.
  */
+
+/** Fail-closed (fund 12): et kort, dommen ikke kender, kan intet. */
+const INGEN_HANDLINGER = { kanMarkereNaaet: false, kanGenaabne: false, kanParkere: false, kanAktivere: false, kanSlette: false, kanSaetteFremdrift: false, kanTilfoejeSkridt: false } as const;
+const GUIDE_NY: GuideTilstand = { art: "ny" };
 
 /** useMilestones' række → planens form (deadline som «YYYY-MM-DD»). */
 const tilMaalRaekke = (m: Milestone): MaalRaekke => ({
@@ -104,6 +119,8 @@ export const DineMaalView = () => {
   // Motoren: kort, tidslinje, retning og de målte måneder (til guiden).
   const g = useDineMaalGrundlag(companyId ?? undefined);
   const skriv = useDineMaalSkrivning({ companyId, efter: genhent });
+  // Fund 16: hookets tikkende ur — ikke et Date frosset ved mount.
+  const nu = g.nu;
 
   // «Gjort» på et skridt — opgave-luk (udfald done); fremdriften skrives af
   // functionen (rykMaalFremdrift), så begge kilder genhentes bagefter.
@@ -145,17 +162,18 @@ export const DineMaalView = () => {
     }
   };
 
-  const [guide, setGuide] = useState<GuideTilstand | null>(null);
+  // Guiden bærer sit ÅBNINGSTIDSPUNKT (fund 16/20): dens nulstilling afhænger af `nu`, som derfor ikke må tikke, mens den er åben.
+  const [guide, setGuide] = useState<{ tilstand: GuideTilstand; nu: Date } | null>(null);
   const [redigerId, setRedigerId] = useState<string | null>(null);
   const [sletId, setSletId] = useState<string | null>(null);
-  const [nu] = useState(() => new Date());
+  const aabnGuide = (tilstand: GuideTilstand) => setGuide({ tilstand, nu: new Date() });
 
   // Handlingernes dom (uændret): dineMaalDom → planen → milepaelDom.
   const skridtTilDom = useMemo<SkridtTilDineMaal[]>(
     () => (g.grundlag?.skridt ?? []).map((s) => ({ id: s.id, title: s.title, status: s.status, due_date: s.due_date, maal_id: s.maal_id, closed_at: s.closed_at ?? null, source_type: s.source_type ?? null })),
     [g.grundlag?.skridt],
   );
-  const dom = useMemo(() => dineMaalDom(milestones.map(tilMaalRaekke), skridtTilDom, new Date()), [milestones, skridtTilDom]);
+  const dom = useMemo(() => dineMaalDom(milestones.map(tilMaalRaekke), skridtTilDom, nu), [milestones, skridtTilDom, nu]);
   const forMedlemAf = useMemo(() => new Map([...dom.aktive, ...dom.parkerede, ...dom.naaede].map((x) => [x.plan.maal.id, x])), [dom]);
   const msAf = useMemo(() => new Map(milestones.map((m) => [m.id, m])), [milestones]);
   const maalMedTalAf = useMemo(() => new Map((g.grundlag?.maal ?? []).map((m) => [m.id, m])), [g.grundlag?.maal]);
@@ -175,13 +193,16 @@ export const DineMaalView = () => {
     const d = doemMaalFristModSkridt(dato, skridtUnder(maalId));
     return d.ok === false ? d.grund : null;
   };
-  const opdaterMaalFelt = async (id: string, fields: Record<string, unknown>) => {
+  /** Svarer med fejlteksten ordret, eller null ved ja (fund 13) — dialogen holder sig åben ved nej. */
+  const opdaterMaalFelt = async (id: string, fields: Record<string, unknown>): Promise<string | null> => {
     if ("deadline" in fields) {
       const grund = maalFristGrund(id, fields.deadline ? lokalDatoStreng(fields.deadline as Date) : null);
-      if (grund) { toast.error("Målets frist blev ikke ændret", { description: grund }); return; }
+      if (grund) { toast.error("Målets frist blev ikke ændret", { description: grund }); return grund; }
     }
-    await opdaterFelt(id, fields);
+    const svar = await opdaterFelt(id, fields);
+    if (svar.ok === false) return svar.grund;
     await queryClient.invalidateQueries({ queryKey: ["dine-maal"] });
+    return null;
   };
   // «Markér som nået» — useMilestones' skriver (status completed, fejringen) + motorens nøgler gøres forældede.
   const markerNaaetOgRyd = async (id: string) => {
@@ -198,8 +219,12 @@ export const DineMaalView = () => {
   const chips = statusChips(kort);
   const henter = loading || g.isLoading;
   const tomPlads = !dom.overGraensen && dom.kanOprette;
+  // Fund 3: rådgiveren retter ikke retningen — gemRetning ville skrive i rådgiverens egen handout-række.
+  const kanRetteRetning = !isAdvisor;
+  const retningSkrevetAfAnden = !!g.retning?.userId && !!user && g.retning.userId !== user.id;
   const gemRetning = async (svar: Record<RetningNoegle, string>): Promise<string | null> => {
     if (!user || !companyId) return "Du er ikke logget ind";
+    if (!kanRetteRetning) return "Kun virksomheden kan skrive sin retning";
     const s = await skriv.gemRetning({ companyId, userId: user.id, svar });
     if (s.ok === false) return s.grund;
     toast.success("Jeres retning er gemt");
@@ -235,7 +260,7 @@ export const DineMaalView = () => {
       <section className="max-w-3xl">
         <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">{eyebrowTekst(nu)}</p>
         <h1 className="mt-3 font-editorial text-4xl font-medium leading-[1.1] tracking-tight text-hb-ink md:text-5xl">{DINE_MAAL_OVERSKRIFT}</h1>
-        {!henter && (
+        {!henter && !g.isError && (
           <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
             <p className={cn("text-sm", dom.overGraensen ? "font-medium text-hb-rust" : "text-hb-ink-soft")} data-hoved-linje>{hovedLinje(kort.length)}</p>
             {chips.length > 0 && (
@@ -249,12 +274,19 @@ export const DineMaalView = () => {
             )}
           </div>
         )}
-        {dom.overGraensen && !henter && <p className="mt-1 text-sm text-hb-rust" data-graense-tekst>{dom.graenseTekst}</p>}
+        {dom.overGraensen && !henter && !g.isError && <p className="mt-1 text-sm text-hb-rust" data-graense-tekst>{dom.graenseTekst}</p>}
       </section>
 
       {/* ── 2. Jeres retning ── */}
       <div className="mt-8">
-        <JeresRetning retning={g.retning} isLoading={henter && !g.retning} fejlede={g.retningFejlede} onGem={gemRetning} />
+        <JeresRetning
+          retning={g.retning}
+          isLoading={(henter || g.retningHenter) && !g.retning}
+          fejlede={g.retningFejlede}
+          onGem={gemRetning}
+          kanRette={kanRetteRetning}
+          skrevetAfAnden={retningSkrevetAfAnden}
+        />
       </div>
 
       {/* ── 3. Målene ── */}
@@ -292,7 +324,7 @@ export const DineMaalView = () => {
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3" data-maal-gitter>
               {kort.map((k) => {
                 const x = forMedlemAf.get(k.id);
-                const handlinger = x?.handlinger ?? { kanMarkereNaaet: true, kanGenaabne: false, kanParkere: true, kanAktivere: false, kanSlette: true, kanSaetteFremdrift: false, kanTilfoejeSkridt: true };
+                const handlinger = x?.handlinger ?? INGEN_HANDLINGER;
                 const raa = maalMedTalAf.get(k.id);
                 return (
                   <MaalKort
@@ -307,11 +339,11 @@ export const DineMaalView = () => {
                     onParker={() => void opdaterMaalFelt(k.id, { status: "parked" })}
                     onNaaet={() => void markerNaaetOgRyd(k.id)}
                     onSlet={() => setSletId(k.id)}
-                    onGoerSkarpt={() => raa && setGuide({ art: "skarpt", maalId: k.id, titel: k.titel, forslag: skarptForslag(raa) })}
+                    onGoerSkarpt={raa ? () => aabnGuide({ art: "skarpt", maalId: k.id, titel: k.titel, forslag: skarptForslag(raa), frist: k.frist }) : null}
                   />
                 );
               })}
-              {tomPlads && <TomPladsKort onSaetMaal={() => setGuide({ art: "ny" })} />}
+              {tomPlads && <TomPladsKort onSaetMaal={() => aabnGuide(GUIDE_NY)} />}
             </div>
           </>
         )}
@@ -352,9 +384,9 @@ export const DineMaalView = () => {
       <SaetMaalGuide
         open={guide !== null}
         onClose={() => setGuide(null)}
-        tilstand={guide ?? { art: "ny" }}
+        tilstand={guide?.tilstand ?? GUIDE_NY}
         maaneder={g.grundlag?.maaneder ?? null}
-        nu={nu}
+        nu={guide?.nu ?? nu}
         onOpret={async (input) => {
           if (!user || !companyId) return { ok: false, grund: "Du er ikke logget ind", afventerMigration: false };
           const s = await skriv.opret({ companyId, userId: user.id, input, nu: new Date(), maaneder: g.grundlag?.maaneder ?? null });
@@ -376,7 +408,7 @@ export const DineMaalView = () => {
         doemFrist={(dato) => (tilRedigering ? maalFristGrund(tilRedigering.id, dato) : null)}
         tastetTal={tilRedigering ? (maalMedTalAf.get(tilRedigering.id)?.current_value ?? null) : null}
         enhed={tilRedigering ? (maalMedTalAf.get(tilRedigering.id)?.unit ?? null) : null}
-        onGem={async (felter) => { if (tilRedigering) await opdaterMaalFelt(tilRedigering.id, felter); }}
+        onGem={async (felter) => (tilRedigering ? opdaterMaalFelt(tilRedigering.id, felter) : "Målet findes ikke længere — genindlæs siden.")}
       />
       <SletMilestoneDialog
         ms={tilSletning}

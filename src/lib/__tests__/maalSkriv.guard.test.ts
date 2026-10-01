@@ -123,15 +123,16 @@ export const loeftestangHolder = (kode: string): boolean =>
   /source: "handout", company_id: companyId, status \}/.test(kode) &&
   !/functions\.invoke\("maal-skriv"/.test(kode);
 
-/** Dom 4: medlemmets flade — vejen til at sætte et mål bevaret (fladen 1/10: TomPladsKort → guiden → skriv.opret), triggerfejl oversat. */
+/** Dom 4: medlemmets flade — vejen til at sætte et mål bevaret (fladen 1/10: TomPladsKort → aabnGuide(GUIDE_NY) → guiden → skriv.opret; rådets fund 16: guiden får sit åbningstidspunkt), triggerfejl oversat. */
 export const medlemsfladenHolder = (view: string, hook: string, fejl: string): boolean =>
-  view.includes('{tomPlads && <TomPladsKort onSaetMaal={() => setGuide({ art: "ny" })} />}') &&
+  view.includes('{tomPlads && <TomPladsKort onSaetMaal={() => aabnGuide(GUIDE_NY)} />}') &&
   view.includes("const tomPlads = !dom.overGraensen && dom.kanOprette;") &&
   view.includes("await skriv.opret({ companyId, userId: user.id, input, nu: new Date(), maaneder: g.grundlag?.maaneder ?? null });") &&
   view.includes("onSlet={() => setSletId(ms.id)}") && view.includes("onSlet={() => setSletId(k.id)}") &&
   hook.includes('import { maalFejlTekst } from "@/lib/hjemmebane/maalFejl";') &&
   hook.includes('toast.error(maalFejlTekst(error, "Kunne ikke oprette målet"))') &&
-  hook.includes('toast.error(maalFejlTekst(error, "Kunne ikke gemme"))') &&
+  // Fund 13: opdaterFelt svarer ok/fejl — grunden er stadig husets tekst (maalFejlTekst), toastet og returneret.
+  hook.includes('const grund = maalFejlTekst(error, "Kunne ikke gemme"); toast.error(grund); return { ok: false, grund };') &&
   !/toast\.error\("Kunne ikke oprette målet"\)/.test(hook) &&
   fejl.includes('export const HOEJST_TRE_TEKST = `Du har allerede ${MAX_AKTIVE_MAAL} aktive mål — parkér eller markér et som nået først`;');
 
@@ -209,7 +210,7 @@ describe("maalSkriv.guard — fase 2: medlemmet ejer sine mål, rådgiveren skri
   });
   it("selvbevis 4: flade uden den stiplede plads, en plads uden dommen, eller hook med den rå fejl falder", () => {
     const view = udenKommentarer(laes(MEDLEM)), hook = udenKommentarer(laes(HOOK)), fejl = laes(MAALFEJL);
-    expect(medlemsfladenHolder(view.replace('{tomPlads && <TomPladsKort onSaetMaal={() => setGuide({ art: "ny" })} />}', ""), hook, fejl)).toBe(false);
+    expect(medlemsfladenHolder(view.replace('{tomPlads && <TomPladsKort onSaetMaal={() => aabnGuide(GUIDE_NY)} />}', ""), hook, fejl)).toBe(false);
     expect(medlemsfladenHolder(view.replace("const tomPlads = !dom.overGraensen && dom.kanOprette;", "const tomPlads = true;"), hook, fejl)).toBe(false);
     expect(medlemsfladenHolder(view.replace("onSlet={() => setSletId(ms.id)}", ""), hook, fejl)).toBe(false);
     expect(medlemsfladenHolder(view, hook.replace('toast.error(maalFejlTekst(error, "Kunne ikke oprette målet"))', 'toast.error("Kunne ikke oprette målet")'), fejl)).toBe(false);

@@ -33,6 +33,10 @@ import { gammelTalvisning } from "@/lib/hjemmebane/maalTal";
 
 export type MilestoneStatus = MilepaelTilstand;
 
+/** opdaterFelt's svar (fund 13): et nej bærer grunden ordret. */
+export type OpdaterSvar = { ok: true } | { ok: false; grund: string };
+export const OPDATER_NUL_RAEKKER_TEKST = "Målet blev ikke gemt — det findes ikke længere, eller du har ikke adgang til det. Genindlæs siden.";
+
 export interface Milestone {
   id: string;
   title: string;
@@ -256,8 +260,14 @@ export function useMilestones({ userId, companyId, isAdvisor }: Args) {
     toast.success(`"${title}" er slettet`);
   }, []);
 
-  /** MilestonesList.tsx:705-738, ordret — også parkering (status). */
-  const opdaterFelt = useCallback(async (id: string, fields: Record<string, unknown>) => {
+  /**
+   * MilestonesList.tsx:705-738 — også parkering (status). Rådets fund 13
+   * (1/10 aften): svaret er ok/fejl i stedet for at sluge fejlen; UPDATE'n
+   * SELECT'er id, og NUL rækker (RLS eller et mål, der imens er væk) er en
+   * fejl — aldrig et «Gemt». Toasten står her som før; kalderen (Redigér-
+   * dialogen) holder sig åben, når svaret er en fejl.
+   */
+  const opdaterFelt = useCallback(async (id: string, fields: Record<string, unknown>): Promise<OpdaterSvar> => {
     const dbFields: Record<string, unknown> = {};
     const localFields: Record<string, unknown> = {};
     for (const key of ["title", "category", "baseline"] as const) {
@@ -284,9 +294,10 @@ export function useMilestones({ userId, companyId, isAdvisor }: Args) {
       dbFields.progress = fields.progress;
       localFields.progress = fields.progress;
     }
-    const { error } = await supabase.from("milestones").update(dbFields).eq("id", id);
+    const { data, error } = await supabase.from("milestones").update(dbFields).eq("id", id).select("id");
     // Aktivering af et parkeret mål kan ramme «højst tre» — husets tekst, ikke databasens.
-    if (error) { toast.error(maalFejlTekst(error, "Kunne ikke gemme")); return; }
+    if (error) { const grund = maalFejlTekst(error, "Kunne ikke gemme"); toast.error(grund); return { ok: false, grund }; }
+    if (!data || (data as unknown[]).length === 0) { toast.error(OPDATER_NUL_RAEKKER_TEKST); return { ok: false, grund: OPDATER_NUL_RAEKKER_TEKST }; }
     // Dommen regnes om på den samlede række — status OG deadline kan være ændret.
     setMilestones((prev) => prev.map((m) => {
       if (m.id !== id) return m;
@@ -294,6 +305,7 @@ export function useMilestones({ userId, companyId, isAdvisor }: Args) {
       return { ...ny, ...doem(ny) };
     }));
     toast.success("Gemt");
+    return { ok: true };
   }, [milestones]);
 
   /** Oprettelse — Milestones.tsx:96-123, ordret. */

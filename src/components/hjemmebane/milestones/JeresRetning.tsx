@@ -18,6 +18,19 @@ import { HbField, HbTextarea } from "../admin/HbField";
  * fejl vises i feltet, «Fortryd» kasserer kladden.
  *
  * Tegner kun: ordene er RETNING_ORD, dommen over svarene er gemRetning's.
+ *
+ * Rådets fund (1/10 aften):
+ *   - (3) `kanRette` er false for rådgiveren: gemRetning skriver på den
+ *     indloggedes EGET user_id, så rådgiverens «Ret» ville skrive i rådgiverens
+ *     egen handout-række. Rådgiveren LÆSER retningen; «Ret» og invitationen
+ *     vises ikke, og den tomme tilstand siger, at virksomheden ikke har skrevet.
+ *   - (6) Tre tomme svar gemmes aldrig oven på svar, der findes — dømt her FØR
+ *     onGem (og igen i gemRetning): en kladde åbnet, før svarene var hentet, må
+ *     ikke slette dem.
+ *   - (14) `skrevetAfAnden`: svarene står i en ANDEN brugers række (en medejer —
+ *     eller, for rådgiveren, et medlem). Vises som «Skrevet af en anden i
+ *     virksomheden»; et navn kræver et profilopslag og er ikke bygget (åbent
+ *     punkt, docs/dine-maal-design.md).
  */
 
 export const RETNING_INVITATION = "Skriv jeres retning (3 spørgsmål, 5 minutter)";
@@ -26,6 +39,12 @@ export const RETNING_GEM = "Gem retningen";
 export const RETNING_FORTRYD = "Fortryd";
 export const RETNING_FEJL_TEKST = "Jeres retning kunne ikke hentes lige nu.";
 export const RETNING_INTRO = "Tre sætninger, der holder målene på sporet — hvad I vil nå, hvad der skal være anderledes, og hvad det koster at lade stå til.";
+/** Rådgiverens tomme tilstand (fund 3): læser, retter ikke. */
+export const RETNING_IKKE_SKREVET_TEKST = "Virksomheden har ikke skrevet sin retning endnu.";
+/** Fund 14: rækken tilhører en anden bruger end den, der ser siden. */
+export const RETNING_SKREVET_AF_ANDEN = "Skrevet af en anden i virksomheden";
+/** Fund 6: tre tomme svar oven på eksisterende — fladen afviser før skrivningen. */
+export const RETNING_TOM_KLADDE_TEKST = "Alle tre svar er tomme — skriv mindst ét, eller fortryd.";
 
 type Props = {
   retning: Retning | null;
@@ -33,12 +52,16 @@ type Props = {
   fejlede: boolean;
   /** Gemmer de tre svar; returnerer fejlteksten ordret, eller null ved ja. */
   onGem: (svar: Record<RetningNoegle, string>) => Promise<string | null>;
+  /** Må den, der ser siden, skrive retningen? Fail-closed: false for rådgiveren (fund 3). */
+  kanRette: boolean;
+  /** Svarene står i en anden brugers række (fund 14). */
+  skrevetAfAnden: boolean;
 };
 
 const mikro = "text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft";
 const fokus = "rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hb-evergreen focus-visible:ring-offset-2";
 
-export const JeresRetning = ({ retning, isLoading, fejlede, onGem }: Props) => {
+export const JeresRetning = ({ retning, isLoading, fejlede, onGem, kanRette, skrevetAfAnden }: Props) => {
   // Hooks i TOPBLOKKEN, før enhver betinget return (React #310).
   const [redigerer, setRedigerer] = useState(false);
   const [kladde, setKladde] = useState<Record<RetningNoegle, string>>({ lykkedes_12mdr: "", anderledes_hverdag: "", konsekvenser_ingen_aendring: "" });
@@ -52,6 +75,9 @@ export const JeresRetning = ({ retning, isLoading, fejlede, onGem }: Props) => {
     setRedigerer(true);
   };
   const gem = async () => {
+    if (gemmer) return;
+    const alleTomme = RETNING_NOEGLER.every((n) => kladde[n].trim() === "");
+    if (alleTomme && (retning?.besvaret ?? 0) > 0) { setFejl(RETNING_TOM_KLADDE_TEKST); return; }
     setGemmer(true);
     const svar = await onGem(kladde);
     setGemmer(false);
@@ -121,23 +147,30 @@ export const JeresRetning = ({ retning, isLoading, fejlede, onGem }: Props) => {
 
   if (!retning || retning.besvaret === 0) {
     return (
-      <section className={ramme} data-retning="tom">
+      <section className={ramme} data-retning="tom" data-retning-kan-rette={kanRette ? "1" : "0"}>
         <p className={mikro}>{RETNING_ORD.overskrift}</p>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-hb-ink-soft">{RETNING_INTRO}</p>
-        <button type="button" onClick={aabn} className={cn("mt-3 inline-flex items-center text-sm font-medium text-hb-evergreen underline-offset-4 hover:underline", fokus)} data-retning-invitation>
-          {RETNING_INVITATION}
-        </button>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-hb-ink-soft">{kanRette ? RETNING_INTRO : RETNING_IKKE_SKREVET_TEKST}</p>
+        {kanRette && (
+          <button type="button" onClick={aabn} className={cn("mt-3 inline-flex items-center text-sm font-medium text-hb-evergreen underline-offset-4 hover:underline", fokus)} data-retning-invitation>
+            {RETNING_INVITATION}
+          </button>
+        )}
       </section>
     );
   }
 
   return (
-    <section className={ramme} data-retning="udfyldt" data-retning-besvaret={retning.besvaret}>
+    <section className={ramme} data-retning="udfyldt" data-retning-besvaret={retning.besvaret} data-retning-kan-rette={kanRette ? "1" : "0"}>
       <div className="flex items-baseline justify-between gap-4">
-        <p className={mikro}>{RETNING_ORD.overskrift}</p>
-        <button type="button" onClick={aabn} className={cn("text-xs text-hb-ink-soft underline-offset-4 hover:text-hb-ink hover:underline", fokus)} data-retning-ret>
-          {RETNING_RET}
-        </button>
+        <p className={mikro}>
+          {RETNING_ORD.overskrift}
+          {skrevetAfAnden && <span className="normal-case tracking-normal" data-retning-skrevet-af-anden> · {RETNING_SKREVET_AF_ANDEN}</span>}
+        </p>
+        {kanRette && (
+          <button type="button" onClick={aabn} className={cn("text-xs text-hb-ink-soft underline-offset-4 hover:text-hb-ink hover:underline", fokus)} data-retning-ret>
+            {RETNING_RET}
+          </button>
+        )}
       </div>
       <dl className="mt-4 grid gap-5 md:grid-cols-3">
         {RETNING_NOEGLER.map((n) => (

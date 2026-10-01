@@ -798,18 +798,35 @@ export const TITEL_MAX = 120;
  *     fremdriften er skridtene»), ingen nøgle (CHECK milestones_art_noegle_check).
  * udgangspunkt_dato = i dag (dansk).
  */
+export type MaalFristDom = { ok: true; dato: string } | { ok: false; grund: string };
+
+/**
+ * Dommen over et måls frist alene (rådets fund 5, 1/10 aften): en rigtig dato
+ * EFTER i dag (dansk) og højst MAKS_FRIST_MAANEDER frem (inklusive). ÉN dom —
+ * guiden (doemNytMaal) og «Redigér» (RedigerMaalDialog) dømmer den samme, så en
+ * frist kan hverken tømmes, lægges i fortiden eller mere end 36 måneder frem ad
+ * nogen vej.
+ */
+export function doemMaalFrist(fristRaa: string | null | undefined, nu: Date): MaalFristDom {
+  const frist = datoAf(fristRaa);
+  const idag = kbhDato(nu);
+  if (!frist || laegDageTilDato(frist, 0) !== frist) return { ok: false, grund: "Vælg en frist" };
+  if (frist <= idag) return { ok: false, grund: "Fristen skal ligge efter i dag" };
+  const senest = laegMaanederTilDato(idag, MAKS_FRIST_MAANEDER);
+  if (frist > senest) return { ok: false, grund: `Fristen kan højst ligge ${MAKS_FRIST_MAANEDER} måneder frem (senest ${danskDato(senest)})` };
+  return { ok: true, dato: frist };
+}
+
 export function doemNytMaal(input: NytMaalInput, nu: Date, nuvaerende: TalDom | null = null): NytMaalDom {
   const titel = (input.titel ?? "").trim();
   if (!titel) return { ok: false, grund: "Skriv målet som én sætning" };
   if (titel.length > TITEL_MAX) return { ok: false, grund: `Målet er for langt (højst ${TITEL_MAX} tegn)` };
   const art = laesArt(input.art);
   if (!art) return { ok: false, grund: "Vælg om målet er et tal eller en begivenhed" };
-  const frist = datoAf(input.frist);
+  const fristDom = doemMaalFrist(input.frist, nu);
+  if (fristDom.ok === false) return fristDom;
+  const frist = fristDom.dato;
   const idag = kbhDato(nu);
-  if (!frist || laegDageTilDato(frist, 0) !== frist) return { ok: false, grund: "Vælg en frist" };
-  if (frist <= idag) return { ok: false, grund: "Fristen skal ligge efter i dag" };
-  const senest = laegMaanederTilDato(idag, MAKS_FRIST_MAANEDER);
-  if (frist > senest) return { ok: false, grund: `Fristen kan højst ligge ${MAKS_FRIST_MAANEDER} måneder frem (senest ${danskDato(senest)})` };
 
   if (art === "begivenhed") {
     if (input.noegle != null) return { ok: false, grund: "Et begivenhedsmål har intet tal at følge" };

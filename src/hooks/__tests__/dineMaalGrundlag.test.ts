@@ -44,8 +44,10 @@ import {
   MAAL_KOLONNER_NYE,
   maalSkrivningNoegler,
   opretMaalMedTal,
+  alleRetningssvarTomme,
   RETNING_IKKE_GEMT_TEKST,
   RETNING_KOLONNER,
+  RETNING_TOM_OVER_SVAR_TEKST,
   samlGrundlag,
   SKARPT_NUL_RAEKKER_TEKST,
   skarpPayload,
@@ -350,5 +352,18 @@ describe("«Jeres retning» — gemRetning", () => {
     koe.push({ data: null, error: { message: "netværk" } });
     expect((await gemRetning({ companyId: "c1", userId: "u1", svar: { lykkedes_12mdr: "x" } })).ok).toBe(false);
     expect(kald).toHaveLength(1);
+  });
+  it("fund 6 (fail-closed): tre tomme svar oven på en række MED svar gemmes ikke — ingen skrivning", async () => {
+    koe.push({ data: { id: "h1", user_id: "u1", module: "overordnet", responses: { lykkedes_12mdr: "2 mio." }, updated_at: null, status: "in_progress" }, error: null });
+    const svar = await gemRetning({ companyId: "c1", userId: "u1", svar: { lykkedes_12mdr: "", anderledes_hverdag: " ", konsekvenser_ingen_aendring: "" } });
+    expect(svar).toEqual({ ok: false, grund: RETNING_TOM_OVER_SVAR_TEKST, afventerMigration: false });
+    expect(kald).toHaveLength(1);
+  });
+  it("fund 6: tre tomme svar på en række UDEN svar, eller uden række, må gerne gemmes (intet at slette)", async () => {
+    koe.push({ data: { id: "h1", user_id: "u1", module: "overordnet", responses: { maal_forretning: "Vokse" }, updated_at: null, status: "in_progress" }, error: null });
+    koe.push({ data: [{ id: "h1" }], error: null });
+    expect((await gemRetning({ companyId: "c1", userId: "u1", svar: { lykkedes_12mdr: "", anderledes_hverdag: "", konsekvenser_ingen_aendring: "" } })).ok).toBe(true);
+    expect(alleRetningssvarTomme({ lykkedes_12mdr: " " })).toBe(true);
+    expect(alleRetningssvarTomme({ lykkedes_12mdr: "x" })).toBe(false);
   });
 });

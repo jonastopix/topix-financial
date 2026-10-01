@@ -25,6 +25,12 @@ import { TilfoejSkridtForm } from "./HbMaalRaekke";
  * Tilføj skridt gennem skridt-tilfoej (TilfoejSkridtForm — SAMME formular som
  * før og som forsiden), «…»-menuen gennem useMilestones' skrivere i DineMaalView.
  * Slet bekræftes i siden (SletMilestoneDialog) — aldrig confirm().
+ *
+ * Rådets fund (1/10 aften): (10) stregens forklaring «hvor I burde være pr. …»
+ * står SYNLIGT på alle bredder (egen linje på mobil, inline fra sm) — ikke kun
+ * som title; (17) et begivenhedsmåls «N af M skridt gjort» står ÉT sted
+ * (chippen) — baren under viser kun fristen; (21) «Gør målet skarpt» er låst
+ * (onGoerSkarpt null), når fladen ikke har målets rå række at forudfylde af.
  */
 
 const mikro = "text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft";
@@ -54,7 +60,8 @@ type Props = {
   onParker: () => void;
   onNaaet: () => void;
   onSlet: () => void;
-  onGoerSkarpt: () => void;
+  /** null = kan ikke gøres skarpt lige nu (fladen mangler målets rå række) — knappen er låst (fund 21). */
+  onGoerSkarpt: (() => void) | null;
 };
 
 /** Menupunkt i «…»-menuen. */
@@ -138,7 +145,7 @@ export const MaalKort = ({ kort, handlinger, skridtLinjer, busy, onGjort, onTilf
         <h3 className="mt-3 font-editorial text-xl font-medium leading-snug text-hb-ink">{kort.titel}</h3>
         <p className="mt-2 text-sm leading-relaxed text-hb-ink-soft">{O.gammeltMaal}</p>
         <div className="mt-auto pt-5">
-          <HbButton onClick={onGoerSkarpt} disabled={busy} className="h-10 w-full px-5 text-sm sm:w-auto" data-handling="goer-skarpt">
+          <HbButton onClick={onGoerSkarpt ?? undefined} disabled={busy || onGoerSkarpt === null} className="h-10 w-full px-5 text-sm sm:w-auto" data-handling="goer-skarpt">
             {O.goerSkarpt}
           </HbButton>
         </div>
@@ -197,11 +204,12 @@ export const MaalKort = ({ kort, handlinger, skridtLinjer, busy, onGjort, onTilf
               />
             )}
           </div>
-          <div className="mt-1.5 flex items-baseline justify-between gap-2 text-[11px] text-hb-ink-soft">
+          <div className="mt-1.5 flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1 text-[11px] text-hb-ink-soft">
             <span className="min-w-0 truncate" data-maal-udgangspunkt>
               <span className={mikro}>{O.start}</span> {kort.udgangspunktTekst ?? "—"}
             </span>
-            {b.stregPct !== null && <span className="hidden sm:inline" data-maal-streg-tekst>{stregTekst(kort)}</span>}
+            {/* Fund 10: synlig på alle bredder — egen linje nederst på mobil (order-last + basis-full), inline fra sm. */}
+            {b.stregPct !== null && <span className="order-last basis-full sm:order-none sm:basis-auto" data-maal-streg-tekst><span className="mr-1 inline-block h-2.5 w-px bg-hb-ink align-[-1px]" aria-hidden />{stregTekst(kort)}</span>}
             <span className="min-w-0 truncate text-right" data-maal-maaltal>
               <span className={mikro}>{O.maal}</span> {kort.maaltalTekst ?? "—"}
               {kort.fristDato && <span> · {kort.fristDato}</span>}
@@ -217,10 +225,12 @@ export const MaalKort = ({ kort, handlinger, skridtLinjer, busy, onGjort, onTilf
             <div className="h-1.5 overflow-hidden rounded-full bg-hb-line" aria-hidden>
               <div className="h-full rounded-full bg-hb-evergreen/80 transition-[width] duration-700 ease-out motion-reduce:transition-none" style={{ width: `${Math.round(fremdrift.andel * 1000) / 10}%` }} />
             </div>
-            <div className="mt-1.5 flex items-baseline justify-between text-[11px] text-hb-ink-soft">
-              <span>{fremdrift.tekst}</span>
-              {kort.fristDato && <span><span className={mikro}>{O.maal}</span> {kort.fristDato}</span>}
-            </div>
+            {/* Fund 17: «N af M skridt gjort» står kun i chippen øverst — her kun fristen. */}
+            {kort.fristDato && (
+              <div className="mt-1.5 flex items-baseline justify-end text-[11px] text-hb-ink-soft">
+                <span><span className={mikro}>{O.maal}</span> {kort.fristDato}</span>
+              </div>
+            )}
           </div>
         )
       )}

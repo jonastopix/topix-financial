@@ -162,6 +162,46 @@ export const KORT_ORD = {
   maal: "mål",
 } as const;
 
+// ── Tal tastet på dansk ────────────────────────────────────────────────────
+
+/**
+ * Ét dansk tal fra et inputfelt (rådets fund 4, 1/10 aften — før læste guiden
+ * og «Redigér» «1.500» som 1,5 og «2.000.000» som NaN). Reglerne:
+ *   - mellemrum (også hårde) ignoreres; tomt → null; fortegn + eller − foran.
+ *   - KOMMA er decimaltegnet; højst ét: «1,5» → 1,5 · «1.500,5» → 1500,5.
+ *   - PUNKTUM er tusindtalsadskiller, når hver gruppe efter det er præcis tre
+ *     cifre: «1.500» → 1500 · «2.000.000» → 2000000 · «-200.000» → −200000.
+ *   - ÉT punktum, der IKKE følges af præcis tre cifre, og intet komma, læses som
+ *     decimaltegn (det tvetydige tilfælde — valgt, fordi «1.5» ellers ville
+ *     blive afvist eller læst som 15, og ingen skriver et tusindtal med én eller
+ *     to cifre): «1.5» → 1,5 · «1.25» → 1,25. «1.500» er altså ALTID 1500 —
+ *     skriv «1,5» for halvanden.
+ *   - alt andet («abc», «1,5,5», «1.50,5», «1.», «.5») → null.
+ */
+export function danskTal(raa: string): number | null {
+  const s = raa.replace(/[\s\u00a0]/g, "");
+  if (s === "") return null;
+  const m = /^([+-]?)(\d[\d.]*)(?:,(\d+))?$/.exec(s);
+  if (!m) return null;
+  const [, fortegn, heltalRaa, decimaler] = m;
+  const grupper = heltalRaa.split(".");
+  let heltal: string;
+  let brok: string | undefined = decimaler;
+  if (grupper.length === 1) {
+    heltal = grupper[0];
+  } else if (decimaler === undefined && grupper.length === 2 && grupper[1].length !== 3) {
+    // «1.5» — ét punktum uden tre cifre efter: decimaltegn (se filhovedet ovenfor).
+    if (grupper[1] === "") return null;
+    heltal = grupper[0];
+    brok = grupper[1];
+  } else {
+    if (!grupper.slice(1).every((g) => g.length === 3)) return null;
+    heltal = grupper.join("");
+  }
+  const v = Number(`${fortegn}${heltal}${brok === undefined ? "" : `.${brok}`}`);
+  return Number.isFinite(v) ? v : null;
+}
+
 // ── Guiden ─────────────────────────────────────────────────────────────────
 
 /** Guidens valg i trin 1: de fem nøgler og begivenheden. */
@@ -200,6 +240,8 @@ export const GUIDE_ORD = {
   skridtTitel: "Skridtet",
   skridtFrist: "Frist for skridtet",
   skridtHjaelp: "Senest målets frist.",
+  /** Fund 1: målet er oprettet, kun skridtet udestår. */
+  maaletErSat: "Målet er sat — kun skridtet mangler.",
 } as const;
 
 const NOEGLE_TEKST: Record<MaalNoegle, string> = {

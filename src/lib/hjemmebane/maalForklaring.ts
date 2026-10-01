@@ -9,8 +9,8 @@
  *   1. «Din plan» på forsiden uden mål (åben over «Sæt et mål»/«Book en session»)
  *      og med mål (foldet, <details> ved sektionens header) — BoardroomView.
  *   2. /milestones' tomme tilstand — DineMaalView (samme som 1).
- *   3. «Sæt et mål»-formularen — MilestoneDialoger (teksten over titelfeltet,
- *      eksemplernes mål som hjælp under feltet).
+ *   3. Guiden «Sæt et mål» — SaetMaalGuide (teksten som dialogens beskrivelse
+ *      i trin 1, eksemplernes mål som linjen «Fx: …» under kortene — fund 19).
  * Ren fil: ingen React, ingen Supabase. Teksterne ordret som Jonas skrev dem.
  * Testet i __tests__/maalForklaring.test.ts; kildeværn (én kilde, tre steder)
  * i src/lib/__tests__/forsidePlan.guard.test.ts dom 6.
@@ -33,7 +33,7 @@ export const MAAL_EKSEMPLER: readonly MaalEksempel[] = [
   { maal: "Tre måneders udgifter i banken", skridt: ["Lav et likviditetsbudget", "Kortere betalingsfrist på nye fakturaer"] },
 ];
 
-/** Hjælpelinjen under titelfeltet i «Sæt et mål»: eksemplernes mål — «Fx: Positiv bundlinje hver måned inden jul · …». */
+/** Linjen under kortene i guidens trin 1: eksemplernes mål — «Fx: Positiv bundlinje hver måned inden jul · …». */
 export function maalEksemplerHjaelp(): string {
   return `Fx: ${MAAL_EKSEMPLER.map((e) => e.maal).join(" · ")}`;
 }

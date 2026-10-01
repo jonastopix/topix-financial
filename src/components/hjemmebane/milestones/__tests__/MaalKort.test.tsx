@@ -158,6 +158,23 @@ describe("MaalKort — begivenhedsmål", () => {
     expect(document.querySelector("[data-maal-skridt-fremdrift]")!.getAttribute("data-maal-skridt-fremdrift")).toBe("1/2");
     expect(document.querySelector("[data-maal-chip]")!.textContent).toBe("1 af 2 skridt gjort");
     expect(document.body.textContent).not.toContain("%");
+    // Fund 17: «1 af 2 skridt gjort» står ÉT sted
+    expect(document.body.textContent!.split("1 af 2 skridt gjort")).toHaveLength(2);
+  });
+});
+
+describe("MaalKort — rådets fund 10 og 21", () => {
+  it("fund 10: «hvor I burde være pr. …» står synligt (ikke hidden på mobil) og uden for aria-hidden", () => {
+    vis(maal());
+    const tekst = document.querySelector("[data-maal-streg-tekst]")!;
+    expect(tekst.textContent).toContain("hvor I burde være pr. september");
+    expect(tekst.className).not.toContain("hidden");
+    expect(tekst.closest("[aria-hidden]")).toBeNull();
+  });
+  it("fund 21: «Gør målet skarpt» er låst, når onGoerSkarpt er null", () => {
+    const h = { ...handlere(), onGoerSkarpt: null };
+    vis(maal({ art: null, maal_noegle: null, udgangspunkt: null }), [], TRE, h);
+    expect((screen.getByRole("button", { name: KORT_ORD.goerSkarpt }) as HTMLButtonElement).disabled).toBe(true);
   });
 });
 

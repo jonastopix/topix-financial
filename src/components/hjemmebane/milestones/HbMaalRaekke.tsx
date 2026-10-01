@@ -246,16 +246,23 @@ export const HbMaalRaekke = ({
             </p>
           </button>
           <div className="mt-2 flex items-center gap-3">
-            <div
-              ref={barRef}
-              onClick={klikbarBar ? (e) => onFremgang(fremgangAf(e.clientX)) : undefined}
-              title={klikbarBar ? "Klik for at ændre fremgang" : x.plan.beregnet ? "Fremdriften regnes af skridtene" : undefined}
-              className={cn("flex-1 py-1.5", klikbarBar && "cursor-pointer")}
-            >
-              <div className="h-[3px] overflow-hidden rounded-full bg-hb-line">
-                <div className={dom.faerdig ? "h-full rounded-full bg-hb-evergreen" : "h-full rounded-full bg-hb-evergreen/70"} style={{ width: `${fremdrift}%` }} />
+            {/* Procentbaren kun for mål fra før designet (art null) — et tal-måls fremdrift er motorens andel af vejen,
+                et begivenhedsmåls er skridtene; procenten her ville være den blandede, Jonas tog ud (rådets fund 18). */}
+            {ms.art === null ? (
+              <div
+                ref={barRef}
+                onClick={klikbarBar ? (e) => onFremgang(fremgangAf(e.clientX)) : undefined}
+                title={klikbarBar ? "Klik for at ændre fremgang" : x.plan.beregnet ? "Fremdriften regnes af skridtene" : undefined}
+                className={cn("flex-1 py-1.5", klikbarBar && "cursor-pointer")}
+                data-maal-bar
+              >
+                <div className="h-[3px] overflow-hidden rounded-full bg-hb-line">
+                  <div className={dom.faerdig ? "h-full rounded-full bg-hb-evergreen" : "h-full rounded-full bg-hb-evergreen/70"} style={{ width: `${fremdrift}%` }} />
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="flex-1" />
+            )}
             <span className="shrink-0 text-xs text-hb-ink-soft">
               {dom.faerdig ? "Nået" : dom.parkeret ? "Parkeret" : maalbar && !x.plan.beregnet ? `${ms.current_value ?? 0} af ${ms.target_value} ${ms.unit}` : x.fremdriftTekst}
             </span>

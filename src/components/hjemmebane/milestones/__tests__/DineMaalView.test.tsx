@@ -4,7 +4,7 @@
  * mockes; motoren (maalTal) kører rigtigt gennem byggDineMaal.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import type { ScoreMaaned } from "@/lib/boardroomScore";
@@ -12,7 +12,7 @@ import { byggDineMaal, type DineMaalGrundlag } from "@/hooks/dineMaalGrundlag";
 import { retningFraHandout } from "@/lib/hjemmebane/maalRetning";
 import type { MaalMedTal } from "@/lib/hjemmebane/maalTal";
 import { DINE_MAAL_OVERSKRIFT, KORT_ORD, REJSEN_ORD } from "@/lib/hjemmebane/dineMaalFlade";
-import { RETNING_INVITATION } from "../JeresRetning";
+import { RETNING_IKKE_SKREVET_TEKST, RETNING_INVITATION, RETNING_RET, RETNING_SKREVET_AF_ANDEN } from "../JeresRetning";
 
 const NU = new Date("2026-10-01T10:00:00Z");
 const m = (key: string, metrics: Record<string, number | null>): ScoreMaaned => ({ key, basis: "measured", foersteGodkendtAt: null, metrics });
@@ -39,10 +39,14 @@ const tilstand = vi.hoisted(() => ({
   retning: null as ReturnType<typeof retningFraHandout> | null,
   isLoading: false,
   isError: false,
+  isAdvisor: false,
+  retningHenter: false,
+  /** Fund 12: useMilestones kender kun disse id'er (null = alle i grundlaget). */
+  kendteIder: null as string[] | null,
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { functions: { invoke: vi.fn() } } }));
-vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: "u1" }, companyId: "c1", isAdvisor: false }) }));
+vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: "u1" }, companyId: "c1", isAdvisor: tilstand.isAdvisor }) }));
 vi.mock("@/hooks/useViewMode", () => ({ useViewMode: () => ({ viewingAsMember: false }) }));
 vi.mock("@/hooks/dineMaalGrundlag", async (importOriginal) => {
   const orig = await importOriginal<typeof import("@/hooks/dineMaalGrundlag")>();
@@ -62,6 +66,8 @@ vi.mock("@/hooks/dineMaalGrundlag", async (importOriginal) => {
         error: null,
         retning: tilstand.retning,
         retningFejlede: false,
+        retningHenter: tilstand.retningHenter,
+        nu: NU,
       };
     },
     useDineMaalSkrivning: () => ({ opret: vi.fn(), goerSkarpt: vi.fn(), gemRetning: vi.fn() }),
@@ -69,7 +75,7 @@ vi.mock("@/hooks/dineMaalGrundlag", async (importOriginal) => {
 });
 vi.mock("../useMilestones", () => ({
   useMilestones: () => ({
-    milestones: (tilstand.grundlag?.maal ?? []).map((x) => ({
+    milestones: (tilstand.grundlag?.maal ?? []).filter((x) => tilstand.kendteIder === null || tilstand.kendteIder.includes(x.id)).map((x) => ({
       id: x.id, title: x.title, deadline: x.deadline ? new Date(x.deadline) : null, status: "in_progress", dom: { aktiv: true, parkeret: false, faerdig: false, forfalden: false, tilstand: "i_gang" },
       description: null, source: "manual", source_report: null, progress: 0, category: "other", baseline: null, dbStatus: x.status,
       target_value: x.target_value, current_value: x.current_value, unit: x.unit, art: x.art, progress_updated_at: null, completed_at: null, created_at: x.created_at,
@@ -96,6 +102,9 @@ const vis = () =>
 beforeEach(() => {
   tilstand.isLoading = false;
   tilstand.isError = false;
+  tilstand.isAdvisor = false;
+  tilstand.retningHenter = false;
+  tilstand.kendteIder = null;
   tilstand.retning = retningFraHandout(null);
   tilstand.grundlag = {
     maal: [maal(), maal({ id: "m2", title: "Et gammelt mål", art: null, maal_noegle: null, udgangspunkt: null })],
@@ -161,5 +170,54 @@ describe("DineMaalView — siden oppefra", () => {
     vis();
     expect(document.querySelector('[data-dine-maal="fejl"]')).not.toBeNull();
     expect(screen.getByRole("button", { name: "Prøv igen" })).toBeInTheDocument();
+    // Fund 7: ved fejl står hverken hovedlinje («Ingen mål endnu · 3 pladser ledige») eller chips
+    expect(document.querySelector("[data-hoved-linje]")).toBeNull();
+    expect(document.querySelector("[data-status-chip]")).toBeNull();
+  });
+});
+
+describe("DineMaalView — fund 12: et kort uden dom kan intet", () => {
+  it("mangler dommen kortets id (useMilestones kender det ikke), er alle handlinger false — ingen «Tilføj skridt», ingen menupunkter", () => {
+    tilstand.kendteIder = ["m2"];
+    vis();
+    const kort = document.querySelector('[data-maal-kort="m1"]')!;
+    expect(kort.querySelector('[data-handling="tilfoej-skridt"]')).toBeNull();
+    fireEvent.click(kort.querySelector("[data-maal-menu]")!);
+    expect(kort.querySelectorAll('[role="menuitem"]:not([data-handling="rediger"])')).toHaveLength(0);
+  });
+});
+
+describe("DineMaalView — rådets fund 3, 6 og 14", () => {
+  const udfyldtAfAnden = () => retningFraHandout({ id: "h1", user_id: "u-medlem", module: "overordnet", updated_at: "2026-09-01T00:00:00Z", responses: { lykkedes_12mdr: "2 mio. i årstakt", anderledes_hverdag: "", konsekvenser_ingen_aendring: "" } });
+
+  it("fund 3: rådgiveren ser retningen, men hverken «Ret» eller invitationen", () => {
+    tilstand.isAdvisor = true;
+    tilstand.retning = udfyldtAfAnden();
+    const { unmount } = vis();
+    expect(screen.getByText("2 mio. i årstakt")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: RETNING_RET })).toBeNull();
+    expect(document.querySelector("[data-retning-kan-rette]")!.getAttribute("data-retning-kan-rette")).toBe("0");
+    // Fund 14: rækken er et medlems — «Skrevet af en anden i virksomheden»
+    expect(document.querySelector("[data-retning-skrevet-af-anden]")!.textContent).toContain(RETNING_SKREVET_AF_ANDEN);
+    unmount();
+    tilstand.retning = retningFraHandout(null);
+    vis();
+    expect(screen.queryByRole("button", { name: RETNING_INVITATION })).toBeNull();
+    expect(screen.getByText(RETNING_IKKE_SKREVET_TEKST)).toBeInTheDocument();
+  });
+
+  it("medlemmet ser «Ret» på egen række — og ikke «Skrevet af en anden»", () => {
+    tilstand.retning = retningFraHandout({ id: "h1", user_id: "u1", module: "overordnet", updated_at: null, responses: { lykkedes_12mdr: "x", anderledes_hverdag: "", konsekvenser_ingen_aendring: "" } });
+    vis();
+    expect(screen.getByRole("button", { name: RETNING_RET })).toBeInTheDocument();
+    expect(document.querySelector("[data-retning-skrevet-af-anden]")).toBeNull();
+  });
+
+  it("fund 6: mens retningen henter, står skelettet — ikke invitationen (en tom kladde kunne ellers åbnes oven på et svar)", () => {
+    tilstand.retning = null;
+    tilstand.retningHenter = true;
+    vis();
+    expect(document.querySelector("[data-retning]")!.getAttribute("data-retning")).toBe("henter");
+    expect(screen.queryByRole("button", { name: RETNING_INVITATION })).toBeNull();
   });
 });

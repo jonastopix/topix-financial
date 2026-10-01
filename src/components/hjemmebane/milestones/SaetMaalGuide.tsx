@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ScoreMaaned } from "@/lib/boardroomScore";
@@ -19,8 +19,8 @@ import {
   type SkarptForslag,
   type TalDom,
 } from "@/lib/hjemmebane/maalTal";
-import { GUIDE_ORD, guideKort, kraeverTekst, type GuideValg } from "@/lib/hjemmebane/dineMaalFlade";
-import { MAAL_FORKLARING_TEKST } from "@/lib/hjemmebane/maalForklaring";
+import { danskTal, GUIDE_ORD, guideKort, kraeverTekst, type GuideValg } from "@/lib/hjemmebane/dineMaalFlade";
+import { MAAL_FORKLARING_TEKST, maalEksemplerHjaelp } from "@/lib/hjemmebane/maalForklaring";
 import { doemFrist, doemFristModMaal, foreslaaetFristModMaal, senesteSkridtFrist } from "@/lib/hjemmebane/skridtForslag";
 import { kbhDato, laegMaanederTilDato } from "@/lib/hverdage";
 import type { SkriveSvar } from "@/hooks/dineMaalGrundlag";
@@ -46,11 +46,25 @@ import { HbDialog } from "./HbOverlejring";
  * Gemmer gennem dineMaalGrundlag's skrivere (opret/goerSkarpt, givet ind) og
  * skridtet gennem skridt-tilfoej (onTilfoejSkridt — fladens eksisterende vej).
  * Tegner kun: alle tal, datoer og domme er motorens.
+ *
+ * Rådets fund (1/10 aften):
+ *   - (1) Målet oprettes HØJST ÉN gang: det oprettede id står i `oprettetId`;
+ *     fejler skridtet, gentager et nyt klik KUN skridtet, og «Spring over»
+ *     lukker blot. Et kald, mens der gemmes (dobbelt Enter), returnerer straks
+ *     (gemmerRef — synkron, state'en er det ikke). «Tilbage» i trin 3 er låst,
+ *     når målet er oprettet (en rettelse i trin 2 ville ellers gå tabt stille).
+ *   - (4) Tal læses af danskTal («1.500» er 1500, «1,5» er halvanden).
+ *   - (8) «Gør målet skarpt» forudfylder målets EGEN frist, når den er sat og
+ *     ligger efter i dag; ellers forslaget (12 mdr.).
+ *   - (9) Dommens grund står i ÉN synlig linje (role="alert") nederst i trinnet.
+ *   - (19) Eksemplerne («Fx: …», maalEksemplerHjaelp) står under kortene i trin 1.
+ *   - (20) Nulstillingen afhænger af [open, tilstand, nu] — `nu` er fastfrosset af
+ *     kalderen, mens guiden er åben (DineMaalView gemmer åbningstidspunktet).
  */
 
 export type GuideTilstand =
   | { art: "ny" }
-  | { art: "skarpt"; maalId: string; titel: string; forslag: SkarptForslag };
+  | { art: "skarpt"; maalId: string; titel: string; forslag: SkarptForslag; /** Målets eksisterende frist («YYYY-MM-DD»), null uden. */ frist: string | null };
 
 type Props = {
   open: boolean;
@@ -74,13 +88,6 @@ export const SKRIDT_FEJL_EFTER_MAAL = "Målet er sat, men skridtet blev ikke til
 /** Et tal som «1,58 mio. kr.» for et inputfelt (motorens vaerdiTekst). */
 const tekstFor = (noegle: MaalNoegle, egenEnhed: string | null) => (v: number) => vaerdiTekst(v, enhedFor(noegle), egenEnhed);
 
-const talAf = (s: string): number | null => {
-  const t = s.replace(/\s/g, "").replace(",", ".");
-  if (t === "") return null;
-  const v = Number(t);
-  return Number.isFinite(v) ? v : null;
-};
-
 export const SaetMaalGuide = ({ open, onClose, tilstand, maaneder, nu, onOpret, onGoerSkarpt, onTilfoejSkridt }: Props) => {
   // Hooks i TOPBLOKKEN, før enhver betinget return (React #310).
   const [trin, setTrin] = useState<1 | 2 | 3>(1);
@@ -96,27 +103,36 @@ export const SaetMaalGuide = ({ open, onClose, tilstand, maaneder, nu, onOpret, 
   const [skridtFrist, setSkridtFrist] = useState("");
   const [skridtFejl, setSkridtFejl] = useState<string | null>(null);
   const [gemmer, setGemmer] = useState(false);
+  const gemmerRef = useRef(false);
+  // Fund 1: det oprettede måls id — målet oprettes aldrig to gange fra samme åbning.
+  const [oprettetId, setOprettetId] = useState<string | null>(null);
   const idRod = useId();
 
   const idag = kbhDato(nu);
   const erSkarpt = tilstand.art === "skarpt";
 
-  // Nulstil ved åbning; «Gør målet skarpt» får motorens forslag (skarptForslag) som startværdier.
+  // Nulstil ved åbning; «Gør målet skarpt» får motorens forslag (skarptForslag) og målets egen frist som startværdier.
   useEffect(() => {
     if (!open) return;
+    const idagVedAabning = kbhDato(nu);
     setTrin(1);
     setValg(null);
     setFejl(null);
     setSkridtFejl(null);
     setGemmer(false);
-    setFrist(laegMaanederTilDato(kbhDato(nu), FORESLAAET_FRIST_MAANEDER));
+    gemmerRef.current = false;
+    setOprettetId(null);
+    const foreslaaet = laegMaanederTilDato(idagVedAabning, FORESLAAET_FRIST_MAANEDER);
     if (tilstand.art === "skarpt") {
+      // Fund 8: målets egen frist, når den er sat og ligger efter i dag; ellers forslaget.
+      setFrist(tilstand.frist && tilstand.frist > idagVedAabning ? tilstand.frist : foreslaaet);
       setTitel(tilstand.titel);
       setTitelRettet(true);
       setMaaltal(tilstand.forslag.maaltal === null ? "" : String(tilstand.forslag.maaltal));
       setUdgangspunkt(tilstand.forslag.udgangspunkt === null ? "" : String(tilstand.forslag.udgangspunkt));
       setEnhed(tilstand.forslag.enhed ?? "");
     } else {
+      setFrist(foreslaaet);
       setTitel("");
       setTitelRettet(false);
       setMaaltal("");
@@ -125,8 +141,7 @@ export const SaetMaalGuide = ({ open, onClose, tilstand, maaneder, nu, onOpret, 
     }
     setSkridtTitel("");
     setSkridtFrist("");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, tilstand, nu]);
 
   // Trin 1: hvert korts nuværende tal — regnet af motoren af de samme måneder som kortene.
   const kort = useMemo(() => {
@@ -140,8 +155,8 @@ export const SaetMaalGuide = ({ open, onClose, tilstand, maaneder, nu, onOpret, 
 
   const noegle: MaalNoegle | null = valg && valg !== "begivenhed" ? valg : null;
   const egenEnhed = noegle === "andet_tal" ? (enhed.trim() || null) : null;
-  const maaltalTal = talAf(maaltal);
-  const udgangspunktTal = talAf(udgangspunkt);
+  const maaltalTal = danskTal(maaltal);
+  const udgangspunktTal = danskTal(udgangspunkt);
 
   // Trin 2: den levende linje — motorens kraeverPrMaaned for måltal, frist og (andet_tal) det tastede udgangspunkt.
   const kraever = useMemo(() => {
@@ -181,6 +196,7 @@ export const SaetMaalGuide = ({ open, onClose, tilstand, maaneder, nu, onOpret, 
   };
 
   const videreFraTrin2 = () => {
+    if (gemmerRef.current) return;
     const dom = doemNytMaal(input(), nu, nuvaerende());
     if (dom.ok === false) { setFejl(dom.grund); return; }
     setFejl(null);
@@ -190,20 +206,31 @@ export const SaetMaalGuide = ({ open, onClose, tilstand, maaneder, nu, onOpret, 
   };
 
   const gem = async (medSkridt = false) => {
+    // Fund 1: et kald, mens der gemmes, gør intet (dobbelt Enter/klik) — synkront gennem ref'en.
+    if (gemmerRef.current) return;
+    gemmerRef.current = true;
     setGemmer(true);
     setFejl(null);
     setSkridtFejl(null);
-    const svar = erSkarpt && tilstand.art === "skarpt" ? await onGoerSkarpt(tilstand.maalId, input()) : await onOpret(input());
-    if (svar.ok === false) { setGemmer(false); setFejl(svar.grund); return; }
-    if (medSkridt && svar.id) {
-      const skridtSvar = await onTilfoejSkridt(svar.id, skridtTitel.trim(), skridtFrist);
-      if (skridtSvar) { setGemmer(false); setSkridtFejl(`${SKRIDT_FEJL_EFTER_MAAL}: ${skridtSvar}`); return; }
+    const faerdig = () => { gemmerRef.current = false; setGemmer(false); };
+    let maalId = oprettetId;
+    if (maalId === null) {
+      // Målet oprettes (eller gøres skarpt) KUN første gang; et nyt klik efter et fejlet skridt springer hertil.
+      const svar = erSkarpt && tilstand.art === "skarpt" ? await onGoerSkarpt(tilstand.maalId, input()) : await onOpret(input());
+      if (svar.ok === false) { faerdig(); setFejl(svar.grund); return; }
+      maalId = svar.id;
+      setOprettetId(maalId);
     }
-    setGemmer(false);
+    if (medSkridt && maalId) {
+      const skridtSvar = await onTilfoejSkridt(maalId, skridtTitel.trim(), skridtFrist);
+      if (skridtSvar) { faerdig(); setSkridtFejl(`${SKRIDT_FEJL_EFTER_MAAL}: ${skridtSvar}`); return; }
+    }
+    faerdig();
     onClose();
   };
 
   const gemMedSkridt = () => {
+    if (gemmerRef.current) return;
     const fristDom = doemFrist(skridtFrist, nu);
     if (fristDom.ok === false) { setSkridtFejl(fristDom.grund); return; }
     const modMaal = doemFristModMaal(fristDom.dato, frist, nu);
@@ -237,7 +264,7 @@ export const SaetMaalGuide = ({ open, onClose, tilstand, maaneder, nu, onOpret, 
       </>
     ) : (
       <>
-        <HbButton variant="secondary" onClick={() => { setSkridtFejl(null); setTrin(2); }} disabled={gemmer}>{O.tilbage}</HbButton>
+        <HbButton variant="secondary" onClick={() => { setSkridtFejl(null); setTrin(2); }} disabled={gemmer || oprettetId !== null} title={oprettetId !== null ? O.maaletErSat : undefined}>{O.tilbage}</HbButton>
         <HbButton variant="secondary" onClick={() => void gem(false)} disabled={gemmer} data-guide-spring-over>{O.springOver}</HbButton>
         <HbButton onClick={gemMedSkridt} disabled={gemmer || !skridtTitel.trim() || !skridtFrist} data-guide-gem>
           {gemmer ? O.gemmer : O.gem}
@@ -258,7 +285,6 @@ export const SaetMaalGuide = ({ open, onClose, tilstand, maaneder, nu, onOpret, 
                     type="button"
                     onClick={() => vaelg(k.valg)}
                     disabled={!k.kanVaelges}
-                    aria-pressed={valgt}
                     data-guide-kort={k.valg}
                     data-guide-kort-kan-vaelges={k.kanVaelges ? "1" : "0"}
                     className={cn(
@@ -292,6 +318,7 @@ export const SaetMaalGuide = ({ open, onClose, tilstand, maaneder, nu, onOpret, 
             })}
           </ul>
         )}
+        {trin === 1 && <p className="mt-3 text-xs leading-relaxed text-hb-ink-soft" data-guide-eksempler>{maalEksemplerHjaelp()}</p>}
 
         {trin === 2 && (
           <form noValidate className="space-y-4" onSubmit={(e) => { e.preventDefault(); videreFraTrin2(); }}>
@@ -332,7 +359,7 @@ export const SaetMaalGuide = ({ open, onClose, tilstand, maaneder, nu, onOpret, 
                 <HbInput id={`${idRod}-frist`} type="date" value={frist} min={idag} max={senestFrist} required onChange={(e) => setFrist(e.target.value)} />
               </HbField>
             )}
-            <HbField label={O.titel} htmlFor={`${idRod}-titel`} help={valg === "begivenhed" ? undefined : O.titelHjaelp} error={fejl}>
+            <HbField label={O.titel} htmlFor={`${idRod}-titel`} help={valg === "begivenhed" ? undefined : O.titelHjaelp}>
               <HbInput
                 id={`${idRod}-titel`}
                 value={titel}
@@ -342,7 +369,7 @@ export const SaetMaalGuide = ({ open, onClose, tilstand, maaneder, nu, onOpret, 
                 placeholder={valg === "begivenhed" ? "Fx «Den første medarbejder er ansat»" : undefined}
               />
             </HbField>
-            {fejl && <p className="sr-only" role="alert">{fejl}</p>}
+            {fejl && <p className="text-sm text-hb-rust" role="alert" data-guide-fejl>{fejl}</p>}
             <button type="submit" className="sr-only" tabIndex={-1} aria-hidden="true">{O.videre}</button>
           </form>
         )}
@@ -353,10 +380,11 @@ export const SaetMaalGuide = ({ open, onClose, tilstand, maaneder, nu, onOpret, 
             <HbField label={O.skridtTitel} htmlFor={`${idRod}-skridt`} help={`Mindst ${SKRIDT_TITEL_MIN} tegn, højst 200.`}>
               <HbInput id={`${idRod}-skridt`} value={skridtTitel} maxLength={200} autoFocus onChange={(e) => setSkridtTitel(e.target.value)} />
             </HbField>
-            <HbField label={O.skridtFrist} htmlFor={`${idRod}-skridt-frist`} help={O.skridtHjaelp} error={skridtFejl}>
+            <HbField label={O.skridtFrist} htmlFor={`${idRod}-skridt-frist`} help={O.skridtHjaelp}>
               <HbInput id={`${idRod}-skridt-frist`} type="date" value={skridtFrist} min={idag} max={skridtMaks ?? undefined} required onChange={(e) => setSkridtFrist(e.target.value)} />
             </HbField>
-            {skridtFejl && <p className="sr-only" role="alert">{skridtFejl}</p>}
+            {skridtFejl && <p className="text-sm text-hb-rust" role="alert" data-guide-fejl>{skridtFejl}</p>}
+            {oprettetId !== null && !skridtFejl && <p className="text-xs text-hb-ink-soft" data-guide-maalet-sat>{O.maaletErSat}</p>}
             <button type="submit" className="sr-only" tabIndex={-1} aria-hidden="true">{O.gem}</button>
           </form>
         )}

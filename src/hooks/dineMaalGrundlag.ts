@@ -66,6 +66,7 @@ import {
 } from "@/lib/hjemmebane/maalTal";
 import {
   RETNING_MODUL,
+  RETNING_NOEGLER,
   retningFraHandout,
   retningStatus,
   retningTilResponses,
@@ -200,6 +201,10 @@ export interface DineMaalSvar {
   retning: Retning | null;
   /** Retnings-hentningen fejlede — som Score: ikke en sidefejl. */
   retningFejlede: boolean;
+  /** Retningen henter stadig (rådets fund 6): fladen må ikke åbne en tom kladde oven på et svar, den endnu ikke har set. */
+  retningHenter: boolean;
+  /** Hookets tikkende ur (DOM_UR_MS) — fladens «nu» (fund 16), så eyebrow og frister ikke fryser ved mount. */
+  nu: Date;
 }
 
 /** Den rene samling: kort for de aktive mål + tidslinjen. Eksporteret, så den kan prøves uden React. */
@@ -268,7 +273,8 @@ export function useDineMaalGrundlag(overrideCompanyId?: string): DineMaalSvar {
     [maal.data, skridt.data, score.data, score.isError],
   );
 
-  const bygget = useMemo(() => (grundlag ? byggDineMaal(grundlag, new Date(nuMs)) : null), [grundlag, nuMs]);
+  const nu = useMemo(() => new Date(nuMs), [nuMs]);
+  const bygget = useMemo(() => (grundlag ? byggDineMaal(grundlag, nu) : null), [grundlag, nu]);
 
   return {
     grundlag,
@@ -281,6 +287,8 @@ export function useDineMaalGrundlag(overrideCompanyId?: string): DineMaalSvar {
     error: maal.error ?? skridt.error,
     retning: retning.data ?? null,
     retningFejlede: retning.isError,
+    retningHenter: retning.isLoading,
+    nu,
   };
 }
 
@@ -412,6 +420,13 @@ export function skarpPayload(f: Extract<ReturnType<typeof doemNytMaal>, { ok: tr
 }
 
 export const RETNING_IKKE_GEMT_TEKST = "Retningen blev ikke gemt — du har ikke adgang til rækken. Genindlæs siden.";
+/** Fund 6: tre tomme svar gemmes aldrig oven på svar, der findes — en tom kladde må ikke slette retningen. */
+export const RETNING_TOM_OVER_SVAR_TEKST = "Retningen blev ikke gemt — alle tre svar er tomme, og der står allerede svar. Skriv mindst ét svar, eller fortryd.";
+
+/** Ren: er ALLE de tre svar tomme (efter trim)? Et manglende svar tæller som tomt. */
+export function alleRetningssvarTomme(svar: Partial<Record<RetningNoegle, string>>): boolean {
+  return RETNING_NOEGLER.every((n) => (svar[n] ?? "").trim() === "");
+}
 
 /**
  * Gem de tre retningssvar i medlemmets EGEN 'overordnet'-handout — samme
@@ -419,6 +434,9 @@ export const RETNING_IKKE_GEMT_TEKST = "Retningen blev ikke gemt — du har ikke
  *   1. dommen (retningTilResponses) over de NYE svar — fail-closed, intet kald ved nej
  *      ud over opslaget;
  *   2. egen række slås op (UNIQUE (user_id, module), så højst én);
+ *   2b. FAIL-CLOSED (fund 6): er alle tre nye svar tomme, og har rækken allerede
+ *      mindst ét svar, gemmes intet (RETNING_TOM_OVER_SVAR_TEKST) — en kladde,
+ *      fladen åbnede før svarene var hentet, må ikke slette dem;
  *   3. FINDES den: UPDATE af KUN responses (fletningen bevarer handoutets øvrige
  *      svar) og — kun fra 'not_started' — status 'in_progress'
  *      (maalRetning.retningStatus). saveHandout bruges BEVIDST ikke til
@@ -446,6 +464,9 @@ export async function gemRetning(args: {
     .maybeSingle();
   if (egen.error) return { ok: false, grund: "Kunne ikke læse retningen — prøv igen", afventerMigration: false };
   const raekke = (egen.data ?? null) as RetningsRaekke | null;
+  if (raekke && alleRetningssvarTomme(args.svar) && retningFraHandout(raekke).besvaret > 0) {
+    return { ok: false, grund: RETNING_TOM_OVER_SVAR_TEKST, afventerMigration: false };
+  }
 
   const dom = retningTilResponses(raekke?.responses ?? {}, args.svar);
   if (dom.ok === false) return { ok: false, grund: dom.grund, afventerMigration: false };
