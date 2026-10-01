@@ -97,6 +97,7 @@ export const ALDRIG_TYPER: Readonly<Record<string, string>> = {
   ansoegning_ny: "mailes allerede: ansoegningMotor sender «ansoegning-ny-raadgiver» til raadgiverModtager ved indsendelsen",
   ansoegning_afholdt: "rykkerkøen mailer rådgiveren dag 2 (trappen «afholdt», rykkerkoe.ts)",
   community_svar: "Jonas 21/9: klokke, ikke mail (notify-community-svar → communitySvarBesked.ts)",
+  agent_insight: "1/10: run-company-agent ringer nu hos HVER rådgiver (agentKlokke.ts, med advisor_id) — klokke, ikke mail; indsigten står i virksomhedens chat, og Jonas har ikke bedt om mail (ikke overmaile)",
 };
 
 /**
@@ -114,8 +115,9 @@ export const SELVMAILENDE_REFERENCER = [
 ] as const;
 export const SELVMAILENDE_GRUND = "mailes allerede af sin egen alarm (sendManagedEmail i samme kørsel som klokken)";
 
-/** Legacy-writerne (send-slack-*, run-company-agent): én fælles række UDEN advisor_id, og Slack er deres vej. Mailes aldrig. */
-export const LEGACY_TYPER = ["new_message", "report_uploaded", "handout_completed", "feedback_submitted", "agent_insight"] as const;
+/** Legacy-writerne (send-slack-*): én fælles række UDEN advisor_id, og Slack er deres vej. Mailes aldrig.
+    (agent_insight flyttet til ALDRIG_TYPER 1/10: run-company-agent skriver nu én række pr. rådgiver med advisor_id.) */
+export const LEGACY_TYPER = ["new_message", "report_uploaded", "handout_completed", "feedback_submitted"] as const;
 
 export type MailArt = "alarm" | "community" | "morgen";
 export type Klasse = MailArt | "aldrig" | "legacy" | "ukendt";

@@ -305,7 +305,9 @@ describe("klokkeMail.guard — rådgivernes klokker som mail", () => {
     expect(typer.size).toBeGreaterThanOrEqual(23);
     expect(typer.has("drift")).toBe(true);
     expect(typer.has("ansoegning_webhook_afvist")).toBe(true);
-    expect([...legacy].sort()).toEqual(["agent_insight", "feedback_submitted", "handout_completed", "new_message", "report_uploaded"]);
+    // 1/10: agent_insight er ikke længere legacy (én række pr. rådgiver med advisor_id, agentKlokke.ts) — den står i ALDRIG_TYPER.
+    expect([...legacy].sort()).toEqual(["feedback_submitted", "handout_completed", "new_message", "report_uploaded"]);
+    expect(klassificer("agent_insight")).toBe("aldrig");
     expect(typerneErDaekket(typer, legacy, klassificer)).toEqual({ ok: true, udenPlads: [], legacyIMail: [], dobbelt: [] });
     // SQL-vagterne skriver 'drift' — og drift er en alarm.
     expect(udenSqlKommentarer(laes("supabase/migrations/20260916170000_vagtens_samlemail.sql"))).toContain("'drift'");

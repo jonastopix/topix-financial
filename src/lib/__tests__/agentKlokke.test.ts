@@ -18,5 +18,5 @@ describe("agentKlokke — én klokke-række pr. rådgiver", () => {
   it("uden medlem falder member_id tilbage på rådgiveren (som før)", () => {
     expect(klokkeRaekker(["a"], { ...F, member_id: null })[0].member_id).toBe("a");
   });
-  it("typen er stadig i legacy-klassen: aldrig en mail", () => expect(klassificer("agent_insight", "agent")).toBe("legacy"));
+  it("typen er i aldrig-klassen (1/10): klokke, ikke mail", () => expect(klassificer("agent_insight", "agent")).toBe("aldrig"));
 });
