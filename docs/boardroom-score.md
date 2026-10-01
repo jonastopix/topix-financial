@@ -632,3 +632,30 @@ peger på den åbne måned, mens «Dit næste skridt» peger på den ældste man
 tomme avatar-cirkel. **Data:** Brick Works' april 2026 (godkendt 17/9) har løn
 28.003 mod 475.373 i marts og resultat 1.258.469 på omsætning 1.349.013 — det
 ligner en ufuldstændig rapport, og den bærer indtjeningssøjlens 188 point.
+
+## Trofæer (1/10-2026)
+
+**Hvad:** milepæle. IKKE et tal og IKKE Boardroom Score; kortet siger det i én linje (`TROFAE_FORKLARING`: «Milepæle, du har nået. Din Boardroom Score ovenfor er dit helbredstal lige nu.»). Dommen er «det tidligste tidspunkt, betingelsen var opfyldt» i de data, der står NU — intet gemmes, så et trofæ kan forsvinde, hvis data slettes (en tråd, et mål sat tilbage, budgettet slettet) eller medlemskabet udløber (RLS skjuler community). Derfor lover kortet ikke «for altid» (rådets fund M1, 1/10). Fejler hentningen, vises kortet slet ikke (M2: en fejl må ikke ligne nul trofæer).
+
+**Jonas' regler (1/10):** intet trofæ giver fordel til størrelse — motoren læser kun TIDSPUNKTER og hvem der skrev hvad, aldrig omsætning, beløb eller antal ansatte (kildeværn). «Månedens point/sparring» bygges IKKE nu (Jonas taler med Morten) — ordene point, præmie og «månedens» må ikke stå i fladerne (kildeværn).
+
+**Motoren:** `src/lib/gamification/trofaeer.ts` (ren). Otte trofæer:
+
+| id | Titel | Opnået når | Kilde |
+|---|---|---|---|
+| `foerste_maaned` | Første måned på plads | tidligste første godkendelse af en MÅLT måned | scorens måneder (facts + `maaned_foerste_godkendelse`) |
+| `tre_til_tiden` | Tre måneder i træk | tre sammenhængende tællende måneder godkendt til tiden; dato = den tredjes første godkendelse | streak-motorens `erGodkendtTilTiden`/`foersteTaellendeMaaned`/`naesteMaaned` — regner ikke selv en frist |
+| `seks_til_tiden` | Et halvt år i træk | som ovenfor, seks | samme |
+| `foerste_maal` | Første mål nået | tidligste `milestones.completed_at` med status `completed` | milestones (company-scoped RLS) |
+| `foerste_budget` | Budgettet er lagt | tidligste `budget_targets.created_at` i et base-scenarie (`%-base-%`) | budget_targets (kun `created_at`/`period` læses) |
+| `foerste_refleksion` | Første refleksion | tidligste `pulse_checkins.created_at` | pulse_checkins |
+| `foerste_opslag` | Første opslag | tidligste aktive `community_traade` skrevet af virksomhedens egne brugere | community_traade |
+| `hjalp_et_medlem` | Hjalp et andet medlem | tidligste aktive svar fra virksomhedens brugere i en tråd, hvis forfatter HVERKEN er virksomhedens egen bruger ELLER en rådgiver/tjenestekonto (`erHjaelpTilEtAndetMedlem`) | community_svar + trådens forfatter; rådgiverne = `get_all_advisor_profiles` ∪ `tjenestekonti` som ROLLE (står på `tjenestekonto.guard`s liste) |
+
+**Ikke med:** «deltog i en live session» — `event_registrations` er tilmeldinger, ikke fremmøde; platformen har intet fremmøde for medlemmernes events (målt i `types.ts` 1/10). En tilmelding er ikke en deltagelse.
+
+**Fladerne:** medlemmets «Dine trofæer» (`components/hjemmebane/boardroom/TrofaeKort.tsx`) lige under Score-kortet i samme sektion; 2 kolonner på mobil, 4 på desktop; fail-soft (fejl → kortet står roligt uden trofæer). Hentningen `hooks/trofaeer.ts:hentMedlemmetsTrofaeGrundlag` henter KUN egne data (virksomhedens id eller egne brugere — kildeværn) og genbruger scorens måneder. Rådgivernes `/engagement` (AdvisorRoute, menupunkt efter «Virksomheder»): én række pr. kundevirksomhed — score, streak, trofæer (antal, titler i `title`), seneste aktivitet — sorterbar, hentet i ét batch (`hentEngagement`, `hentAlleSider`, ingen kald pr. virksomhed). Universet: ikke slettet, ikke demo, ikke legat, ikke gæst (`vis_i_netvaerk = false`), aktiv/status-løs og `er_kunde`. **Ingen rangliste mellem virksomheder for medlemmerne** — sorteringen er rådgivernes arbejdsliste og vises aldrig til et medlem.
+
+**Værn:** `src/lib/gamification/__tests__/trofaeer.test.ts` (hvert trofæ opnås/opnås ikke; svar på en rådgivers opslag giver ikke «hjalp») og `trofaeer.guard.test.ts` (ingen størrelsesord i motoren, ingen point/præmie/«månedens» i fladerne, medlemmets hentning kun egne data).
+
+**Umålt (1/10):** at `get_all_advisor_profiles` kan kaldes af et medlem i drift (funktionen har intet rolle-tjek i migrationen, og medlemmets «Dine rådgivere» bruger den — men der er ikke målt i prod); at rådgiverens SELECT dækker `kpi_targets`/`budget_targets`/`financial_report_facts` for alle virksomheder (policies ikke gennemgået for den læsning). Fejler en af dem, står `/engagement` med fejlteksten og medlemmets kort roligt uden trofæer.

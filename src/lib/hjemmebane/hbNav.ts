@@ -85,6 +85,8 @@ export type HbAktiv =
   | "virksomheder" | "opgaver" | "konto"
   /** /ansoegninger (18/9): rådgiverens pipeline over ansøgninger — punktet ved siden af Virksomheder. */
   | "ansoegninger"
+  /** /engagement (1/10): rådgivernes overblik over kundernes score, streak og trofæer — ved siden af Virksomheder. */
+  | "engagement"
   /** /oekonomi (Ø2, 18/9): økonomioverblikket — kun partnere. */
   | "oekonomi"
   /** /webinar (19/9): webinartallene — tilmeldte, deltagelse, annoncespor. Alle rådgivere. */
@@ -189,6 +191,8 @@ export function raadgiverensNav(active: HbAktiv, isPartner = false): HbNavEntry[
     // de 330 tilmeldte er pipelinen FØR pipelinen. Alle rådgivere, ikke kun
     // partnere: det er ikke omsætningstal, det er hvem der kommer.
     { label: "Webinar", to: "/webinar", active: active === "webinar" },
+    // 1/10 (efter Webinar: Ansøgninger skal stå lige efter Virksomheder og Webinar lige efter Ansøgninger — flowRettelser.guard 7, hbNav.test): trofæer og streak pr. kunde (docs/boardroom-score.md «Trofæer»).
+    { label: "Engagement", to: "/engagement", active: active === "engagement" },
     { label: "Indbakke", to: "/chat", active: active === "chat" },
     { label: "Community", to: "/community", active: active === "community" },
     { label: "Indhold", to: "/admin/indhold" },

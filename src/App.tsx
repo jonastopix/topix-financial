@@ -73,6 +73,7 @@ const EventDetail = lazy(() => import("./pages/EventDetail"));
 const MemberProfile = lazy(() => import("./pages/MemberProfile"));
 const MemberDirectory = lazy(() => import("./pages/MemberDirectory"));
 const Virksomheder = lazy(() => import("./pages/Virksomheder"));
+const Engagement = lazy(() => import("./pages/Engagement"));
 const GenkoerRapporter = lazy(() => import("./pages/GenkoerRapporter"));
 const Opgaver = lazy(() => import("./pages/Opgaver"));
 const Virksomhed = lazy(() => import("./pages/Virksomhed"));
@@ -325,6 +326,7 @@ const App = () => (
                   4/9): MIDLERTIDIG rute ved siden af /members til swappet —
                   mønstret fra de fire tidligere Hb-flytninger. */}
               <Route path="/virksomheder" element={<AdvisorRoute><Virksomheder /></AdvisorRoute>} />
+              <Route path="/engagement" element={<AdvisorRoute><Engagement /></AdvisorRoute>} />
               {/* «Genkør flere rapporter» (17/9): rådgiverens masse-genkørsel i browseren — filen fra storage,
                   samme rapport-id, aldrig overwrite. Nået fra virksomhedslisten. */}
               <Route path="/virksomheder/genkoer" element={<AdvisorRoute><GenkoerRapporter /></AdvisorRoute>} />

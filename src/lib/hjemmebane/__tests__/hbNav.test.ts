@@ -91,6 +91,7 @@ describe("rådgiverens menu — det I bruger øverst (Jonas 8/9)", () => {
       ["Virksomheder", "/virksomheder", null],
       ["Ansøgninger", "/ansoegninger", null],
       ["Webinar", "/webinar", null],
+      ["Engagement", "/engagement", null],
       ["Indbakke", "/chat", null],
       ["Community", "/community", null],
       ["Indhold", "/admin/indhold", null],
@@ -131,11 +132,12 @@ describe("rådgiverens menu — det I bruger øverst (Jonas 8/9)", () => {
   });
   it("partneren får «Økonomi» sidst i den øverste blok, efter Indhold, uden blok-overskrift; aktiv på /oekonomi", () => {
     const p = bygHbNav({ isAdvisor: true, erAbonnent: false, active: "boardroom", isPartner: true });
-    expect(flad(p).slice(0, 9).map((n) => [n.label, n.to, n.blok])).toEqual([
+    expect(flad(p).slice(0, 10).map((n) => [n.label, n.to, n.blok])).toEqual([
       ["Forside", "/", null],
       ["Virksomheder", "/virksomheder", null],
       ["Ansøgninger", "/ansoegninger", null],
       ["Webinar", "/webinar", null],
+      ["Engagement", "/engagement", null],
       ["Indbakke", "/chat", null],
       ["Community", "/community", null],
       ["Indhold", "/admin/indhold", null],
