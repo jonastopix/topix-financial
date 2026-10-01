@@ -11027,6 +11027,14 @@ Hvert punkt har et kort. Mangellistens ændringslog «RØRT 29/9» har tallene.
 
 Bygget i #1129. **Update og drift-bevis står åbent.** Kort: [`a29-overblik-bevis`](mangelliste.html#a29-overblik-bevis).
 
+**TILLÆG 1/10-2026 — «Session med Jonas · tilbudt» (gren `feat/jonas-session-tilbudt`):**
+- **Målt i prod 1/10:** Jonas fjernede «Session med Jonas · inkluderet — brugt» på ANLA GLAS A/S (`jonas_session_used_at` = null), men ANLA stod ikke under «Jonas-session». Årsagen er reglen ovenfor («kun nye medlemmer», `erNytMedlem`): ANLA kom ind i maj.
+- **Beslutning (Jonas 1/10 10:35, «ja tilbudt»):** et nyt flueben. Et ældre medlem, som rådgiveren har TILBUDT Jonas-sessionen, tæller som et nyt.
+- **Kolonnen:** `companies.jonas_session_tilbudt_at timestamptz NULL` (migration `20261001110000_jonas_session_tilbudt_at.sql`). NULL betyder ikke tilbudt. Kun rådgivere/admin skriver den. Medlemmer er blokeret af `companies_medlem_kolonnevaern`, fordi kolonnen ikke står på hvidlisten. Kolonnen står i `FORBUDTE` i `companiesKolonnevaern.guard`.
+- **Dommen:** `manglerAtBooke` → jonas = `omfattetAfJonas` (= `erNytMedlem` ELLER tilbudt) OG status ∈ {ikke_brugt, link_sendt, aflyst}. Porten står ét sted (`src/lib/medlemsOverblik.ts`), og `medlemsOverblikFlade.guard` dom 4 låser den.
+- **Fladen:** fluebenet «Session med Jonas · tilbudt (ældre medlem)» i EditCompanyDialog står over «… brugt». Det vises kun, når medlemmet ikke er nyt (eller når det allerede er sat, så det kan ryddes). Hjælpeteksten er «Kun for medlemmer fra før 14/9 — for nyere er sessionen altid med.»
+- **Rækkefølgen i drift:** merge → kør migrationen i SQL editor (FØR/EFTER-SQL står i filhovedet) → mål `GET /rest/v1/companies?select=jonas_session_tilbudt_at&limit=0` med anon-nøglen → 200 → FØRST DA Update. Uden kolonnen fejler forsidens hentning (`hooks/medlemsOverblik.ts`) og dialogens hentning med 42703. Til sidst krydser Jonas «tilbudt» af på ANLA, og ANLA skal stå under «Jonas-session».
+
 **Åbne punkter fra eftermiddagen:**
 - **Drift-beviset for «Mangler at booke» efter Update:** tallene N og M ses i drift. Kort [`a29-overblik-bevis`](mangelliste.html#a29-overblik-bevis).
 - ~~Migrationen `20260929180000_community_tekst_rabathenvisning.sql` (#1126) skal køres i SQL editor~~ — **LØST 29/9 17:35:** kørt (§9). Kort [`a29-migration-community-rabathenvisning`](mangelliste.html#a29-migration-community-rabathenvisning).

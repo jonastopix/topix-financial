@@ -37,9 +37,11 @@ export async function hentMedlemsOverblik(): Promise<Map<string, OverbliksRaekke
   const nu = new Date();
   type Booking = OverbliksKilder["bookinger"][number] & { amount_dkk: number };
   const [companies, medlemmer, bookinger] = await Promise.all([
+    // jonas_session_tilbudt_at (1/10, migration 20261001110000): skal være KØRT og MÅLT i prod før Update — ellers 42703 her.
+    // .returns<…>(): kolonnen står ikke i types.ts, før Lovable regenererer den efter migrationen.
     // is_demo med: universfiltret i byggOverblik udelukker demo-virksomheden. name: forsidens navne, samme kolonne som /virksomheder.
     hentAlleSider<OverbliksKilder["companies"][number]>((fra, til) =>
-      supabase.from("companies").select("id, name, status, is_legat, er_kunde, is_demo, intro_session_used_at, jonas_session_used_at").order("id").range(fra, til).then(side("companies"))),
+      supabase.from("companies").select("id, name, status, is_legat, er_kunde, is_demo, intro_session_used_at, jonas_session_used_at, jonas_session_tilbudt_at").returns<OverbliksKilder["companies"][number][]>().order("id").range(fra, til).then(side("companies"))),
     hentAlleSider<OverbliksKilder["medlemmer"][number]>((fra, til) =>
       supabase.from("company_members").select("company_id, user_id, created_at").order("created_at", { ascending: true }).order("id").range(fra, til).then(side("company_members"))),
     hentAlleSider<Booking>((fra, til) =>

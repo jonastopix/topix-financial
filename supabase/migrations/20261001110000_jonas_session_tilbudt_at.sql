@@ -1,0 +1,81 @@
+-- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+--
+-- «SESSION MED JONAS · TILBUDT» (1/10-2026; Jonas 1/10 10:35: «ja tilbudt»).
+--
+-- MÅLT I PROD 1/10 (hovedsessionen): Jonas fjernede fluebenet «Session med Jonas ·
+-- inkluderet — brugt» på ANLA GLAS A/S (companies.jonas_session_used_at = null), men
+-- ANLA stod ikke under «Mangler at booke → Jonas-session» på rådgiverforsiden. Årsagen:
+-- src/lib/medlemsOverblik.ts manglerAtBooke kræver erNytMedlem (første
+-- company_members.created_at ≥ IKKE_OMFATTET_FRA = 2026-09-14) for Jonas-sessionen —
+-- med vilje, fordi de gamle medlemmer aldrig har haft den. ANLA kom ind i maj.
+--
+-- FORMEN: en kolonne ved siden af jonas_session_used_at (20260913220000), samme
+-- type og samme NULL-semantik. NULL = ikke tilbudt; timestamp = tilbudt (og hvornår).
+-- Nullable uden default: ALLE eksisterende virksomheder starter som «ikke tilbudt»,
+-- så forsidens tal er uændret, til en rådgiver krydser af. Motoren læser den som
+-- OverbliksRaekke.jonasTilbudtAt; porten er omfattetAfJonas = erNytMedlem ELLER sat.
+--
+-- HVEM SKRIVER: KUN rådgivere/admin — afkrydsningen «Session med Jonas · tilbudt
+-- (ældre medlem)» i EditCompanyDialog. RLS: «Advisors can update all companies»
+-- (has_role advisor — admin arver) dækker kolonnen. MEDLEMMER kan IKKE sætte den:
+-- companies_medlem_kolonnevaern (BEFORE UPDATE, 20260930090000) sammenligner
+-- to_jsonb(new) - tilladte med to_jsonb(old) - tilladte — enhver kolonne UDEN FOR
+-- hvidlisten er dermed beskyttet automatisk, også en ny. Kolonnen kommer IKKE på
+-- hvidlisten; kildeværnet companiesKolonnevaern.guard har den i FORBUDTE.
+-- Ingen policy, ingen trigger, ingen SECURITY DEFINER-funktion røres.
+--
+-- RÆKKEFØLGEN (ét skridt ad gangen):
+--   1. Merge.
+--   2. FØR-SQL herunder (gem CSV).
+--   3. KØR denne migration i Lovable → SQL editor.
+--   4. EFTER-SQL herunder (gem CSV).
+--   5. MÅL kolonnen over REST med anon-nøglen (fra index-*.js på app.theboardroom.dk):
+--        GET https://loiavmastgeieqyiwyyr.supabase.co/rest/v1/companies?select=jonas_session_tilbudt_at&limit=0
+--      → 200 (42703 = kolonnen mangler).
+--   6. FØRST DA Update i Lovable. Uden kolonnen fejler forsidens hentning
+--      (hooks/medlemsOverblik.ts) og EditCompanyDialogs hentning med 42703.
+--   7. Jonas krydser «tilbudt» af på ANLA GLAS A/S → ANLA står under
+--      «Mangler at booke → Jonas-session».
+--
+-- FØR-SQL (ét resultatsæt — gem CSV):
+--   select '1 kolonne' as sektion,
+--          coalesce((select data_type || ' · nullable=' || is_nullable
+--                      from information_schema.columns
+--                     where table_schema = 'public' and table_name = 'companies'
+--                       and column_name = 'jonas_session_tilbudt_at'), 'findes ikke') as vaerdi
+--   union all
+--   select '2 companies', count(*)::text from public.companies
+--   union all
+--   select '3 jonas_session_used_at sat', count(*)::text from public.companies where jonas_session_used_at is not null
+--   order by 1;
+--   Forventet: 1 = «findes ikke».
+--
+-- EFTER-SQL (ét resultatsæt — gem CSV):
+--   select '1 kolonne' as sektion,
+--          coalesce((select data_type || ' · nullable=' || is_nullable
+--                      from information_schema.columns
+--                     where table_schema = 'public' and table_name = 'companies'
+--                       and column_name = 'jonas_session_tilbudt_at'), 'findes ikke') as vaerdi
+--   union all
+--   select '2 tilbudt sat', count(*)::text from public.companies where jonas_session_tilbudt_at is not null
+--   union all
+--   select '3 kommentar', coalesce(col_description('public.companies'::regclass,
+--          (select attnum from pg_attribute where attrelid = 'public.companies'::regclass
+--             and attname = 'jonas_session_tilbudt_at')), 'ingen')
+--   union all
+--   select '4 hvidlisten naevner kolonnen',
+--          (select (pg_get_functiondef(p.oid) like '%jonas_session_tilbudt_at%')::text
+--             from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+--            where n.nspname = 'public' and p.proname = 'companies_medlem_kolonnevaern')
+--   order by 1;
+--   Forventet: 1 = «timestamp with time zone · nullable=YES», 2 = 0, 3 = kommentaren,
+--   4 = false (kolonnen står IKKE på medlemmernes hvidliste).
+--
+-- RUL TILBAGE (kun hvis ingen frontend læser kolonnen — dvs. FØR Update):
+--   ALTER TABLE public.companies DROP COLUMN IF EXISTS jonas_session_tilbudt_at;
+
+ALTER TABLE public.companies
+  ADD COLUMN IF NOT EXISTS jonas_session_tilbudt_at timestamptz NULL;
+
+COMMENT ON COLUMN public.companies.jonas_session_tilbudt_at IS
+  'Tidspunkt hvor en rådgiver tilbød et ældre medlem (fra før 14/9-2026) den inkluderede session med Jonas. NULL = ikke tilbudt. Sat = sessionen tæller i forsidens «Mangler at booke», til jonas_session_used_at sættes. Sættes/ryddes kun af rådgiver/admin i EditCompanyDialog; medlemmer blokeres af companies_medlem_kolonnevaern (ikke på hvidlisten).';

@@ -17,7 +17,7 @@ const dageEfter = (n: number) => new Date(NU.getTime() + n * MS_DAG).toISOString
 const NY = "2026-09-20T10:00:00Z";
 const GAMMEL = dageFoer(200);
 const c = (id: string, name: string, x: Record<string, unknown> = {}) =>
-  ({ id, name, status: "active", is_legat: false, er_kunde: true, is_demo: false, intro_session_used_at: dageFoer(40), jonas_session_used_at: null, ...x });
+  ({ id, name, status: "active", is_legat: false, er_kunde: true, is_demo: false, intro_session_used_at: dageFoer(40), jonas_session_used_at: null, jonas_session_tilbudt_at: null, ...x });
 const bk = (company_id: string, advisor: string, status: string, slut: string | null) =>
   ({ company_id, advisor, amount_dkk: 0, status, start_tid: slut, slut_tid: slut, created_at: dageFoer(20) });
 

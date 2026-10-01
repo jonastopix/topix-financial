@@ -182,6 +182,21 @@ describe("inkluderetSession.guard — 4. fladen: begge rettigheder ét sted, tre
     expect(admin).toContain("updates.intro_session_used_at = originalIntroAt || new Date().toISOString();");
   });
 
+  // 1/10-2026 (ANLA GLAS A/S; Jonas 10:35 «ja tilbudt»; migration 20261001110000):
+  // et ældre medlem kan TILBYDES Jonas-sessionen — så tæller den i «Mangler at booke».
+  it("admin-dialogen har «tilbudt» over «brugt», skriver jonas_session_tilbudt_at med bevar-mønstret og viser det kun for ældre medlemmer", () => {
+    const admin = laes(ADMIN);
+    expect(admin).toContain("Session med Jonas · tilbudt (ældre medlem)");
+    expect(admin).toContain("Kun for medlemmer fra før 14/9 — for nyere er sessionen altid med.");
+    expect(admin.indexOf("Session med Jonas · tilbudt (ældre medlem)")).toBeLessThan(admin.indexOf("Session med Jonas · inkluderet — brugt"));
+    expect(admin).toContain("updates.jonas_session_tilbudt_at = originalJonasTilbudtAt || new Date().toISOString();");
+    expect(admin).toContain("updates.jonas_session_tilbudt_at = null;");
+    expect(admin).toMatch(/select\("[^"]*\bjonas_session_tilbudt_at\b[^"]*"\)/);
+    // Samme «ny»-port som forsiden — ingen egen datogrænse i dialogen.
+    expect(admin).toContain("const visTilbudt = !erNytMedlem(medlemSiden) || form.jonas_session_tilbudt;");
+    expect(admin).not.toMatch(/2026-09-14/);
+  });
+
   it("Jonas-kortets to ansigter er dømt i maskinen, ikke i JSX", () => {
     const maskine = laes(MASKINE);
     expect(maskine).toContain("export function afgoerBookSession(");
