@@ -22,6 +22,7 @@ import {
   type Forbrugsdag,
 } from "@/lib/webinar/annoncepriser";
 import type { AnsoegerMail, Tilmelding } from "@/lib/webinar/dashboard";
+import * as deno from "../../../../supabase/functions/_shared/annoncepriser.ts";
 
 /**
  * Prisen pr. led (udkast 19/9-2026). Det, der testes hårdest, er de to måder
@@ -749,5 +750,50 @@ describe("ad_id_udledt — navnet oversat til et id, råværdien urørt (20/9)",
     const d = annoncepriser(ind([R({ email: "d@x.dk", utm_content: NAVN, ad_id_udledt: "ikke-et-id" })]), NU);
     expect(d.perAnnonce.map((x) => x.noegle)).toContain(`navn:${NAVN}`);
     expect(d.brud.kobletViaUdledt).toBe(0);
+  });
+});
+
+describe("den interne prøvesession tæller aldrig i annoncepriserne (docs/webinarmotor.md §7.6 fund 5)", () => {
+  const rigtige = [
+    R({ email: "a@x.dk", utm_content: AD_A, utm_campaign: "sep", set_procent: 90 }),
+    R({ email: "b@x.dk", utm_content: AD_A, utm_campaign: "sep", state: "Missed" }),
+    R({ email: "d@x.dk", utm_content: AD_B, utm_campaign: "sep", set_procent: 90 }),
+  ];
+  // Interne på BEGGE annoncer, alle mødt op, alle ansøgt og medlem — og én på et mærke,
+  // der ville være et kædebrud. Ingen af dem må ses nogen steder i dommen.
+  const interne = [
+    R({ email: "jonas@topix.dk", ewebinar_id: "P-1", utm_content: AD_A, utm_campaign: "sep", set_procent: 90, intern: "true" }),
+    R({ email: "morten@topix.dk", ewebinar_id: "P-2", utm_content: AD_B, utm_campaign: "sep", set_procent: 90, intern: true }),
+    R({ email: "test@theboardroom.dk", ewebinar_id: "P-3", utm_content: "ukendt-maerke", set_procent: 90, intern: "true" }),
+  ];
+  const dage = [D(AD_A, 300_000), D(AD_B, 200_000)];
+  const annoncer = [N(AD_A, "Annonce A"), N(AD_B, "Annonce B")];
+  const ansoegninger = [M("a@x.dk"), A("d@x.dk"), M("jonas@topix.dk"), M("morten@topix.dk"), M("test@theboardroom.dk")];
+  const ind = (t: Tilmelding[]) => ({ tilmeldinger: t, ansoegninger, dage, annoncer, tilstand: "har" as const });
+
+  it("i alt: kun de rigtige tilmeldte, deltagere, ansøgere og medlemmer", () => {
+    const d = annoncepriser(ind([...rigtige, ...interne]), NU);
+    expect(d.samlet).toMatchObject({ tilmeldte: 3, deltagere: 2, ansoegte: 2, medlemmer: 1 });
+  });
+  it("pr. annonce: de interne lægger intet til nogen linje", () => {
+    const d = annoncepriser(ind([...rigtige, ...interne]), NU);
+    expect(d.perAnnonce.find((x) => x.noegle === `id:${AD_A}`)).toMatchObject({ tilmeldte: 2, deltagere: 1, ansoegte: 1, medlemmer: 1 });
+    expect(d.perAnnonce.find((x) => x.noegle === `id:${AD_B}`)).toMatchObject({ tilmeldte: 1, deltagere: 1, ansoegte: 1, medlemmer: 0 });
+  });
+  it("pr. kampagne og kædebruddene: som uden de interne", () => {
+    const med = annoncepriser(ind([...rigtige, ...interne]), NU);
+    const uden = annoncepriser(ind(rigtige), NU);
+    expect(med.perKampagne).toEqual(uden.perKampagne);
+    expect(med.brud).toEqual(uden.brud);
+  });
+  it("dommen med interne rækker = dommen uden dem — i begge spejle", () => {
+    const uden = annoncepriser(ind(rigtige), NU);
+    expect(annoncepriser(ind([...rigtige, ...interne]), NU)).toEqual(uden);
+    expect(deno.annoncepriser(ind([...rigtige, ...interne]), NU)).toEqual(uden);
+  });
+  it("kontrast: uden mærket tæller de samme rækker (filtret er det, der virker)", () => {
+    const umaerkede = annoncepriser(ind([...rigtige, ...interne.map((r) => ({ ...r, intern: null }))]), NU);
+    expect(umaerkede.samlet.tilmeldte).toBe(6);
+    expect(umaerkede.perKampagne).not.toEqual(annoncepriser(ind(rigtige), NU).perKampagne);
   });
 });
