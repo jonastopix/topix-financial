@@ -10,6 +10,7 @@ import {
   afgoerAftaleMaal, AFTALE_FINDES_IKKE, aftalenErUdloebet, laesRabataftaleId, MARKERING_MS, rabataftaleElementId,
 } from "@/lib/hjemmebane/rabataftaleAdresse";
 import { hbButtonVariants } from "../HbButton";
+import { HbStedsSaetning } from "../HbStedsSaetning";
 
 /** Rabataftaler-miljøet (13-08-2026). Datamodellen og admin-fladen fandtes
     allerede (partners-tabellen, 20260804120000:82-108 + PartnersView/
@@ -177,15 +178,21 @@ export const RabataftalerView = () => {
   return (
     <div>
       <section className="max-w-3xl">
+        {/* «Fordele» (rådets fund 6, 2/10): samme ord som menuen (hbNav.ts FORDELE_PUNKT) — som eyebrow,
+            fordi eyebrowen i husets mønster (Events, Medlemmerne) ER fladens navn; h1 «Rabataftaler» står,
+            fordi det er, hvad siden rummer, og abonnent og rådgiver stadig når den under det ord. */}
         <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">
-          Medlemsfordele
+          Fordele
         </p>
         <h1 className="mt-3 font-editorial text-4xl font-medium leading-[1.1] tracking-tight text-hb-ink md:text-5xl">
           Rabataftaler
         </h1>
-        <p className="mt-3 text-sm text-hb-ink-soft">
-          Aftaler forhandlet hjem til medlemmer af The Boardroom.
-        </p>
+        {/* Stedsætningen under h1 (rådets fund 7, 2/10): eyebrow → h1 → én sætning — sidens gamle intro kun for dem, sætningen ikke taler til (ellers). */}
+        <HbStedsSaetning
+          sti="/rabataftaler"
+          className="mt-3"
+          ellers={<p className="mt-3 text-sm text-hb-ink-soft">Aftaler forhandlet hjem til medlemmer af The Boardroom.</p>}
+        />
       </section>
 
       <section className="mt-10 max-w-4xl md:mt-12">

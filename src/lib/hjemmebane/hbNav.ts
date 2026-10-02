@@ -11,6 +11,24 @@
  * ændre sig: testen låser labels, links og rækkefølge for både fuldt
  * medlem og abonnent.
  *
+ * SEKS STEDER (2/10-2026 nat, FORBEREDT — afventer Jonas' ja kl. 08:15;
+ * Jonas 1/10 22:50 «Fedt med menuen. Jeg er enig med dig»): det fulde
+ * medlems menu er seks steder, seks opgaver —
+ *   Dit Boardroom · Dine tal (Rapportering, KPI'er, Budget) · Dine mål ·
+ *   Netværket (Community, Events, Medlemmerne, Fordele, Anbefal) ·
+ *   Akademiet · Din rådgiver (Chat, Book session)
+ * «Dine mål» er sit EGET punkt (ud af Dine tal — et mål er ikke et tal).
+ * «Netværket» samler det, der før var fire punkter: Community, Events,
+ * Netværket (nu «Medlemmerne», /medlemmer), Rabataftaler (nu «Fordele»:
+ * en rabat er noget du får af netværket, ikke noget du lærer — Jonas skal
+ * bekræfte; linjen FORDELE_PUNKT flyttes med ét greb) og «Fortæl det
+ * videre» (nu «Anbefal», /deling — kun teksten er ny). INGEN rute er
+ * ændret: /community, /events, /medlemmer, /rabataftaler og /deling er
+ * links og mails udefra. Stedsætningerne («Det her er stedet, hvor …»)
+ * bor i stedsSaetninger.ts. Abonnentens og rådgiverens menu er URØRT —
+ * abonnenten har intet netværk og beholder «Rabataftaler» som direkte
+ * punkt. Værn: seksSteder.guard.test.ts.
+ *
  * RÅDGIVERENS MENU (Jonas 8/9): «Bør det ikke ligge øverst for os? …
  * Rådgiverne skal have en menustruktur der passer til den måde vi
  * arbejder på.» Før fik rådgiveren medlemmets ni punkter og en admin-blok
@@ -124,29 +142,73 @@ export const BLOK_PLATFORM = "Platform";
     motoren lib/hjemmebane/oevelse.ts, værn handoutsIAkademiet.guard). */
 export const HANDOUTS_PUNKT = { label: "Handouts", to: "/handouts" } as const;
 
-function dineTal(active: HbAktiv, medHandouts: boolean): HbNavEntry {
+/** «Dine tal». `fuldListe` (før 2/10: `medHandouts`): rådgiveren og
+    abonnenten får den FULDE liste — Rapportering, KPI'er, Budget, Dine mål,
+    Handouts; det fulde medlem (seks steder, 2/10) de tre tal-flader alene:
+    «Dine mål» er dets eget punkt, og handouts hører til Akademiet (1/10).
+    De to fravalg følges ad, derfor ét flag. */
+function dineTal(active: HbAktiv, fuldListe: boolean): HbNavEntry {
   return {
     label: "Dine tal",
     children: [
       { label: "Rapportering", to: "/reports", active: active === "rapportering" },
       { label: "KPI'er", to: "/kpis", active: active === "noegletal" },
       { label: "Budget", to: "/budget", active: active === "budget" },
-      // «Dine mål» («Én plan», fase 3, 16/9): stien /milestones beholdes, ordet er målenes.
-      { label: "Dine mål", to: "/milestones", active: active === "milestones" },
-      ...(medHandouts ? [{ ...HANDOUTS_PUNKT, active: active === "handouts" }] : []),
+      ...(fuldListe
+        ? [
+            // «Dine mål» («Én plan», fase 3, 16/9): stien /milestones beholdes, ordet er målenes.
+            { label: "Dine mål", to: "/milestones", active: active === "milestones" },
+            { ...HANDOUTS_PUNKT, active: active === "handouts" },
+          ]
+        : []),
     ],
   };
 }
 
 const rabataftaler = (active: HbAktiv): HbNavEntry => ({ label: "Rabataftaler", to: "/rabataftaler", active: active === "rabataftaler" });
 
-/** Medlemmets menu — ORDRET som før 8/9 (HbMemberShell.tsx:107-220), minus
-    «Podcast & Talks» (15/9, se filhovedet). */
+/** «Fordele» under Netværket (seks steder, 2/10): rabataftalerne som
+    underpunkt — forslagets anbefaling, som Jonas skal bekræfte. Skal de
+    tilbage som eget punkt, flyttes denne ene linje ud af NETVAERKET og ind
+    i punkterne (rabataftaler(active)). Ruten er den samme. */
+export const FORDELE_PUNKT = { label: "Fordele", to: "/rabataftaler" } as const;
+
+/** «Anbefal» (seks steder, 2/10) afløser ordet «Fortæl det videre» — kun
+    teksten; /deling og kreativerne er urørte. */
+export const ANBEFAL_PUNKT = { label: "Anbefal", to: "/deling" } as const;
+
+/** Netværket (seks steder, 2/10): Community er forsiden (første barn), så
+    Events (mærket «Live nu» lander på barnet — HbMemberShell), Medlemmerne
+    (/medlemmer — ordet «Netværket» er nu stedets, ikke listens), Fordele,
+    Anbefal. Som «Dine tal» har gruppen intet eget link. */
+function netvaerket(active: HbAktiv): HbNavEntry {
+  return {
+    label: "Netværket",
+    children: [
+      { label: "Community", to: "/community", active: active === "community" },
+      { label: "Events", to: "/events", active: active === "events" },
+      { label: "Medlemmerne", to: "/medlemmer", active: active === "medlemmer" },
+      { ...FORDELE_PUNKT, active: active === "rabataftaler" },
+      { ...ANBEFAL_PUNKT, active: active === "deling" },
+    ],
+  };
+}
+
+/** Det fulde medlems seks steder i menuens rækkefølge (seks steder, 2/10)
+    — én liste, som værnet læser; menuen bygges af den. */
+export const SEKS_STEDER = ["Dit Boardroom", "Dine tal", "Dine mål", "Netværket", "Akademiet", "Din rådgiver"] as const;
+
+/** Medlemmets menu — abonnenten ORDRET som før 8/9 (minus «Podcast & Talks»,
+    15/9); det fulde medlem de seks steder (2/10, se filhovedet). */
 export function medlemmetsNav(active: HbAktiv, erAbonnent: boolean, boardroomTo: string, certifikat?: CertifikatMenu | null): HbNavEntry[] {
   if (erAbonnent) return [dineTal(active, true), rabataftaler(active)];
   const punkter: HbNavEntry[] = [
     { label: "Dit Boardroom", to: boardroomTo, active: active === "boardroom" },
     dineTal(active, false),
+    // Eget punkt (seks steder, 2/10): et mål er ikke et tal. Samme sti som før.
+    { label: "Dine mål", to: "/milestones", active: active === "milestones" },
+    netvaerket(active),
+    { label: "Akademiet", to: "/akademiet", active: active === "akademiet" },
     {
       label: "Din rådgiver",
       children: [
@@ -154,20 +216,8 @@ export function medlemmetsNav(active: HbAktiv, erAbonnent: boolean, boardroomTo:
         { label: "Book session", to: "/book-session", active: active === "booksession" },
       ],
     },
-    { label: "Akademiet", to: "/akademiet", active: active === "akademiet" },
-    rabataftaler(active),
-    { label: "Events", to: "/events", active: active === "events" },
-    { label: "Netværket", to: "/medlemmer", active: active === "medlemmer" },
-    { label: "Community", to: "/community", active: active === "community" },
-    // «Fortæl det videre» (Jonas 14/9): delingskreativen på /deling. Sidst,
-    // fordi menuen går fra det medlemmet får (Akademiet, Rabataftaler)
-    // over det hun deltager i (Events) til de andre (Netværket,
-    // Community) — og dette punkt vender ud af huset. Ikke «Deling»: det
-    // beskriver mekanikken, ikke gaven, og lyder som en indstilling.
-    // Kun fulde medlemmer — abonnenten er ikke «optaget i The Boardroom».
-    { label: "Fortæl det videre", to: "/deling", active: active === "deling" },
   ];
-  // «Dit certifikat» (29/9): SIDST, efter «Fortæl det videre» — og KUN når
+  // «Dit certifikat» (29/9): SIDST, efter de seks steder — og KUN når
   // medlemmet er berettiget (certifikat sat). Et lukket område skal ikke
   // stå i menuen for dem, det aldrig åbner for. Mærket «Ny» går til siden
   // selv (der er ingen anden side at gå til, modsat Events' «Live nu»).
@@ -227,6 +277,20 @@ export function raadgiverensNav(active: HbAktiv, isPartner = false): HbNavEntry[
       ],
     },
   ];
+}
+
+/** «Live nu» (10/9) på det punkt, der peger på /events — uanset om det står
+    øverst (rådgiveren) eller som barn (det fulde medlem, seks steder 2/10:
+    Events under Netværket). Ren; rører ingen andre punkter. HbMemberShell
+    kalder den med liveEvent-mærket. */
+export function medLiveMaerke(nav: HbNavEntry[], maerke: NonNullable<HbNavEntry["maerke"]>): HbNavEntry[] {
+  return nav.map((e) => {
+    if (e.to === "/events") return { ...e, maerke };
+    if (e.children?.some((c) => c.to === "/events")) {
+      return { ...e, children: e.children.map((c) => (c.to === "/events" ? { ...c, maerke } : c)) };
+    }
+    return e;
+  });
 }
 
 /** Hele nav'en for skallen. Rådgiveren får sin egen; medlemmet sin — den

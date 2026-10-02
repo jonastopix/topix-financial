@@ -27,7 +27,9 @@ export type ContentStatus = "draft" | "published" | "archived";
     visningsnavne (DB-nøglerne i `key` er urørte); `hint` vises som stille
     hjælpelinje under område-rækken for det valgte område.
     `akademi`: true = forløbsområde i /akademiet; false = området har hjem
-    et andet sted (push → forsidens hero) og må ALDRIG optræde i Akademiet
+    et andet sted (push m.fl. — forsidens bånd indtil 2/10-2026; forsiden er
+    ryddet, og de fire områder vises ikke for medlemmer, før de får plads i
+    Akademiet som «Nyt fra os») og må ALDRIG optræde i Akademiet
     (ForsideView/OmraadeView/ElementView gater på flaget).
     `adminFane`: om området får en fane i /admin/indhold. ADSKILT fra
     `akademi` (13-08-2026): ét flag styrede før BÅDE medlemsfladen og
@@ -109,28 +111,28 @@ export const AREAS = [
     label: "Ugens push",
     akademi: false,
     adminFane: false,
-    hint: "Forsidens hero — seneste publicerede indslag er det, medlemmet møder først på Dit Boardroom",
+    hint: "Vises ikke for medlemmer lige nu — forsiden er ryddet (2/10); var forsidens hero. Indholdet får plads i Akademiet som «Nyt fra os»",
   },
   {
     key: "ugens_video",
     label: "Ugens video",
     akademi: false,
     adminFane: false,
-    hint: "Forsidens kuraterede videoindslag — nyeste publicerede, ikke-udløbne vinder (Bunny-id eller ekstern URL); kræver migration 20260809140000 kørt i Lovable",
+    hint: "Vises ikke for medlemmer lige nu — forsiden er ryddet (2/10); var forsidens videoindslag (nyeste publicerede, ikke-udløbne vinder; Bunny-id eller ekstern URL). Indholdet får plads i Akademiet som «Nyt fra os»",
   },
   {
     key: "redaktionelt",
     label: "Redaktionelt",
     akademi: false,
     adminFane: false,
-    hint: "Forsidens redaktionelle indslag (blog/LinkedIn m.m.) — link/citat i metadata; kræver migration 20260809170000 kørt i Lovable",
+    hint: "Vises ikke for medlemmer lige nu — forsiden er ryddet (2/10); var forsidens redaktionelle indslag (blog/LinkedIn m.m.; link/citat i metadata). Indholdet får plads i Akademiet som «Nyt fra os»",
   },
   {
     key: "evergreen",
     label: "Evergreen",
     akademi: false,
     adminFane: false,
-    hint: "Forsidens tidløse bibliotek (5-10 indslag UDEN udløb) — roterer deterministisk pr. ISO-uge; kræver migration 20260809170000 kørt i Lovable",
+    hint: "Vises ikke for medlemmer lige nu — forsiden er ryddet (2/10); var forsidens tidløse bibliotek (roterer pr. ISO-uge). Indholdet får plads i Akademiet som «Nyt fra os»",
   },
 ] as const;
 

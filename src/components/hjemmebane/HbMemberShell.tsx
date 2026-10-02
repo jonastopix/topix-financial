@@ -14,13 +14,15 @@ import { HbFeedbackDialog } from "./HbFeedbackDialog";
 import { HbRaadgiverSkrev } from "./HbRaadgiverSkrev";
 import { useRaadgiverSkrev } from "@/hooks/raadgiverSkrev";
 import { useLocation, useNavigate } from "react-router-dom";
-import { bygHbNav, type HbAktiv } from "@/lib/hjemmebane/hbNav";
+import { bygHbNav, medLiveMaerke, type HbAktiv } from "@/lib/hjemmebane/hbNav";
 import { PODCAST_SPOTIFY_TEKST, PODCAST_SPOTIFY_URL } from "@/lib/hjemmebane/podcastSpotify";
 import { useQuery } from "@tanstack/react-query";
 import { useOnlineTracking } from "@/hooks/onlineTracking";
 import { listAllUpcomingEvents } from "@/lib/hjemmebane/akademiApi";
 import { LIVE_MAERKE, liveEvent, liveEventSti, liveEventTitel } from "@/lib/hjemmebane/liveEvent";
 import { useCertificate } from "@/hooks/useCertificate";
+import { HbStedsSaetning } from "./HbStedsSaetning";
+import { skallenTegnerSaetning } from "@/lib/hjemmebane/stedsSaetninger";
 
 /** Fælles Hb-medlemsskal for forsiden ("/") og de øvrige medlemsflader
     (generalisering af den tidligere HbAkademiShell): V0-layoutmodellen
@@ -190,6 +192,17 @@ export const HbMemberShell = ({
      topblokken, før enhver betinget return. */
   const certifikat = useCertificate();
   const navUdenMaerke: HbNavEntry[] = bygHbNav({ isAdvisor, erAbonnent, active, isPartner, certifikat: certifikat.menu });
+  /* STEDSÆTNINGEN (seks steder, 2/10): «Det her er stedet, hvor …» øverst på
+     hvert af det fulde medlems seks steder — valgt af STIEN (stedsSaetninger),
+     ikke af `active`, så undersider tier. Hvem der ser den (det fulde medlem,
+     en rådgiver i «Se som medlem», aldrig abonnenten) afgør komponenten selv —
+     skallen gater ikke. Forsiden («/») tegner selv sætningen under hilsenen
+     (BoardroomView), og de otte steder med eget redaktionelt hoved
+     (STEDER_MED_EGET_HOVED: Dine tal, Dine mål, Events, Medlemmerne, Fordele,
+     Akademiet) tegner den selv under deres h1 (rådets fund 7, 2/10) — så
+     skallen tegner den KUN, hvor den er den eneste indledning: Community,
+     Anbefal, chatten, booking. */
+  const stedsSaetningSti = skallenTegnerSaetning(location.pathname) ? location.pathname : null;
 
   /* «LIVE NU» VED EVENTS (Jonas 10/9). Hentningen deler cache-nøgle med
      /events og Community-composeren (["events", "upcoming-all"]), så
@@ -213,11 +226,9 @@ export const HbMemberShell = ({
     return () => window.clearInterval(id);
   }, []);
   const live = liveEvent(eventsQuery.data ?? [], nu);
-  const nav: HbNavEntry[] = live
-    ? navUdenMaerke.map((e) =>
-        e.to === "/events" ? { ...e, maerke: { tekst: LIVE_MAERKE, to: liveEventSti(live), titel: liveEventTitel(live) } } : e,
-      )
-    : navUdenMaerke;
+  // Mærket lander på det punkt, der peger på /events — toppunkt (rådgiveren)
+  // ELLER barn under «Netværket» (det fulde medlem, seks steder 2/10).
+  const nav: HbNavEntry[] = live ? medLiveMaerke(navUdenMaerke, { tekst: LIVE_MAERKE, to: liveEventSti(live), titel: liveEventTitel(live) }) : navUdenMaerke;
 
   return (
     <div ref={rodRef} className={`theme-hjemmebane ${fuld ? "h-screen-safe" : "min-h-screen-safe"} bg-hb-paper font-body text-hb-ink antialiased`}>
@@ -252,9 +263,19 @@ export const HbMemberShell = ({
             spotifyLink={spotifyLink}
           />
           {fuld ? (
-            <main className={`flex min-h-0 flex-1 flex-col ${tjeklisteBundluft}`}>{children}</main>
+            <main className={`flex min-h-0 flex-1 flex-col ${tjeklisteBundluft}`}>
+              {/* I «fuld» har main ingen padding (chatten tager højden) — sætningen får sin egen, og krymper aldrig.
+                  `hidden md:block` (rådets fund 3, 2/10): på mobil ER chatten hele skærmen (100dvh, beskedlisten
+                  + feltet), og tre linjer sætning over den æder beskeder — på desktop er der luft. Valgt frem for
+                  at tage /chat ud af stederne: «Din rådgiver» skal stadig have sin sætning dér, hvor den har plads. */}
+              {stedsSaetningSti && <HbStedsSaetning sti={stedsSaetningSti} className="hidden shrink-0 px-6 pt-6 md:block md:pt-8" />}
+              {children}
+            </main>
           ) : (
-            <main className={`mx-auto max-w-[1200px] px-6 py-10 md:py-14 ${tjeklisteBundluft}`}>{children}</main>
+            <main className={`mx-auto max-w-[1200px] px-6 py-10 md:py-14 ${tjeklisteBundluft}`}>
+              {stedsSaetningSti && <HbStedsSaetning sti={stedsSaetningSti} className="mb-8" />}
+              {children}
+            </main>
           )}
         </div>
       </div>

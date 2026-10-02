@@ -28,7 +28,7 @@ import { getISOWeekKey } from "@/lib/hjemmebane/week";
 import { denneUgesFredag, efterMaalFrist, fraDatoStreng, naesteUgesFredag, omEnMaaned, tilDatoStreng } from "@/lib/hjemmebane/opgaveDato";
 import { danskDato, senesteSkridtFrist } from "@/lib/hjemmebane/skridtForslag";
 import { forslagMetaLinje, fristTekst } from "@/lib/hjemmebane/aftaler";
-import { afsender, aktiveMedlemmer, INGEN_RAADGIVERE, raadgiverAnsigt, raadgiverOpslag, synligeMedlemmer, type Ansigt } from "@/lib/hjemmebane/ansigter";
+import { aktiveMedlemmer, INGEN_RAADGIVERE, raadgiverAnsigt, raadgiverOpslag, synligeMedlemmer, type Ansigt } from "@/lib/hjemmebane/ansigter";
 import { listMemberDirectory } from "@/lib/hjemmebane/memberProfile";
 import { vaerterForEvent } from "@/lib/hjemmebane/vaerter";
 import { listVaerterForEvents } from "@/lib/hjemmebane/vaerterApi";
@@ -56,10 +56,10 @@ import { HbCard } from "../HbCard";
 import { EstimatMaerke } from "../EstimatMaerke";
 import { dinMaanedDom, sparklineKoordinater, type DinMaanedDom, type MaanedsRaekke } from "@/lib/hjemmebane/dinMaaned";
 import { erDag1, hilsenLinje } from "@/lib/hjemmebane/forsideHilsen";
-import { VELKOMST_EYEBROW, VELKOMST_MANCHET, VELKOMST_SET_HJAELP, VELKOMST_SET_KNAP, VELKOMST_TITEL, velkomstHovedhistorie } from "@/lib/hjemmebane/velkomstHistorie";
-import { useAppConfig } from "@/hooks/useAppConfig";
+import { VELKOMST_EYEBROW, VELKOMST_MANCHET, VELKOMST_SET_HJAELP, VELKOMST_SET_KNAP, VELKOMST_TITEL } from "@/lib/hjemmebane/velkomstHistorie";
 import { HbVelkomstVideoEmbed } from "../HbVelkomstVideoEmbed";
 import { HbSection } from "../HbSection";
+import { HbStedsSaetning } from "../HbStedsSaetning";
 import { HbAvatar } from "../HbAvatar";
 import { HbMaalForklaring } from "../milestones/HbMaalForklaring";
 import { MAAL_FORKLARING_OVERSKRIFT } from "@/lib/hjemmebane/maalForklaring";
@@ -80,18 +80,10 @@ import { lektionsSti } from "@/lib/hjemmebane/lektionerForModul";
 import { oevelseLektionSti } from "@/lib/hjemmebane/oevelse";
 import { HbVideoEmbed } from "../akademi/HbVideoEmbed";
 import { deriveFocus, filtrerUdloebneForslag, type FocusItem } from "./nextStep";
-import {
-  byPublishedDesc,
-  countNewSince,
-  pickActiveItem,
-  pickActivePush,
-  pickActiveWeekVideo,
-  pickEvergreen,
-  pickMainStory,
-  type NewsCandidate,
-  type StoryCandidate,
-  type StoryKind,
-} from "./pushSelection";
+// Dommene (pickMainStory m.fl.) bor stadig i ./pushSelection.ts — forsiden
+// kalder dem ikke siden 2/10 (båndet er væk); kun typen StoryCandidate bruges
+// af kortene nedenfor. Døde imports fjernet efter rådets fund 9.
+import { type StoryCandidate } from "./pushSelection";
 import { pushMedie, spotifyEmbedUrl, youtubeIdAf, youtubeNocookieEmbedUrl, youtubeThumbnailUrl } from "./pushMedie";
 import { pushOverlinje } from "./pushOverlinje";
 
@@ -121,7 +113,13 @@ import { pushOverlinje } from "./pushOverlinje";
     2) "Kommende"-sektionen — de næste 2-3 events som egen sektion
        (live-sessions er en kerneydelse, ikke en nyhed). Uden CTA
        (tilmelding er egen leverance).
-    3) "Fra os til dig"-båndet — kurateret via RYKKELISTEN (PR B3,
+    3) "Fra os til dig"-båndet — TAGET AF FORSIDEN 2/10-2026 (seks steder,
+       Jonas 1/10 22:50: «Det var fyld»; FORBEREDT, afventer Jonas' ja):
+       nyheden, «Denne uges video», «Værd at se igen» og «Se tidligere»
+       tegnes ikke længere her. Kortene og rykkelisten står i filen og
+       pushSelection.ts til «Nyt fra os» i Akademiet. Beskrivelsen nedenfor
+       er historik. Værn: seksSteder.guard, forsideTop.guard (rettet).
+       Var: kurateret via RYKKELISTEN (PR B3,
        pickMainStory): push → ugens video → nyeste redaktionelle →
        evergreen-rotationen (podcast-kortet UDGIK 17/9 — beslutning 17,
        Jonas 11/9: podcasten er ét Spotify-link i sidebaren). Første
@@ -669,14 +667,6 @@ const useCoverUrl = (coverPath: string | null): string | null =>
     staleTime: 30 * 60_000,
   }).data ?? null;
 
-/** Anchor-feedets beskrivelser er HTML i CDATA — strippes til ren tekst
-    til teaseren (DOMParser findes i browser og jsdom). */
-const stripHtml = (html: string): string =>
-  new DOMParser().parseFromString(html, "text/html").body.textContent?.trim() ?? "";
-
-const truncateText = (value: string, max: number): string =>
-  value.length <= max ? value : `${value.slice(0, max).trimEnd()}…`;
-
 /** Redaktionelt indslag (PR B3): cover + titel + hvorfor-linje + evt.
     citat + "Læs artiklen" i nyt vindue. Felterne er B1's metadata-
     konvention (link/quote — jsonb, ingen kolonner). */
@@ -849,28 +839,6 @@ const VelkomstStory = ({ guid, variant, onSet }: { guid: string; variant: StoryV
       <p className="mt-1 text-[15px] font-medium leading-snug text-hb-ink">{VELKOMST_TITEL}</p>
     </div>
   );
-};
-
-/** Polering #2 (begrundet valg): kolonneantal AFHÆNGIGT af antallet frem
-    for fast grid. Fast cols-3 efterlader én enlig ved 4 (3+1), og fast
-    cols-4 gør det samme ved 5 (4+1) — ingen fast værdi dækker hele
-    intervallet. Mapningen 2→2 · 3→3 · 4→4 på lg (2+2 på md) · 5-6→3
-    (3+2 / 3+3) efterlader ALDRIG præcis én tile alene på sidste række
-    for 2-6 elementer — på hverken md eller lg. 1 element → fuld bredde. */
-const tileColsClass = (count: number): string => {
-  switch (count) {
-    case 2:
-      return "md:grid-cols-2";
-    case 3:
-      return "md:grid-cols-3";
-    case 4:
-      return "md:grid-cols-2 lg:grid-cols-4";
-    case 5:
-    case 6:
-      return "md:grid-cols-3";
-    default:
-      return count <= 1 ? "" : "md:grid-cols-3";
-  }
 };
 
 /** Dispatcher: én kandidat → det rigtige kort i den rigtige variant.
@@ -1451,103 +1419,20 @@ const FejringRaekke = ({ fejring }: { fejring: Fejring }) => (
 export const BoardroomView = () => {
   const { user, profile, companyId, isAdvisor, laeseMarkeringTilladt } = useAuth();
   const akademi = useAkademiData();
-  // Forside PR 5: velkomstvideoens GUID (app_config — «Anyone authenticated can read config») til Bunny-coveret; dommen om AT vise den er velkomstHovedhistorie.
-  const { velkomstvideoGuid } = useAppConfig();
   const { data: facts = [], isLoading: factsLoading, isError: factsError } = useCompanyFacts();
 
   // ── Katalog-afledninger (deler cache med Akademiet) ─────────────────────
-  const items = akademi.orderedByArea;
-  const pushItem = useMemo(
-    () =>
-      pickActivePush(
-        (items.get("push") ?? []).map((entry) => entry.item),
-        new Date(),
-      ),
-    [items],
-  );
-  const weekVideo = useMemo(
-    () =>
-      pickActiveWeekVideo(
-        (items.get("ugens_video") ?? []).map((entry) => entry.item),
-        new Date(),
-      ),
-    [items],
-  );
+  // BÅNDET ER VÆK FRA FORSIDEN (seks steder, 2/10-2026 nat — Jonas 1/10 22:50:
+  // «Måske skal nyheder væk? Måske skal Denne uges video væk. Måske skal
+  // Værd at se igen væk. Det var fyld»): forsiden afleder ikke længere push,
+  // ugens video, redaktionelt, evergreen eller velkomst-hovedhistorien
+  // (pickMainStory). Dommene (pushSelection.ts) og kortene (StoryCard m.fl.
+  // ovenfor) står urørte — de kan tegne «Nyt fra os» i Akademiet senere.
+  // Kataloget (akademi.orderedByArea) bruges stadig til «Måske relevant» og rejselinjen.
 
-  // ── Rykkelistens øvrige kandidater (PR B3) — hver hentes UAFHÆNGIGT ─────
-  // Kataloget fra useAkademiData er published-only (listPublishedItems), så
-  // status-filteret er allerede indfriet før dommene anvendes.
-  const redaktioneltItem = useMemo(
-    () =>
-      pickActiveItem(
-        (items.get("redaktionelt") ?? []).map((entry) => entry.item),
-        new Date(),
-      ),
-    [items],
-  );
-  const evergreenItem = useMemo(
-    () =>
-      pickEvergreen(
-        (items.get("evergreen") ?? []).map((entry) => entry.item),
-        new Date(),
-      ),
-    [items],
-  );
-
-  // Rykkelisten (pickMainStory) står LÆNGERE NEDE (efter contractStartQuery og
-  // tjeklisten) — forside PR 5: velkomst-kandidaten læser kontraktstarten og
-  // velkomstvideo_set_at, som deklareres dér.
-
-  // ── "Siden sidst"-linjen (bølge 3) ──────────────────────────────────────
-  // READ-THEN-STAMP på localStorage: forrige besøgs stempel fanges i
-  // lazy-initializeren FØR det nye skrives — én gang pr. mount, så et
-  // refresh midt i besøget ikke nulstiller linjen utilsigtet. Pr. enhed
-  // (recon §1: bevidst mindste vej — linjen er en blød nudge, ikke en
-  // indbakke-badge; ingen migration/RLS-flade).
-  const [lastVisitIso] = useState<string | null>(() => {
-    try {
-      const prev = localStorage.getItem("hb.forside.lastVisitAt");
-      localStorage.setItem("hb.forside.lastVisitAt", new Date().toISOString());
-      return prev;
-    } catch {
-      return null; // storage utilgængelig (privat tilstand m.m.) → linjen tier
-    }
-  });
-
-  // Kandidatlisten til tællingen = båndets kandidater MINUS evergreen:
-  // rotationen er deterministisk (isoWeekNumber % length) og indslaget
-  // bevidst tidløst — talte den med, ville linjen råbe "nyt" hver mandag
-  // uden at noget faktisk var nyt. Dommen selv er dum og tæller det den
-  // får; fravalget er kalderens (dokumenteret i pushSelection-headeren).
-  const newsCount = useMemo(
-    () =>
-      countNewSince(
-        [
-          pushItem ? { publishedAt: pushItem.published_at ?? pushItem.created_at } : null,
-          weekVideo ? { publishedAt: weekVideo.published_at ?? weekVideo.created_at } : null,
-          redaktioneltItem
-            ? { publishedAt: redaktioneltItem.published_at ?? redaktioneltItem.created_at }
-            : null,
-        ].filter((c): c is NewsCandidate => c != null),
-        lastVisitIso,
-      ),
-    [pushItem, weekVideo, redaktioneltItem, lastVisitIso],
-  );
-
-  // Hilsenens linje (forside PR 2): dagen + «N nye ting siden sidst» —
-  // newsCount er den samme dom som før (countNewSince), linjen er flyttet
-  // OP fra båndet til under hilsenen. Dag 1 (tjeklisten ikke færdig): den
-  // faste sætning. Ordene er lib/hjemmebane/forsideHilsen.
-  // Historik (PR B3): seneste redaktionelle som rolige linjer, kollapset.
-  const [historikOpen, setHistorikOpen] = useState(false);
-  const redaktioneltHistory = useMemo(
-    () =>
-      [...(items.get("redaktionelt") ?? [])]
-        .map((entry) => entry.item)
-        .sort(byPublishedDesc)
-        .slice(0, 5),
-    [items],
-  );
+  // «N nye ting siden sidst» (forside PR 2) talte båndets kandidater — med
+  // båndet væk (2/10) tælles intet: hilsenen siger dagen (eller dag 1).
+  // localStorage-stemplet hb.forside.lastVisitAt skrives ikke længere.
 
   // RÅDGIVERNES ANSIGTER (forside PR 4, Jonas «A» til valg 6): ÉN hentning
   // af get_all_advisor_profiles — den SAMME security definer-RPC som
@@ -1558,8 +1443,6 @@ export const BoardroomView = () => {
   // HVEM der får et ansigt er ren (ansigter.raadgiverAnsigt). Ansigter er
   // berigelse: fejler kaldet, står teksterne uden portræt («Fra din
   // rådgiver») — kilden navngives (kraevRaekker), ingen fejllinje.
-  const pushAuthorUserId =
-    ((pushItem?.metadata as Record<string, unknown> | null)?.author_user_id as string) || null;
   const raadgivereQuery = useQuery({
     queryKey: ["boardroom", "raadgivere"],
     queryFn: async () => raadgiverOpslag(kraevRaekker(await supabase.rpc("get_all_advisor_profiles" as any), "get_all_advisor_profiles") as any[]),
@@ -1567,16 +1450,6 @@ export const BoardroomView = () => {
     enabled: !!user,
   });
   const raadgivere = raadgivereQuery.data ?? INGEN_RAADGIVERE;
-  const pushSender = afsender(pushAuthorUserId, raadgivere);
-
-  // Push-coveret (PR A) — samme signerede-URL-mønster som Akademiets covers
-  // (getAssetPreviewUrl mod content-assets).
-  const { data: pushCoverUrl = null } = useQuery({
-    queryKey: ["boardroom", "push-cover", pushItem?.cover_path ?? null],
-    queryFn: () => getAssetPreviewUrl(pushItem!.cover_path as string),
-    enabled: !!pushItem?.cover_path,
-    staleTime: 30 * 60_000,
-  });
 
   // Forløbslinjen — samme dom som Akademi-forsiden, bogstaveligt: afgoerForloeb
   // (lib/hjemmebane/forloeb.ts) er den funktion ForsideView kalder. FØR 16/9
@@ -1905,30 +1778,9 @@ export const BoardroomView = () => {
     staleTime: 5 * 60_000,
   });
 
-  // ── Rykkelisten (LÅST dom): første ikke-null kandidat vinder hovedpladsen. ──
-  // VELKOMSTEN FØRST (forside PR 5, 17/9 — Jonas «A» til valg 7): den første uge
-  // efter kontraktstarten (0–7 danske døgn, samme dagsregning som hilsenens
-  // dag 1), når der ER en video (app_config.velkomstvideo_guid) og medlemmet
-  // ikke har set den (profiles.velkomstvideo_set_at). Dommen er ren
-  // (velkomstHovedhistorie); set/ingen video/dag 8 → kandidaten er null →
-  // rykkelisten som før (push → ugens video → redaktionelt → evergreen).
-  const visVelkomst = velkomstHovedhistorie({
-    startDato: contractStartQuery.data ?? null,
-    nu: new Date(),
-    harVideo: tjeklisteData.harVelkomstvideo && !!velkomstvideoGuid,
-    setAt: tjeklisteData.velkomstvideoSetAt,
-  });
-  const band = useMemo(
-    () =>
-      pickMainStory<BandItem>([
-        visVelkomst ? { kind: "velkomst", item: { velkomst: true, guid: velkomstvideoGuid } } : null,
-        pushItem ? { kind: "push", item: pushItem } : null,
-        weekVideo ? { kind: "video", item: weekVideo } : null,
-        redaktioneltItem ? { kind: "redaktionelt", item: redaktioneltItem } : null,
-        evergreenItem ? { kind: "evergreen", item: evergreenItem } : null,
-      ]),
-    [visVelkomst, velkomstvideoGuid, pushItem, weekVideo, redaktioneltItem, evergreenItem],
-  );
+  // Rykkelisten og velkomst-hovedhistorien (forside PR 5) tegnes ikke på
+  // forsiden længere (2/10): velkomsten ses gennem «Kom godt i gang»
+  // (HbOnboardingTjekliste, #velkomst), som den også gjorde før.
 
   const committedKeys = useMemo(() => new Set(facts.map((f) => f.period_key)), [facts]);
 
@@ -2293,7 +2145,6 @@ export const BoardroomView = () => {
     [milestonesQuery.data, skridtQuery.data],
   );
   const plan = useMemo(() => (dineMaal ? forsidePlanDom(dineMaal, aftaleRaekker, new Date()) : null), [dineMaal, aftaleRaekker]);
-  const maalTitler = milestonesQuery.data ?? [];
 
   // SKIVE 3 (2/10-2026): forslag, gamle mål og kvartalstjek øverst i «Din plan» —
   // SAMME komponent og SAMME skrivninger som /milestones (BekraeftMaalKort →
@@ -2387,15 +2238,6 @@ export const BoardroomView = () => {
     return <p className="text-sm text-hb-ink-soft">Henter dit Boardroom…</p>;
   }
 
-  // Båndet vises når der er en hovedhistorie eller historik. Podcast-
-  // kortet og dets skeleton udgik 17/9 (beslutning 17): alle kandidater er
-  // nu synkrone afledninger af Akademi-kataloget — intet feed at vente på,
-  // ingen reserveret plads. Antal tiles (polering #2): rækken rummer højst
-  // 3 side-historier (video, redaktionelt, evergreen); tileColsClass-
-  // mapningen (2→2, 3→3) dækker intervallet.
-  const hasBand = Boolean(band.main || redaktioneltHistory.length > 0);
-  const tileCount = band.side.length;
-
   return (
     <div>
       <PageHeader
@@ -2404,44 +2246,29 @@ export const BoardroomView = () => {
         // Dag 1 (PR 3, rettet efter Jonas' skærm 17/9 11:28): medlemskabets start
         // (contract_start_date, som forsiden allerede henter til fokus-motoren)
         // inden for 14 døgn — ikke «tjeklisten ikke færdig».
-        linje={hilsenLinje({ nu: new Date(), nyeTing: newsCount, dag1: erDag1(contractStartQuery.data ?? null, new Date()) })}
+        linje={hilsenLinje({ nu: new Date(), nyeTing: 0, dag1: erDag1(contractStartQuery.data ?? null, new Date()) })}
       />
+
+      {/* ── STEDSÆTNINGEN (seks steder, 2/10): lige under hilsenen, så «Godmorgen,
+          Mette» står først — ordene i lib/hjemmebane/stedsSaetninger; hvem der
+          ser den (medlemmet, en rådgiver i «Se som medlem») afgør komponenten. */}
+      <HbStedsSaetning sti="/" className="mt-4" />
 
       {/* ── FORNYELSEN (7/9): båndet står mellem hilsenen og toppen, KUN når
           hent-fornyelsestilbud siger at der er et tilbud — ellers null og
           ingen plads. Dommen er serverens (motoren); se FornyelsesBaand. ── */}
       <FornyelsesBaand />
 
-      {/* ── TOPPEN (forside PR 2 + PR 3, 17/9 — Jonas «A» til valg 1): to kolonner
-          på md+ — venstre 7/12 NYHEDEN (stående hovedhistorie) i række 1 og
-          TILES (ugens video, redaktionelt, evergreen) i række 2; højre 5/12
-          «DIN MÅNED» over «DIT NÆSTE SKRIDT» (kompakt) hen over begge rækker.
-          MOBIL (PR 3, rettet efter Jonas' skærm 17/9 11:28 — analyse §6.2):
-          DOM-ordenen ER mobil-ordenen: hilsen → nyheden → Din måned → Dit
-          næste skridt → tiles → resten. Valget: tiles er ET grid-barn med
-          eksplicit plads på md (col-start-1/row-start-2) frem for `order-*`
-          eller to renderinger (md:hidden/hidden md:block) — tiles renderes
-          ÉN gang, ingen dobbelt hentning, ingen dobbelt afspiller-tilstand.
-          Uden bånd (intet publiceret): højre kolonne tager hele bredden. ── */}
-      <div className={cn("mt-10 grid grid-cols-1 gap-8 md:mt-12 md:items-start", hasBand && "md:grid-cols-12")} data-forside-top>
-        {hasBand && (
-          <div className="min-w-0 md:col-span-7 md:col-start-1 md:row-start-1" data-forside-venstre>
-            <HbSection eyebrow="Fra os til dig" linkLabel="Se Akademiet" linkTo="/akademiet" hairline data-forside-nyheden>
-              {/* "Siden sidst"-linjen står under hilsenen (PR 2, forsideHilsen).
-                  Rykkelistens vinder som stående hovedhistorie (PR 2). */}
-              {band.main && (
-                <StoryCard
-                  story={band.main}
-                  variant="main"
-                  pushSender={pushSender}
-                  pushCoverUrl={pushCoverUrl}
-                  onVelkomstSet={tjeklisteData.markerVelkomstSet}
-                />
-              )}
-            </HbSection>
-          </div>
-        )}
-        <div className={cn("min-w-0 space-y-8", hasBand ? "md:col-span-5 md:col-start-8 md:row-span-2 md:row-start-1" : "md:col-span-12")} data-forside-hoejre>
+      {/* ── TOPPEN (forside PR 2 + PR 3, 17/9 — Jonas «A» til valg 1; RYDDET
+          2/10, seks steder): «Fra os til dig» (nyheden), tiles («Denne uges
+          video», redaktionelt, «Værd at se igen») og «Se tidligere» er taget
+          af forsiden — Jonas 1/10 22:50: «Det var fyld». Tilbage står den
+          tidligere højre kolonne i fuld bredde (den tilstand toppen allerede
+          havde uden bånd): «DIN MÅNED» over «DIT NÆSTE SKRIDT» (kompakt).
+          «Din måned» FLYTTES IKKE i denne skive (forslagets spørgsmål 2 til
+          Jonas). data-forside-hoejre beholdes som anker for værnene. ── */}
+      <div className="mt-10 grid grid-cols-1 gap-8 md:mt-12 md:items-start" data-forside-top>
+        <div className="min-w-0 space-y-8 md:col-span-12" data-forside-hoejre>
           {/* «DIN MÅNED» (valg 2) — afløser tal-strippen nederst. Kun med virksomhed. */}
           {companyId && (
             <HbSection eyebrow="Din måned" hairline linkLabel="Se dine tal" linkTo="/kpis" data-forside-din-maaned>
@@ -2480,72 +2307,6 @@ export const BoardroomView = () => {
             )}
           </HbSection>
         </div>
-        {hasBand && (band.side.length > 0 || redaktioneltHistory.length > 0) && (
-          /* TILES + historik: række 2 i venstre kolonne på md; SIDST på mobil (DOM-ordenen). */
-          <div className="min-w-0 md:col-span-7 md:col-start-1 md:row-start-2" data-forside-tiles>
-            {band.side.length > 0 && (
-              <div className={cn("grid grid-cols-1 items-start gap-x-6 gap-y-8", tileColsClass(tileCount))}>
-                {band.side.map((story) => (
-                  <StoryCard
-                    key={story.kind}
-                    story={story}
-                    variant="side"
-                    pushSender={pushSender}
-                    pushCoverUrl={pushCoverUrl}
-                    onVelkomstSet={tjeklisteData.markerVelkomstSet}
-                  />
-                ))}
-              </div>
-            )}
-          {/* Historik (PR B3): diskret "Se tidligere" under båndet —
-              seneste redaktionelle (byPublishedDesc, 5 stk) som rolige
-              linjer m. titel + dato + link. Kollapset som standard. */}
-          {redaktioneltHistory.length > 0 && (
-            <div className={band.side.length > 0 ? "mt-9" : undefined}>
-              <button
-                type="button"
-                onClick={() => setHistorikOpen((open) => !open)}
-                className="flex items-center gap-1.5 text-sm text-hb-ink-soft transition-colors hover:text-hb-ink"
-              >
-                {historikOpen ? "Skjul tidligere" : "Se tidligere"}
-                {historikOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </button>
-              {historikOpen && (
-                <ul className="mt-3">
-                  {redaktioneltHistory.map((item) => {
-                    const link =
-                      (((item.metadata as Record<string, unknown>) ?? {}).link as string) || null;
-                    const date = new Date(item.published_at ?? item.created_at).toLocaleDateString(
-                      "da-DK",
-                      { day: "numeric", month: "short", year: "numeric" },
-                    );
-                    return (
-                      <li
-                        key={item.id}
-                        className="flex items-baseline gap-3 border-t border-hb-line/60 py-2.5 text-sm"
-                      >
-                        <span className="w-28 shrink-0 text-xs text-hb-ink-soft">{date}</span>
-                        {link ? (
-                          <a
-                            href={link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-hb-ink underline-offset-4 hover:underline"
-                          >
-                            {item.title}
-                          </a>
-                        ) : (
-                          <span className="text-hb-ink">{item.title}</span>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
-          )}
-          </div>
-        )}
       </div>
 
       {/* ── BOARDROOM SCORE (30/9-2026 — Jonas D3 «Boardroom Score (0–1000) plus

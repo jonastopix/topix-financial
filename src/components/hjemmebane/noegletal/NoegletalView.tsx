@@ -36,6 +36,7 @@ import { bygFactsCsv, csvFilnavn } from "@/lib/factsCsv";
 import { HbAdvisorCompanyPrompt } from "../HbAdvisorCompanyPrompt";
 import { HbButton } from "../HbButton";
 import { HbCard } from "../HbCard";
+import { HbStedsSaetning } from "../HbStedsSaetning";
 import { HbSection } from "../HbSection";
 import { HbField, HbInput, HbSelect, hbControlClasses } from "../admin/HbField";
 import { HbSegmented } from "../admin/HbSegmented";
@@ -570,6 +571,8 @@ export const NoegletalView = () => {
           <h1 className="mt-3 font-editorial text-4xl font-medium leading-[1.1] tracking-tight text-hb-ink md:text-5xl">
             Nøgletal
           </h1>
+          {/* Stedsætningen under h1 (rådets fund 7, 2/10): eyebrow → h1 → én sætning; tælleren under er meta, ikke intro. */}
+          <HbStedsSaetning sti="/kpis" className="mt-3" />
           {/* Tælleren skelner målt fra estimeret (data_basis-kontrakten:
               visninger må vise estimater, men skal sige det). Estimaterne
               er en funktion medlemmet selv har valgt (årsrapport-upload) —

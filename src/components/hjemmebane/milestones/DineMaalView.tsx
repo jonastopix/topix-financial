@@ -26,6 +26,7 @@ import {
 import { HbAdvisorCompanyPrompt } from "../HbAdvisorCompanyPrompt";
 import { HbSection } from "../HbSection";
 import { HbCard } from "../HbCard";
+import { HbStedsSaetning } from "../HbStedsSaetning";
 import { HbMaalRaekke } from "./HbMaalRaekke";
 import { HbMaalForklaring } from "./HbMaalForklaring";
 import { useMilestones, type Milestone } from "./useMilestones";
@@ -366,6 +367,8 @@ export const DineMaalView = () => {
       <section className="max-w-3xl">
         <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">{eyebrowTekst(nu)}</p>
         <h1 className="mt-3 font-editorial text-4xl font-medium leading-[1.1] tracking-tight text-hb-ink md:text-5xl">{DINE_MAAL_OVERSKRIFT}</h1>
+        {/* Stedsætningen under h1 (rådets fund 7, 2/10): eyebrow → h1 → én sætning; hovedlinjen og chips under er status, ikke intro. */}
+        <HbStedsSaetning sti="/milestones" className="mt-3" />
         {!henter && !g.isError && (
           <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
             <p className={cn("text-sm", dom.overGraensen ? "font-medium text-hb-rust" : "text-hb-ink-soft")} data-hoved-linje>{hovedLinje(kort.length, dom.ubekraeftede.length)}</p>

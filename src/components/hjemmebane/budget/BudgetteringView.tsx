@@ -35,6 +35,7 @@ import { catToRow, MONTHS, SCENARIOS, type BudgetRow, type ScenarioKey } from "@
 import { HbAdvisorCompanyPrompt } from "../HbAdvisorCompanyPrompt";
 import { HbButton } from "../HbButton";
 import { HbCard } from "../HbCard";
+import { HbStedsSaetning } from "../HbStedsSaetning";
 import { HbSection } from "../HbSection";
 import { HbSegmented } from "../admin/HbSegmented";
 import { HbBudgetBva } from "./HbBudgetBva";
@@ -266,6 +267,8 @@ export const BudgetteringView = () => {
             aria-label="Vælg budgetår"
           />
         </div>
+        {/* Stedsætningen under h1 (rådets fund 7, 2/10): eyebrow → h1 → én sætning; skabelon-linjen under er meta, ikke intro. */}
+        <HbStedsSaetning sti="/budget" className="mt-3" />
         <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-hb-ink-soft">
           {templateLine && <span>{templateLine}</span>}
           {scenarioData && !confirmingTemplateChange && !changingTemplate && (

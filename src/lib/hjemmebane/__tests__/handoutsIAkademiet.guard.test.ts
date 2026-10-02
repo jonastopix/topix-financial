@@ -134,7 +134,9 @@ describe("handouts i Akademiet — dom 4: ingen medlemsflade linker til /handout
     const maal = udenKommentarer(laes("src/components/hjemmebane/milestones/DineMaalView.tsx"));
     expect(maal).not.toMatch(/to="\/handouts"/);
     const nav = udenKommentarer(laes("src/lib/hjemmebane/hbNav.ts"));
-    // Ét sted bærer stien: HANDOUTS_PUNKT, som kun rådgiverens dineTal(…, true) tager med.
+    // Ét sted bærer stien: HANDOUTS_PUNKT, som kun rådgiverens og abonnentens
+    // dineTal(…, true) tager med (fuld liste — 2/10 også «Dine mål», som det
+    // fulde medlem har som eget punkt; seks steder).
     expect(nav.match(/"\/handouts"/g) ?? []).toHaveLength(1);
     expect(nav).toContain("dineTal(active, false)");
     expect(nav).toContain("dineTal(active, true), blok: medlem");
