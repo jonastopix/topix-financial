@@ -45,7 +45,7 @@ const CRON = "supabase/functions/stille-klokker-cron/index.ts";
 const KLOKKE_MAIL = "supabase/functions/_shared/klokkeMail.ts";
 const KLOKKE_MAIL_CRON = "supabase/functions/klokke-mail-cron/index.ts";
 const MIG_DIR = "supabase/migrations";
-const MIG = "supabase/migrations/20261002330000_dag1_klokke.sql";
+const MIG = "supabase/migrations/20261002276000_dag1_klokke.sql";
 const MIG_STILLE_CRON = "supabase/migrations/20260921100000_stille_klokker_cron.sql";
 const FOERSTE_LINJE = "-- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).";
 
@@ -120,7 +120,7 @@ export function ingenNavneISvaret(dom: string, cron: string): boolean {
 export function migrationenHolder(sql: string): boolean {
   const linjer = sql.split("\n");
   const kode = linjer.filter((l) => !/^\s*--/.test(l)).join("\n");
-  return linjer[0] === FOERSTE_LINJE
+  return (linjer[0] === FOERSTE_LINJE || /^-- KØRT i prod \d{1,2}\/\d{1,2}-\d{4} /.test(linjer[0]))
     && /insert into public\.app_config \(config_key, config_value, description\)\s*values \('dag1_klokke_aktiv', 'false'::jsonb,[\s\S]*?on conflict \(config_key\) do nothing;/.test(kode)
     && /create unique index if not exists advisor_notifications_venter_paa_velkomst_uidx\s+on public\.advisor_notifications \(advisor_id, company_id\)\s+where type = 'venter_paa_velkomst';/.test(kode)
     && !/cron\.schedule/.test(kode)
@@ -174,7 +174,9 @@ describe("dag1Klokke.guard — dommene holder i koden", () => {
     expect(migrationenHolder(laes(MIG))).toBe(true);
     expect(ukoerteFoerKoerte(migrationsfiler(), "20261002")).toEqual([]);
     const navne = migrationsfiler().map((f) => f.navn);
-    expect(navne.indexOf("20261002330000_dag1_klokke.sql")).toBeGreaterThan(navne.indexOf("20261002290000_kald_edge_apikey.sql"));
+    // KØRT 2/10 kl. 18:43 og omdøbt fra 330000 til 276000 (efter den seneste kørte, før de ventende 280000/290000).
+    expect(navne.indexOf("20261002276000_dag1_klokke.sql")).toBeGreaterThan(navne.indexOf("20261002275000_community_mest_laest.sql"));
+    expect(navne.indexOf("20261002276000_dag1_klokke.sql")).toBeLessThan(navne.indexOf("20261002280000_milestones_with_check.sql"));
   });
   it("8. jobbet skriver klokken før kl. 07 dansk hver dag (sommer og vinter)", () => expect(naarMorgenmailen(laes(MIG_STILLE_CRON))).toBe(true));
   it("9. linket er virksomhedens chat — i mailen og i klokken", () => {
@@ -217,7 +219,7 @@ describe("dag1Klokke.guard — selvbeviset: hver dom fælder fejlen på en kopi"
   });
   it("7. et andet første linje, en åben lås, intet indeks, et cron-job — og en ukørt før en kørt", () => {
     const k = laes(MIG);
-    expect(migrationenHolder(k.replace(FOERSTE_LINJE, "-- Dag-1-klokken. IKKE KØRT."))).toBe(false);
+    expect(migrationenHolder(k.replace(k.split("\n")[0], "-- Dag-1-klokken. IKKE KØRT."))).toBe(false);
     expect(migrationenHolder(k.replace("'dag1_klokke_aktiv', 'false'::jsonb", "'dag1_klokke_aktiv', 'true'::jsonb"))).toBe(false);
     expect(migrationenHolder(k.replace("create unique index if not exists", "create index if not exists"))).toBe(false);
     expect(migrationenHolder(k + "\nselect cron.schedule('dag1', '0 5 * * *', $$select 1$$);\n")).toBe(false);

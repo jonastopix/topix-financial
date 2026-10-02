@@ -397,6 +397,25 @@ referrer-låst til `app.theboardroom.dk`.
 
 ## DEL 2 · Tilstanden
 
+### 2. oktober kl. 17–21 — forsiden færdig, aftenlistens ja'er udført
+
+Jonas 17:19: «Ja den er fin. Men du skal have lavet hele forsiden færdig … Kør selv.» (ja til mockuppen «Din plan i tre tilstande»).
+
+**Merget og i drift / klar til Update:**
+- **#1247 Forsidens «Din plan» i tre tilstande** — målkort i Dine mål-sproget (motorens `maalKort`), forslag samlet i én linje/ét kort med «Tag stilling», det mørke kort med «Sæt jeres første mål» (`/milestones?saet=maal` åbner guiden). Behold/Slip og kvartalstjekket tages kun på Dine mål. «Dit næste skridt» viser højst to stille linjer og én «Måske relevant»; «N mål venter på jeres ja» står ikke længere dobbelt. Design prøvet lokalt i en harness (desktop 1180 px og mobil 375 px, motorens rigtige kort med tal-, begivenheds- og gammelt mål) — **IKKE set i drift endnu: kræver Update**. Målt i prod: 0 mål med `art = 'tal'`, så de fleste medlemmer står i tilstand A med «gamle» mål (titel, frist, skridt-fremdrift og «Gør målet skarpt») eller i B.
+- **#1245 Levering fra første tællende måned** (a1002-levering). Frontend: Update.
+- **#1246 «N fandt det nyttigt» + «Mest læst denne uge»** (a1002-mest-laest). Migrationen **KØRT ca. 18:00** (FØR/EFTER og RLS-prøve i filhovedet). Frontend: Update.
+- **#1248 Dag-1-klokken** (a1002-velkomst). Migrationen **KØRT 18:43** (låsen `dag1_klokke_aktiv` = false + indekset); `stille-klokker-cron` **udrullet 18:44**; tørkørsel kald 29849 → 200, `"dag1_klokke": "skive-1"`, 2 kandidater, begge `hilst_paa`. **Låsen er lukket** — Jonas åbner den med den guardede UPDATE i migrationens filhoved. Indtil da tæller job 566 kun (`dag1.holdt_af_laas`).
+- **Lektionen omdøbt** (a1002-classroom): `content_items` 9b56a5d0-… **FØR** title «Introduktion til Classroom», updated_at 2026-08-09 20:40:22.996943+00 → «Introduktion til Akademiet» (guarded UPDATE, 15:55:55Z). Sluggen `intro-classroom` er bevidst urørt (links og fremdrift).
+
+**Lærestreg (rettelse undervejs):** begge migrationer var navngivet efter de ventende `20261002280000`/`290000` (with-check og 3a, mandag). Da de blev KØRT, fældede `metaSend.guard` dom 11 («en ikke-kørt migration må ikke sortere før en kørt»). De er omdøbt til `20261002275000` og `20261002276000` (efter den seneste kørte, før de ventende), og deres egne værn, der krævede «efter den seneste kørte», er rettet til kun at gælde, så længe filen ikke selv er kørt. Fremover: en migration, der skal køres SAMME dag, mens ældre ventende findes, navngives FØR de ventende.
+
+**Åbent:**
+1. Update i Lovable (bærer #1245, #1246, #1247).
+2. Designgennemsyn af forsiden i drift efter Update, i en frisk fane, desktop og 375 px — som medlem (rådgiverkortet er skjult for rådgivere).
+3. Jonas åbner `dag1_klokke_aktiv`, når han vil have klokken.
+
+
 Kort, med det dokument der bærer detaljen.
 
 **Mailene — alle mails huset kan sende, hvornår og til hvem:**
@@ -11961,7 +11980,7 @@ Jonas 2/10: «Klokke i morgenmailen, vi skriver selv». Forsidens «Kom ind i g�
 | # | hvad | kanal | beviset før næste trin |
 |---|---|---|---|
 | 1 | merge | GitHub | CI grøn (`gh run list --branch feat/dag1-klokke`) |
-| 2 | `20261002330000_dag1_klokke.sql` — låsen (false) + det delvise unikke indeks | Lovable SQL editor (FØR-SQL i hovedet → kørsel → EFTER-SQL) | FØR: lås «ikke sat», indeks «findes ikke», 0 rækker af typen, job 566 `stille-klokker · 30 4 * * * · active=true` (andet: STOP). EFTER: lås `false`, indeksets definition |
+| 2 | `20261002276000_dag1_klokke.sql` — låsen (false) + det delvise unikke indeks | Lovable SQL editor (FØR-SQL i hovedet → kørsel → EFTER-SQL) | FØR: lås «ikke sat», indeks «findes ikke», 0 rækker af typen, job 566 `stille-klokker · 30 4 * * * · active=true` (andet: STOP). EFTER: lås `false`, indeksets definition |
 | 3 | **eksplicit deploy** af `stille-klokker-cron` (den nye delte fil `_shared/dag1Klokke.ts` + `_shared/venterPaaVelkomst.ts` ruller ikke med merge) | Lovable build-chat (bed den KØRE deploy-værktøjet og vise resultatet) | «Successfully deployed … stille-klokker-cron» |
 | 4 | tørkørsel i hånden: `SELECT public.kald_edge('stille-klokker-cron');` og svaret: `SELECT id, status_code, left(content, 3000) FROM net._http_response ORDER BY id DESC LIMIT 1;` | Lovable SQL editor (to kørsler, én ad gangen) | `"dag1_klokke":"skive-1"` (kun den nye kode har feltet), `dag1.laas_aktiv` false, `dag1.fejlet` 0, `dag1.ville_ringe` = antal nye medlemmer dag 1–7 uden rådgiverbesked; de to gamle klokkers tal som før |
 | 5 | næste morgen (låsen stadig lukket): job 566's svar | Lovable SQL editor (`net._http_response` efter 04:30 UTC) | `dag1.holdt_af_laas` = `dag1.ring`, ingen række af typen i `advisor_notifications` |

@@ -47,7 +47,7 @@
  *   (b) skrivRaadgiverBesked dedupper pr. rådgiver på type + titel.
  *   (c) DATABASEN: det delvise unikke indeks
  *       advisor_notifications_venter_paa_velkomst_uidx (advisor_id, company_id)
- *       WHERE type = 'venter_paa_velkomst' (migration 20261002330000).
+ *       WHERE type = 'venter_paa_velkomst' (migration 20261002276000).
  *
  * TIL HVEM: skrivRaadgiverBesked — én række pr. rådgiver (user_roles advisor/
  * admin), ingen tildeling («Rådgiverne er sammen om alle medlemmer», 1/10).
