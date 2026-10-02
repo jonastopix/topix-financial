@@ -167,17 +167,20 @@ export const BookSessionView = () => {
   // "full" praecist (kontrakt i fremtiden), uafhaengigt af at useAuth remapper no_date
   // til "full". jonas_session_used_at (20260913220000) er endnu ikke i types.ts (Lovable
   // regenererer den) — derfor den utypede klient, som Q1 og Q3 allerede bruger.
+  // jonas_session_tilbudt_at (2/10, lib/sessionRet): et tilbud overtrumfer en ældre «brugt» — samme regel
+  // som backenden booker efter; kolonnen er KØRT i prod 1/10 (migration 20261001110000).
   const { data: company } = useQuery({
     queryKey: ["company-intro-session", companyId],
     queryFn: async (): Promise<{
       intro_session_used_at: string | null;
       jonas_session_used_at: string | null;
+      jonas_session_tilbudt_at: string | null;
       contract_end_date: string | null;
     } | null> => {
       if (!companyId) return null;
       const { data } = await (supabase as any)
         .from("companies")
-        .select("intro_session_used_at, jonas_session_used_at, contract_end_date")
+        .select("intro_session_used_at, jonas_session_used_at, jonas_session_tilbudt_at, contract_end_date")
         .eq("id", companyId)
         .maybeSingle();
       return data;
@@ -310,6 +313,8 @@ export const BookSessionView = () => {
         setFreeUrl({ url: data.url, advisor });
         queryClient.invalidateQueries({ queryKey: ["company-intro-session", companyId] });
         queryClient.invalidateQueries({ queryKey: ["my-inkluderede-bookinger", user.id] });
+        // Forsidens «Til gode» (forside v3) — en brugt session må ikke stå som til gode efter bookingen.
+        queryClient.invalidateQueries({ queryKey: ["forside", "til-gode", companyId] });
       } else {
         toast.error("Ingen URL modtaget. Prøv igen.");
       }

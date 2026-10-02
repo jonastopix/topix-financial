@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge.
+-- KØRT i prod (målt 1/10-2026: filens markørobjekter findes i prod; hovedet vendt efterfølgende). DEPLOY: manuelt i Lovable → SQL editor efter merge.
 -- KØRES EFTER 20260919130000_webinar_tilmeldinger.sql (som opretter de to
 -- tabeller). Er 130000 ikke kørt endnu, så kør den først — denne migration
 -- fejler pænt («relation does not exist»), den ødelægger intet.

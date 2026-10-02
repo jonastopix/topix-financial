@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod (målt 1/10-2026: filens markørobjekter findes i prod; hovedet vendt efterfølgende). DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
 --
 -- «Én plan pr. virksomhed» — FASE 2a: højst tre aktive mål pr. virksomhed,
 -- håndhævet i DATABASEN (16/9-2026; plan-en-plan.md §1b). Jonas 16/9:

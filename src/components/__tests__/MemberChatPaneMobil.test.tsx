@@ -28,7 +28,6 @@ const KONV = (id: string, navn: string) => ({
   last_message_at: "2026-09-29T10:00:00Z",
   created_at: "2026-09-29T09:00:00Z",
   awaiting_reply_from: null,
-  assigned_advisor_id: null,
   last_member_message_at: null,
   last_advisor_reply_at: null,
   companies: { id: `c-${id}`, name: navn, logo_url: null, is_legat: false, contract_end_date: null, subscription_status: "active", subscription_current_period_end: null },

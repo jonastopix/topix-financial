@@ -384,3 +384,121 @@ rådgiver-epicen.
 
 Besvaret 31/8: kvitteringerne slettes (C2), session_prep fjernes
 helt (C3). Afgjort 1/9: feedback-knappen genindføres ikke (C13).
+
+---
+
+## 8. Live-chat med det online medlem (1/10-2026)
+
+Jonas 1/10 09:20: «De små "online" billeder på rådgivernes forside skal
+være klikbare, så vi kommer ind på medlemmets chat … og måske man kunne
+markere tydeligt for det online medlem, at en rådgiver lige har skrevet
+(ikke mail), når det sker.»
+
+**Rådgiveren:** hvert billede i «Online nu» er et `<Link>` til
+`/chat?companyId=<id>` — samme vej som rådgiverens klokke
+(`klokke.chatSti`; `CompanyChatPane` slår samtalen op på virksomheden).
+Virksomheden er online-dommens egen (første KUNDE-virksomhed fra
+`company_members`, `OnlineMedlem.company_id`); uden virksomhed intet link.
+aria-label «Skriv til {navn} ({virksomhed}) — online nu»
+(`onlineChatSti`/`onlineLinkEtiket` i `src/lib/hjemmebane/online.ts`; værn
+`online.guard` dom 10).
+
+**Medlemmet:** realtime virker i dag sådan (målt i koden 1/10):
+`MemberChatPane` lytter på `postgres_changes` INSERT/UPDATE/DELETE på
+`messages` med `conversation_id=eq.<aktiv>` — men kun mens /chat er åben;
+Hb-skallen lyttede ikke på beskeder (klokken lytter på `notifications`).
+Nu lytter `HbMemberShell` (gate: RÅ `isAdvisor`, som hjerteslaget) med
+SAMME mekanisme — INSERT på `messages`, filter
+`conversation_id=in.(medlemmets samtaler)`, RLS afgør — og afsenderen slås
+op med `get_conversation_sender_profiles` (`is_advisor`). Dommen
+`skalViseBanner` (`src/lib/hjemmebane/raadgiverSkrev.ts`): kun
+`message_type = "user"`, ikke egen, afsender ER rådgiver (ukendt = nej),
+og medlemmet står IKKE på /chat. Banneret (`HbRaadgiverSkrev`) står øverst
+til højre i 20 s: «{Rådgivernavn} har lige skrevet til dig», ren-tekst-
+uddrag ≤ 80 tegn og «Åbn chatten». Ingen mail, ingen ny notifikationstype,
+intet skrives, intet markeres læst (læst sker i chatten som før).
+
+**Åbent (umålt):** at Realtime faktisk leverer INSERT til medlemmet med
+`in.(…)`-filteret i prod (samme RLS som `MemberChatPane`s `eq`-filter);
+medlemmer på sider uden Hb-skallen (AppLayout) får intet banner; en
+rådgiver der skriver flere beskeder i træk erstatter banneret med den
+seneste.
+
+---
+
+## 9. Ingen tildeling — og chattens handlinger i lyset (1/10-2026)
+
+Jonas 1/10 09:32: «Tildeling af rådgiver skal helt fjernes fra platformen.
+Det arbejder vi ikke med. Rådgiverne er sammen om alle medlemmer.» Og om
+virksomhedschattens hoved: «Kræver ikke svar, skal være meget mere let
+tilgængeligt … foreslå skridt skal også være lettere tilgængelig. Vi får
+det ikke brugt, hvis det gemmer sig oppe i hjørnet bag tre streger.»
+
+**Fjernet (klienten):** ⋯-menuens «TILDEL RÅDGIVER» og «Fjern tildeling»
+og rådgiverlisten bag den (`CompanyChatPane`); rådgiver-mærket på
+indbakkens rækker; «Tildelt: …» over chatten på virksomhedssiden
+(`VirksomhedView` blok 4, `useVirksomhed.raadgiverNavne` og dens
+`get_all_advisor_profiles`-hentning); bunkernes «tildelt»-felter og
+rådgiverprofilerne i `hentAdvisorDashboard` (ingen læste dem); sidebarens
+«mine + utildelte»-filter (`AppSidebar` tæller nu alle samtaler, der
+afventer en rådgiver); `assigned_advisor_id` i alle klientens selects.
+**Kolonnen står i databasen** — ingen migration.
+
+**Bevidst ikke rørt:** edge functions, der læser tildelingen —
+`run-company-agent` (`write_chat_message` som rådgiver vælger den
+tildelte, ellers den første rådgiver; `notify_advisor` klokker KUN den
+tildelte), `send-welcome-message` (velkomstens afsender, samme fallback)
+og `nudge-report-no-reflection` (slukket 1/9, migration
+`20260901110000`). Ifølge migrationshistorikken (`20260316074924` m.fl.)
+sætter en trigger på `messages` stadig `assigned_advisor_id =
+COALESCE(assigned_advisor_id, NEW.sender_id)`, når en rådgiver svarer —
+**umålt i prod** (`pg_get_functiondef` er ikke læst). Konsekvens indtil
+det afgøres: kolonnen fyldes stadig af databasen og læses af de tre
+functions, men ingen kan se eller ændre den. Forsidens «Mig/…»-vælger i
+opgavelisten (`OpgavelisteView`) er en OPGAVES ejer, ikke tildeling af
+medlemmer, og er urørt.
+
+**I lyset:** «Kræver ikke svar» (kun når samtalen afventer dit svar) og
+«Foreslå skridt» står som synlige, sekundære pills i headeren — desktop
+i rækken efter «Afventer dit svar», mobil på egen række under navnet (så
+navnets 227 px ved 375 bevares). «Foreslå skridt» åbner den samme
+formular (mål valgfrit · «Hvad er skridtet?» · «Hvorfor? (valgfrit)») i
+en `HbPopover`; samme kald som før (`foreslaa-opgave`). ⋯-menuen var tom
+på desktop og er fjernet dér; på mobil bærer den «Se tal» og
+forrige/næste. Værn: `ingenTildeling.guard.test.ts` (fælder også, hvis
+«Tildel rådgiver» kommer tilbage), `mobilChat.guard.test.ts` uændret
+grøn, `tjenestekonto.guard.test.ts` (de tre steder er taget af listerne).
+
+## 10. Nummererede lister viste «1. 1. 1.» (1/10-2026)
+
+**Fejlen** (Jonas 1/10 13:09, skærmbillede fra et medlems besked): tre punkter,
+hver med fed overskrift og en tekst under, blev vist «1. … 1. … 1.».
+
+**Målt i koden** (genskabt med en rigtig Tiptap-editor i
+`src/lib/__tests__/chatHtml.test.tsx`): sendefeltets OrderedList (StarterKit
+2.27.2) har input-reglen `^(\d+)\.\s$` → `start: +tal`, og den slår kun
+sammen med en liste LIGE FØR. Står teksten under overskriften som et afsnit
+mellem punkterne, laver «2. » en ny `<ol start="2">`. Det gemte er derfor
+rigtigt (`<ol>…</ol><p>…</p><ol start="2">…</ol><p>…</p><ol start="3">…</ol>`)
+— fejlen var visningen: `ChatBeskedTekst`s DOMPurify-liste tillod kun
+`href/target/rel` og smed `start` væk, og dokument-vejen
+(`parseCommunityDokument`) kendte ikke `attrs.start`.
+
+**Rettet i visningen, så også gamle beskeder bliver rigtige**
+(`src/lib/chatHtml.ts`): `renskChatHtml` bevarer `start` KUN på `<ol>` og
+kun som helt tal 2..9999 (`listeStart`, samme dom som parseren); en `<ol>`
+uden eget start, der kun er skilt fra den forrige af tomme afsnit/`<br>`,
+fortsætter dens tælling (`nummererLister` gør det samme i dokument-vejen).
+Et afsnit med tekst imellem bryder ikke en eksplicit start, men fortsætter
+heller ikke en liste uden. `parseCommunityDokument` bærer nu `start` på
+`orderedList`, og Community's `CommunityDokument` tegner den også.
+Punktlister og alle andre attributter er urørte (værn
+`chatHenvisningFlade.guard` c: `start` er den eneste ekstra attribut).
+Skrivningen er ikke ændret — serialiseringen var rigtig.
+
+**Umålt:** prod-rækken bag skærmbilledet er ikke læst. Er beskeden skrevet
+med værktøjslinjens «Nummereret liste» i stedet for at taste «2. », får hvert
+punkt sin egen liste med start 1 (det så forfatteren også i editoren), og
+står der tekst imellem, viser visningen stadig «1. 1. 1.». De to
+systembesked-renderere i panerne (centrerede) har deres egen DOMPurify-liste
+og er ikke ændret.

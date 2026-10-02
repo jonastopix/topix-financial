@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor, FØR koden merges — rykkerkøen
+-- KØRT i prod (målt 1/10-2026: filens markørobjekter findes i prod; hovedet vendt efterfølgende). DEPLOY: manuelt i Lovable → SQL editor, FØR koden merges — rykkerkøen
 -- ville ellers forsøge at skrive rækker med trappe 'ny'/'afholdt', som databasen afviser,
 -- og rådgiver-rykkerne ville aldrig gå (samme hul som «indsendt», #992: 0 rækker, 0 mails).
 --

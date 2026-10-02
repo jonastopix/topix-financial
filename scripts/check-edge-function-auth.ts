@@ -130,7 +130,9 @@ const AUTH_PREDICATES: Predicate[] = [
 
   // External webhook signature verification (per-integration scheme)
   { name: "verifyStripeSignature()",      pattern: /\bverifyStripeSignature\s*\(/ },
-  { name: "verifyMondayJwt()",            pattern: /\bverifyMondayJwt\s*\(/ },
+  // verifyMondayJwt() stod her 14/9 → 2/10-2026. Monday er opsagt; monday-webhook
+  // svarer 410 uden service-role og springes over som «skip-no-sr». Et prædikat,
+  // ingen fil kan opfylde, er taget ud (mondayVaek.guard låser det).
   { name: "verifyWebhookRequest()",       pattern: /\bverifyWebhookRequest\s*\(/ },
   { name: "verifyCalendlySignature()",    pattern: /\bverifyCalendlySignature\s*\(/ },
   // eWebinar (udkast 19/9): HMAC-SHA256 «t=,v1=» over den rå body — samme
@@ -172,6 +174,17 @@ const AUTH_PREDICATES: Predicate[] = [
   // Afmeldingslinket i før-webinar-mailene (22/9-2026): HMAC over mailen,
   // sammenlignet i konstant tid FØR service role — _shared/webinarAfmeldToken.ts.
   { name: "laesAfmeldToken()",            pattern: /\blaesAfmeldToken\s*\(/ },
+  // Klikket på Mortens hilsen i «dagen før»-mailen (udkast 30/9-2026): id'et i
+  // URL'en er en webinar_mails-række (uuid, 122 tilfældige bit) — samme klasse
+  // som verifyAftaletoken. Formen dømmes FØR opslaget, og kun en sendt en_dag-række
+  // logges; viderestillingens mål bygges af app_config, aldrig af URL'en.
+  // Se _shared/webinarVideo.ts.
+  { name: "verifyVideoKlik()",            pattern: /\bverifyVideoKlik\s*\(/ },
+  // «Må vi ringe til dig?» (2/10-2026): HMAC over tilmeldingens ewebinar_id,
+  // sammenlignet i konstant tid FØR service role — samme klasse som
+  // laesAfmeldToken. Tokenet åbner ikke alene: rækken i webinar_tilmeldinger
+  // skal have DELTAGET (opkaldDom.harDeltaget). Se _shared/ringToken.ts.
+  { name: "laesRingToken()",              pattern: /\blaesRingToken\s*\(/ },
   // Webinarmotoren (skive 1, 30/9-2026). Seerens functions (webinar-rum,
   // webinar-puls): deltagertokenet — HMAC-SHA256 over tilmeldingens id og
   // token_version, regnet igen og sammenlignet i konstant tid FØR opslaget,

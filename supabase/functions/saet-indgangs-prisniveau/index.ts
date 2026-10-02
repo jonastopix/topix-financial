@@ -158,8 +158,8 @@ Deno.serve(async (req) => {
       // Prisen ER skrevet og rulles IKKE tilbage. Den er rigtig, og
       // medlemmet skal have den. At fjerne prisen igen ville sætte
       // virksomheden tilbage i «afventer_pris», og næste kald til
-      // udloesIndgangsBetalingsmail (fx et gentaget «Godkendt» fra Monday)
-      // ville sende en NY rådgivermail om at prisen mangler — en løkke
+      // udloesIndgangsBetalingsmail (fx en gentaget underskrift; dengang
+      // et gentaget «Godkendt» fra Monday, nedlagt 2/10-2026) ville sende en NY rådgivermail om at prisen mangler — en løkke
       // frem for en fejl der kan ses. Med prisen stående er tilstanden
       // klar_til_mail: synlig, og mailen kan udløses igen via
       // send-indgangs-betalingsmail uden at prisen skal sættes igen.

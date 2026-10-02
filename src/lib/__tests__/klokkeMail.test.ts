@@ -78,13 +78,14 @@ describe("klokkeMail — typerne står ét sted", () => {
     expect(klassificer("")).toBe("ukendt");
   });
   it("en «drift»-klokke fra en selvmailende alarm (gensenderen, profil-cronen) er «aldrig» — de øvrige drift-klokker er alarm", () => {
-    expect([...SELVMAILENDE_REFERENCER]).toEqual(["klaviyo_haendelser", "klaviyo_profil", "meta_haendelser", "ga_haendelser", "webinar_mails"]);
+    expect([...SELVMAILENDE_REFERENCER]).toEqual(["klaviyo_haendelser", "klaviyo_profil", "meta_haendelser", "ga_haendelser", "webinar_mails", "drift_agent_koersler"]);
     expect(SELVMAILENDE_GRUND).toContain("egen alarm");
     expect(klassificer("drift", "klaviyo_haendelser")).toBe("aldrig");
     expect(klassificer("drift", "klaviyo_profil")).toBe("aldrig");
     expect(klassificer("drift", "meta_haendelser")).toBe("aldrig"); // #1069 mailer selv driftModtager
     expect(klassificer("drift", "ga_haendelser")).toBe("aldrig");   // ga-send-cron ligeså
     expect(klassificer("drift", "webinar_mails")).toBe("aldrig");   // webinar-mail-cron (29/9) mailer selv driftModtager
+    expect(klassificer("drift", "drift_agent_koersler")).toBe("aldrig"); // drift-agent-cron (30/9) mailer selv driftModtager
     expect(klassificer("drift", "cron_vagt_log")).toBe("alarm");
     expect(klassificer("drift", "meta_hentning")).toBe("alarm");
     expect(klassificer("drift", null)).toBe("alarm");
@@ -102,7 +103,7 @@ describe("klokkeMail — typerne står ét sted", () => {
     expect(MORGEN_TYPER).toContain("ansoegning_webhook_afvist"); // det faktiske navn (RAADGIVER_BESKED.webhook_afvist) — ikke «avist»
     expect(MORGEN_TYPER).toContain("ansoegning_samtale_booket");
     expect(MORGEN_TYPER).toContain("stille_ingen_login");
-    expect(Object.keys(ALDRIG_TYPER)).toEqual(["ansoegning_ny", "ansoegning_afholdt", "community_svar"]);
+    expect(Object.keys(ALDRIG_TYPER)).toEqual(["ansoegning_ny", "ansoegning_afholdt", "community_svar", "agent_insight"]);
     expect(klassificer("community_svar")).toBe("aldrig"); // Jonas 21/9: klokke, ikke mail
     expect(ALDRIG_TYPER.community_svar).toContain("klokke, ikke mail");
     expect(VINDUE_DAGE).toBe(7);

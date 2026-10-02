@@ -39,6 +39,10 @@ project_id = "loiavmastgeieqyiwyyr"
     verify_jwt = false
   [functions.manage-advisor]
     verify_jwt = false
+  # NEDLAGT 2/10-2026 (Jonas 1/10: «Vi bruger ikke Monday mere. Det er opsagt.»):
+  # svarer 410 Gone på alt — ingen parsing, ingen env, ingen service-role, ingen
+  # database. Står på false, fordi der intet er at beskytte, og fordi 410-beviset
+  # (ét kald → 410) ellers ville drukne i gatewayens 401. Værn: mondayVaek.guard.
   [functions.monday-webhook]
     verify_jwt = false
   [functions.process-pending-invitation]
@@ -205,8 +209,8 @@ project_id = "loiavmastgeieqyiwyyr"
     verify_jwt = true
   # Bucket B: authenticateServiceRole læser role-claimet, gatewayen bærer
   # signaturtjekket — samme begrundelse som intro-reminder-cron. Kun til
-  # manuelle kald med service-role-JWT'en; Monday-grenen og prissætningen
-  # kalder logikken i samme proces (_shared/indgangsBetalingsmail.ts).
+  # manuelle kald med service-role-JWT'en; prissætningen kalder logikken i
+  # samme proces (_shared/indgangsBetalingsmail.ts). Monday-grenen er nedlagt 2/10.
   [functions.send-indgangs-betalingsmail]
     verify_jwt = true
   # Samme begrundelse som intro-reminder-cron: pg_cron-job med vault-nøglen
@@ -329,6 +333,22 @@ project_id = "loiavmastgeieqyiwyyr"
   # Tørkørsel som standard — uden «dry_run: false» dømmes der, men intet skrives.
   [functions.certifikat-klokke]
     verify_jwt = true
+  # Nyhedsagenten, skive 1 (30/9-2026). Bucket B, authenticateServiceRole FØRST,
+  # kaldt gennem kald_edge én gang om ugen. Tørkørsel som standard — rigtig
+  # skrivning kræver «dry_run: false» OG låsen nyhedsagent_aktiv. Publicerer aldrig.
+  [functions.nyhed-agent-cron]
+    verify_jwt = true
+  # Rådgiverens klik på nyhedsudkastet (30/9-2026). Bucket A: authenticateUser
+  # FØRST, rådgiver-gate via has_role gennem callerClient, FØRST derefter service
+  # role (tag · publiceret · slip · afvis) — agent-forslag-afgoer-forbilledet.
+  [functions.nyhed-udkast-afgoer]
+    verify_jwt = true
+  # Driftsagenten, skive 1 (30/9-2026). Bucket B, authenticateServiceRole FØRST,
+  # kaldt gennem kald_edge hvert 15. min. Tørkørsel som standard — uden
+  # «dry_run: false» dømmes der, men intet skrives; mailer kun med låsen
+  # app_config['driftsagent_aktiv'] åben.
+  [functions.drift-agent-cron]
+    verify_jwt = true
   # Gensenderen for klaviyo_haendelser (21/9-2026). Bucket B, authenticateServiceRole
   # FØRST, kaldt gennem kald_edge hvert 5. minut. Tørkørsel som standard — uden
   # «dry_run: false» dømmes der, men intet sendes og intet mailes. Sender KUN
@@ -363,6 +383,24 @@ project_id = "loiavmastgeieqyiwyyr"
   # verificeret af laesAfmeldToken (HMAC, konstant tid) FØR service role —
   # samme klasse som aftale-underskrift og webinar-delt.
   [functions.webinar-afmeld]
+    verify_jwt = false
+  # Klikket på Mortens hilsen i «dagen før»-mailen (udkast 30/9-2026). verify_jwt =
+  # FALSE, bevidst — af samme grund som webinar-afmeld: et menneske, der klikker i
+  # sin indbakke, sender hverken Authorization eller apikey. Legitimationen er
+  # mail-rækkens id i URL'en (uuid), formen dømt FØR opslaget og rækken slået op
+  # af verifyVideoKlik; kun et kendt id logges (anonymt: id + tid). Viderestillingen
+  # går ALTID til konfigurationens video på iframe.mediadelivery.net — aldrig til
+  # noget fra URL'en, så functionen er ingen åben viderestilling.
+  [functions.webinar-video]
+    verify_jwt = false
+  # «Må vi ringe til dig?» (2/10-2026, docs/samtykke-og-opkald.md del 2). verify_jwt =
+  # FALSE, bevidst — af samme grund som webinar-afmeld: kalderen er en webinarDELTAGER
+  # uden konto, der kommer fra linket i Klaviyos «Deltog»-mail. Legitimationen er
+  # tokenet i body (laesRingToken, _shared/ringToken.ts: HMAC over ewebinar_id,
+  # konstant tid) FØR service role — og rækken i webinar_tilmeldinger skal have
+  # DELTAGET (harDeltaget), ellers ét svar (403). STRIKS body, IP-dagsloft, nummeret
+  # gemmes kun i E.164 og forlader aldrig serveren (klokke uden nummer, Klaviyo uden nummer).
+  [functions.ring-mig-op]
     verify_jwt = false
   # Webinarmotoren (skive 1, 30/9-2026). Alle tre verify_jwt = FALSE, bevidst: seeren
   # har ingen konto og ingen session. webinar-tilmeld er den offentlige indgang —

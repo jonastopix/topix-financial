@@ -14,6 +14,8 @@ const ARGS = {
   afmeldUrl: AFMELD,
   // Prøvernes standard: filen kom med. «Uden» prøves for sig nedenfor.
   invitationVedhaeftet: true,
+  // Mortens hilsen (30/9): uden video er mailene som før. «Med» prøves i webinarVideo.test.ts.
+  video: null,
 };
 
 describe("bygWebinarMail — alle syv mails er hele (fem sendes; tre_dage og dagen er udgået 30/9, men teksterne står)", () => {

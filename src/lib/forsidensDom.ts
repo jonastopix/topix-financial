@@ -481,15 +481,13 @@ export interface VirksomhedTilDom {
   /** afgoerVirksomhedsSignaler(input, nu) — kalderen kører motoren. */
   signaler: readonly Signal[];
   /** Motorens agentforslag_venter-signal bærer ikke antallet; det gør dette
-      felt (samme tal som VirksomhedsInput.agentforslagVenter). */
+      felt (samme tal som VirksomhedsInput.agentforslagVenter). Tallet er KUN
+      forslag, der kræver rådgiveren — gyldige OG godkendbare
+      (kraeverAfgoerelse, @/lib/forslagFlade; 30/9, agent-forslag-design §9).
+      Et forslag, der kun kan forkastes, tælles aldrig: det skaber hverken
+      pukkel eller «Derfor er du her». (0b-feltet agentforslagMedGodkendVej og
+      «til orientering»-teksten udgik samme dag — tallet ER nu det godkendbare.) */
   agentforslagVenter: number;
-  /** Fase 0b («Én plan», plan §4 0b): hvor mange af de ventende forslag der
-      HAR en godkend-vej (tool i UNDERSTOETTEDE_SKRIVEVEJE — i dag kun
-      update_weekly_focus). Resten kan kun forkastes, og puklens tekst må
-      ikke love «din afgørelse» om dem (recon §6.4). Valgfri: en kalder uden
-      tallet (VirksomhedView «derfor er du her», ældre tests) får den gamle
-      tekst. */
-  agentforslagMedGodkendVej?: number;
   /** afgoerFornyelsestilstand(…, nu); null når kalderen ikke har regnet den
       (fx legat — samme udsnit som FornyelsesSektion). */
   fornyelse: Fornyelsestilstand | null;
@@ -1056,6 +1054,10 @@ function grundFraIngenMaal(v: VirksomhedTilDom): Grund | null {
   };
 }
 
+/** Rådgiverens tekst for et aktivt mål, hvor alle skridt er gjort, men som
+    ingen har markeret nået (rådets fund L4, 1/10-2026). */
+export const MAAL_ALLE_GJORT_RAADGIVER_TEKST = "Alle skridt er gjort — mangler at blive markeret nået";
+
 function grundFraMaal(v: VirksomhedTilDom, nu: Date): Grund | null {
   if (!v.maal || v.maal.length === 0) return null;
   const plan = planenDom(v.maal, [], nu);
@@ -1077,17 +1079,34 @@ function grundFraMaal(v: VirksomhedTilDom, nu: Date): Grund | null {
   if (stille.length === 0) return null;
   const laengst = Math.max(...stille.map((x) => x.dageUdenBevaegelse ?? 0));
   const trin: keyof typeof ALVOR_MAAL = laengst >= STILSTAND_LAENGE_DAGE ? "stilstand_laenge" : "stilstand";
+  // Rådets fund L4 (1/10): et AKTIVT mål på 100 % har alle skridt gjort og
+  // er kun ikke nået, fordi ingen har klikket (Jonas 1/10: nået er KUN et
+  // klik). «Har ikke rykket sig» er forkert om det — det mangler at blive
+  // markeret nået. Kalderen giver ingen skridt, så fremdriften er rækkens
+  // progress, som opgave-luk skriver = andel gjorte skridt (100 = alle).
+  const alleGjorte = stille.filter((x) => x.fremdrift >= 100);
+  const rest = stille.filter((x) => x.fremdrift < 100);
+  const restTekst =
+    rest.length === 0
+      ? null
+      : rest.length === 1
+        ? `Målet «${rest[0].maal.title}» har ikke rykket sig i ${Math.max(...rest.map((x) => x.dageUdenBevaegelse ?? 0))} dage`
+        : `${rest.length} mål har ikke rykket sig i ${Math.max(...rest.map((x) => x.dageUdenBevaegelse ?? 0))} dage`;
   const tekst =
-    stille.length === 1
-      ? `Målet «${stille[0].maal.title}» har ikke rykket sig i ${laengst} dage`
-      : `${stille.length} mål har ikke rykket sig i ${laengst} dage`;
+    restTekst == null
+      ? alleGjorte.length === 1
+        ? `«${alleGjorte[0].maal.title}»: ${MAAL_ALLE_GJORT_RAADGIVER_TEKST}`
+        : `${alleGjorte.length} mål: ${MAAL_ALLE_GJORT_RAADGIVER_TEKST}`
+      : alleGjorte.length === 0
+        ? restTekst
+        : `${restTekst} · ${alleGjorte.length} mål med alle skridt gjort mangler at blive markeret nået`;
   return {
     slags: "maal_uden_bevaegelse",
     signaltype: `maal_${trin}`,
     noegle: "maal_uden_bevaegelse",
     grundlag: stille.map((x) => `${x.maal.id}=${x.maal.progress_updated_at ?? "aldrig"}`).sort().join(","),
     tekst,
-    handling: `Spørg ${v.navn} hvad der står i vejen`,
+    handling: restTekst == null ? `Spørg ${v.navn}, om ${alleGjorte.length === 1 ? "målet" : "målene"} er nået` : `Spørg ${v.navn} hvad der står i vejen`,
     alvor: ALVOR_MAAL[trin],
     lukkerOmDage: null,
     indsats: INDSATS.maal_uden_bevaegelse,
@@ -1232,14 +1251,12 @@ export function usaedvanligtMangeTekst(d: Pick<Forsidensdom, "nyeSidenIGaar">): 
     : USAEDVANLIGT_MANGE_TEKST;
 }
 
-/** Puklens tekst (0b): «din afgørelse» loves kun for forslag der kan
-    godkendes. Uden tallet (null): den gamle tekst. Alle med godkend-vej:
-    den gamle tekst. Ingen: «til orientering — de kan kun forkastes».
-    Blandet: begge tal. Kortets egen tekstrettelse (EPIC 4/9, recon §8c). */
-export function pukkeltekst(antal: number, medGodkendVej: number | null, hos: string): string {
-  if (medGodkendVej == null || medGodkendVej >= antal) return `${antal} agentforslag${hos} venter på din afgørelse`;
-  if (medGodkendVej <= 0) return `${antal} agentforslag${hos} til orientering — de kan kun forkastes`;
-  return `${antal} agentforslag${hos}: ${medGodkendVej} venter på din afgørelse, ${antal - medGodkendVej} til orientering`;
+/** Puklens tekst. «Din afgørelse» er sand, fordi antallet KUN tæller
+    forslag, der kan godkendes (kraeverAfgoerelse, 30/9 — design §9). Før
+    30/9 (0b) skelnede teksten «til orientering» for forslag, der kun kunne
+    forkastes; de skaber nu slet ingen linje og står i Agent-loggen. */
+export function pukkeltekst(antal: number, hos: string): string {
+  return `${antal} agentforslag${hos} venter på din afgørelse`;
 }
 
 /** Den samlede måls-linje (fase 4): gennemgang og stilstand er to ting og
@@ -1429,9 +1446,6 @@ export function afgoerForsidensDom(virksomheder: readonly VirksomhedTilDom[], nu
   let agentforslagAntal = 0;
   let agentforslagAlvor: number | null = null;
   const agentforslagHos: Pukkellinje["virksomheder"] = [];
-  // Godkend-vej (0b): summen kendes kun når ALLE bidragende virksomheder
-  // bærer tallet — ellers null, og teksten er den gamle.
-  let agentforslagMedGodkendVej: number | null = 0;
 
   for (const v of virksomheder) {
     // Puklen tælles på tværs af alle — også dem der får en linje. Virksomheden
@@ -1441,11 +1455,6 @@ export function afgoerForsidensDom(virksomheder: readonly VirksomhedTilDom[], nu
       agentforslagAntal += v.agentforslagVenter;
       agentforslagAlvor = Math.max(agentforslagAlvor ?? 0, pukkelSignal.alvor);
       agentforslagHos.push({ companyId: v.companyId, navn: v.navn, antal: v.agentforslagVenter });
-      if (agentforslagMedGodkendVej != null) {
-        agentforslagMedGodkendVej = v.agentforslagMedGodkendVej == null
-          ? null
-          : agentforslagMedGodkendVej + Math.min(v.agentforslagMedGodkendVej, v.agentforslagVenter);
-      }
     }
 
     const grunde = grundeFor(v, nu);
@@ -1527,7 +1536,7 @@ export function afgoerForsidensDom(virksomheder: readonly VirksomhedTilDom[], nu
       linje: "pukkel",
       slags: "agentforslag",
       antal: agentforslagAntal,
-      tekst: pukkeltekst(agentforslagAntal, agentforslagMedGodkendVej, hos),
+      tekst: pukkeltekst(agentforslagAntal, hos),
       virksomheder: agentforslagHos,
       alvor: agentforslagAlvor,
       lukkerOmDage: null,

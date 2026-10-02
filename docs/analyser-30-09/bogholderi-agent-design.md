@@ -316,6 +316,74 @@ Hvilke selskaber (Topix.dk ApS? The Boardroom? SnowWaves?) — én grant og én 
 
 ---
 
+## 7. Mortens bogholderagent som inspiration (1/10-2026)
+
+**Kilde:** skærmbilleder af en anden bogholderagent, som Morten viste Jonas 1/10 kl. 12:41 i chatten. Billederne ligger ikke i repoet. Det følgende er det, der stod på dem, refereret, ikke målt i et system. Produktnavne, som det andet system bruger, er **ikke slået op** her. Hvert punkt, der skal bygges på dem, slås op før brug (regelsættet: «Dokumentation slås op, den gættes ikke»).
+
+### 7.1 Hvad den anden agent gør
+- **Agenterne bogfører aldrig.** De lægger linjer i **kassekladden**, vedhæfter bilaget og sender resten til en **Inbox**. Bogholderen gennemgår og bogfører.
+- **Kilderne:** bank gennem Enable Banking, betalinger gennem Corpay, e-conomic-kort, autoløn, kvitteringer fra mail.
+- **Månedens faste posteringer:** lån og renter, afskrivninger og periodiseringer.
+
+### 7.2 Spændingen med § 0 — og hvorfor den er mindre, end den ser ud
+§ 0 pkt. 1 bygger på Jonas' beslutning 29/9: «Jeg har ansvaret som menneske, men vi må gerne fuldautomatisere det.» Mortens agent er det modsatte: et menneske bogfører altid.
+
+**Det er ikke to designs, men to trin i det samme design.** Med låsen `app_config.bogfoer_aktiv = false`, som er standard (§ 1.2), gør motoren præcis det, Mortens agent gør:
+- den fylder agent-kladden;
+- den vedhæfter bilag;
+- den lægger det usikre i køen.
+
+Kun `book`-kaldet (§ 2.6 trin 5) udebliver. Mortens model er altså vores **første tilstand**.
+
+**Anbefalingen** (afgøres af Jonas, se 7.5):
+- **Måned 1 (oktober):** kladde-tilstand. Agenten fylder, et menneske klikker «Bogfør» i e-conomic. Det er samtidig parallelkørslen med bogholderen fra § 0 pkt. 7, og forskellen mellem agentens kladde og bogholderens bogføring er testen.
+- **Fra måned 2:** `bogfoer_aktiv` tændes **pr. regel**, ikke for alt på én gang. Kun regler på niveau `auto` (n_ens ≥ 3, n_afvigelser = 0) bogfører selv. Resten bliver i kladden. Det kræver én lille ændring i § 2.6: kladden deles i to, «agent-auto» (kun bogførbare linjer) og «agent-gennemse» (et menneske bogfører). `book` kaldes kun på den første. Det bevarer reglen «`book` bogfører hele kladden — derfor må ingen andre skrive i den».
+
+### 7.3 Det, vi tager med
+| Fra Mortens agent | Ind i vores design | Status |
+|---|---|---|
+| **Inbox** — ét sted for alt, et menneske skal se | § 3.3-køen og § 3.1 niveau B's «gennemse»-liste samles i ÉN indbakke med to faner: «Svar» (kø) og «Se igennem» (bogført, kan modposteres). Dagens mail kl. 08 peger på den. | Designændring, ingen ny tabel (`koe` + `postering.tillid`). |
+| **Kladden som arbejdsflade** | Se 7.2: to agent-kladder. Et menneske kan rette en linje i «gennemse»-kladden før bogføring. Rettelsen læses tilbage og tæller `n_afvigelser +1` som i § 2.4 pkt. 3. | Ny læsning: diff mellem det sendte og det bogførte. |
+| **Periodiseringer** | Mangler i § 2. En regel får `periodisering_mdr` (feltet findes i `konteringsregel`), og bogføringen deles: forudbetalt på balancen, derefter 1/n pr. måned ved lukningen. Regnestykket skrives ud i koden, fx årsabonnement 12.000 kr. → 1.000 kr. pr. måned i 12 måneder. | Mangler: månedsjob `periodiser`. |
+| **Afskrivninger** | Mangler. «Mulige anlægsaktiver» går i dag i kø (§ 3.1 C). Tilføjes: et anlægskartotek (aktiv, anskaffelse, levetid, metode) godkendt af revisor, og en månedlig afskrivningspostering ved lukningen. **Ikke slået op:** om e-conomic har et anlægsmodul med API. Det slås op først; findes det, bruges det i stedet for vores eget kartotek. | Mangler. Opslag først. |
+| **Lån og renter** | Findes (§ 4.4). Renteposteringen bliver en månedlig rutine ved lukningen, samme job som periodiseringer og afskrivninger: `maaned-faste`. | Findes delvist. |
+| **Kvitteringer fra mail** | Findes (§ 2.2 pkt. 2, `bilag@`). | Findes. |
+| **Enable Banking** | Findes (§ 2.1). Samme valg som Mortens agent, hvilket styrker valget. | Findes. |
+| **Autoløn** | Mangler. Løn er i dag kø (§ 3.1 C). Lønsystemets bogføringsfil eller -API skal læses som én samlet postering pr. lønkørsel. **Ikke slået op:** hvilket lønsystem Topix bruger, og om det kan levere posteringer til e-conomic selv. Kan det, gør agenten intet ved løn ud over at afstemme. | Mangler. Spørg Jonas. |
+| **Corpay (betalinger)** | **Tages ikke med i agenten.** At betale er en overførsel af penge, og den må agenten aldrig foretage. Det er husets regel, ikke en teknisk begrænsning. Agenten må gerne afstemme betalingerne bagefter som en almindelig banktransaktion. | Bevidst fravalg. |
+| **e-conomic-kort** | **Ikke slået op**, hverken hvad produktet er, eller om Topix har det. Bruges et betalingskort med egen feed, er det en bankkilde mere i § 2.1 (en `bank_konto` mere), ikke en ny mekanisme. | Spørg Jonas. |
+
+### 7.4 Månedslukningen samlet (efter 7.3)
+3. hverdag kl. 07, i denne rækkefølge, hvert trin med sit eget bevis:
+1. Grønt bevis for månedens sidste dag (§ 3.6).
+2. `maaned-faste`: periodiseringer, afskrivninger og renter. Hver postering markeret `AGT-`, med regnestykket i teksten.
+3. Kø og «Se igennem» for perioden er tomme.
+4. Periodelås (§ 3.8).
+5. Månedsrapport (§ 2.8).
+
+Fejler et trin, standser lukningen dér, og rapporten siger hvilket.
+
+### 7.5 Beslutninger til Jonas (nye)
+1. **Kladde-tilstand i oktober, auto pr. regel fra november** (7.2)? Anbefalet: ja.
+2. **Lønsystemet:** hvilket, og kan det selv bogføre i e-conomic?
+3. **e-conomic-kort / betalingskort:** bruger Topix et kort med egen feed?
+4. **Anlægsaktiver:** har Topix aktiver, der afskrives i dag? Revisor afgør levetider og metode én gang.
+
+### 7.6 Jonas' beslutning (aftenlisten 1/10-2026, kl. 22:04–22:19)
+Jonas svarede **«Ja»** på punktet «bogh» og skrev denne note (ordret):
+
+> «e-conomic. Den er forbundet via connectors allerede. Det samme er Pleo. Og Stripe. Fakturaer via Corpay kommer ind i kasseklasse i e-conomic automatisk.»
+
+Hvad det betyder for designet. Det er Jonas' ord, ikke målinger:
+- **Ja** gælder anbefalingen i 7.5 pkt. 1: kladde-tilstand i oktober, auto pr. regel fra november.
+- **Kilderne er e-conomic, Pleo og Stripe**, som allerede er forbundet via connectors. **Hvad de kan læse og skrive, er ikke målt her.** Målingen fra 30/9 står: e-conomic-MCP'en kunne ikke læse kontoplan eller posteringer (mangellistens `a30-pleo-eksport`).
+- **Corpay:** fakturaer betalt via Corpay lander automatisk i e-conomic. «kasseklasse» læses som **kassekladden**, men det er ikke afklaret med Jonas. Agenten skal derfor ikke hente Corpay selv. Den afstemmer det, der allerede står i kladden, og fravalget i 7.3 (agenten betaler aldrig) står uændret.
+- **Stadig åbent fra 7.5:** pkt. 2 (lønsystemet), pkt. 3 (e-conomic-kort/betalingskort) og pkt. 4 (anlægsaktiver). Noten svarer ikke på dem.
+
+Bogført 2/10-2026 (OVERLEVERING DEL 2 «2. oktober nat — samlet» pkt. 5).
+
+---
+
 ## Bilag A — Udkast: Beskrivelse af bogføringsprocedurer (bogføringslovens § 6)
 
 **Topix.dk ApS, CVR [indsæt] — gældende fra [dato]. Ansvarlig: Jonas Herlev, direktør.**

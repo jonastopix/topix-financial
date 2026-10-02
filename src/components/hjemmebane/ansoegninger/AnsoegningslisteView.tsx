@@ -63,7 +63,7 @@ const Fold = ({ a }: { a: AnsoegningRaekke }) => {
   const ewebinar = webinarLinje(a.webinar, new Date());
   return (
     <div className="border-t border-hb-line bg-hb-paper px-4 py-4" data-ansoegning-fold={a.id}>
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Svar label="Største udfordring" tekst={a.udfordring} />
         <Svar label="Har selv prøvet" tekst={a.proevet} />
         <Svar label="Om tolv måneder" tekst={a.om_tolv_maaneder} />

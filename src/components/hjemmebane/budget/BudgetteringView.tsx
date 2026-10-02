@@ -35,6 +35,7 @@ import { catToRow, MONTHS, SCENARIOS, type BudgetRow, type ScenarioKey } from "@
 import { HbAdvisorCompanyPrompt } from "../HbAdvisorCompanyPrompt";
 import { HbButton } from "../HbButton";
 import { HbCard } from "../HbCard";
+import { HbStedsSaetning } from "../HbStedsSaetning";
 import { HbSection } from "../HbSection";
 import { HbSegmented } from "../admin/HbSegmented";
 import { HbBudgetBva } from "./HbBudgetBva";
@@ -266,6 +267,8 @@ export const BudgetteringView = () => {
             aria-label="Vælg budgetår"
           />
         </div>
+        {/* Stedsætningen under h1 (rådets fund 7, 2/10): eyebrow → h1 → én sætning; skabelon-linjen under er meta, ikke intro. */}
+        <HbStedsSaetning sti="/budget" className="mt-3" />
         <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-hb-ink-soft">
           {templateLine && <span>{templateLine}</span>}
           {scenarioData && !confirmingTemplateChange && !changingTemplate && (
@@ -371,7 +374,7 @@ export const BudgetteringView = () => {
                 budgetark, eller lad os foreslå et budget ud fra dit regnskab. Tallene sammenlignes
                 automatisk med dine rapporter under Budget vs. realiseret.
               </p>
-              <div className="mt-5 grid gap-4 md:grid-cols-3">
+              <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-3">
                 {[
                   {
                     key: "guide" as const,
@@ -554,7 +557,7 @@ export const BudgetteringView = () => {
             </HbCard>
 
             {costByGroup.length > 0 && (
-              <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {costByGroup.map((g) => (
                   <HbCard key={g.group} className="p-5">
                     <TalStat
@@ -595,7 +598,7 @@ export const BudgetteringView = () => {
               det HELE bredden — "Generér fra regnskab" er en anden opgave og
               står ikke ved siden af et åbent gennemsyn. */}
           <HbSection eyebrow="Planlæg" title="Importér" id="import">
-            <div className={cn("grid gap-4", !importGitterAabent && "lg:grid-cols-2")}>
+            <div className={cn("grid grid-cols-1 gap-4", !importGitterAabent && "lg:grid-cols-2")}>
               <HbCard className="p-5">
                 <HbBudgetExcelImport
                   userId={user?.id}

@@ -4,6 +4,7 @@ import { doemSetGrad, fletTilmelding, plukTilmelding, type WebinarTilmelding } f
 import { afgoerOvergang, byggFremmoede } from "../_shared/webinarHaendelser.ts";
 import { afmeldHvisNoegle, sendHvisMail } from "../_shared/klaviyoAfsendelse.ts";
 import { erAfmeldt, skalAfmeldes } from "../_shared/webinarAfmelding.ts";
+import { RING_APP_URL, RING_SECRET, ringOpUrlHvisSecret } from "../_shared/ringToken.ts";
 import { sha256Hex } from "../_shared/aftryk.ts";
 
 // Bucket C: ekstern webhook fra eWebinar (udkast 19/9-2026,
@@ -213,6 +214,14 @@ Deno.serve(async (req: Request) => {
   const erAfmeldtNu = erAfmeldt(flettet) || erAfmeldt(t);
   const gradFoer = kendt ? doemSetGrad(kendt, nu) : null;
   const overgang = erAfmeldtNu ? "ingen" : afgoerOvergang(gradFoer, grad);
+  //     «MÅ VI RINGE TIL DIG?» (2/10): «deltog» bærer linket til /ring-mig-op med
+  //     tokenet (HMAC over ewebinar_id, RING_SECRET) — som hændelses- OG profilegenskab
+  //     `ring_op_url` i samme kald (Jonas 08:17). Fail-soft: uden secret går
+  //     hændelsen uden egenskaben, og Klaviyo-mailen viser intet afsnit. Udstedes
+  //     KUN for «deltog» — byggFremmoede nulstiller den for alt andet.
+  const ringOpUrl = overgang === "deltog"
+    ? await ringOpUrlHvisSecret(Deno.env.get(RING_SECRET), RING_APP_URL, flettet.ewebinar_id)
+    : null;
   const haendelse = byggFremmoede(overgang, {
     ewebinarId: flettet.ewebinar_id,
     email: flettet.email,
@@ -222,6 +231,7 @@ Deno.serve(async (req: Request) => {
     webinarTitel: flettet.webinar_titel ?? null,
     sessionTid: flettet.session_tid,
     tid: nu,
+    ringOpUrl,
   });
   //     LOGGEN SKAL SIGE SANDHEDEN (20/9, recon-platformsiden §1.3): foer stod
   //     «fremmoede sendt» uanset udfald, og svaret til eWebinar sagde det samme.

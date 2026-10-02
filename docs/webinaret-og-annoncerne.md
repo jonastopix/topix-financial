@@ -73,6 +73,91 @@ fire ting; tre kom til:
 
 Udkast: `~/Downloads/udkast-webinar-dashboard/`.
 
+### 2a. Hvor sikkert er tallet — Wilson på «Hvor kom de fra» (udkast 30/9-2026)
+
+**Hvorfor.** Marketinganalytikerens værdivurdering 30/9 (målt i prod): med to
+afholdte sessioner er leddet tilmeldt → mødte op / så færdigt (≥ 75 %) det
+eneste, der kan skille annoncer ad. 22/9 havde 10 annoncer, 7 med ≥ 5
+tilmeldte — fx 52 af 192 = 27 % mod en lille på 7 af 8 = 88 %. Rå procenter
+lader 7 af 8 ligne en vinder og 1 af 2 ligne halvdelen. Nicklas (ekstern
+marketing) vælger annoncer til 13/10 ud fra tabellen.
+
+**Dommen** (`annoncespor()` i `src/lib/webinar/dashboard.ts`, spejlet i
+`_shared/webinarDashboard.ts`; lag 6's `statistik.ts` spejlet BYTE-ENS i
+`_shared/marketingStatistik.ts`, paritet i `webinarDashboard.paritet.test.ts`):
+hver kilde-, kampagne- og annoncelinje bærer `maaling` = `{ grundlag,
+fremmoede, saaFaerdigt }`, hver en `Andelsdom` (`andelsdom()`):
+
+- **Wilson 95 %** med lag 6's `wilson` og `intervalOrd` — ingen ny formel.
+- **Nævneren er de AFHOLDTE** (tilmeldte − kommende): en tilmeldt 13/10 kan
+  ikke være mødt op endnu (§5 — tæller og nævner skal dække samme periode).
+  «Kun det næste webinar» giver derfor «–» overalt.
+- **Nævneren er personens FØRSTE række** (`foersteTilmeldingPrPerson`, samme
+  som resten af sporet) — ikke den bedste grad over flere sessioner. En, der
+  udeblev 22/9 og så færdigt 29/9 fra en anden annonce, tæller som udeblevet
+  på den annonce, der hentede hende ind.
+- **Under 5 ERSTATTER «for få» procenten** (`SPOR_FORHOLD_FRA` = 5, låst til
+  `TROVAERDIG_FRA` og lag 6's `PERSONER_FOR_ET_FORHOLD` af en test — kan ikke
+  importeres, fordi annoncepriser.ts importerer dashboard.ts). Intervallet er
+  `null` i svaret, så ingen flade kan vise det alligevel.
+- **«Skiller sig ud» KUN når intervallet ikke overlapper resten tilsammen**
+  (`sammenlign` → «adskilte»), med `retning` højere/lavere, **OG begge grupper
+  har ≥ 5 af HVERT udfald** (`SPOR_HAENDELSER_FOR_AT_SKILLE` = lag 6's
+  `HAENDELSER_FOR_SAMMENLIGNING`, låst af en test): linjen `succes ≥ 5` og
+  `n − succes ≥ 5`, resten det samme. Under det vises intervallet stadig (når
+  n ≥ 5), men udfaldet er «kan ikke afgøres» (`grund: "for_faa_haendelser"`).
+  Overlap = «kan ikke afgøres», aldrig «ens». Resten under 5 = kan ikke
+  afgøres; resten tom = «ingen andre annoncer i kampagnen».
+- **Hvor reglerne afviger fra lag 6** (rådets gennemsyn 30/9 — påstanden «lag
+  6's, ikke nye» er fjernet fra koden): (1) hændelsesgrænsen er SKÆRPET til
+  begge udfald i begge grupper (lag 6 tæller kun den mindste gruppes
+  succeser); (2) lag 6's sessionsgrænse (8 webinarer) er IKKE overtaget — lag
+  6 sammenligner mails på tværs af webinarer, her sammenlignes personer i de
+  samme sessioner. Mærket er derfor et SPOR, ikke en anbefaling.
+- **Resten er søjlens helhed:** kilde og kampagne mod alle andre i sporet,
+  annoncen mod de andre annoncer i SIN kampagne (samme målgruppe og budget). En
+  kampagne med én annonce kan derfor ikke afgøres på annonceniveau.
+- Feltet er tal og ord — ingen personer — og går ud gennem delingen
+  (`udenRaekker`, `findForbudteNoegler` uændret).
+
+**22/9 i dommen** (prøvet i `webinarWilson.test.ts`): annoncen med 52 af 192
+«så færdigt» = **27 % (21–34 %)** mod kampagnens anden annonce 32 af 101 = 32 %
+(23–41 %) → kan ikke afgøres. «07-vaerkstedet» 7 af 8 = **88 % (53–98 %) af 8**
+mod resten af Adv+-kampagnen → intervallerne overlapper ikke, men ÉN, der ikke
+så færdigt, er under 5 → **kan ikke afgøres** (rettet 30/9 efter rådets fund;
+udkastet sagde «skiller sig ud · højere»). En annonce med 1–4 afholdte står som
+«for få».
+
+**Fladen** (`WebinarView.tsx`, `SporSikkerhed`/`SporAndel`): under rækken, i
+11 px: «mødte … · færdigt 27 % (21–34 %) af 192» (dommens `sporTal`, ordret) og
+mærket i ord — målet og retningen: «flere så færdigt end resten» / «færre mødte
+op end resten» — i en neutral ramme, ingen farve for op/ned. Under `md` går
+linjen i fuld bredde under hele rækken (`col-span-full`; navnekolonnen er ~130
+px på 360 px). Hvad der er sammenlignet med, står i `title` og i en
+`sr-only`-span (en `aria-label` på en `<span>` læses ikke op). Fodnoten siger:
+med mange rækker vil én ofte skille sig ud ved et tilfælde; brug mærket som et
+spor, ikke en dom. Kildeværn i `webinarWilson.test.ts`: fladen skriver kun
+dommens ord (ingen `pct()` af rå andele, ingen division, læser aldrig
+`interval`), dommen har ingen egen formel, og hændelsesgrænsen står i dommen.
+
+**Fail-soft:** et delt-svar uden `maaling` (den gamle `webinar-delt`) tegner
+sporet uden sikkerhedslinjen (`if (!m || m.grundlag === 0) return null`;
+prøvet i `WebinarVisning.maaling.test.tsx`) — før rådets gennemsyn ville
+`/delt/webinar` være død med en TypeError.
+
+**Udrulning — rækkefølgen:** `webinar-delt` FØRST (eksplicit deploy fra
+Lovable build-chat; den regner med de spejlede domme og trækker
+`_shared/marketingStatistik.ts` ind). **Beviset er `maaling` i et delt-svar**
+(`dashboard.spor.kilder[0].maaling` — kun den nye kode har feltet). DEREFTER
+Update for fladen. Ingen migration.
+
+**Status 30/9 aften (#1184 merget `2deb10bb` 22:10):** rådets «ret først» er
+rettet (Fable: to høje — fail-soft uden `maaling`, og «skiller sig ud» krævede
+kun 5 personer; nu ≥ 5 succeser og ≥ 5 ikke-succeser i begge grupper, så 22/9's
+7 af 8 er «kan ikke afgøres»). `webinar-delt` er udrullet («Successfully
+deployed edge functions: webinar-delt»). **Beviset (`maaling` i et delt-svar)
+udestår** — det kræver et delingslink; Update for fladen er ikke klikket.
+
 ---
 
 ## 3. Meta — annoncerne, forbruget og tokenet (#1018, #1022, #1023, #1025, #1027)
@@ -377,6 +462,330 @@ holdes.
 - **Kilden «nyhedsbrev»:** migration `20260928140000` kørt 13:18 — CHECK'en har seks kilder; fordeling målt: webinar 6 · andet 5 · direkte 3. **theboardroom.dk #5 (13:19):** en medsendt `?kilde=` følger uændret videre til `/ansoeg`, hvis den er et af platformens seks ord — det rettede også `?kilde=webinar`, som til 28/9 blev til «direkte» på sitet. Målt, ikke rettet: `index.html`s to præ-renderede links har `?kilde=direkte` hårdkodet, indtil React monterer.
 - **Nyhedsbrevet i drift på topix.dk** (footeren og `/webinar/tak` → Klaviyo `client/subscriptions`, Hovedlisten `RZtwMb`, revision 2026-07-15; bevist 14:13). Velkomstserien `TGxxUc` er en kladde — en ny abonnent får i dag intet. `docs/marketingmotoren.md` §9.3.
 
+## 7g. Mortens hilsen i «dagen før» — udkast 30/9, TÆNDES med én række
+
+**Ønsket (Jonas 30/9):** Morten optager en kort, personlig håndholdt video, der skal
+ind i mailen «dagen før» (`en_dag`). Den er ikke optaget endnu — så mailen skal
+kunne tændes, når videoen ligger på Bunny, **uden ny kode og uden deploy**.
+
+**Konfigurationen** er `app_config.webinar_en_dag_video` (jsonb; migration
+`20260930180000` indsætter `null`). Formen dømmes STRIKS af `laesVideoKonfig` i
+`supabase/functions/_shared/webinarVideo.ts`:
+
+```json
+{ "library_id": "123456", "video_id": "<GUID>", "pull_zone": "vz-<…>.b-cdn.net",
+  "titel": "Mortens hilsen før webinaret", "varighed_min": 2, "aktiv": false }
+```
+
+| værdi | virkning | `video.status` i svaret |
+|---|---|---|
+| `null` (standard) | mailen PRÆCIS som i dag — også i prøven | `ikke_sat` |
+| ugyldig / delvis / ukendt nøgle | FAIL-CLOSED: uden video | `ugyldig` + grund |
+| rækken kan ikke læses | FAIL-CLOSED: uden video | `laesefejl` |
+| gyldig, `aktiv: false` | KUN prøven til én adresse får videoen | `slukket` / `proeve` |
+| gyldig, `aktiv: true` | alle `en_dag`-mails | `taendt` |
+
+**Mailen med video:** efter «Det er forskellen på at lære noget og at bruge noget.»
+står husets sætning «Jeg har lavet en kort video til dig inden i morgen.», Bunnys
+stillbillede (hele billedet er et link) og en lysegrøn knap «Se Mortens hilsen
+(N min)»; derefter mailen som før, med «Gå til webinaret» som den mørke, primære
+knap. Tekstudgaven får linjen «Se Mortens hilsen (N min): <link>». Ingen afspiller
+— mailklienter kan ikke. **Uden video** er `en_dag` tegn for tegn som før, og de
+andre arter er uændrede, også når en video gives ind (prøvet på alle arter).
+Ordet «optagelse» står stadig ingen steder; titlen afvises, hvis den nævner det.
+
+**Klikmålingen.** Huset målte ikke klik i webinarmails (Mailguns sporing er slået
+fra, `mailgunAfsendelse.ts`). Nu: cronen trækker mail-rækkens id FØR mailen bygges
+og skriver sporet med samme id; linket er `…/functions/v1/webinar-video?m=<id>`.
+`webinar-video` (offentlig, `verify_jwt = false`) dømmer formen før noget opslag,
+slår en sendt `en_dag`-række op (`verifyVideoKlik`) og skriver ét anonymt klik i
+`webinar_video_klik` (`mail_id` + `klikket_at`; migration `20260930181000`), før den
+viderestiller til `https://iframe.mediadelivery.net/play/<library>/<video>` —
+bygget af konfigurationen, aldrig af URL'en. Tallet:
+
+```sql
+select count(*) as klik, count(distinct k.mail_id) as unikke_mails,
+       (select count(*) from public.webinar_mails where art = 'en_dag' and udfald = 'ok'
+          and session_tid = '<session>') as sendt
+  from public.webinar_video_klik k join public.webinar_mails m on m.id = k.mail_id
+ where m.session_tid = '<session>';
+```
+
+Forbehold: mailsikkerhed (Safe Links o.l.) kan «klikke» før mennesket — unikke
+mails er det bedste tal, ikke et bevis for, at videoen blev set.
+
+**UMÅLT — skal måles, før der tændes** (begge uden Referer-header):
+1. `curl -sI https://<pull_zone>/<video_id>/thumbnail.jpg` → 200 `image/jpeg`.
+   Hjemmebanes pull zone svarer 403 uden referrer (`bunnyMedia.ts`, målt 9/8); i
+   en mail er der ingen referrer, så billedet ville stå tomt (alt-teksten og
+   knappen bærer stadig ærindet).
+2. `curl -sI https://iframe.mediadelivery.net/play/<library>/<video_id>` → 200. Et
+   bibliotek med «embed view token authentication» (chattens 765771 har det)
+   afviser det usignerede link.
+
+**Tændingen, ét skridt ad gangen:**
+1. Merge.
+2. KØR `20260930180000_webinar_en_dag_video.sql` og `20260930181000_webinar_video_klik.sql` (FØR/EFTER-SQL i filhovederne).
+3. Eksplicit deploy fra build-chat af `webinar-mail-cron` og `webinar-video`. Beviset: tørkørslen svarer `video: {"status": "ikke_sat", …}`.
+4. Mål de to URL'er ovenfor.
+5. Jonas sætter konfigurationen med `"aktiv": false` (guarded UPDATE `WHERE config_value = 'null'::jsonb`). Tørkørslen svarer `slukket` — eller `ugyldig` med grunden.
+6. **Prøve til `lh@greensolar.dk`**: `{"dry_run": false, "email": "lh@greensolar.dk", "art": "en_dag", "nu": "<dagen før sessionen, 08:00–10:00 dansk>"}` (tørkørsel med samme body først) → `video.status "proeve"`, `med_video 1`; mailen læses, billedet står, knappen afspiller, og ét klik står i `webinar_video_klik`. Adressen skal være tilmeldt en kommende session. Slet prøverækken i `webinar_mails` bagefter (klikket følger med).
+7. Jonas **tænder**: `UPDATE public.app_config SET config_value = jsonb_set(config_value, '{aktiv}', 'true'::jsonb), updated_at = now() WHERE config_key = 'webinar_en_dag_video' AND config_value->>'aktiv' = 'false';` → UPDATE 1; næste kørsel `taendt`.
+
+Rækkefølgen afviger bevidst fra «prøve → sæt konfigurationen»: prøven skal vise
+den række, der går i luften — ikke en kopi i en body, der kan være stavet
+anderledes. Værn: `webinarMail.guard` dom 19 og `webinarVideo.test.ts`.
+
+## 7h. 30. september aften — /webinar viser, at annoncerne ikke giver medlemmer (observation, ikke målt årsag)
+
+**Hvad der er læst:** siden `/webinar`s egne tal, 30/9 aften. Intet er målt ud
+over det, siden selv viser; ingen årsag er undersøgt.
+
+- Kampagnen **«VSL | Adv+ | OM»: 9.450 kr. brugt, 0 tilmeldte.**
+- **45 annoncer** har forbrug og **0 tilmeldinger**.
+- **17/8–29/9 samlet: 34.905 kr. → 795 tilmeldte → 186 deltagere → 7 ansøgninger → 0 medlemmer.**
+
+**Hvad det IKKE er:** en dom. Tallene siger ikke, *hvorfor* kampagnen og de 45
+annoncer ikke giver tilmeldinger (målingen af klik, landingsside og
+tilmeldingsflow er ikke gennemgået), og et ledtal uden medlemmer er ikke det
+samme som, at annoncerne ikke virker: betalingen (Purchase) sker 30–60 dage
+efter ansøgningen (CLAUDE.md «Metas Conversions API»), så medlemmer kan ligge
+efter vinduets slutning. Med 7 ansøgninger når ingen andel
+Wilsons grænse («for få» erstatter procenten, §2a). Samme observation står i
+OVERLEVERING DEL 2 «30. september» §7h; genvurderingen af marketinganalytikeren
+er sat til efter 13/10 (`docs/marketingmotoren.md` §4).
+
+---
+
+## 7i. Webinarkoblingen — forslag + klik (udkast 1/10-2026)
+
+**Besluttet af Jonas 1/10 kl. 08:25: «forslag + klik».**
+
+**Problemet (målt i prod 30/9 nat af hovedsessionen):** Green Solar
+(`lh@greensolar.dk`) blev medlem; ansøgningen har `kilde = direkte`, og ingen
+webinartilmelding har hendes mail. En sandsynlig tilmelding findes under en
+gmail-adresse (via fb, tilmeldt 8/9 til sessionen 22/9, eWebinar «Missed /
+Didn't join»). Tragten kobler ansøgning ↔ tilmelding KUN på `lower(email)`, så
+hun tæller ikke — hverken som ansøger eller som medlem.
+
+**Løsningen, i tre lag:**
+
+1. **Dommen** `foreslaaWebinarKobling(ansoegning, tilmeldinger)` i
+   `src/lib/webinar/kobling.ts` (ren, `kobling.test.ts`): tilmeldinger under en
+   ANDEN mail, hvis navn matcher (normaliseret: NFC, små bogstaver, trim, flere
+   mellemrum → ét, æøå bevaret; «fuldt» navn ens ELLER første + sidste ord ens —
+   begge kræver mindst to ord, et fornavn alene er ikke nok) og/eller hvis
+   telefon matcher (kun cifre, `0045`/`45`-præfiks fjernet, sidste 8 cifre).
+   Kun tilmeldinger SKARPT FØR ansøgningens `created_at`, højst **90 dage** før
+   (tilmeldingens tid = `registreret_at`, ellers rækkens `created_at`).
+   Rangeret navn + telefon > telefon > navn; fuldt navn før for+efternavn;
+   seneste før ældre. Grunden står i ord. **Et forslag tæller aldrig.** En
+   tilmelding, der allerede er koblet til en ANDEN ansøgning, foreslås aldrig
+   (tredje argument `optagne`; rådets fund M2 1/10).
+2. **Klikket** er en række i `ansoegning_webinar_kobling` (migration
+   `20261001120000`): én pr. ansøgning OG én pr. tilmelding (to UNIQUE'er),
+   rådgivere SELECT/INSERT/DELETE, ingen medlemsadgang, ingen SECURITY DEFINER.
+   **Hvorfor én pr. tilmelding (M2):** tragten tæller ansøgerne som et SÆT af
+   mails; to ansøgninger koblet til samme tilmelding får samme mail og tælles som
+   ÉN (prøvet i `kobling.test.ts`). Databasen nægter den anden (23505 → fladen
+   siger det i ord), og dommen foreslår den ikke. Fladen:
+   `WebinarKoblingAfsnit` under «Svarene» på ansøgningen — «Mulig
+   webinartilmelding» (navn · mail · tilmeldt · titel · status · grund) +
+   «Kobl til webinaret»; efter klikket «Koblet til webinaret 22/9 af {rådgiver}»
+   + «Fjern koblingen». Intet vises, når mailen allerede matcher en tilmelding.
+3. **Tragten tæller koblingen** som et mail-match: `medWebinarKobling` i
+   `dashboard.ts` (spejlet byte-ens i `_shared/webinarDashboard.ts`) giver
+   ansøgningen tilmeldingens mail i stedet for sin egen — ERSTATTER, lægger
+   ikke til (én ansøgning er én ansøger). Kaldt ÉN gang øverst i
+   `webinarDashboard` og i `annoncepriser` (begge spejle). Data hentes i
+   `hooks/webinarDashboard.ts` (`hentKoblingsMails`) og i `webinar-delt`
+   (samme opslag, service role). Fail-soft på en manglende tabel
+   (`erManglendeTabel` / 42P01 · PGRST205) OG på en ukendt relation (PGRST200 —
+   indlejringen `webinar_tilmeldinger(email)` kræver, at PostgREST kender FK'en;
+   migrationen slutter med `NOTIFY pgrst, 'reload schema';`): ingen koblinger,
+   intet vælter.
+
+**Kandidat-opslaget (rådets fund L5):** hooken henter KUN de kolonner, dommen og
+fladen bruger (`KOBLING_TILMELDING_KOLONNER` = id · created_at · email · navn ·
+webinar_titel · session_tid · session_type · registreret_at · state · attended ·
+set_procent — intet annoncespor, ingen by/enhed, ingen `raa`; låst til typen af
+`webinarKobling.guard` dom 8), NYESTE FØRST (`registreret_at` desc, null sidst,
+så `created_at` desc, `id`), sideinddelt med `.range` i sider á 1.000 (PostgREST
+klipper stille ved max-rows 1.000, DEL 4 #929) til loftet `KANDIDAT_LOFT` =
+5.000. Rammes loftet, står det i ord på ansøgningen (`loftTekst`): «Kun de 5.000
+nyeste tilmeldinger i vinduet er gennemset — en ældre tilmelding kan mangle
+blandt forslagene.»
+
+**Kendte grænser for forslaget (rådets fund L6 — dommen er bevidst snæver):**
+
+- **Almindelige navne:** «Mette Jensen» kan matche flere personer. Navnet alene
+  er et forslag, aldrig en kobling — rådgiveren afgør, og fladen viser mail,
+  dato, session og status ved hvert forslag, så hun kan skelne. Højst tre forslag
+  vises (`KOBLING_FORSLAG_MAKS`).
+- **Omvendt rækkefølge:** «Hansen Lone» mod «Lone Hansen» matcher IKKE — dommen
+  sammenligner første med første og sidste med sidste ord. Bevidst: at bytte om
+  ville fordoble de falske træf på almindelige navne.
+- **Ét-ords navne:** «Lone» alene (på en af siderne) giver aldrig et
+  navneforslag — et fornavn kan ikke bære en kobling. Kun telefonen kan, og den
+  er UMÅLT på tilmeldingen (nedenfor).
+- Også uden for dommen: stavevarianter (`Soren` ≠ `Søren`), bindestreger
+  (`Havndrup-Hansen` er ét ord) og mellemnavne, der bytter plads med efternavnet.
+
+**Beviset for udrulningen af `webinar-delt` (rådets fund M3):** delt-svaret bærer
+feltet `koblinger_talt` — antallet af rådgiverbekræftede koblinger, der indgik i
+dommen (`koblingerTalt` i `_shared/webinarDelingSvar.ts`). Et TAL, aldrig en
+mail; det går gennem `bygDeltSvar` og `findForbudteNoegler` som resten
+(`kobling.test.ts`). KUN den nye kode har feltet; 0 er et gyldigt svar (også før
+migrationen). Uden feltet kører den gamle bundle, uanset hvad «View code» viser.
+
+**Vinduet — hvorfor 90 dage:** tragten og annoncesporet har INGEN dagsgrænse
+(tragtens grænse er `indsendt_at > session_tid`, §2). Det eneste vindue i huset
+for «en webinartilmelding før en ansøgning» er Meta-sendingens fbc-led
+(`WEBINAR_FBCLID_MAKS_DAGE = 90`, CLAUDE.md «fbc har nu tre led»). Samme tal.
+
+**ÅBENT — telefonen på tilmeldingen er UMÅLT.** `webinar_tilmeldinger` har ingen
+telefonkolonne (migration `20260919130000`), og om eWebinars `raa` bærer et
+telefonfelt — og under hvilken nøgle — er ikke målt. Dommen kan bruge et nummer,
+når det gives ind; hooken giver `telefon: null`. I dag bærer NAVNET forslaget.
+Målingen, før telefonen kobles på (Lovable SQL editor):
+`SELECT DISTINCT jsonb_object_keys(raa) FROM public.webinar_tilmeldinger WHERE raa IS NOT NULL;`
+
+**Rækkefølgen (merge lægger kilden; den udruller ikke):**
+
+1. Migration `20261001120000` KØRT i Lovable → SQL editor og MÅLT
+   (EFTER-SELECT'en i filhovedet: tabel 1 · rls true · 3 policies · unik 2 ·
+   grant_anon false · grant_update false).
+2. **Eksplicit udrulning af `webinar-delt`** fra build-chatten (den henter nu
+   koblingerne). **Beviset:** et delt-svar (`/delt/webinar?t=…`, eller kaldet
+   målt serverside som 21/9) bærer feltet `koblinger_talt` (et tal). Et 200 uden
+   feltet er den gamle kode.
+3. **FØRST DEREFTER Update** i Lovable (ansøgningsfladen + `/webinar`).
+4. Første kobling: Green Solars ansøgning → «Kobl til webinaret» → `/webinar`
+   viser sessionen 22/9 med én mere i «blev medlem» (hvis den gmail-tilmelding
+   er forslaget — det er ikke målt, at navnene matcher).
+
+---
+
+## 7j. Vores mål (målstregerne) — og de varme leads, der blev fjernet (1/10-2026)
+
+**RETTET 1/10 kl. 20:13 (Jonas, ordret uddrag):** «Jeg gider ikke se en lang liste
+med emailadresser der har set mere end 75%. Det gør hele siden og overblikket
+pisseligegyldigt.» · «For jeg vil ikke betale mere end 7.500 kr. for et medlem.
+Det passer også med, at vi skal lukke ca. hver tredje der ansøger, som vi har et
+mål om 2500 kr. på.» · «Nicklas skal ikke stå på skrift. Hvis vi har nogen mål,
+så er det VORES mål» · «Det næste webinar sektionen vil jeg gerne have øverst
+faktisk.» · «Jeg kommer ikke til at sidde og ringe til folk. Punktum.»
+
+Det ændrede:
+
+1. **Varme leads er FJERNET** — komponenten, dommen, testene og brugen på
+   /webinar. Begrundelsen: vi ringer ikke til folk, og en liste med mails gør
+   overblikket ligegyldigt; segmentering af dem, der så færdigt, hører til i
+   Klaviyo, ikke på platformens overblik. Afsnit B nedenfor står som historik.
+   `varmeLeads` står tilbage i `FORBUDTE_NOEGLER` som harmløst forsvar, og værn
+   nr. 2 (`findMailVaerdier`) er urørt.
+2. **Målene er VORES** — ikke en persons. Overskriften er «Vores mål» (eyebrow
+   «Målene»); navnet er fjernet fra UI, svaret (feltet `kilde` findes ikke
+   længere), konstanter og kommentarer i begge spejle.
+3. **Pris pr. nyt medlem: under 7.500 kr.** (var 15.000). Regnestykket:
+   7.500 kr. = 3 × 2.500 kr. — vi lukker ca. hver tredje ansøger, og målet pr.
+   ansøgning er 2.500 kr.; i øre 3 × 250.000 = 750.000 (`MAAL_PRIS_PR_MEDLEM_OERE`).
+   Målet gælder ANNONCEKRONERNE alene: bureauets faste fee (4.000 kr./md.) og
+   8 % pr. medlem kommer OVENI og er IKKE regnet med i tallet.
+4. **Rækkefølgen på /webinar** (og /delt/webinar — samme `WebinarVisning`):
+   «Det næste webinar» ØVERST → «Vores mål» → «Afholdt» (session for session)
+   → tragten «Fra tilmeldt til medlem» (Hele vejen) → resten som før (Hvor kom
+   de fra · Hvad det koster · Tiden · Ansøgningerne · Del med et privat link).
+   Låst af `WebinarVisning.maalstreger.test.tsx`.
+
+**Udrulning af rettelsen:** `_shared/webinarMaalstreger.ts` og
+`_shared/webinarDelingSvar.ts` er ændret → **eksplicit udrulning af
+`webinar-delt` FØR Update**. Beviset: et delt-svar, hvis
+`maalstreger.linjer[3].maalOrd` er «under 7.500 kr.», og hvor `maalstreger`
+ikke har feltet `kilde` — kun den nye kode svarer sådan. Ingen migration.
+
+---
+
+*Historik — teksten herunder er skrevet før rettelsen 1/10 kl. 20:13.*
+
+**Udgangspunktet (1/10):** målene kom fra marketingkonsulentens dokument 1/10:
+fremmøde over 55 % · ansøgere blandt dem, der ser det færdigt, over 10 % · pris
+pr. ansøgning under 2.500 kr. · pris pr. nyt medlem under 15.000 kr. (rettet til
+7.500 kr., se ovenfor). Tallene ved start (25/8 + 22/9): 469 tilmeldt · 189
+mødte · 132 så færdigt · 6 ansøgte · 0 medlemmer — tragten knækker efter
+webinaret.
+
+**A. Målstregerne** (`src/lib/webinar/maalstreger.ts`, spejlet ordret som
+`_shared/webinarMaalstreger.ts`, paritet i `webinarDashboard.paritet.test.ts`).
+Målene står ÉT sted (`MAAL_*`). Definitionerne genbruger husets:
+
+| Mål | Tæller / nævner | Vindue | Genbrugt fra |
+|---|---|---|---|
+| Fremmøde | mødte op / tilmeldte på de afholdte rækker, personer (`kommende` er 0 dér; en Replay uden state/tid = «ukendt» = udebleven, som tragten) | alle afholdte sessioner | `taelDeltagelse` på de afholdte (tragten, «I alt») |
+| Ansøgere blandt så-færdigt | «set» (≥ 75 %) med indsendt ansøgning SKARPT efter personens FØRSTE «SET»-SESSION / «set» | alle afholdte sessioner | tragtens grænse-FORM (`faellesEfter`) + `medWebinarKobling` |
+| Pris pr. ansøgning | forbrug / ansøgere blandt personer, hvis første tilmelding faldt i vinduet — KUN indsendt SKARPT efter den første tilmelding (`prisTaelling`) | «Hele perioden» (`valg: "daekning"`) | forbruget: `annoncepriser().samlet`; tællerne: `ansoegerTider` |
+| Pris pr. nyt medlem | samme forbrug / `blevMedlem` (underskrevet OG betalt) med samme grænse | samme | `medlemsTider` (ansøgningens indsendelse) |
+
+Dommen (R2): ÉT ord pr. linje, `naaet` → «nået» · «ikke nået» · «kan ikke
+afgøres», for alle fire. Procentmål med Wilson 95 % — «nået»/«ikke nået» kun når
+HELE intervallet ligger på én side; under 5 ERSTATTER «for få» procenten.
+Kronemål uden interval, dømt på det VISTE heltal i kroner (2.499,60 kr. står som
+«2.500 kr.» og er IKKE under 2.500); pris = mål er «ikke nået». Under 5 personer
+(`TROVAERDIG_FRA`) sættes INGEN pris («for få»); med 0 og et forbrug står «0
+medlemmer for N kr.». Alle tre er «kan ikke afgøres». «Ingen data» uden forbrug,
+udækket vindue eller anden valuta end DKK. Hver linje bærer `grundlagOrd`
+(«alle afholdte webinarer 25/8–30/9» · «annoncevinduet 12.–30. september»),
+skrevet af dommen og tegnet under rækken på begge flader. **Vinduet står fast på
+«Hele perioden»** — prisafsnittets periodevælger flytter ikke målstregerne.
+
+Fladen (`WebinarView.tsx`, sektionen «Vores mål» — fra 1/10 20:13 under «Det næste webinar») skriver kun
+dommens ord og tegner dommens bar-positioner; kildeværn i `maalstreger.test.ts`.
+`WebinarView`s `nu` tikker hvert minut (som `HbMemberShell` og
+`useBoardroomScore`); et `nu` udefra står stille. Den delte side får dommen
+gennem `webinar-delt` → `bygDeltSvar` som feltet `maalstreger` (tal, ingen
+rækker); uden feltet (gammel function) tegnes intet. Den delte sides `nu` er
+serverens ved hvert kald.
+
+**B. Varme leads — FJERNET 1/10 kl. 20:13 (se øverst i §7j); historik:**
+(`src/lib/webinar/varmeLeads.ts`, KUN rådgiveren; INTET spejl): «set» på en afholdt session med tidspunkt inden for 14 dage (inklusiv),
+én linje pr. person (nyeste session), nyeste først. Ude er: (a) den, der har
+indsendt en ansøgning SKARPT efter sin FØRSTE «set»-session i vinduet (tragtens
+grænse; en gammel ansøgning holder hende ikke ude); (b) medlemmer —
+`medlemsMails` over de ansøgninger, hooken allerede henter (et medlem uden
+ansøgning gennem platformen er IKKE i den kilde); (c) prøver (`ewebinar_id`
+«PROEVE-», `ewebinar-proeve`) og husets domæner (`topix.dk`, `theboardroom.dk`)
+— konstanterne `PROEVE_ID_PRAEFIKS`/`INTERNE_DOMAENER` ét sted. **Tiden regnes
+fra sessionens START**, og teksten siger det: «webinaret begyndte for N timer
+siden», flaget «begyndte inden for 24 timer». `webinar_tilmeldinger` har
+`updated_at` og `sidste_haendelse_at`, men ingen er procentens tidspunkt —
+`ewebinar-import` sætter `sidste_haendelse_at` til kørselstiden på hver række,
+den skriver. Nicklas' anden betingelse (omsætning over 2 mio.) kan IKKE dømmes:
+ingen CVR/omsætning på en tilmelding; husets CVR-opslag (`ansoegning-cvr`,
+`ansoegning-cvr-opslag`, `berig-virksomheder`, DataCVR 25 opslag/døgn) er
+bevidst IKKE brugt. Persondata: `varmeLeads` står i `FORBUDTE_NOEGLER`; kildeværnet
+(`varmeLeads.test.ts`) fælder enhver function, der importerer FILEN, kalder
+dommen eller selv hedder `varmeLeads`, og den delte side, der nævner den.
+**Værn nr. 2 i drift:** `findMailVaerdier` (`webinarDelingSvar.ts`) afviser
+ethvert delt-svar, hvor en STRENGVÆRDI matcher `/[^\s@]+@[^\s@]+\.[^\s@]+/` —
+500 `svar_afvist`, stien i loggen, aldrig værdien. **Næste skridt:** en
+«ringet»-markering kræver en tabel.
+
+**Rettet 1/10 efter det tekniske råds fund på `5e0f8d1a`:** R1 pristællerne
+talte gamle ansøgere og eksisterende medlemmer (annoncepriserne har ingen grænse
+i tid) → egen tælling med grænsen «efter første tilmelding»; R2 «over/under
+målet» betød det modsatte for procent og kroner → «nået/ikke nået»; K8 grænsen
+for led 2 var første AFHOLDTE session → første «set»; K9 dommen faldt på øre,
+tallet stod i kroner; B3–B6 som ovenfor; B7 grundlaget i ord; K11 paritetsprøven
+rammer nu Wilson- og kronegrenen (≥ 5 personer, DKK); K12 fodnoten bruger
+`TROVAERDIG_FRA` og uret tikker; K13 kommentaren om nævneren. Annonceprisernes
+egen definition er urørt.
+
+**Rækkefølgen:** merge → **eksplicit udrulning af `webinar-delt`** (den trækker
+en NY delt fil ind, `webinarMaalstreger.ts`, og har fået værn nr. 2) →
+**beviset:** et delt-svar bærer feltet `maalstreger` (fire linjer), og hver
+linje bærer `grundlagOrd` — kun den rettede kode svarer med det → FØRST DEREFTER
+Update. Ingen migration.
+
 ---
 
 ## 8. 20. september — sporet lukkes fra klik til ansøgning, og fem felter viste sig at være observationer
@@ -445,3 +854,6 @@ egenskab, aldrig et råt felt at dømme på.
 rigtig ansøgning (TESTAD-prøven er kunstig); at `meta_hentning` får sin første
 række i nat; at kampagnerne sender mandag 14:05 (Recipients ≈ 354). §7's liste
 gælder stadig.
+
+
+**Det tekniske råds lave fund til #1179 (Fable, 30/9 aften — bogført, ikke rettet):** (1) klik-tabellen har ingen unik nøgle — én modtager kan give mange rækker; tallet læses derfor altid som `count(distinct mail_id)`. (2) Et klik logges, før functionen ved, om videoen kan vises — «klik» betyder «trykkede», ikke «så». (3) `webinar-video` er en ubegrænset viderestiller til Bunnys faste vært for hvem som helst (ingen persondata; accepteret). (4) Fejler sporskrivningen efter afsendelsen, bærer mailen et id, ingen række har — klikket dømmes «ukendt». (5) Tørkørslen svarer `proeve` for video-status, når `email` er givet, også med `dry_run`. (6) Konflikt med `feat/webinarmotor-skive3` i `webinar-mail-cron`: den, der merger sidst, beholder både `video` i `bygWebinarMail` og `id: mailId` i sporet og kører `webinarMail.guard` + `webinarMotorSkive3.guard`.

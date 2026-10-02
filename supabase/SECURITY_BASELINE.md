@@ -66,6 +66,31 @@ to the entire access-control model.
   `community_svar`, `community_reaktioner`, `community_visninger`
   (advisor policies unchanged, gated by `has_role`)
 - Introduced in migration `20260811160000_community_adgang.sql`
+- **2/10-2026 (migration `20261002242000`, IKKE KØRT, kræver grønt lys):** the two
+  member SELECT policies (`community_traade`, `community_svar`) and the read RPCs
+  move to `kan_laese_community` (below). All write policies and write RPCs stay
+  on this function — it is the WRITE verdict for community from then on.
+
+### `kan_laese_community(_user_id uuid) → boolean` (2/10-2026, migration `20261002242000_community_gaest_laeser.sql`, IKKE KØRT — KRÆVER GRØNT LYS)
+- **READ-only community verdict** (Jonas 14/9: «En gæst ser Community, men skriver
+  ikke»): `har_aktivt_medlemskab(uid) OR EXISTS` membership in a company with
+  `vis_i_netvaerk = false AND is_legat = false AND contract_end_date IS NULL AND
+  is_demo IS DISTINCT FROM true AND data_slettet_at IS NULL` (the guest; demo and
+  deleted companies excluded — council finding 2/10; `er_kunde` deliberately not read,
+  it is a counting marker, never an access verdict). Narrow by design: an EXPIRED company with the flag is not a guest; a
+  company without end date and without the flag is not a guest.
+- STABLE, SECURITY DEFINER, `search_path = public`; `REVOKE ALL FROM PUBLIC, anon`;
+  `GRANT EXECUTE TO authenticated, service_role`.
+- Consumed ONLY by: policies «Members can view active threads» / «Members can view
+  active replies» (DROP + CREATE same name/command/role/shape — only the verdict
+  changes; PERMISSIVE grants of a yes, nothing to deny, §5) and the gates of
+  `get_community_feed`, `get_community_traad`, `get_community_svar`,
+  `maa_se_community_billede`, `maa_se_community_fil` (bodies otherwise identical to
+  their latest migration — source guard `communityGaest.guard` dom 3).
+- NOT consumed by: any INSERT/UPDATE/DELETE policy, `community_reaktioner`,
+  `community_visninger`, `registrer_community_visning`, `get_community_medlemmer`
+  (also the recipient list for the post mail), storage upload/delete. Truth table
+  and FØR/EFTER-SQL: `docs/adgangsdomme.md` §7 and the migration header.
 
 ### `har_aktivt_abonnement(_user_id uuid) → boolean`
 - **Fail-closed** exit-subscription verdict (dated note 2026-08-13): true
@@ -152,6 +177,67 @@ to the entire access-control model.
   `FROM anon`
 - Introduced in migration `20260812150000_community_naevnelse_rpc.sql`
 
+### `marker_community_spoergsmaal(p_traad_id uuid, p_markeret boolean) → void` (rådgivernes «Spørgsmål» 2/10-2026, migration `20261002243000` — IKKE KØRT, KRÆVER JONAS' GRØNNE LYS)
+- Advisor gate FIRST (`has_role(auth.uid(), 'advisor')`, RAISE otherwise), before any
+  UPDATE — `skjul_community_traad` shape; a service account (`public.tjenestekonti`)
+  is refused right after the gate
+- Then `pg_advisory_xact_lock(hashtext('community_spoergsmaal'))` (rådets fund 2/10):
+  two concurrent markings run one after the other, so the second clears the first's
+  row — no 23505 from the partial unique index reaches the user
+- Only an `aktiv` thread; only a thread whose AUTHOR is an advisor (a member's post
+  never becomes «Spørgsmål fra rådgiverne»); row locked `FOR UPDATE`
+- `true` = clear every other marking, then set `now()` on this one (clear BEFORE set,
+  so the partial unique index is never hit); `false` = clear this one. Touches neither
+  `status`, `fastgjort` nor `updated_at`
+- VOLATILE, SECURITY DEFINER with `search_path = public`; grants: `EXECUTE TO
+  authenticated` only — `REVOKE ALL FROM PUBLIC` and `FROM anon`
+- Measured on a local Postgres 16 stub (not prod): member RPC → RAISE; member direct
+  UPDATE/INSERT of the column → RAISE (trigger); advisor on a member's post → RAISE;
+  second direct marking → unique_violation; new marking replaces the old
+
+### `get_community_feed(p_limit, p_offset)` / `get_community_traad(p_traad_id)` — three columns appended (same migration, DROP + CREATE)
+- RETURNS TABLE gains `spoergsmaal_markeret_at timestamptz`, `jeg_har_svaret boolean`
+  (caller has an ACTIVE reply in the thread) and `antal_svarere bigint` (distinct
+  authors of ACTIVE replies, thread author excluded) LAST; the feed orders
+  `(spoergsmaal_markeret_at IS NOT NULL AND status = 'aktiv') DESC` before the
+  canonical sort (a hidden marked thread is not on top for advisors)
+- Changing RETURNS TABLE requires DROP, which drops grants → REVOKE/GRANT repeated
+  (20260812090000 form); access check, status rule and everything else are
+  `20261002242000` (the guest read verdict: gate `kan_laese_community`, not
+  `har_aktivt_medlemskab`) verbatim — until that branch is merged the guard compares
+  with a verbatim fixture of its two read RPCs
+  (`src/lib/__fixtures__/community_gaest_laeser_20261002242000_laese_rpc.sql`), and
+  once the file exists the fixture must equal it block for block — the source guard `communitySpoergsmaal.guard` strips the
+  `-- SPOERGSMAAL` lines and requires the rest to match word for word, with ONE declared
+  exception: the feed body's two comment lines «Nøjagtig den kanoniske sortering …»
+  (no longer true) are replaced by marker lines (`ERSTATTEDE_KOMMENTARLINJER`). Before running:
+  `20261002242000` must be RUN, and `pg_get_functiondef` in prod must equal
+  `20261002242000` (gate `kan_laese_community`), otherwise STOP
+- `get_community_svar` untouched
+
+### `community_mest_laest_uge() → TABLE (traad_id uuid, laesere bigint)` (Community «Mest læst denne uge» 2/10-2026, migration `20261002275000` — IKKE KØRT, KRÆVER JONAS' GRØNNE LYS)
+- Why DEFINER: `community_visninger` is self-only SELECT for members (RLS), so a member
+  cannot count other people's views. The function returns ONLY aggregates (a count per
+  thread — the same kind of number as `antal_visninger`, which the feed already shows);
+  never a user id
+- Gate FIRST (before `RETURN QUERY`): `auth.uid() IS NOT NULL AND
+  (kan_laese_community(auth.uid()) OR has_role(auth.uid(), 'advisor'))` — otherwise an
+  empty result, not an error (get_community_feed shape). SQL editor/service role:
+  `auth.uid()` NULL → empty
+- Counts DISTINCT `bruger_id` with `set_at >= mandag 00:00 Europe/Copenhagen` of the
+  current ISO week (`date_trunc('week', now() AT TIME ZONE 'Europe/Copenhagen') AT TIME
+  ZONE 'Europe/Copenhagen'`), only threads with `status = 'aktiv'`, the thread's author
+  and service accounts (`public.tjenestekonti`) excluded; at most 20 rows, most first.
+  `set_at` is the FIRST view (`registrer_community_visning` inserts `ON CONFLICT DO
+  NOTHING`), so «readers this week» = first-time readers this week
+- plpgsql, STABLE, SECURITY DEFINER with `search_path = public, pg_temp`; no writes, no
+  other DDL; `REVOKE ALL FROM PUBLIC` and `FROM anon`; `GRANT EXECUTE TO authenticated,
+  service_role`. Client: `communityApi.hentMestLaestUge` (fail-soft on 42883/PGRST202)
+  + pure `communityMestLaest.vaelgMestLaest` (threshold 3, a tie = no badge). Source
+  guard `communityMestLaest.guard`. Not exercised in a real Postgres in the draft — the
+  header carries FØR/EFTER SQL (one result set) and a transaction-and-rollback probe;
+  rollback = `DROP FUNCTION IF EXISTS public.community_mest_laest_uge();`
+
 ### Cron-vagten: `vagt_cron()`, `get_cron_vagt()`, table `cron_vagt_log` (migration `20260909234500_cron_vagten.sql`)
 - Background (9/9): `vault.secrets` was emptied (~06:52, Lovable's mail update); all nine cron jobs sent `Bearer ` with no key and got 401 for ~17 hours while `cron.job_run_details` said "succeeded" (that only means `net.http_post` was enqueued). Nobody noticed until 23:39.
 - `vagt_cron()`: SECURITY DEFINER, `search_path = public`, run hourly by pg_cron (`vagt-cron`, `7 * * * *`) as `postgres`. **Pure SQL — no `net.http_post`, no decryption of any secret** (it only `count(*)`s `vault.secrets` by name), so it works precisely when everything else is down. Reads `vault.secrets`, `net._http_response`, `cron.job_run_details`, `cron.job`, `notifications`; writes `cron_vagt_log` and, when red, one `advisor_notifications` row per advisor (`type = 'drift'`, deduped on unread same title within 24 h). EXECUTE revoked from PUBLIC, anon and authenticated — only the cron runner calls it.
@@ -159,6 +245,7 @@ to the entire access-control model.
 - `cron_vagt_log`: RLS enabled; SELECT for advisors only; no client write policies (only the function writes).
 - Rules and thresholds are documented in the migration header; the paused-queue case is yellow, not red, by decision 9/9.
 - Five versions 9–10/9 (`20260910100000` alias, `20260910120000` join + PK-only read of `cron.job_run_details`, `20260910130000` `array_append`, `20260910140000` messenger): `advisor_notifications.company_id` is now **nullable** — a drift message is not about a company (previously `NOT NULL` since `20260226070216`; every other writer still sets it). The notification insert runs in its own EXCEPTION block so a messenger failure never rolls back the log row.
+- **Driftsagentens læser `drift_agent_laes()`** (udkast 30/9-2026, `20260930151000_driftsagent_rettigheder.sql` — **a NEW SECURITY DEFINER, requires Jonas' explicit go-ahead before it is run; not run**): takes the vagt's road to `cron`/`net` (definer owned by `postgres`) instead of granting `service_role` USAGE on schema `cron` (which, with pg_cron's functions' EXECUTE possibly left to PUBLIC — unmeasured — would let `service_role` call `cron.schedule`/`cron.unschedule`). `ALTER FUNCTION … SECURITY DEFINER` + `SET search_path = public, pg_temp`; no parameters; STABLE; SELECT-only (no INSERT/UPDATE/DELETE, `kald_edge`, `net.http_post`, `cron.schedule` — `driftDom.guard` dom 3); dynamic SQL only over a constant list of spor tables; never returns `cron.job.command` or a response body (only `drift_agent_kerne`'s numbers/booleans). EXECUTE revoked from PUBLIC, anon and authenticated; granted to `service_role` only. The header's FØR/EFTER SQL measures owner, `prosecdef`, `proconfig`, EXECUTE per role and `has_schema_privilege('service_role','cron','USAGE')` / `has_function_privilege('service_role','cron.schedule(text,text,text)'|'cron.unschedule(text)','EXECUTE')` — the cron/net lines must be unchanged. Rollback: back to SECURITY INVOKER.
 - Ninth version 16/9 (`20260916170000_vagtens_samlemail.sql`, explicit go-ahead from Jonas 16/9 — SECURITY DEFINER functions are on the CLAUDE.md FORBIDDEN list): the samlemail types (`event_published`, `community_opslag`, mirrored from `_shared/samlemail.ts`) are kept out of `usendte_30m` and only count as overdue once the latest samlemail window (17:00 Copenhagen, open ≥ 30 min) opened after the row was ready; waiting rows are reported in `tal.samlemail_venter`. Header, grants (revoked from PUBLIC/anon/authenticated) and everything else unchanged — enforced by `src/lib/__tests__/vagtSamlemail.guard.test.ts`, which strips the marked `-- NIENDE` lines and requires the remaining body to equal the eighth version byte for byte, and requires the type list and hour to match `samlemail.ts`.
 
 ### Member-visibility RPCs: `get_member_profile(p_user_id uuid)`, `get_event_participants(p_event_id uuid)`, `get_member_directory()`
@@ -250,6 +337,29 @@ to the entire access-control model.
 ### `protect_webinar_deling_spor()` on `webinar_deling_spor BEFORE UPDATE OR DELETE` (udkast webinar-deling 21/9-2026, migration `20260922020000`)
 
 Mirror of `protect_aftale_spor` (same body, same rule): UPDATE always raises; DELETE raises only when direct (`pg_trigger_depth() <= 1` inside the trigger) — the cascade from `webinar_delinger` runs inside the RI trigger (depth 2) and passes, so a share and its trail can be deleted together (`oprettet_af` is `on delete restrict`). The trail (`webinar_deling_spor`) is append-only for every role including `service_role`. No SECURITY DEFINER; `search_path = public`. Not exercised in a real Postgres in the draft (no local/WASM Postgres) — the migration header carries the transaction-and-rollback probe; the SQL is locked by `webinarDeling.guard` dom 4.
+
+### `companies_medlem_kolonnevaern()` on `companies BEFORE UPDATE` (udkast 29/9-2026, migration `20260930090000` — KØRT i prod 30/9-2026)
+- Sikkerhedsanalysen 29/9 fund 1 (KRITISK): «Members can update own company» har ingen kolonnebegrænsning, så et medlem kunne selv sætte `contract_end_date`, `is_legat`, `*_session_used_at`, prisfelter, `stripe_customer_id`, `status` … Kolonne-GRANTs duer ikke (rådgivere deler rollen `authenticated`).
+- Når kalderen er et medlem — `current_user` eller JWT-rollen er `authenticated`/`anon`, og `has_role(auth.uid(), 'advisor')` er falsk — afvises (42501) enhver ændret kolonne UDEN for hvidlisten: `name, cvr_number, contact_email, website, contact_phone, industry_code, industry_label, logo_url, weekly_focus_enabled, description, offboarding_requested_at, onboarding_completed` (målt i `src/` 29/9). Fail-closed: en ny kolonne er beskyttet, til nogen åbner den.
+- Rådgivere/admin, `service_role` (edge functions) og `postgres` uden JWT (SQL editor, migrationer, pg_cron) passerer. SECURITY INVOKER, `search_path = public`; ingen eksisterende funktion eller companies-policy er rørt.
+- Kildeværn: `src/lib/__tests__/companiesKolonnevaern.guard.test.ts` — hvidlisten ⊆ ikke-forbudte kolonner, hver medlemssti i `src/` skriver kun hvidlistede kolonner, hver fil der opdaterer companies er klassificeret (medlem/rådgiver), og hvidlisten åbner intet ubrugt. Bevis-kørslen (rullet tilbage) står i migrationens filhoved.
+- 1/10-2026: `jonas_session_tilbudt_at` (migration `20261001110000`, rådgiverens «Session med Jonas · tilbudt») står IKKE på hvidlisten. Den er derfor beskyttet for medlemmer uden ændring i triggeren og står i værnets `FORBUDTE`.
+- Åbent: `name` og `cvr_number` er medlemsskrivbare (Indstillinger) — analysens A4 (navnet i invitationsmailen) og CVR-genbrugskæden er ikke lukket af værnet.
+
+### `protect_maaned_foerste_godkendelse()` on `maaned_foerste_godkendelse BEFORE UPDATE` (Boardroom Score 30/9-2026, migration `20260930130000`)
+
+UPDATE always raises, for every role including `service_role` — the table is memory («when was this month FIRST approved»), and memory is never edited. DELETE has no client policy; the only DELETE is the cascade from `companies`. Not SECURITY DEFINER; `search_path = public`; EXECUTE revoked from PUBLIC/anon/authenticated.
+
+### `husk_foerste_godkendelse()` on `financial_report_facts AFTER INSERT OR UPDATE OF data_basis` (same migration)
+
+Writes one row per `(company_id, period_key)` into `maaned_foerste_godkendelse` with `now()` when a facts row BECOMES `measured` (INSERT, or UPDATE that flips `data_basis` to measured); `ON CONFLICT DO NOTHING` — the first stays. SECURITY DEFINER with `search_path = public` for the same reason as `cleanup_facts_on_report_delete`: every writer of facts (`commit_report_facts`, the annual/baseline edge functions with service role) must never have its INSERT rolled back by RLS on the memory table. It inserts into that one table only; EXECUTE revoked from PUBLIC/anon/authenticated (a trigger function cannot be called directly anyway). No existing SECURITY DEFINER function was changed. Proof of operation is a run, not the catalog — see `docs/boardroom-score.md` §4a for the FØR/EFTER query and the «replace a month, timestamp must not move» probe.
+
+### `community_traade_spoergsmaal_vaern()` on `community_traade BEFORE INSERT OR UPDATE` (rådgivernes «Spørgsmål» 2/10-2026, migration `20261002243000` — IKKE KØRT, KRÆVER JONAS' GRØNNE LYS)
+
+`spoergsmaal_markeret_at` can only be set (INSERT) or changed (UPDATE) by an advisor (`has_role(auth.uid(), 'advisor')`, admin inherits); everyone else gets RAISE. **Setting** it to a value additionally requires — the RPC's own rules, because advisors have UPDATE on ALL threads and a direct PostgREST PATCH must be judged the same (rådets fund 2/10) — that the caller is not a service account (`NOT EXISTS tjenestekonti`), the thread's author is an advisor, and `NEW.status = 'aktiv'`. **Hide/delete clears it:** an UPDATE leaving `NEW.status <> 'aktiv'` sets the column to NULL for any caller (a consequence of the status change, checked before the depth and role checks). A marked row updated in OTHER columns is not judged (the view counter writes the thread on a member's visit) — members have their own INSERT/UPDATE policies on the table (20260811160000), so without the trigger a member could mark their own post through PostgREST. `pg_trigger_depth() > 1` lets the counter triggers' indirect updates through, same shape as `protect_community_traad_immutable_fields`, which is deliberately NOT changed (FORBIDDEN list) — this is an additive trigger of its own. Not SECURITY DEFINER; `search_path = public`. `auth.uid()` is NULL in the SQL editor and for service role → `has_role` false → the column can only be set by a logged-in advisor (fail-closed on purpose). «At most one at a time» is the partial unique index `community_traade_et_spoergsmaal_uidx ON ((true)) WHERE spoergsmaal_markeret_at IS NOT NULL`.
+### `opkald_raadgiver_kolonnevaern()` on `opkaldsanmodninger BEFORE UPDATE` (2/10-2026, migration `20261002270000`, IKKE KØRT)
+
+A client (`authenticated`/`anon`, judged like `companies_medlem_kolonnevaern`) may change only `ringet_at` and `ringet_af`, and `ringet_af` must equal `auth.uid()`. service_role and postgres without a JWT pass. Undoing («fortryd», `ringet_at`/`ringet_af` → null) is DELIBERATELY open to any advisor — `OLD.ringet_af = auth.uid()` is not required (rådets fund 5, 2/10: advisors share all members, Jonas 1/10). See §5 «Må vi ringe til dig?».
 
 ## 4. Data Normalization Triggers
 
@@ -415,6 +525,12 @@ overlevende tabellers politikker med koncern-referencer fandt kun denne
 ene ramt (pulse_checkins' gruppe-politik var eksplicit erstattet).
 Fremtidige CASCADE-drops skal efterfølges af `pg_policies`-diff i prod.
 
+**Addendum (2026-09-29, sikkerhedsanalysen fund 6 og 7 — migration `20260930090000`, KØRT i prod 30/9-2026)**:
+- **Fund 7:** «Members can insert own notifications» på `advisor_notifications` (WITH CHECK `member_id = auth.uid()` alene; `type`, `advisor_id`, `title`, `body` frie) droppes. Ingen klient brugte den (eneste klient-insert, `src/lib/advisorNotifications.ts`, havde ingen kaldere og er slettet); alle skrivere er edge functions med service role. `advisor_notifications` har derefter ingen klient-INSERT.
+- **Fund 6 — ÅBENT:** «Users can insert own reports/milestones/kpi targets/benchmarks» tjekker stadig kun `user_id` (BACKLOG [P4] ovenfor). En WITH CHECK på `company_id = user_company_id(auth.uid())` er ikke skrevet, fordi `user_company_id` tager én vilkårlig række (LIMIT 1) og `company_members` ikke er unik på `user_id` — et medlem i to virksomheder ville miste skriveadgang. Migrationens FØR-SELECT sektion 5–6 måler antallet af brugere i flere virksomheder og eksisterende rækker uden for skribentens virksomhed; stramningen skrives, når tallene er læst.
+  - **Forstærket for `milestones` (1/10-2026 aften, «Dine mål»-motoren, det tekniske råds fund 9):** hullet har nu to følger mere. (a) Målet står på den ANDEN virksomheds forside og i «Dine mål» (hentningen filtrerer på `company_id`, `src/hooks/dineMaalGrundlag.ts:hentMaalMedTal`). (b) Triggeren `milestones_hoejst_tre_aktive` tæller pr. `company_id` — tre fremmede aktive mål blokerer offerets egne («Du har allerede 3 aktive mål»). Desuden har «Users can update own milestones» og «Company members can update company milestones» INGEN WITH CHECK (Postgres bruger da USING), så et medlem kan også flytte sit eget mål til en fremmed `company_id` ved UPDATE.
+  - **Forberedt, IKKE KØRT:** `supabase/migrations/20261002280000_milestones_with_check.sql` (første linje «-- IKKE KØRT. KRÆVER JONAS' GRØNNE LYS (RLS-stramning, SECURITY_BASELINE fund 6).»): `ALTER POLICY … WITH CHECK` på de fire medlemspolitikker for INSERT/UPDATE (`auth.uid() = user_id AND company_id = public.user_company_id(auth.uid())` for «Users …», `company_id = public.user_company_id(auth.uid())` for «Company members …»). Ingen DROP, USING røres ikke. Politiknavnene er KODELÆSTE (20260223155456:22–23, 20260224222456:192/196) og SKAL måles i `pg_policy` før kørsel (filens FØR-SQL sektion 1); sektion 2 (brugere i flere virksomheder) skal være 0, ellers STOP og vælg med Jonas (fx en `company_members`-baseret EXISTS). Tilbagerulningen står i filen. Kildeværnet `maalSkriv.guard` dom 2 tillader filen KUN i denne form. Reports/kpi targets/benchmarks er IKKE omfattet.
+
 ### Advisor access (full read, scoped write)
 ```sql
 has_role(auth.uid(), 'advisor'::app_role)
@@ -445,7 +561,25 @@ committet for paritet som migration
 ```sql
 has_role(auth.uid(), 'admin'::app_role)
 ```
-Applied to: `app_config` management, `user_roles` management
+Applied to: `app_config` management, `user_roles` management,
+`tjenestekonti` (FOR ALL, USING + WITH CHECK — migration
+`20260930140000_tjenestekonti.sql`, 30/9-2026)
+
+**`tjenestekonti` (30/9-2026)**: `user_id` (PK, FK auth.users ON DELETE
+CASCADE), `formaal`, `oprettet_at`. RLS enabled. Two policies: "Admin
+skriver tjenestekonti" (FOR ALL TO authenticated, admin predicate above)
+and "Indloggede ser tjenestekonti" (FOR SELECT TO authenticated, USING
+true) — every logged-in user may read WHICH user_ids are service accounts
+(the client filters advisor lists from SECURITY DEFINER RPCs with it,
+`src/lib/tjenestekonto.ts`); no other column is sensitive. No member or
+advisor write path: a client cannot mark itself a service account (the
+only effects of the mark are "no inactivity logout" and "not shown as a
+person", and — 30/9 — "viewing writes no read marks"). Grants written out:
+SELECT/INSERT/UPDATE/DELETE to authenticated (the policies decide rows and
+who), anon: REVOKE ALL. Measure before the Update click with the migration's
+EFTER-SELECT (efter_grant_authenticated = true, efter_grant_anon = false) —
+a REST probe with the anon key cannot return 200 for this table. No
+function, trigger or existing policy touched.
 
 ### Self-only policies
 ```sql
@@ -463,9 +597,29 @@ update progress" (UPDATE, USING + WITH CHECK same predicate), migration
 `20260805200000_member_progress_advisor_write.sql`. Purpose: manual
 Circle-migration + ongoing advisor marking via `/admin/indhold/fremdrift`.
 Policies stack permissively; the self-only policy is untouched. **Accepted
-condition (approved 2026-08-05)**: `acknowledged_at` is SOURCE-LESS — no
-audit trail distinguishes member-set from advisor-set completion (only
-`updated_at` changes). Members see advisor-set marks as their own.
+condition (approved 2026-08-05) — CLOSED 2026-10-02 (Akademiet F0)**: until
+F0, `acknowledged_at` was SOURCE-LESS — no audit trail distinguished
+member-set from advisor-set completion, and members saw advisor-set marks as
+their own. Since migration `20261002260000_member_progress_markering.sql`
+(NOT YET RUN at the time of writing) the advisor's mark lives in its own
+columns `markeret_at`/`markeret_af`; the client (`adminContentApi.batchMarker`)
+writes ONLY those, and `itemProgressState` (progressState.ts) treats a member
+timestamp EQUAL to `markeret_at` as the advisor's stamp (the backfilled batch
+rows from 5/8 and 12/8). Enforcement in the database: migration
+`20261002261000_member_progress_markering_vaern.sql` adds the BEFORE INSERT OR
+UPDATE trigger `member_progress_markering_vaern` (same shape as
+`protect_weekly_focus_seen_only`): an authenticated user other than the row's
+owner may not write `seen_at`, `acknowledged_at`, `skipped_at`,
+`last_position_seconds`, `brugbar`, `brugbar_at` — except clearing
+`acknowledged_at`/`seen_at` to NULL when they equal `OLD.markeret_at` (undoing
+the advisor's own backfilled stamp). The owner may not set or change
+`markeret_at`/`markeret_af`, and an advisor may not re-stamp a backfilled
+batch row (stamp equal to `OLD.markeret_at`) without clearing that stamp in
+the same write. `auth.uid() IS NULL` (service role, SQL
+editor) passes. No policy changed, no SECURITY DEFINER. Source guard:
+`src/lib/hjemmebane/__tests__/akademiF0.guard.test.ts`. Rows written by
+advisors before 2/10 as single-row acknowledgements remain indistinguishable
+from the member's own (documented ceiling, `docs/akademi-grundlag.md` §7–§8).
 
 ### Platform-global content (authenticated read published)
 ```sql
@@ -617,6 +771,31 @@ different channel (Realtime Concepts). The eight existing `postgres_changes`
 channels are unchanged. `has_role` is called, not modified. The presence
 payload carries no PII (`online_at` only; the presence key is the user id,
 which the advisor already reads via `profiles`).
+**Superseded in the client 30/9-2026** by the heartbeat table below: the
+Presence channel never showed a name (members only had INSERT and were
+most likely rejected at join — silently; unproven). The two policies above
+are left in place (no DROP in that PR); no client opens the channel.
+
+### Online heartbeat — `online_hjerteslag`
+Migration `20260930120000_online_hjerteslag.sql` (30/9-2026). One row per
+user (`user_id` PK → `auth.users` ON DELETE CASCADE, `sidst_set`). RLS
+enabled; four PERMISSIVE policies, all `to authenticated`:
+- INSERT with check `user_id = auth.uid()`; UPDATE using + with check
+  `user_id = auth.uid()` — a member writes only its own row.
+- SELECT using `user_id = auth.uid()` — own row only. REQUIRED for the
+  upsert: PostgreSQL applies the SELECT policy to the existing and new row
+  of `INSERT … ON CONFLICT DO UPDATE` (CREATE POLICY, «Policies Applied by
+  Command Type»). A member sees nothing about anyone else.
+- SELECT using `has_role(auth.uid(), 'advisor')` — advisors (admin
+  inherits) see all rows.
+No DELETE policy; DELETE and TRUNCATE revoked from `authenticated`
+(TRUNCATE ignores RLS), everything revoked from `anon`. A BEFORE INSERT OR
+UPDATE trigger (`online_hjerteslag_servertid`, SECURITY INVOKER) sets
+`sidst_set = now()` — the client clock is never trusted. The advisor reads
+through `online_hjerteslag_friske(vindue_sekunder)` (SQL, STABLE, SECURITY
+INVOKER — RLS decides; execute granted to `authenticated` only). No
+SECURITY DEFINER. `has_role` is called, not modified. Guard:
+`src/components/hjemmebane/forside/__tests__/online.guard.test.ts` dom 1–3, 8.
 
 ### Shared member-profile layer (`member_profiles`)
 - Purpose: the PERSONAL layer of the member profile — `linkedin_url`,
@@ -740,6 +919,21 @@ skrivende edge functions bruger `SUPABASE_SERVICE_ROLE_KEY`.
   RLS slået til UDEN policies: ingen klient læser eller skriver; læsning i SQL
   editor. Ingen persondata (værn `ansoegningVisning.guard`). Migration
   `20260928170000_ansoegning_visninger.sql`, udkast 28/9-2026.
+- `drift_agent_koersler` og `drift_agent_jobs` — driftsagentens egen log og
+  «første gang set» pr. cron-job, skrevet KUN af `drift-agent-cron` (Bucket B).
+  RLS slået til UDEN policies. Ingen persondata: fundenes sætninger bygges af
+  job-/spornavne, tal og klokkeslæt, og pg_crons fejlbesked føres gennem
+  `udenMail()`. `public.drift_agent_kerne(text)` er SECURITY INVOKER;
+  `public.drift_agent_laes()` oprettes SECURITY INVOKER og gøres til SECURITY
+  DEFINER af `20260930151000` (se «Driftsagentens læser» under Cron-vagten —
+  KRÆVER Jonas' grønne lys); begge EXECUTE kun til `service_role`; af et
+  HTTP-svar tages kun tal og sandhedsværdier, og `cron.job.command` returneres
+  aldrig. **Ingen GRANT på skemaerne `cron` eller `net` til `service_role`**
+  (første udgave af `20260930151000` gav USAGE på `cron` — det kan åbne
+  `cron.schedule`/`cron.unschedule`, altså skriveret; fjernet efter teknisk råd
+  30/9). `drift_agent_jobs` fyldes i migrationen med de eksisterende jobs.
+  Migration `20260930150000_driftsagent.sql`, udkast 30/9-2026 (værn
+  `driftDom.guard`).
 - `company_actions` — afviger fra de øvrige: klienter HAR SELECT
   (medlem company-scoped, rådgiver bredt); kun skrivning er
   service-role-only, se afsnittet ovenfor
@@ -804,7 +998,39 @@ skrivende edge functions bruger `SUPABASE_SERVICE_ROLE_KEY`.
 - **Opbevaring 12 måneder (Jonas 21/9):** cron-jobbet `webinar-delinger-opbevaring` (`52 4 * * *`, migration `20260922021000`, ren SQL) sletter delinger 12 måneder efter det tidligste passerede af `lukket_at`/`udloeber_at`; sporet følger med cascaden. Antallet står i `cron.job_run_details.return_message` («DELETE n»).
 - **Sporet er append-only:** INSERT/SELECT for service_role, SELECT for rådgivere, ingen UPDATE/DELETE-politik, og `protect_webinar_deling_spor` (§3) nægter UPDATE altid og DELETE direkte (cascaden fra `webinar_delinger` slipper igennem). Hver visning og afvisning PÅ EN KENDT DELING logges med IP/user-agent (`deling_id NOT NULL`); et ukendt token skrives aldrig i sporet (det kan ikke slettes, og der er ingen rate-limit) — kun i functionens log, uden tokenet.
 
-### Webinarmotoren (`webinarer`, `webinar_sessioner`, `webinar_gentagelser`, `webinar_interaktioner`, `webinar_deltagelser`, `webinar_pulser`, `webinar_motor_log`, `webinar_svar`, `webinar_reaktioner`, `webinar_spoergsmaal`) — skive 1, 30/9-2026, migration `20260930100000`
+### Webinarkoblingen (`ansoegning_webinar_kobling`) — udkast 1/10-2026, migration `20261001120000`
+
+- **Kun rådgivere:** SELECT/INSERT/DELETE TO authenticated med `has_role(auth.uid(), 'advisor')` (admin arver). Ingen UPDATE (en kobling rettes ved at fjerne og koble igen), ingen medlemsadgang, anon intet (REVOKE). INSERT kræver `koblet_af = auth.uid()` (default `auth.uid()`), så ingen kobler i en andens navn.
+- **Ingen SECURITY DEFINER, ingen funktion, ingen trigger.** `webinar-delt` læser tabellen med service role (RLS gælder ikke) og bruger tilmeldingens mail KUN som nøgle i dommen — den forlader aldrig serveren.
+- **Data:** ansøgnings-id, tilmeldings-id, rådgiverens uid, tidspunkt, forslagets grund i ord. FK'erne er `ON DELETE CASCADE` begge veje: en slettet ansøgning eller tilmelding (persondata) tager koblingen med. To UNIQUE'er: én kobling pr. ansøgning og én pr. tilmelding (tragtens mailsæt ville ellers tælle to ansøgninger som én).
+- **Det delte svar** (`webinar-delt`) bærer kun antallet `koblinger_talt` — aldrig koblingens mail; prøvet gennem `findForbudteNoegler` i `src/lib/webinar/__tests__/kobling.test.ts`. Rådgiverens kandidat-opslag henter kun de felter, forslaget og fladen bruger (intet annoncespor, ingen by/enhed, ingen `raa`).
+- Kildeværn: `src/lib/__tests__/webinarKobling.guard.test.ts` (9 domme). Design: `docs/webinaret-og-annoncerne.md` §7i.
+
+### Boardroom Score — hukommelsen `maaned_foerste_godkendelse` (30/9-2026, migration `20260930130000`)
+
+- **Read-only for every client.** SELECT for company members (`company_id = user_company_id(auth.uid())`) and advisors (`has_role(auth.uid(), 'advisor')`); no INSERT/UPDATE/DELETE policy for anyone. The only writer is the trigger `husk_foerste_godkendelse` (§3) on `financial_report_facts`; the only DELETE is the cascade from `companies`. UPDATE is refused by `protect_maaned_foerste_godkendelse` (§3).
+- **Why it exists:** the Boardroom Score streak judges on a month's FIRST approval. `financial_report_facts.created_at` dies with the row on «Erstat gammel data» (soft-delete → `cleanup_facts_on_report_delete` deletes facts → `commit_report_facts` inserts anew) and on permanent deletion, so a corrected old month looked late. The memory survives both. Design and the operational proof: `docs/boardroom-score.md` §4a.
+- **Data:** company id, period key, one timestamp. No amounts, no persons.
+
+### Dine mål, skive 3 — `milestones.bekraeftet_at/bekraeftet_af` og `maal_kvartalstjek` (2/10-2026, migration `20261002100000`, IKKE KØRT)
+
+- **Bekræftelsen bor på rækken** (`milestones.bekraeftet_at timestamptz NULL`, `bekraeftet_af uuid NULL`, kun tilføjende): et mål, en rådgiver/agent/handout skrev, tæller først som medlemmets, når medlemmet har sat stemplet. **Ingen ny policy på `milestones`:** medlemmet skriver gennem den eksisterende «Company members can update company milestones» (USING `company_id = user_company_id(auth.uid())`, uden WITH CHECK — fund 6 ovenfor gælder stadig), som også dækker et mål med rådgiverens `user_id`. Klientens UPDATE er guardet `.is("bekraeftet_at", null).eq("status", "active")`. Rådgiveren har kun SELECT og kan ikke bekræfte — fladen deaktiverer knapperne. Backfillen i migrationen sætter `bekraeftet_at = created_at` KUN for `source = 'manual'` med `user_id` i `company_members` for virksomheden (guard `WHERE bekraeftet_at IS NULL`).
+- **`maal_kvartalstjek` — append-only svar-spor:** RLS slået til; SELECT/INSERT TO authenticated for medlemmer af virksomheden (`company_id = user_company_id(auth.uid())`), INSERT desuden `valgt_af = auth.uid()` og EXISTS på `milestones` (målet hører til virksomheden — under medlemmets egen RLS) **og databasens dom (rådets fund 11, 2/10):** målet er bekræftet (`bekraeftet_at IS NOT NULL`), kvartalet er forfaldent — `greatest(bekraeftet_at som dansk dato, date '2026-10-02') + 3·kvartal måneder ≤ i dag (Europe/Copenhagen) < anker + 12 måneder` — ingen eksisterende række med `kvartal ≥` det nye (self-subquery under medlemmets SELECT-policy; ingen rekursion), og målets status passer til valget (`behold`/`justeret` → `active`; `parkeret` → `active`/`parked`; `naaet` → `active`/`completed`, fordi klienten skriver handlingen FØR rækken). Udtrykket er spejlet i klienten (`maalBekraeft.maaRegistrereKvartalstjek`) og holdt ens af `dineMaalSkive3.guard` dom 7; SELECT for rådgivere (`has_role(auth.uid(), 'advisor')`, forsidens linje). **Ingen UPDATE/DELETE-policy, ingen GRANT UPDATE/DELETE** (kun SELECT, INSERT til authenticated; anon intet — REVOKE). Rækker forsvinder kun med målet/virksomheden (FK `ON DELETE CASCADE` — kaskaden kører som tabelejer). Alle policies PERMISSIVE og giver kun JA — intet at nægte (§5). `UNIQUE (milestone_id, kvartal)`; CHECK på `kvartal IN (1,2,3)` og `valg IN ('behold','justeret','parkeret','naaet')` — ordforrådet står ORDRET i `src/lib/hjemmebane/maalBekraeft.ts` (kildeværn `dineMaalSkive3.guard` dom 4).
+- **Ingen SECURITY DEFINER, ingen funktion, ingen trigger.** Triggeren `milestones_hoejst_tre_aktive` er bevidst IKKE rørt og tæller stadig alle aktive (også ubekræftede) — fladen lover derfor aldrig en plads, databasen afviser (`dineMaal.pladsOptagetAfUbekraeftede`). En trigger, der kun tæller bekræftede, er et åbent punkt (grønt lys). **Bygget 2/10 (migration `20261002241000_maal_pladser_kun_bekraeftede.sql`, IKKE KØRT, kræver grønt lys):** `haandhaev_hoejst_tre_aktive_maal` tæller kun `status = 'active' AND bekraeftet_at IS NOT NULL` og dømmer også, når `bekraeftet_at` sættes på et aktivt forslag; triggeren forbliver SECURITY INVOKER; ny SECURITY INVOKER-RPC `maal_pladser_kun_bekraeftede()` lader klienten måle, hvilken regel databasen kører (`src/lib/hjemmebane/maalPladsdom.ts`; «alle» ved fejl). Sandhedstabellen står i migrationens filhoved.
+- **Data:** stempler, uid'er, kvartal og et ord — ingen beløb, ingen persondata ud over uid.
+- Kildeværn: `src/lib/__tests__/dineMaalSkive3.guard.test.ts` (8 domme; dom 6 holder migrationen tilføjende, dom 7 policyen = klientens dom). Design: `docs/dine-maal-design.md` «Skive 3».
+
+### «Må vi ringe til dig?» (`opkaldsanmodninger`) — bygget 2/10-2026, migration `20261002270000`, IKKE KØRT
+
+- **Mennesket har INGEN konto og INGEN politik.** Alt går gennem edge-funktionen `ring-mig-op` (`verify_jwt = false`, bevidst) med tokenet som legitimation: `laesRingToken` (`_shared/ringToken.ts`: HMAC-SHA256 over `webinar_tilmeldinger.ewebinar_id` med `RING_SECRET`, konstant tid — samme klasse som `laesAfmeldToken`) FØR `createClient`; registreret som prædikat i `scripts/check-edge-function-auth.ts`. **Tokenet åbner ikke alene:** rækken i `webinar_tilmeldinger` skal have DELTAGET (`doemSetGrad` → `opkaldDom.harDeltaget`, kun `set`/`delvist`); ukendt token, ukendt tilmelding og «mødte ikke op» giver ÉT svar (403 «ukendt»), så functionen ikke er et opslagsværk over fremmøde. STRIKS body (`kendteFelter`), IP-dagsloft (10 pr. IP-dagshash pr. time, 200 i alt; fail-closed på tællingen; `ip_hash` på rækken, aldrig rå IP).
+- **Tokenet leveres** som `ring_op_url` — profilegenskab OG hændelsesegenskab i samme kald som Klaviyo-hændelsen «Deltog i webinar» (`webinarHaendelser.byggFremmoede` → `profilEgenskaber`, KUN «deltog»-overgangen; `ewebinar-webhook` og `ewebinar-import` regner det fail-soft). Det lander dermed i `klaviyo_haendelser.sendt` (service-role-only) og hos Klaviyo på personens egen profil, hvor det står, til en ny deltagelse overskriver det. Et token giver KUN adgang til at bede om et opkald for den tilmelding — ingen læsning.
+- **Data:** navn, telefon i E.164 (CHECK `^\+45[2-9][0-9]{7}$`), samtykkets ordlyd ORDRET (`samtykke_ordlyd`, CHECK 10–300 tegn) og tidspunkt, `ringet_at`/`ringet_af` som par (CHECK), `ip_hash`. FK til `webinar_tilmeldinger` `ON DELETE CASCADE`; `ringet_af` → `auth.users` `ON DELETE SET NULL`. **Nummeret forlader aldrig serveren** ud over `/opkald`: klokken bærer navn + dato (`klokkeTitel`), Klaviyo-hændelsen «Bad om opkald» bærer mail + tilmeldingens id'er, svaret bærer tællere (kildeværn `ringMigOp.guard` dom 2).
+- **RLS:** anon INTET (REVOKE); `authenticated` har GRANT SELECT, UPDATE — policies SELECT og UPDATE for `has_role(auth.uid(), 'advisor')` (admin arver); INGEN INSERT/DELETE til klienten; service_role ALT. **Kolonneværn:** triggeren `opkald_raadgiver_kolonnevaern` (BEFORE UPDATE, `security invoker`, samme form som `companies_medlem_kolonnevaern`) lader en klient ændre KUN `ringet_at`/`ringet_af`, og `ringet_af` skal være `auth.uid()`; service_role/postgres passerer. Alle policies PERMISSIVE og giver kun JA — intet at nægte (§5).
+- **Opbevaring 90 dage (Jonas 2/10 «Slet nummeret efter 90 dage — ja»):** cron-jobbet `opkald-opbevaring` (`'33 5 * * *'`, ren SQL i samme migration) sletter rækker med `samtykke_at < now() − 90 days` — SLETNING, ikke anonymisering (rækken bærer intet andet end nummeret, navnet og samtykket til dem). Antallet står i `cron.job_run_details.return_message`.
+- **Rådets fund 2/10 (rettet før kørsel):** SELECT- og UPDATE-politikken udelukker **tjenestekonti** (`not exists (select 1 from public.tjenestekonti …)`); linket **udløber** 30 dage efter sessionen (`tokenUdloebet`, 403 «ukendt» som et forkert token); et **gentaget indsend** inden for 10 min afvises (`sidst_indsendt_at`, 429, intet sendes); en **åben anmodning overskrives aldrig** — kun en ringet genåbnes, med ny `runde_id` (ny klokke og hændelse); **fortryd «ringet»** er bevidst åben for enhver rådgiver; **ip_hash** er husets usaltede sha256(ip:dato) — vendbar over IPv4-rummet, altså persondata, slettes med rækken, og XFF kan forfalskes; tokens i URL'en (`/ring-mig-op?t=`, `/aftale?token=`, `/delt/webinar?t=`) fjernes fra Sentry-hændelser (`src/lib/sentryRens.ts`).
+- **Ingen SECURITY DEFINER, ingen anon-RPC.** Kildeværn: `src/lib/__tests__/ringMigOp.guard.test.ts` (10 domme). Design: `docs/samtykke-og-opkald.md` del 2 + §2.10.
+
+### Webinarmotoren (`webinarer`, `webinar_sessioner`, `webinar_gentagelser`, `webinar_interaktioner`, `webinar_deltagelser`, `webinar_pulser`, `webinar_motor_log`, `webinar_svar`, `webinar_reaktioner`, `webinar_spoergsmaal`) — skive 1, 30/9-2026, migration `20261003010000` (omdøbt 2/10-2026 fra `20260930100000`, så den ukørte fil sorterer efter de kørte — metaSend.guard dom 11)
 
 - **Seeren har INGEN konto og INGEN politik; ingen anon-politik på nogen webinartabel.** Alt offentligt går gennem tre edge functions (`verify_jwt = false`, bevidst): `webinar-tilmeld` (værnet `verifyOffentligTilmelding`, `_shared/webinarTilmeldVaern.ts`: origin-liste, honningfelt, IP-dagshash-loft, fail-closed — samme klasse som `ansoegning-gem` «opret») og `webinar-rum`/`webinar-puls` (`verifyDeltagertoken`, `_shared/webinarDeltagerAuth.ts`). Begge prædikater er registreret i `scripts/check-edge-function-auth.ts`.
 - **Deltagertokenet er en HMAC, intet gemmes** (en bevidst afvigelse fra delingstokenets SHA-256-aftryk: `webinar-mail-cron` skal kunne bygge linket igen i op til syv mails). `HMAC-SHA256(WEBINAR_JOIN_SECRET, "<tilmelding_id>:<token_version>")`, regnet igen og sammenlignet i konstant tid FØR databaseopslaget; derefter skal `token_version` passe (`+= 1` tilbagekalder). Secret'en læses kun i `webinarDeltagerAuth.ts` (rotation: `WEBINAR_JOIN_SECRET_FORRIGE`).
@@ -844,7 +1070,8 @@ skrivende edge functions bruger `SUPABASE_SERVICE_ROLE_KEY`.
 
 ### Fail-closed webhook rule (Patches 7–8)
 - Edge functions that receive external webhooks verify signatures before
-  any processing (HMAC-SHA256 for Monday.com, `verifyWebhookRequest` for auth hooks)
+  any processing (Stripe-signature, `verifyCalendlySignature`, `verifyEwebinarSignature`,
+  `verifyWebhookRequest` for auth hooks; Monday.com's HMAC-JWT er historie — opsagt 2/10-2026)
 - User-triggered functions validate JWT via `getClaims()` before any
   service-role reads/writes/side effects
 - Service-role/cron functions gate on `SUPABASE_SERVICE_ROLE_KEY` comparison
@@ -863,6 +1090,28 @@ skrivende edge functions bruger `SUPABASE_SERVICE_ROLE_KEY`.
 ### Shared auth helper: `_shared/edgeFunctionAuth.ts`
 - `authenticateUser(req)` — Bucket A (user-triggered)
 - `authenticateServiceRole(req)` — Bucket B (cron/internal)
+  - **Fase 3a, trin 1 (udkast 1/10-2026, `docs/prod-hjem-plan.md`; built, NOT
+    deployed):** two roads in, judged by the pure `domServiceRole` in
+    `_shared/serviceNoegle.ts` (vitest `src/lib/__tests__/serviceNoegle.test.ts`):
+    (1) the KEY — `apikey` (or `Authorization: Bearer sb_secret_…`) equal in
+    constant time to the runtime's `SUPABASE_SERVICE_ROLE_KEY`, with the
+    `sb_secret_…` form required on BOTH sides (a missing/legacy runtime key
+    closes the road); (2) the role claim, UNCHANGED, which is only safe behind
+    `verify_jwt = true`. A wrong key never rejects on its own — it falls
+    through to (2), so trin 1 changes no answer for today's callers. The
+    `check-verify-jwt-invariant` rule (authenticateServiceRole ⇒ `verify_jwt =
+    true`) still holds unchanged. **Trin 2 (not built):** per function,
+    `verify_jwt = false` ONLY together with a «key only» mode that refuses the
+    role claim, and the invariant script rewritten to enforce exactly that —
+    without it the role claim is forgeable by anyone.
+  - `public.kald_edge` (SECURITY DEFINER, migration `20261002290000_kald_edge_apikey.sql`,
+    **not run; needs Jonas' explicit go-ahead to run**): still sends the legacy
+    `Authorization: Bearer` from vault `email_queue_service_role_key`
+    unchanged, and additionally `apikey` from the NEW vault entry
+    `kald_edge_sb_secret` when it exists and has the `sb_secret_…` form —
+    otherwise exactly as before, never an error. No GRANT/REVOKE: `CREATE OR
+    REPLACE` keeps owner and ACL (measured by the header's FØR/EFTER SQL).
+    Rollback without SQL: delete the vault entry.
 - Bucket C (webhooks) — per-function signature verification
 
 ### Security-sensitive functions requiring extra care:
@@ -915,11 +1164,16 @@ skrivende edge functions bruger `SUPABASE_SERVICE_ROLE_KEY`.
   dom 6 fælder, hvis `BUNNY_STREAM_*` eller en collection bruges igen).
   Status spørges hos Bunny (ingen webhook, ingen statustabel).
 - `auth-email-hook` — system webhook, signature-verified
-- `monday-webhook` — to veje (14/9-2026, `_shared/mondayVaern.ts`): med
-  Authorization-header HMAC-SHA256-JWT mod `MONDAY_SIGNING_SECRET` (uændret);
-  uden header (Mondays board-webhook sender ingen) den delte hemmelighed
-  `?noegle=` i URL'en mod `MONDAY_WEBHOOK_SECRET`, sammenlignet i konstant
-  tid (`_shared/konstantTidLighed.ts`). Challenge-svaret ligger før værnet.
+- `monday-webhook` — **NEDLAGT 2/10-2026** (Jonas 1/10: «Vi bruger ikke Monday
+  mere. Det er opsagt.»): svarer 410 Gone på alt uden parsing, env, service-role
+  eller database — derfor uden auth-prædikat (CI: «skip-no-sr»); `verify_jwt =
+  false` med begrundelse i config.toml, så 410-beviset kan måles. Værnet
+  `mondayVaek.guard` låser formen og at ingen function kalder `api.monday.com`
+  eller læser `MONDAY_API_TOKEN`/`MONDAY_SIGNING_SECRET`/`MONDAY_WEBHOOK_SECRET`
+  (de tre secrets er ubrugte hos Lovable og kan fjernes dér). Historik: 14/9–2/10
+  to veje (`_shared/mondayVaern.ts`, slettet) — HMAC-SHA256-JWT eller `?noegle=`
+  i konstant tid (`_shared/konstantTidLighed.ts`, som lever videre for
+  aftale-underskrift, webhookSignatur, ewebinarSignatur, delingstokenAuth).
 - `ewebinar-webhook` (udkast 19/9-2026) — Bucket C: `verifyEwebinarSignature`
   (`_shared/ewebinarSignatur.ts`) over den RÅ body (`req.text()`) FØR
   `JSON.parse` og FØR service-role-klienten; HMAC-SHA256 over
@@ -939,6 +1193,18 @@ skrivende edge functions bruger `SUPABASE_SERVICE_ROLE_KEY`.
   veje kan ikke skabe dubletter, og importen kan aldrig sænke en kendt
   procent. `EWEBINAR_API_KEY` er team-scoped («equivalent to a user login»)
   og må kun stå i Lovable-secrets. Kildeværn `ewebinarImport.guard`.
+- `webinar-video` (udkast 30/9-2026) — offentlig, `verify_jwt = false`
+  (bevidst: et klik i en indbakke bærer hverken Authorization eller apikey).
+  Legitimationen er mail-rækkens id i URL'en (`?m=<webinar_mails.id>`, uuid
+  trukket af `webinar-mail-cron` før mailen bygges): formen dømmes FØR
+  opslaget (`laesKlikId`), og `verifyVideoKlik` (`_shared/webinarVideo.ts`,
+  registreret prædikat) slår en SENDT `en_dag`-række op. Kun et kendt id
+  logges — i `webinar_video_klik` (migration `20260930181000`: mail_id +
+  tidspunkt, ingen IP/user agent/adresse; FK on delete cascade; service_role
+  ALL, advisor SELECT). **Ingen åben viderestilling:** målet bygges af
+  `app_config.webinar_en_dag_video` (library = cifre, video = GUID) på den
+  faste vært `iframe.mediadelivery.net` (`bunnyAfspilUrl`), aldrig af URL'en.
+  Kildeværn `webinarMail.guard` dom 19.
 - `send-report-reminder` — service-role-only gate
 - `manage-advisor` — admin role gate + service-role operations
 - `process-pending-invitation` — self-only guard + server-verified email

@@ -97,10 +97,11 @@ describe("certifikatForhaandsvisning.guard — dommene fælder på en kopi", () 
     const nav = laes(NAV);
     const RAAD = '    { label: CERTIFIKAT_LABEL, to: "/certifikat/forhaandsvisning", active: active === "certifikat", blok: medlem },\n';
     expect(kunIRaadgiverensMenu(byt(nav, RAAD, ""))).toBe(false);
+    // Ankeret er medlemmets «Akademiet»-linje (seks steder, 2/10; før «Fortæl det videre»).
     expect(kunIRaadgiverensMenu(byt(
       nav,
-      '    { label: "Fortæl det videre", to: "/deling", active: active === "deling" },\n',
-      '    { label: "Fortæl det videre", to: "/deling", active: active === "deling" },\n    { label: "Forhåndsvisning", to: "/certifikat/forhaandsvisning" },\n',
+      '    { label: "Akademiet", to: "/akademiet", active: active === "akademiet" },\n',
+      '    { label: "Akademiet", to: "/akademiet", active: active === "akademiet" },\n    { label: "Forhåndsvisning", to: "/certifikat/forhaandsvisning" },\n',
     ))).toBe(false);
   });
 });

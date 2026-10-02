@@ -28,10 +28,16 @@ function fokusInputs(
   committed: ReadonlySet<string>,
   now: Date,
 ): FocusInputs {
+  // Motoren dømmer siden 30/9 (PR #1192) de TO seneste afsluttede måneder,
+  // ældste først; spejlet (påmindelserne) dømmer kun forrige måned. Pariteten
+  // gælder derfor dommen over FORRIGE måned: forrige-forrige lægges i orden
+  // (processed + committed), så kun forrige måneds tilstand kan give punkter.
+  const ff = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+  const ffKey = `${ff.getFullYear()}-${String(ff.getMonth() + 1).padStart(2, "0")}`;
   return {
     now,
-    processedPeriodKeys: processed,
-    committedPeriodKeys: committed,
+    processedPeriodKeys: new Set([...processed, ffKey]),
+    committedPeriodKeys: new Set([...committed, ffKey]),
     hasPulseThisMonth: true,
     unreadUserMessages: 0,
     unreadAgentMessages: 0,

@@ -1,6 +1,13 @@
 import { DANISH_MONTHS } from "@/lib/financialUtils";
 import { PROFIL_STI } from "@/lib/hjemmebane/profilUdfyldt";
 import type { Tjekliste } from "@/lib/onboardingTjekliste";
+import { tjeklistenStyrerForsiden } from "@/lib/hjemmebane/ankomst";
+import {
+  dageTilDanskDato, foersteSkridtTitel, fristTitel, maalFokus, modMaaletLinje,
+  MAAL_FOKUS_MAAL_CTA, MAAL_FOKUS_SKRIDT_CTA, MAAL_FOKUS_STI, MAAL_FOKUS_TILFOEJ_CTA,
+  type MaalFokusMaal, type MaalFokusSkridt,
+} from "@/lib/hjemmebane/maalFokus";
+import { BEKRAEFT_ORD, KVARTAL_ORD, type VentendeKvartalstjek } from "@/lib/hjemmebane/maalBekraeft";
 
 /** FOKUS-MOTOREN (forside PR 1, hb-forside-recon §D/§G): ÉN samlet,
     testbar prioriteringsdom for forsidens lag 1 — nu som PRIORITERET
@@ -26,17 +33,30 @@ import type { Tjekliste } from "@/lib/onboardingTjekliste";
     rækkefølge (TJEKLISTE_RAEKKEFOELGE). Når alle punkter er gjort,
     gælder prioriteringen (a)-(i) nedenfor som hidtil. Uden tjekliste
     (kalderen sender ingen — rådgivere, legacy) gælder (a)-(i) direkte.
+    ERFARNE MEDLEMMER (30/9): er medlemmet kommet ind for mere end 30
+    døgn siden (medlemSiden), slipper tjeklisten kortet, og (a)-(i)
+    gælder — dommen og begrundelsen er tjeklistenStyrerForsiden i
+    src/lib/hjemmebane/ankomst.ts, den samme som overskrift og pille.
 
     PRIORITERINGSRÆKKEFØLGEN (arkitekt-beslutning, fast — aldrig
     tilfældig tie-break):
       (0) tjeklistepunkt (kun mens tjeklisten er uafsluttet — se ovenfor)
       (a) manglende rapport            (b) rapport afventer godkendelse
+          — over de to seneste afsluttede måneder, ældste først (30/9)
       (c) ubesvaret besked (rådgiver før agent — ActionCenter-ordenen)
       (d) weekly_focus (denne uge, ikke set)
-      (e) — UDGÅET («Én plan» fase 3, 16/9): milestone-deadline ≤14 dage
-          var fokuskortets milepælspunkt; målet lever nu i forsidens
-          «Dine mål» (fremdrift og frist), ikke som fokuspunkt. Slot-
-          numrene (prioriteterne) beholdes, så (f)–(j) er uændrede.
+      (e) MÅLET — ÉT punkt (genindført 1/10-2026, maal-produkt.md §4;
+          dommen er maalFokus i src/lib/hjemmebane/maalFokus.ts): (1)
+          nærmeste aktive skridt under et aktivt mål «mod målet: X», (2)
+          aktivt mål uden noget i gang → «Tilføj det første skridt mod
+          X», (3) målfrist ≤ 30 dage → «X: N dage tilbage». Under rapport
+          og beskeder, over løse skridt — MEN kun (1) står ubetinget over
+          (f): (2) og (3) lægges under et HASTENDE aktivt (f)-skridt
+          (forfaldent eller frist inden for 7 danske dage; rådets fund 6,
+          1/10). (Fra 16/9 til 1/10 var slottet UDGÅET — målet stod kun i
+          «Din plan» længere nede.)
+          (e2) kvartalstjekket og (e3) «N mål venter på jeres ja» (skive 3)
+          deler målets plads — under hastende (f)-skridt, ellers før (f).
       (f) åbne company_actions (kalderens prioritetsorden)
       (g) pulse-nudge                  (h) løftestang uden milestone
       (i) tom netværksprofil (ask_me_about mangler) — LAVEST: en tom
@@ -103,7 +123,15 @@ export interface FocusWeeklyFocus {
 export interface FocusUnlinkedLever {
   lever: string;
   moduleTitle: string;
+  /** Handouts i Akademiet (1/10-2026 nat): stien til den lektion, der bærer
+      modulet — øvelsen (kalderen slår den op i kataloget, oevelseTilbage).
+      Udeladt → Akademiets forside. Aldrig /handouts: medlemmet har ingen
+      handout-liste længere. */
+  sti?: string;
 }
+
+/** Hvor løftestangs-punktet (h) fører hen: lektionen, der bærer øvelsen, ellers Akademiet. */
+export const OEVELSE_FALDBACK_STI = "/akademiet";
 
 /** Udvidelsen af NextStepInputs (recon §D): de fire bogførte udeladelser
     + løftestængerne. En senere opgave-model adapters ind HER — dommen
@@ -128,6 +156,27 @@ export interface FocusInputs extends NextStepInputs {
       udeladt/null = ingen tjekliste = (a)-(i) direkte. Trin 9 kobler
       useOnboardingTjekliste på. */
   tjekliste?: Tjekliste | null;
+  /** profiles.created_at (TjeklisteInput.medlem_siden) — personens dag 0.
+      Mere end 30 døgn før `now` = erfarent medlem = tjeklisten slipper
+      kortet (tjeklistenStyrerForsiden). Valgfri: udeladt/null = ny = som
+      før 30/9. */
+  medlemSiden?: string | null;
+  /** Slot (e), målet (1/10-2026): de mål og skridt med maal_id, forsiden
+      ALLEREDE henter (milestonesQuery + skridtQuery). Dommen er maalFokus
+      (ren, tiden = `now`). Valgfri: udeladt/null = intet målpunkt (fx når
+      en af de to hentninger fejlede — et halvt billede må ikke give et
+      forkert «tilføj det første skridt»). */
+  maalPlan?: { maal: readonly MaalFokusMaal[]; skridt: readonly MaalFokusSkridt[] } | null;
+  /** Skive 3 (2/10-2026, Jonas 1/10: kvartalstjekket sker hos «medlemmet selv» — og som fokuspunkt
+      på forsiden UNDER hastende skridt): de ventende kvartalstjek, dømt af maalBekraeft.
+      ventendeKvartalstjekAlle (ren, tiden = `now`). Kun det FØRSTE (ældste forfaldne) bliver et punkt —
+      ét kort, aldrig en liste. Valgfri: udeladt/null/tom = intet punkt (også når tabellen ikke findes). */
+  kvartalstjek?: readonly VentendeKvartalstjek[] | null;
+  /** Skive 3 (runde 2, fund 5): antal AKTIVE mål, der venter på medlemmets ja (bekraeftet_at null —
+      maalBekraeft.delBekraeftelser: forslag + gamle). ÉT punkt «N mål venter på jeres ja» → Dine mål,
+      på samme plads som kvartalstjekket (under hastende skridt, ellers før (f)), efter det. Valgfri:
+      udeladt/null/0 = intet punkt (også før migrationen, hvor kolonnen er ulæst). */
+  ubekraeftedeMaal?: number | null;
 }
 
 export type FocusKind =
@@ -137,6 +186,9 @@ export type FocusKind =
   | "unread-messages"
   | "unread-agent"
   | "weekly-focus"
+  | "maal"
+  | "kvartalstjek"
+  | "maal-venter"
   | "company-action"
   | "pulse"
   | "unlinked-lever"
@@ -153,6 +205,9 @@ export interface FocusItem {
   ctaLabel: string;
   ctaHref: string;
   sourceId?: string;
+  /** «YYYY-MM» — kun rapport-punkterne (a)/(b): måneden, punktet gælder. Forsidens «Det vigtigste lige nu»
+      siger fristen og streaken ud fra den (lib/hjemmebane/vigtigst.rapportFristTekst, forside v3 2/10). */
+  periodKey?: string;
 }
 
 export interface NextStep {
@@ -161,6 +216,33 @@ export interface NextStep {
   description: string;
   cta: string;
   link: string;
+}
+
+/** Et aktivt (f)-skridt med frist inden for så mange DANSKE dage (forfaldne
+    medregnet) er «hastende» — målpunktets kilde (2) og (3) lægges under det
+    (rådets fund 6, 1/10). Samme danske dag som maalFokus (dageTilDanskDato). */
+export const HASTENDE_SKRIDT_DAGE = 7;
+
+/** Er (f)-handlingen et hastende aktivt skridt? Kun status 'active' (ikke
+    forslag, ikke arve-'open') med en læselig frist, hvis danske dag er
+    passeret eller ligger højst HASTENDE_SKRIDT_DAGE dage fremme.
+    Regnestykket: dage = dageTilDanskDato(due_date, now) ≤ 7 (negativ =
+    forfalden). Eksempel: now = 10/8-2026 kl. 12 dansk; due «2026-08-17» →
+    7 → hastende; «2026-08-18» → 8 → ikke. */
+export function erHastendeSkridt(action: Pick<FocusOpenAction, "status" | "due_date">, now: Date): boolean {
+  if (action.status !== "active" || !action.due_date) return false;
+  const dage = dageTilDanskDato(action.due_date, now);
+  return dage != null && dage <= HASTENDE_SKRIDT_DAGE;
+}
+
+/** Tillægget om målets frist i kilde (1) — rådets fund 12 (1/10): en
+    passeret frist og en frist i dag siges som en sætning, ikke som
+    «Målets frist: fristen er passeret». */
+export function maalFristTillaeg(dage: number | null): string {
+  if (dage == null) return "";
+  if (dage < 0) return " Fristen for målet er passeret.";
+  if (dage === 0) return " Fristen for målet er i dag.";
+  return ` Målets frist: ${dage === 1 ? "1 dag" : `${dage} dage`} tilbage.`;
 }
 
 /** "YYYY-MM-DD" → "4. september" — splitter selv frem for new Date():
@@ -197,12 +279,66 @@ export function foersteRapportPeriode(contractStartDate: string | null | undefin
   return `${foerste.getUTCFullYear()}-${String(foerste.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
+/** En afsluttet kalendermåned set fra `now`: n = 1 er forrige måned,
+    n = 2 forrige-forrige. Lokal tid som prevKey altid har været; Date
+    normaliserer månedsunderløb over årsskiftet (januar − 2 = november
+    året før). */
+interface AfsluttetMaaned {
+  key: string; // "YYYY-MM"
+  aar: number;
+  navn: string; // dansk, små bogstaver
+}
+function maanedFoer(now: Date, n: number): AfsluttetMaaned {
+  const d = new Date(now.getFullYear(), now.getMonth() - n, 1);
+  const m = d.getMonth();
+  const aar = d.getFullYear();
+  return { key: `${aar}-${String(m + 1).padStart(2, "0")}`, aar, navn: DANISH_MONTHS[m].toLowerCase() };
+}
+
+/** Rapport-dommen for ÉN måned: (a) mangler, (b) afventer godkendelse,
+    eller null (i orden / før kontraktstart). Værnet mod kontraktstarten
+    gælder KUN (a) — se deriveFocus. */
+function rapportPunkt(
+  m: AfsluttetMaaned,
+  processed: ReadonlySet<string>,
+  committed: ReadonlySet<string>,
+  foersteKey: string | null,
+): FocusItem | null {
+  const hasProcessed = processed.has(m.key);
+  const hasCommitted = committed.has(m.key);
+  const foerKontraktstart = foersteKey !== null && m.key < foersteKey;
+  if (!hasProcessed && !foerKontraktstart) {
+    return {
+      key: "missing-report",
+      kind: "missing-report",
+      priority: 1,
+      periodKey: m.key,
+      title: `Upload dine ${m.navn}-tal`,
+      description: `Så er ${m.navn} ${m.aar} med, og din rådgiver kan se fremad med dig.`,
+      ctaLabel: "Upload tallene",
+      ctaHref: "/reports",
+    };
+  }
+  if (hasProcessed && !hasCommitted) {
+    return {
+      key: "pending-approval",
+      kind: "pending-approval",
+      priority: 2,
+      periodKey: m.key,
+      title: `Godkend dine ${m.navn}-tal`,
+      description: `Tallene for ${m.navn} ${m.aar} er uploadet, men ikke godkendt endnu — godkend dem, så de kommer i drift.`,
+      ctaLabel: "Godkend tallene",
+      ctaHref: "/reports",
+    };
+  }
+  return null;
+}
+
 export function deriveFocus(inputs: FocusInputs): FocusItem[] {
   const { now } = inputs;
-  const prevMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
-  const prevYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
-  const prevKey = `${prevYear}-${String(prevMonth + 1).padStart(2, "0")}`;
-  const monthName = DANISH_MONTHS[prevMonth].toLowerCase();
+  const forrige = maanedFoer(now, 1);
+  const prevKey = forrige.key;
+  const monthName = forrige.navn;
 
   const items: FocusItem[] = [];
 
@@ -211,8 +347,10 @@ export function deriveFocus(inputs: FocusInputs): FocusItem[] {
   // kommer med (første = #1). Titel/beskrivelse/sti genbruges som
   // title/description/ctaHref. Listen returneres HER: mens man er ved at
   // komme ind, konkurrerer intet andet om kortet (§5). Færdig tjekliste
-  // (eller ingen) → falder igennem til (a)-(i).
-  if (inputs.tjekliste && !inputs.tjekliste.faerdig) {
+  // (eller ingen) → falder igennem til (a)-(i). Et ERFARENT medlem (30/9,
+  // mere end 30 døgn siden medlemSiden) falder også igennem — samme dom som
+  // overskriften og pillen (tjeklistenStyrerForsiden, ankomst.ts).
+  if (inputs.tjekliste && tjeklistenStyrerForsiden(inputs.tjekliste, inputs.medlemSiden, now)) {
     for (const punkt of inputs.tjekliste.punkter) {
       if (punkt.gjort) continue;
       items.push({
@@ -229,6 +367,7 @@ export function deriveFocus(inputs: FocusInputs): FocusItem[] {
     return items;
   }
 
+  // Pulse-gaten (g) læser stadig KUN forrige måned.
   const hasProcessed = inputs.processedPeriodKeys.has(prevKey);
   const hasCommitted = inputs.committedPeriodKeys.has(prevKey);
 
@@ -240,35 +379,41 @@ export function deriveFocus(inputs: FocusInputs): FocusItem[] {
   // (g)), findes tallene, og så er der noget at godkende og tage
   // stilling til uanset kontraktstart.
   const foersteKey = foersteRapportPeriode(inputs.contractStartDate);
-  const foerKontraktstart = foersteKey !== null && prevKey < foersteKey;
 
-  // (a) Manglende rapport — udelukker (b) pr. datalogik (tekster ordret
-  // fra den oprindelige port). Tier når perioden ligger før kontrakten.
-  if (!hasProcessed && !foerKontraktstart) {
-    items.push({
-      key: "missing-report",
-      kind: "missing-report",
-      priority: 1,
-      title: `Upload dine ${monthName}-tal`,
-      description: `Så er ${monthName} ${prevYear} med, og din rådgiver kan se fremad med dig.`,
-      ctaLabel: "Upload tallene",
-      ctaHref: "/reports",
-    });
-  } else if (hasProcessed && !hasCommitted) {
-    // (b) Uploadet men ikke godkendt.
-    items.push({
-      key: "pending-approval",
-      kind: "pending-approval",
-      priority: 2,
-      title: `Godkend dine ${monthName}-tal`,
-      description: `Tallene for ${monthName} ${prevYear} er uploadet, men ikke godkendt endnu — godkend dem, så de kommer i drift.`,
-      ctaLabel: "Godkend tallene",
-      ctaHref: "/reports",
-    });
+  // (a)/(b) DE TO SENESTE AFSLUTTEDE MÅNEDER, ÆLDSTE FØRST (30/9, rådets
+  // gennemsyn af PR #1192). Før så slottet KUN på forrige måned. Fristen er
+  // den 20. i måneden efter (påmindelser dag 7/15/20), så den 1. i en måned
+  // er den forrige-forrige måneds frist allerede passeret, mens den
+  // forrige måned lige er begyndt at løbe — og så forsvandt den forrige-
+  // forrige måned fra kortet, netop mens den var mest forsinket.
+  //   REGNESTYKKET: kandidaterne er maanedFoer(now, 2) og maanedFoer(now, 1)
+  //   — i den rækkefølge. EKSEMPEL: now = 1/10-2026 →
+  //     forrige-forrige = maanedFoer(now, 2) = "2026-08" (august),
+  //     forrige         = maanedFoer(now, 1) = "2026-09" (september).
+  //   August uploadet, ikke godkendt; september mangler
+  //     → «Godkend dine august-tal» (august dømmes først og vinder).
+  //   August godkendt; september mangler → august giver null
+  //     → «Upload dine september-tal».
+  //   now = 15/9 → juli og august; juli i orden → august dømmes som før.
+  // Den FØRSTE måned med et punkt vælges, og kun ét rapportpunkt vises
+  // (samme som før: (a) og (b) udelukker hinanden, og byggerækkefølgen
+  // forbliver prioritetsordenen). KUN de to seneste — ikke længere
+  // tilbage: ellers dukker gammel historik op (et hul fra i foråret) og
+  // overdøver den måned, der faktisk er aktuel. Kontraktværnet gælder hver
+  // måned for sig: en måned før den første hele kontraktmåned beder (a)
+  // aldrig om.
+  for (const m of [maanedFoer(now, 2), forrige]) {
+    const punkt = rapportPunkt(m, inputs.processedPeriodKeys, inputs.committedPeriodKeys, foersteKey);
+    if (punkt) {
+      items.push(punkt);
+      break;
+    }
   }
 
   // (c) Ubesvarede beskeder — rådgiver før agent (ActionCenter:150-163,
-  // tekster ordret; tælle-bøjningen fra :155).
+  // tælle-bøjningen fra :155). Beskrivelsen rettet 2/10-2026 (designgennemsynet
+  // i drift: «Du har ubesvaret kommunikation fra dine rådgivere» var stiv og
+  // blev skåret af på 375 px).
   if (inputs.unreadUserMessages > 0) {
     const count = inputs.unreadUserMessages;
     items.push({
@@ -276,7 +421,7 @@ export function deriveFocus(inputs: FocusInputs): FocusItem[] {
       kind: "unread-messages",
       priority: 3,
       title: `${count} ulæst${count > 1 ? "e" : ""} besked${count > 1 ? "er" : ""}`,
-      description: "Du har ubesvaret kommunikation fra dine rådgivere",
+      description: "Dine rådgivere har skrevet til dig.",
       ctaLabel: "Åbn chatten",
       ctaHref: "/chat",
     });
@@ -315,9 +460,59 @@ export function deriveFocus(inputs: FocusInputs): FocusItem[] {
     });
   }
 
-  // (e) UDGÅET (fase 3, 16/9): milestone-deadline ≤14 dage. Målet står i
-  // forsidens «Dine mål» med fremdrift og frist — et fokuspunkt oveni
-  // sagde det samme to steder. Prioritet 5 er ledig med vilje.
+  // (e) MÅLET — ét punkt, aldrig flere (1/10-2026). Fra 16/9 var slottet
+  // UDGÅET («et fokuspunkt oveni sagde det samme to steder»); målt 1/10:
+  // 6 af 36 aktive mål havde et skridt — kortet øverst skal pege på målet.
+  // Dommen og kildernes rækkefølge står i maalFokus.ts. Er punktet et
+  // skridt, springer (f) netop det skridt over (samme ting to gange).
+  // PLADSEN (rådets fund 6, 1/10): kun (1) — et konkret skridt under et mål
+  // — står ubetinget over (f). (2) «Tilføj skridt» og (3) «N dage tilbage»
+  // er invitationer, ikke aftaler: de må ikke skubbe et aktivt skridt, der
+  // er forfaldent eller har frist inden for HASTENDE_SKRIDT_DAGE, ned. Er
+  // der et sådant (erHastendeSkridt), lægges målpunktet lige UNDER det
+  // sidste hastende (f)-punkt (kalderens orden bevares) og får (f)'s
+  // prioritet 6, så listen stadig er sorteret; ellers står det som før.
+  const maalPunkt = inputs.maalPlan ? maalFokus(inputs.maalPlan.maal, inputs.maalPlan.skridt, now) : null;
+  let ventendeMaalItem: FocusItem | null = null;
+  if (maalPunkt?.art === "skridt") {
+    items.push({
+      key: `maal:skridt:${maalPunkt.skridtId}`,
+      kind: "maal",
+      priority: 5,
+      title: maalPunkt.skridtTitel,
+      description: `Skal være gjort senest ${formatDanskDato(maalPunkt.frist)} — ${modMaaletLinje(maalPunkt.maalTitel)}.${maalFristTillaeg(maalPunkt.maalDageTilbage)}`,
+      ctaLabel: MAAL_FOKUS_SKRIDT_CTA,
+      ctaHref: "#dine-skridt",
+      sourceId: maalPunkt.skridtId,
+    });
+  } else if (maalPunkt?.art === "foerste_skridt") {
+    ventendeMaalItem = {
+      key: `maal:foerste:${maalPunkt.maalId}`,
+      kind: "maal",
+      priority: 5,
+      title: foersteSkridtTitel(maalPunkt.maalTitel, maalPunkt.foerste),
+      description: maalPunkt.foerste
+        ? "Et mål uden skridt flytter sig ikke. Hvad er det første, I gør?"
+        : "Intet er i gang under målet lige nu. Hvad er det næste, I gør?",
+      ctaLabel: MAAL_FOKUS_TILFOEJ_CTA,
+      ctaHref: MAAL_FOKUS_STI,
+      sourceId: maalPunkt.maalId,
+    };
+  } else if (maalPunkt?.art === "frist") {
+    ventendeMaalItem = {
+      key: `maal:frist:${maalPunkt.maalId}`,
+      kind: "maal",
+      priority: 5,
+      title: fristTitel(maalPunkt.maalTitel, maalPunkt.dageTilbage),
+      description: "Hvad skal der til for at nå målet? Se skridtene og fristen.",
+      ctaLabel: MAAL_FOKUS_MAAL_CTA,
+      ctaHref: MAAL_FOKUS_STI,
+      sourceId: maalPunkt.maalId,
+    };
+  }
+  const maalSkridtId = maalPunkt?.art === "skridt" ? maalPunkt.skridtId : null;
+  const fStart = items.length;
+  let sidsteHastende = -1;
 
   // (f) Åbne handlinger — kalderens orden bevares (ActionCenter:205-208:
   // high → medium → low, dernæst ældste først). 'proposed' udelades
@@ -333,6 +528,7 @@ export function deriveFocus(inputs: FocusInputs): FocusItem[] {
   // sektionen.
   for (const action of inputs.openActions) {
     if (action.status === "proposed") continue;
+    if (action.id === maalSkridtId) continue; // står allerede som målets punkt (e)
     /* context er handlingens egen begrundelse fra AI-analysen og siger
        HVORFOR — fallbacken bevares, fordi kolonnen er nullable, men
        den er sidste udvej, ikke normen. */
@@ -357,6 +553,53 @@ export function deriveFocus(inputs: FocusInputs): FocusItem[] {
       ctaHref: erAktivOpgave ? "#dine-skridt" : "/",
       sourceId: action.id,
     });
+    if (erHastendeSkridt(action, now)) sidsteHastende = items.length - 1;
+  }
+  // Målpunktets (2)/(3) plads (se (e)): under det sidste hastende (f)-punkt,
+  // ellers før (f) som hidtil. Stadig ét målpunkt i alt.
+  if (ventendeMaalItem) {
+    if (sidsteHastende >= 0) items.splice(sidsteHastende + 1, 0, { ...ventendeMaalItem, priority: 6 });
+    else items.splice(fStart, 0, ventendeMaalItem);
+  }
+  // (e2) KVARTALSTJEKKET (skive 3, 2/10-2026): ét punkt for det ældste
+  // forfaldne tjek — SAMME plads som (2)/(3): under det sidste hastende
+  // (f)-skridt (så en aftale, der forfalder, ikke skubbes ned af et tjek),
+  // ellers før (f); altid EFTER målets eget punkt, når det står dér.
+  const tjek = inputs.kvartalstjek?.[0] ?? null;
+  if (tjek) {
+    const punkt: FocusItem = {
+      key: `kvartalstjek:${tjek.maalId}:${tjek.kvartal}`,
+      kind: "kvartalstjek",
+      priority: 5,
+      title: KVARTAL_ORD.fokusTitel(tjek.maalTitel, tjek.maaned),
+      description: KVARTAL_ORD.fokusTekst,
+      ctaLabel: KVARTAL_ORD.fokusCta,
+      ctaHref: KVARTAL_ORD.fokusSti,
+      sourceId: tjek.maalId,
+    };
+    const efterHastende = sidsteHastende >= 0 ? sidsteHastende + 1 + (ventendeMaalItem ? 1 : 0) : -1;
+    if (efterHastende >= 0) items.splice(efterHastende, 0, { ...punkt, priority: 6 });
+    else items.splice(fStart + (ventendeMaalItem ? 1 : 0), 0, punkt);
+  }
+  // (e3) MÅL, DER VENTER PÅ JERES JA (skive 3, runde 2 fund 5): ét punkt
+  // «N mål venter på jeres ja» → Dine mål, når der er ubekræftede aktive mål.
+  // SAMME plads som (2)/(3) og kvartalstjekket — under det sidste hastende
+  // (f)-skridt, ellers før (f) — og EFTER målets punkt og kvartalstjekket:
+  // et svar på et forslag haster mindre end en aftale, der forfalder.
+  const venter = inputs.ubekraeftedeMaal ?? 0;
+  if (venter > 0) {
+    const punkt: FocusItem = {
+      key: "maal-venter",
+      kind: "maal-venter",
+      priority: 5,
+      title: BEKRAEFT_ORD.fokusTitel(venter),
+      description: BEKRAEFT_ORD.fokusTekst,
+      ctaLabel: BEKRAEFT_ORD.fokusCta,
+      ctaHref: BEKRAEFT_ORD.fokusSti,
+    };
+    const forrest = (ventendeMaalItem ? 1 : 0) + (tjek ? 1 : 0);
+    if (sidsteHastende >= 0) items.splice(sidsteHastende + 1 + forrest, 0, { ...punkt, priority: 6 });
+    else items.splice(fStart + forrest, 0, punkt);
   }
 
   // (g) Pulse-nudgen — GATED bag committed rapport (ActionCenter:166-176:
@@ -375,7 +618,9 @@ export function deriveFocus(inputs: FocusInputs): FocusItem[] {
 
   // (h) Løftestang uden milestone — ÉT samlet, stille punkt (første
   // løftestang i kalderens orden citeres; pr.-løftestang-spam undgås
-  // bevidst — handout-fladen ejer detaljen).
+  // bevidst — øvelsen (handoutet i Akademiet, 1/10) ejer detaljen).
+  // Knappen fører til den lektion, der bærer øvelsen (sti fra kalderen),
+  // ellers Akademiet — aldrig /handouts (medlemmet har ingen liste).
   if (inputs.unlinkedLevers.length > 0) {
     const first = inputs.unlinkedLevers[0];
     items.push({
@@ -384,8 +629,8 @@ export function deriveFocus(inputs: FocusInputs): FocusItem[] {
       priority: 8,
       title: "Gør en løftestang til en milestone",
       description: `"${first.lever}" (${first.moduleTitle}) venter på at blive en aktiv milestone, du kan tracke.`,
-      ctaLabel: "Åbn handouts",
-      ctaHref: "/handouts",
+      ctaLabel: "Åbn øvelsen",
+      ctaHref: first.sti ?? OEVELSE_FALDBACK_STI,
     });
   }
 

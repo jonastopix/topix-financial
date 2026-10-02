@@ -27,6 +27,11 @@
  * Det er bevidst en PRØVE og ikke en konfiguration: siden skal blive rigtig
  * af sig selv i samme sekund migrationen er kørt, uden en ny udrulning.
  *
+ * WEBINARKOBLINGEN (udkast 1/10-2026): de rådgiverbekræftede koblinger
+ * (`ansoegning_webinar_kobling`) hentes i ét opslag og lægges på ansøgningen
+ * som `webinar_email`; dommen (medWebinarKobling) lader dem tælle som et
+ * mail-match. Manglende tabel (migrationen ikke kørt) → ingen koblinger.
+ *
  * kraevRaekker-mønstret (recon-tavse-fejl.md): begge opslag kaster med
  * kildens navn, så en fejl bliver isError og ikke «der er ingen tilmeldte».
  */
@@ -37,6 +42,7 @@ import { HentningsFejl, kraevRaekker } from "@/lib/kraevRaekker";
 import { TILMELDING_KOLONNER } from "@/hooks/webinar";
 import { erUkendtKolonne, medAnnoncespor, medUdledte, udenAnnoncespor } from "@/lib/webinar/kolonner";
 import type { AnsoegerMail, Tilmelding } from "@/lib/webinar/dashboard";
+import { hentKoblingsMails } from "@/hooks/webinarKobling";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const tabel = (navn: string) => supabase.from(navn as any) as any;
@@ -92,11 +98,12 @@ export async function hentTilmeldingerMedSpor(): Promise<{ raekker: Tilmelding[]
  */
 export async function hentAnsoegerMails(): Promise<AnsoegerMail[]> {
   const res = await tabel("ansoegninger")
-    .select("email, indsendt_at, trin, company_id")
+    .select("id, email, indsendt_at, trin, company_id")
     .not("indsendt_at", "is", null)
     .limit(GRAENSE);
   const raekker = (kraevRaekker(res, "ansoegninger") as Record<string, unknown>[])
     .map((r) => ({
+      id: String(r.id ?? ""),
       email: String(r.email ?? "").trim().toLowerCase(),
       indsendt_at: (r.indsendt_at as string | null) ?? null,
       trin: (r.trin as AnsoegerMail["trin"]) ?? "ny",
@@ -105,15 +112,17 @@ export async function hentAnsoegerMails(): Promise<AnsoegerMail[]> {
     .filter((a) => a.email !== "");
 
   const ids = [...new Set(raekker.map((r) => r.company_id).filter((id): id is string => !!id))];
+  const koblinger = await hentKoblingsMails();
   const slutdatoer = new Map<string, string | null>();
   if (ids.length > 0) {
     const vRes = await tabel("companies").select("id, contract_end_date").in("id", ids);
     if (vRes.error) console.error("[webinar] companies-opslag til «blev medlem» fejlede:", vRes.error.message);
     for (const v of (vRes.data ?? []) as { id: string; contract_end_date: string | null }[]) slutdatoer.set(v.id, v.contract_end_date);
   }
-  return raekker.map(({ company_id, ...r }) => ({
+  return raekker.map(({ company_id, id, ...r }) => ({
     ...r,
     virksomhed_slutdato: company_id ? (slutdatoer.get(company_id) ?? null) : null,
+    webinar_email: koblinger.get(id) ?? null,
   }));
 }
 

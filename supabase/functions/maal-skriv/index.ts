@@ -31,11 +31,13 @@
 //   403 { error: "Kun rådgivere kan skrive mål her — medlemmet skriver sine egne mål fra Milestones" }
 //   404 { error: "Virksomheden findes ikke, eller du har ikke adgang til den" } · { error: "Målet findes ikke hos denne virksomhed" }
 //   409 { error: "Virksomheden har allerede 3 aktive mål — parkér eller markér et som nået først", antalAktive } · { error: "Målet er allerede aktivt" } · { error: "Kun et aktivt mål kan parkeres" } · { error: "Kun et aktivt mål kan markeres som nået" } · { error: "Virksomheden har intet medlem — målet ville ingen ejer have" }
+//       · rediger: { error: <doemMaalFristModSkridt's grund>, grund: "foer_skridtets_frist", senesteSkridtFrist, antal } (1/10-2026: ny målfrist før et åbent skridts frist)
 //   500 { error: "Intern fejl" }
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { kanOpretteMaal, MAX_AKTIVE_MAAL } from "../_shared/maal.ts";
+import { doemMaalFristModSkridt } from "../_shared/skridtForslag.ts";
 
 const HANDLINGER = ["opret", "rediger", "aktiver", "parker", "naaet", "slet"] as const;
 type Handling = (typeof HANDLINGER)[number];
@@ -223,6 +225,26 @@ Deno.serve(async (req) => {
     if (handling === "rediger") {
       patch = { ...felterDom.felter };
       if (Object.keys(patch).length === 0) return jsonResponse({ error: "Intet at ændre" }, 400);
+      // Målets nye frist mod skridtenes (Jonas 1/10-2026: et skridt må ikke
+      // have en frist længere ude end målet) — SAMME dom som medlemmets
+      // flade (doemMaalFristModSkridt): en ny frist FØR et åbent (active/
+      // proposed) skridts frist under målet nægtes med dommens grund, 409
+      // `grund: "foer_skridtets_frist"` (kun den nye kode svarer med den).
+      // Ingen skridt rykkes stille. Fristen fjernet (null) → ok.
+      const nyFrist = felterDom.felter.deadline;
+      if (typeof nyFrist === "string") {
+        const { data: aabne, error: skridtErr } = await adminClient
+          .from("company_actions")
+          .select("status, due_date, title")
+          .eq("company_id", companyId)
+          .eq("maal_id", maalId as string)
+          .in("status", ["active", "proposed"]);
+        if (skridtErr) throw new Error(`skridt-opslag fejlede: ${skridtErr.message}`);
+        const fristDom = doemMaalFristModSkridt(nyFrist, (aabne ?? []) as { status: string; due_date: string | null; title: string }[]);
+        if (!fristDom.ok) {
+          return jsonResponse({ error: fristDom.grund, grund: "foer_skridtets_frist", senesteSkridtFrist: fristDom.senesteSkridtFrist, antal: fristDom.antal }, 409);
+        }
+      }
     } else if (handling === "aktiver") {
       if (status === "active") return jsonResponse({ error: "Målet er allerede aktivt" }, 409);
       const antal = await taelAktive();

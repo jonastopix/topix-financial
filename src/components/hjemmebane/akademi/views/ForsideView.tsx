@@ -6,6 +6,7 @@ import { formatDuration } from "@/components/hjemmebane/admin/editors/shared";
 import { HbCard } from "@/components/hjemmebane/HbCard";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 import { HbProgressBar } from "../HbProgressBar";
+import { HbStedsSaetning } from "../../HbStedsSaetning";
 import { progressSummary, useAkademiData, type AkademiItem } from "../useAkademiData";
 import { sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
 import { afgoerForloeb } from "@/lib/hjemmebane/forloeb";
@@ -97,12 +98,19 @@ export const ForsideView = () => {
         <h1 className="mt-3 font-editorial text-4xl font-medium leading-[1.1] tracking-tight text-hb-ink md:text-5xl">
           {started ? "Fortsæt hvor du slap." : "Velkommen til Akademiet."}
         </h1>
-        {!started && (
-          <p className="mt-4 text-lg leading-relaxed text-hb-ink-soft">
-            Forløb, kurser og værktøjer — i dit tempo. Start her, så følger vi med på, hvor langt
-            du er nået.
-          </p>
-        )}
+        {/* Stedsætningen under h1 (rådets fund 7, 2/10): eyebrow → h1 → én sætning — den gamle velkomst-intro kun før start og kun for dem, sætningen ikke taler til (ellers). */}
+        <HbStedsSaetning
+          sti="/akademiet"
+          className="mt-3"
+          ellers={
+            !started ? (
+              <p className="mt-4 text-lg leading-relaxed text-hb-ink-soft">
+                Forløb, kurser og værktøjer — i dit tempo. Start her, så følger vi med på, hvor langt
+                du er nået.
+              </p>
+            ) : null
+          }
+        />
       </section>
 
       {continueEntry && (
@@ -126,7 +134,7 @@ export const ForsideView = () => {
         <p className="mb-5 text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">
           Dine forløb
         </p>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {/* Kun forløbsområder — push (akademi: false) bor på forsiden. */}
           {AREAS.filter((area) => area.akademi).map((area) => (
             <AreaCard
@@ -141,7 +149,7 @@ export const ForsideView = () => {
 
       {data.isAdvisor && (
         <p className="mt-10 text-xs text-hb-ink-soft">
-          Advisor-visning: du ser alt indhold uden dryp-låse.
+          Rådgiver-visning: du ser alt indhold uden dryp-låse.
         </p>
       )}
     </div>

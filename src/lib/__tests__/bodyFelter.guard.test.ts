@@ -15,7 +15,7 @@ import { resolve } from "node:path";
 // REGLEN: læser en function felter af en body, skal den afvise felter, den ikke
 // kender (_shared/kendteFelter.ts).
 //
-// DEN ENE UNDTAGELSE er eksterne webhooks: Stripe, Monday, Slack og Supabases
+// DEN ENE UNDTAGELSE er eksterne webhooks: Stripe, Slack og Supabases
 // auth-hook bestemmer selv formen på deres payloads og tilføjer felter uden at
 // spørge. En afvisning ville lukke integrationen ved deres næste opdatering.
 //
@@ -111,6 +111,14 @@ const STRIKS: readonly string[] = [
   // alt andet afvises.
   "certifikat-klokke",
 
+  // Nyhedsagenten, skive 1 (30/9): dry_run, nu og uden_llm (cronen); handling,
+  // udkast_id, traad_id og grund (rådgiverens klik). Alt andet afvises.
+  "nyhed-agent-cron",
+  "nyhed-udkast-afgoer",
+  // Driftsagenten, skive 1 (30/9): kun dry_run, alt andet afvises.
+  "drift-agent-cron",
+  // «Må vi ringe til dig?» (2/10): t, handling, navn, telefon og samtykke — alt andet afvises.
+  "ring-mig-op",
   // Webinarmotoren (skive 1, 30/9): striks fra første linje. webinar-tilmeld
   // (TILMELD_KENDTE_FELTER), webinar-rum (t, handling) og webinar-puls (t, puls,
   // handlinger — også de indlejrede objekter afviser ukendte nøgler i laesPulsKrop).
@@ -128,7 +136,6 @@ const STRIKS: readonly string[] = [
  */
 const EKSTERNE: readonly string[] = [
   "auth-email-hook",               // Supabases auth-hook — payloadens form er deres
-  "monday-webhook",                // Monday sender challenge/event/sent + hvad de finder på
   "send-slack-report-notification", // tager imod en Slack-event-payload
 ];
 

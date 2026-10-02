@@ -18,6 +18,7 @@
   --hb-evergreen: 170 46% 14%; /* brandgrøn — handling; identisk med --primary (lys) */
   --hb-rust: 18 60% 45%;       /* redaktionel accent — eyebrows, links */
   --hb-sage: 155 30% 88%;      /* blid grøn tint — tags, hover-flader */
+  --hb-amber: 28 70% 66%;      /* rust på MØRKE flader (evergreen-felter) — eyebrows, markører; rust selv står for mørkt dér (2/10, «Jeres retning») */
 
   /* Streger & form */
   --hb-line: 40 12% 88%;       /* hairline-borders — varm taupe */

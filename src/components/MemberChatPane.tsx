@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
 import { notifyChatMessage } from "@/lib/chatNotify";
+import { indsaetChatBesked, type ChatBeskedRaekke } from "@/lib/chatSkrivevej";
 import { uploadChatAttachments } from "@/lib/chatAttachments";
 import { MessageAttachments, type ChatAttachment } from "@/components/ChatAttachments";
 import { useMessageReactions } from "@/hooks/useMessageReactions";
@@ -17,6 +18,7 @@ import MessageEditDialog from "@/components/MessageEditDialog";
 import MobileMessageActionDrawer from "@/components/MobileMessageActionDrawer";
 import { computeMembershipTier } from "@/lib/membershipTier";
 import { useQuery } from "@tanstack/react-query";
+import { hentSynligeRaadgiverProfiler, type RaadgiverRaekke } from "@/hooks/tjenestekonti";
 import DOMPurify from "dompurify";
 import {
   Send, MessageCircle, CheckCheck, FileText, Target, Quote,
@@ -72,7 +74,7 @@ const ForfatterAvatar = ({ navn, avatarUrl, className = "h-9 w-9" }: { navn: str
   );
 
 const MemberChatPane = () => {
-  const { user, companyId, companyName } = useAuth();
+  const { user, companyId, companyName, laeseMarkeringTilladt } = useAuth();
   const isMobile = useIsMobile();
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
@@ -110,10 +112,13 @@ const MemberChatPane = () => {
   // Fetch all advisors for member header (independent of conversation participation)
   const { data: allAdvisors } = useQuery({
     queryKey: ["all-advisor-profiles"],
+    // Tjenestekonti (claude@topix.dk) står aldrig i «Dine rådgivere» — hentSynligeRaadgiverProfiler.
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_all_advisor_profiles" as any);
-      if (error) { console.error("Failed to fetch advisor profiles:", error); return []; }
-      return (data as any[] || []).map((r: any) => ({
+      let data: RaadgiverRaekke[];
+      try {
+        data = await hentSynligeRaadgiverProfiler();
+      } catch (error) { console.error("Failed to fetch advisor profiles:", error); return []; }
+      return data.map((r) => ({
         user_id: r.user_id as string,
         full_name: r.full_name as string,
         avatar_url: r.avatar_url as string | null,
@@ -180,7 +185,7 @@ const MemberChatPane = () => {
       // som ingen læser her (perf/chatpane-nyttelast). Join uændret.
       let convsQuery = supabase
         .from("conversations")
-        .select("id, member_id, company_id, last_message_at, created_at, awaiting_reply_from, assigned_advisor_id, last_member_message_at, last_advisor_reply_at, companies:company_id(id, name, logo_url, is_legat, contract_end_date, subscription_status, subscription_current_period_end)")
+        .select("id, member_id, company_id, last_message_at, created_at, awaiting_reply_from, last_member_message_at, last_advisor_reply_at, companies:company_id(id, name, logo_url, is_legat, contract_end_date, subscription_status, subscription_current_period_end)")
         .order("last_message_at", { ascending: false });
 
       // Medlems-grenene fra CompanyChatPane, kollapset (isAdvisor var
@@ -256,7 +261,6 @@ const MemberChatPane = () => {
           lastContextType: lastMsg?.context_type,
           hasRecentReport: false,
           awaiting_reply_from: c.awaiting_reply_from || null,
-          assigned_advisor_id: c.assigned_advisor_id || null,
           last_member_message_at: c.last_member_message_at || null,
           last_advisor_reply_at: c.last_advisor_reply_at || null,
         };
@@ -304,7 +308,9 @@ const MemberChatPane = () => {
       setMessages((data || []).reverse());
       setSvarPaa(null);
 
-      if (user) {
+      // En tjenestekonto KIGGER (30/9, tjenestekonto.guard dom 6): ingen «læst»
+      // til medlemmet, ingen nulstillede ulæst-tællere hos rådgiverne.
+      if (user && laeseMarkeringTilladt) {
         await supabase.rpc("mark_messages_read", { p_conversation_id: activeConvId });
       }
     };
@@ -334,7 +340,7 @@ const MemberChatPane = () => {
             });
           }
 
-          if (newMsg.sender_id !== user?.id && user) {
+          if (newMsg.sender_id !== user?.id && user && laeseMarkeringTilladt) {
             await supabase.rpc("mark_messages_read", { p_conversation_id: activeConvId });
           }
         }
@@ -370,7 +376,7 @@ const MemberChatPane = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activeConvId, user]);
+  }, [activeConvId, user, laeseMarkeringTilladt]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -436,8 +442,9 @@ const MemberChatPane = () => {
       // Editoren er allerede tømt (ChatRichInput rydder ved onSubmit), så en
       // fejlet indsættelse må ALDRIG være tavs: rækken gemmes til «Prøv igen»
       // (chatSendefejl.ts).
-      const svar = await supabase.from("messages").insert(insertData).select().single()
-        .then((r) => r, (e: unknown) => ({ data: null, error: e }));
+      // Skrivevejen er ÉT sted (chatSkrivevej.ts, 2/10) — forsidens «Din
+      // rådgiver»-kort sender gennem den samme.
+      const svar = await indsaetChatBesked(insertData);
 
       if (sendeUdfald(svar) === "sendt") {
         setNewMessage("");
@@ -462,8 +469,7 @@ const MemberChatPane = () => {
   const proevFejletIgen = useCallback(async () => {
     if (!fejletBesked || sending) return;
     setSending(true);
-    const svar = await supabase.from("messages").insert(fejletBesked.raekke as any).select().single()
-      .then((r) => r, (e: unknown) => ({ data: null, error: e }));
+    const svar = await indsaetChatBesked(fejletBesked.raekke as ChatBeskedRaekke);
     if (sendeUdfald(svar) === "sendt") {
       setFejletBesked(null);
       notifyChatMessage((svar.data as any).id);

@@ -421,9 +421,15 @@ den blev godkendt, og et direkte link til virksomheden i platformen.
 Dette er det led der ellers ville blive glemt, og som ville låse en
 virksomhed for evigt.
 
+> **NEDLAGT 2/10-2026 (udløser 1):** Monday er opsagt; `monday-webhook`
+> svarer 410 på alt, og «Godkendt» på Monday udløser intet. Normalvejen er
+> i dag ansøgningsmotorens underskrift (`_shared/ansoegningMotor.ts` →
+> `_shared/indgangsBetalingsmail.ts`, også fra `aftale-underskrift`);
+> udløser 2 står uændret. Se `docs/OVERLEVERING.md` «2. oktober nat — Monday væk». Teksten herunder står som historie.
+
 Betalingsmailen (dag 0) udløses af to forskellige begivenheder:
 
-1. **«Godkendt» på Monday MED pris** — normalvejen. Virksomheden
+1. **«Godkendt» på Monday MED pris** — normalvejen (NEDLAGT 2/10, se ovenfor). Virksomheden
    oprettes med prisniveau, og mailen sendes med det samme.
 2. **Prisniveauet sættes MANUELT på en virksomhed der mangler det** —
    undtagelsesvejen. Mailen sendes i det øjeblik prisen gemmes.
@@ -525,7 +531,8 @@ Løsningen er et ellevte prædikat i `scripts/check-edge-function-auth.ts`:
 
 Fire af de ti eksisterende prædikater er signaturverifikationer
 (`verifyStripeSignature`, `verifyMondayJwt`, `verifyWebhookRequest`,
-`verifyCalendlySignature`). Vores er samme klasse: legitimationen ligger
+`verifyCalendlySignature`). (2/10-2026: `verifyMondayJwt` er taget ud af
+værnet sammen med Monday-grenen — `docs/OVERLEVERING.md` «2. oktober nat — Monday væk».) Vores er samme klasse: legitimationen ligger
 i KALDET, ikke i en session. Det er at udvide husets mønster frem for
 at gå uden om værnet — og CI bekræftede det (Edge Function Auth
 Guardrail grøn, PR #514).
@@ -577,7 +584,9 @@ invitationen på en eksisterende pending invitation for virksomheden.
 
 ## 26. Det der mangler
 
-- **Monday-grenen ved «Godkendt»**: bygget 2/9. `monday-webhook` gater
+- **Monday-grenen ved «Godkendt»** — **NEDLAGT 2/10-2026** (`monday-webhook`
+  svarer 410 på alt; `_shared/mondayAnsoegning.ts` og `_shared/mondayVaern.ts`
+  er slettet; `docs/OVERLEVERING.md` «2. oktober nat — Monday væk»). Historie: bygget 2/9. `monday-webhook` gater
   på «Godkendt» (alt andet, også «Medlem»/«I gang», logges og ignoreres),
   læser de 18 kolonner (`_shared/mondayAnsoegning.ts`), opretter
   virksomheden via `opretEllerGenbrugVirksomhed`, sætter

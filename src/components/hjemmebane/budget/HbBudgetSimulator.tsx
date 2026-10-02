@@ -388,7 +388,7 @@ export const HbBudgetSimulator = ({ rows, year, companyId, userId }: Props) => {
               ))}
             </div>
 
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
               <HbField label="Navn">
                 <HbInput
                   value={newEventLabel}

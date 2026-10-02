@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { computeMembershipTier } from "../_shared/membershipTier.ts";
+import { retTilGode } from "../_shared/sessionRet.ts";
 
 // DEN INKLUDEREDE SESSION — for BEGGE raadgivere (13/9, recon-de-tre-sessioner.md §3).
 // Medlemskabet indeholder een session med hver raadgiver. Funktionen var otte steder bundet
@@ -10,8 +11,8 @@ import { computeMembershipTier } from "../_shared/membershipTier.ts";
 // CI-vaernet, SECURITY_BASELINE og fladen, og en omdoebning koster mere end den giver.
 //
 // Alt raadgiver-specifikt staar i SPOR-tabellen nedenfor; resten af flowet er ens:
-//   ret (kolonne paa companies) -> atomisk gate UPDATE ... WHERE <ret> IS NULL (409 ved nul
-//   raekker) -> guarded rollback paa samme ts -> single-use Calendly-link med raekkens id
+//   ret (kolonne paa companies) -> DEN ENE REGEL (_shared/sessionRet, 2/10) -> atomisk compare-and-set
+//   paa den laeste vaerdi (409 ved nul raekker) -> guarded rollback paa samme ts -> single-use Calendly-link med raekkens id
 //   indlejret (salesforce_uuid/utm_content, saa calendly-webhook kan melde tilbage) ->
 //   insert med advisor og amount_dkk 0.
 //
@@ -86,23 +87,34 @@ async function createCalendlySingleUseLink(apiKey: string, eventTypeUri: string)
   return data.resource.booking_url;
 }
 
+// Beviset for udrulningen af DEN ENE REGEL (2/10-2026): hvert svar — også auth-afvisningen — baerer
+// headeren `x-session-regel: skive-1`. Kun den nye kode kan svare med den; et uautentificeret GET maaler den
+// (pg_net → net._http_response.headers) uden at roere en raekke.
+const REGEL_HEADER = { "x-session-regel": "skive-1" };
+
 function json(status: number, body: Record<string, unknown>): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { ...corsHeaders, ...REGEL_HEADER, "Content-Type": "application/json" },
   });
+}
+
+function medRegelHeader(r: Response): Response {
+  const h = new Headers(r.headers);
+  h.set("x-session-regel", REGEL_HEADER["x-session-regel"]);
+  return new Response(r.body, { status: r.status, headers: h });
 }
 
 Deno.serve(async (req: Request) => {
   // 1. CORS preflight
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: { ...corsHeaders, ...REGEL_HEADER } });
   }
 
   try {
     // 2. Bucket A: authenticate caller FOER nogen service-role-handling (CI-guard kraever dette).
     const auth = await authenticateUser(req);
-    if (auth instanceof Response) return auth;
+    if (auth instanceof Response) return medRegelHeader(auth);
     const { callerId } = auth;
 
     // 2b. Hvilken raadgiver? Body er valgfri (tom/manglende = Morten, som foer). Ukendt vaerdi
@@ -150,7 +162,7 @@ Deno.serve(async (req: Request) => {
     // 5. Berettigelse: kun aktive fulde medlemmer maa booke den inkluderede session.
     const { data: company, error: companyError } = await admin
       .from("companies")
-      .select("contract_end_date, subscription_status, subscription_current_period_end")
+      .select("contract_end_date, subscription_status, subscription_current_period_end, intro_session_used_at, jonas_session_used_at, jonas_session_tilbudt_at")
       .eq("id", companyId)
       .maybeSingle();
 
@@ -168,17 +180,29 @@ Deno.serve(async (req: Request) => {
       return json(403, { error: "Kun fulde medlemmer kan booke den inkluderede session." });
     }
 
-    // 6. ATOMISK GATE (foerste mutation): markér retten i samme sætning som betingelsen
-    //    IS NULL. To hurtige klik kan aldrig begge vinde, da UPDATE'en tager row-laasen og
-    //    kun matcher saa laenge feltet stadig er NULL. Samme form for begge raadgivere —
-    //    kun kolonnen skifter.
+    // 6. ATOMISK GATE (foerste mutation). DEN ENE REGEL (2/10-2026, _shared/sessionRet — spejlet i src/lib,
+    //    samme dom som forsidens «Til gode» og /book-session): retten er til gode, naar kolonnen er NULL, ELLER
+    //    (kun Jonas) naar raadgiveren har TILBUDT sessionen efter en aeldre «brugt» (brugt_at <= tilbudt_at).
+    //    Foer krævede gaten `IS NULL` alene — maalt 2/10: fem tilbudte Jonas-sessioner kunne ikke bookes (409).
+    //    Gaten er nu compare-and-set paa den LAESTE vaerdi: UPDATE ... WHERE <ret> IS NULL (foer = null) eller
+    //    WHERE <ret> = <foer>. To hurtige klik kan stadig aldrig begge vinde: den foerste skriver ts, den anden
+    //    matcher nul raekker (vaerdien er ikke laengere foer).
+    const raekke = company as unknown as { intro_session_used_at: string | null; jonas_session_used_at: string | null; jonas_session_tilbudt_at: string | null };
+    if (!retTilGode(raadgiver, raekke)) {
+      return json(409, { error: `Virksomheden har allerede brugt sin inkluderede session med ${spor.navn}.` });
+    }
+    const foer: string | null = raekke[spor.ret] ?? null;
     const ts = new Date().toISOString();
-    const { data: claimed, error: claimError } = await admin
-      .from("companies")
-      .update({ [spor.ret]: ts })
-      .eq("id", companyId)
-      .is(spor.ret, null)
-      .select("id");
+    // Jonas' gate laaser OGSAA tilbuddet til den laeste vaerdi (CTO-raadets fund 2): traekkes tilbuddet tilbage
+    // mellem laesningen og UPDATE'en, matcher gaten nul raekker (409) i stedet for at booke paa et tilbud, der
+    // ikke laengere staar.
+    let gate = admin.from("companies").update({ [spor.ret]: ts }).eq("id", companyId);
+    gate = foer === null ? gate.is(spor.ret, null) : gate.eq(spor.ret, foer);
+    if (raadgiver === "jonas") {
+      const tilbudt = raekke.jonas_session_tilbudt_at ?? null;
+      gate = tilbudt === null ? gate.is("jonas_session_tilbudt_at", null) : gate.eq("jonas_session_tilbudt_at", tilbudt);
+    }
+    const { data: claimed, error: claimError } = await gate.select("id");
 
     if (claimError) {
       console.error(`${log} gate update failed:`, claimError);
@@ -188,16 +212,17 @@ Deno.serve(async (req: Request) => {
       return json(409, { error: `Virksomheden har allerede brugt sin inkluderede session med ${spor.navn}.` });
     }
 
-    // Guarded rollback: nulstil KUN hvis vaerdien stadig er vores (samme ts), saa vi aldrig
-    // sletter en anden markering. Returnér altid en venlig fejl der siger at retten IKKE er brugt.
+    // Guarded rollback: saet KUN tilbage hvis vaerdien stadig er vores (samme ts), og tilbage til den LAESTE
+    // vaerdi (null, eller den aeldre «brugt», som tilbuddet overtrumfer) — saa vi aldrig sletter en anden
+    // markering. Returnér altid en venlig fejl der siger at retten IKKE er brugt.
     const rollback = async () => {
       const { error: rbError } = await admin
         .from("companies")
-        .update({ [spor.ret]: null })
+        .update({ [spor.ret]: foer })
         .eq("id", companyId)
         .eq(spor.ret, ts);
       if (rbError) {
-        console.error(`${log} ROLLBACK FAILED, company_id=${companyId} ts=${ts}, kraever manuel oprydning:`, rbError);
+        console.error(`${log} ROLLBACK FAILED, company_id=${companyId} ts=${ts} foer=${foer}, kraever manuel oprydning:`, rbError);
       }
     };
 

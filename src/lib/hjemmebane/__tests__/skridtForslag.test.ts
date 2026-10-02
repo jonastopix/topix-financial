@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   AABNE_STATUSSER,
+  danskDato,
+  doemFristModMaal,
+  doemUdskydModMaal,
+  foreslaaetFristModMaal,
+  senesteSkridtFrist,
   GENTAGELSES_VINDUE_DAGE,
   doemSkrivning,
   erGentagelse,
@@ -221,5 +226,97 @@ describe("fristen (Jonas 17/9: «1» — obligatorisk, foreslået i dag + 14 dag
     for (const v of [undefined, null, "", "   ", 42]) expect(doemFrist(v, NU)).toEqual({ ok: false, grund: "Fristen mangler — vælg en dato" });
     for (const v of ["17-09-2026", "2026/09/17", "2026-9-17", "2026-09-17T00:00:00Z"]) expect(doemFrist(v, NU)).toEqual({ ok: false, grund: "Fristen skal være en dato på formen ÅÅÅÅ-MM-DD" });
     for (const v of ["2026-02-30", "2026-13-01", "2026-04-31", "2026-00-10"]) expect(doemFrist(v, NU)).toEqual({ ok: false, grund: "Fristen er ikke en rigtig dato" });
+  });
+});
+
+describe("skridtets frist mod målets (Jonas 1/10-2026: et skridt må ikke have en deadline længere ude end målet)", () => {
+  // NU = 17/9 dansk; foreslaaetFrist(NU) = 1/10.
+  it("målets frist er loftet — samme dag er tilladt, dagen efter afvises med en klar besked", () => {
+    expect(doemFristModMaal("2026-11-20", "2026-11-20", NU)).toEqual({ ok: true, dato: "2026-11-20" });
+    expect(doemFristModMaal("2026-11-19", "2026-11-20", NU)).toEqual({ ok: true, dato: "2026-11-19" });
+    expect(doemFristModMaal("2026-11-21", "2026-11-20", NU)).toEqual({ ok: false, grund: "Skridtets frist kan ikke ligge efter målets frist (20. nov. 2026) — vælg den dag eller tidligere", kode: "efter_maalets_frist" });
+  });
+  it("mål uden frist: ingen grænse", () => {
+    for (const m of [null, undefined, "", "  "]) expect(doemFristModMaal("2030-01-01", m, NU)).toEqual({ ok: true, dato: "2030-01-01" });
+  });
+  it("målets frist passeret (før i dag, dansk tid): afvist — målets frist skal rykkes først", () => {
+    expect(doemFristModMaal("2026-09-20", "2026-09-16", NU)).toEqual({ ok: false, grund: "Målets frist (16. sep. 2026) er passeret — ryk målets frist, før du tilføjer et skridt", kode: "maalets_frist_passeret" });
+    // Målets frist i dag: skridtet kan få i dag.
+    expect(doemFristModMaal("2026-09-17", "2026-09-17", NU)).toEqual({ ok: true, dato: "2026-09-17" });
+  });
+  it("en ulæselig målfrist afvises (fail-closed); en timestamptz-form læses på datoen", () => {
+    expect(doemFristModMaal("2026-10-01", "i morgen", NU).ok).toBe(false);
+    expect(doemFristModMaal("2026-10-01", "i morgen", NU)).toMatchObject({ ok: false, kode: "maalets_frist_ulaeselig" });
+    expect(doemFristModMaal("2026-10-01", "2026-10-01T00:00:00+00:00", NU)).toEqual({ ok: true, dato: "2026-10-01" });
+  });
+  it("udskydelsen (opgave-udskyd, 1/10 eftermiddag): ny frist = min(motorens, målets); en valgt dato efter afvises", () => {
+    // NU = 17/9 dansk; motorens første udskydelse = 1/10 (nu + 14).
+    expect(doemUdskydModMaal("2026-10-01", "2026-09-10", null, NU, false)).toEqual({ ok: true, dato: "2026-10-01", begraenset: false });
+    expect(doemUdskydModMaal("2026-10-01", "2026-09-10", "2026-12-01", NU, false)).toEqual({ ok: true, dato: "2026-10-01", begraenset: false });
+    // Regnestykket: min(2026-10-01, 2026-09-25) = 2026-09-25.
+    expect(doemUdskydModMaal("2026-10-01", "2026-09-10", "2026-09-25", NU, false)).toEqual({ ok: true, dato: "2026-09-25", begraenset: true });
+    // Samme dag som målets frist: ikke begrænset.
+    expect(doemUdskydModMaal("2026-10-01", "2026-09-10", "2026-10-01", NU, false)).toEqual({ ok: true, dato: "2026-10-01", begraenset: false });
+    // Anden udskydelse: medlemmets valgte dato efter målets frist rykkes ikke stille.
+    expect(doemUdskydModMaal("2026-10-05", "2026-09-10", "2026-10-01", NU, true)).toEqual({
+      ok: false, grund: "Skridtet kan ikke udskydes forbi målets frist (1. okt. 2026) — vælg den dag eller tidligere, eller ryk målets frist først", kode: "efter_maalets_frist",
+    });
+    expect(doemUdskydModMaal("2026-10-01", "2026-09-10", "2026-10-01", NU, true)).toEqual({ ok: true, dato: "2026-10-01", begraenset: false });
+  });
+  it("udskydelsen (R1): målets frist i dag (dansk) afvises UDEN at bruge udskydelsen — i går er passeret", () => {
+    // Regnestykket: min(1/10, 17/9) = 17/9 = i dag → en udskydelse til i dag er ingen udskydelse.
+    const iDag = { ok: false, grund: "Skridtet kan ikke udskydes — målets frist er i dag (17. sep. 2026). Ryk målets frist først, eller marker skridtet gjort/drop det.", kode: "ved_maalets_frist" };
+    expect(doemUdskydModMaal("2026-10-01", "2026-09-10", "2026-09-17", NU, false)).toEqual(iDag);
+    // Anden udskydelse: også en valgt dato på i dag (= målets frist) afvises.
+    expect(doemUdskydModMaal("2026-09-17", "2026-09-10", "2026-09-17", NU, true)).toEqual(iDag);
+    // Den anden vej: målets frist i morgen → begrænset til i morgen (> i dag), tilladt.
+    expect(doemUdskydModMaal("2026-10-01", "2026-09-10", "2026-09-18", NU, false)).toEqual({ ok: true, dato: "2026-09-18", begraenset: true });
+    expect(doemUdskydModMaal("2026-10-01", "2026-09-10", "2026-09-16", NU, false)).toEqual({
+      ok: false, grund: "Skridtet kan ikke udskydes forbi målets frist (16. sep. 2026), som er passeret — ryk målets frist først", kode: "maalets_frist_passeret",
+    });
+    // 17/9 22:30 UTC = 18/9 00:30 dansk: målets frist 17/9 er nu passeret.
+    expect(doemUdskydModMaal("2026-10-02", "2026-09-10", "2026-09-17", new Date("2026-09-17T22:30:00Z"), false)).toMatchObject({ ok: false, kode: "maalets_frist_passeret" });
+    // 17/9 21:30 UTC = 17/9 23:30 dansk: stadig i dag → målets frist er i dag → afvist (R1).
+    expect(doemUdskydModMaal("2026-10-01", "2026-09-10", "2026-09-17", new Date("2026-09-17T21:30:00Z"), false)).toMatchObject({ ok: false, kode: "ved_maalets_frist" });
+    // 17/9 22:30 UTC = 18/9 dansk: målets frist 18/9 er nu i dag → afvist; 19/9 → begrænset.
+    expect(doemUdskydModMaal("2026-10-02", "2026-09-10", "2026-09-18", new Date("2026-09-17T22:30:00Z"), false)).toMatchObject({ ok: false, kode: "ved_maalets_frist" });
+    expect(doemUdskydModMaal("2026-10-02", "2026-09-10", "2026-09-19", new Date("2026-09-17T22:30:00Z"), false)).toEqual({ ok: true, dato: "2026-09-19", begraenset: true });
+  });
+  it("udskydelsen (K2): en valgt dato før dansk i dag afvises — omkring dansk midnat, med og uden mål", () => {
+    const foer = { ok: false, grund: "Den valgte dato (17. sep. 2026) ligger før i dag — vælg i dag eller senere", kode: "foer_i_dag" };
+    // 17/9 22:30 UTC = 18/9 00:30 dansk: motoren (UTC-dag 17/9) ville tage 17/9 — dommen gør ikke.
+    for (const m of [null, "2026-12-01"]) expect(doemUdskydModMaal("2026-09-17", "2026-09-10", m, new Date("2026-09-17T22:30:00Z"), true)).toEqual(foer);
+    // 17/9 21:59 UTC = 17/9 23:59 dansk: 17/9 er i dag — tilladt (uden mål; med et senere mål).
+    expect(doemUdskydModMaal("2026-09-17", "2026-09-10", null, new Date("2026-09-17T21:59:00Z"), true)).toEqual({ ok: true, dato: "2026-09-17", begraenset: false });
+    expect(doemUdskydModMaal("2026-09-17", "2026-09-10", "2026-12-01", new Date("2026-09-17T21:59:00Z"), true)).toEqual({ ok: true, dato: "2026-09-17", begraenset: false });
+    // Første udskydelse (valgt = false): motorens egen dato dømmes ikke af K2.
+    expect(doemUdskydModMaal("2026-09-17", "2026-09-10", null, new Date("2026-09-17T22:30:00Z"), false)).toEqual({ ok: true, dato: "2026-09-17", begraenset: false });
+  });
+  it("K1: accept-stien siger «taget», ikke «tilføjet»; standard er uændret", () => {
+    expect(doemFristModMaal("2026-10-01", "i morgen", NU, "accepteret")).toEqual({ ok: false, grund: "Målets frist kan ikke læses — skridtet blev ikke taget", kode: "maalets_frist_ulaeselig" });
+    expect(doemFristModMaal("2026-09-20", "2026-09-16", NU, "accepteret")).toEqual({ ok: false, grund: "Målets frist (16. sep. 2026) er passeret — ryk målets frist, før du tager skridtet", kode: "maalets_frist_passeret" });
+    expect(doemFristModMaal("2026-09-20", "2026-09-16", NU, "tilføjet")).toEqual(doemFristModMaal("2026-09-20", "2026-09-16", NU));
+    expect(doemFristModMaal("2026-10-01", "i morgen", NU)).toMatchObject({ grund: "Målets frist kan ikke læses — skridtet blev ikke tilføjet" });
+  });
+  it("udskydelsen: den gamle frist står allerede på målets → afvist; ulæselig målfrist → fail-closed", () => {
+    expect(doemUdskydModMaal("2026-10-01", "2026-09-25", "2026-09-25", NU, false)).toEqual({
+      ok: false, grund: "Skridtet kan ikke udskydes forbi målets frist (25. sep. 2026) — ryk målets frist først", kode: "ved_maalets_frist",
+    });
+    expect(doemUdskydModMaal("2026-10-01", "2026-09-30", "2026-09-25", NU, false)).toMatchObject({ ok: false, kode: "ved_maalets_frist" });
+    expect(doemUdskydModMaal("2026-10-01", "2026-09-10", "i morgen", NU, false)).toEqual({ ok: false, grund: "Målets frist kan ikke læses — skridtet blev ikke udskudt", kode: "maalets_frist_ulaeselig" });
+    expect(doemUdskydModMaal("2026-10-01", null, "2026-12-01T00:00:00+00:00", NU, false)).toEqual({ ok: true, dato: "2026-10-01", begraenset: false });
+  });
+  it("forslaget rykkes ind under målets frist; datovælgerens max er målets frist", () => {
+    expect(foreslaaetFristModMaal(NU, null)).toBe("2026-10-01");
+    expect(foreslaaetFristModMaal(NU, "2026-12-01")).toBe("2026-10-01");
+    expect(foreslaaetFristModMaal(NU, "2026-09-25")).toBe("2026-09-25");
+    expect(foreslaaetFristModMaal(NU, "2026-09-10")).toBe("2026-10-01"); // passeret: formularen afviser med grunden
+    expect(senesteSkridtFrist("2026-11-20")).toBe("2026-11-20");
+    expect(senesteSkridtFrist(null)).toBeNull();
+    expect(senesteSkridtFrist("noget")).toBeNull();
+  });
+  it("danskDato", () => {
+    expect(danskDato("2026-11-20")).toBe("20. nov. 2026");
+    expect(danskDato("2027-05-01")).toBe("1. maj 2027");
   });
 });

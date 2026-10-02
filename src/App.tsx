@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { logMutationFejl, logQueryFejl } from "@/lib/fejllogning";
+import { brugTjenestekontiKlient } from "@/hooks/tjenestekonti";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { sikkerReturSti } from "@/lib/sikkerReturUrl";
@@ -72,6 +73,7 @@ const EventDetail = lazy(() => import("./pages/EventDetail"));
 const MemberProfile = lazy(() => import("./pages/MemberProfile"));
 const MemberDirectory = lazy(() => import("./pages/MemberDirectory"));
 const Virksomheder = lazy(() => import("./pages/Virksomheder"));
+const Engagement = lazy(() => import("./pages/Engagement"));
 const GenkoerRapporter = lazy(() => import("./pages/GenkoerRapporter"));
 const Opgaver = lazy(() => import("./pages/Opgaver"));
 const Virksomhed = lazy(() => import("./pages/Virksomhed"));
@@ -80,6 +82,9 @@ const Ansoegning = lazy(() => import("./pages/Ansoegning"));
 const Forside = lazy(() => import("./pages/Forside"));
 const Oekonomi = lazy(() => import("./pages/Oekonomi"));
 const Webinar = lazy(() => import("./pages/Webinar"));
+const Nyheder = lazy(() => import("./pages/Nyheder"));
+const Opkald = lazy(() => import("./pages/Opkald"));
+const RingMigOp = lazy(() => import("./pages/RingMigOp"));
 const DeltWebinar = lazy(() => import("./pages/DeltWebinar"));
 // Lazy — seerens webinarflade (skive 2, 30/9-2026): offentlig, uden login, i ingen menu.
 const WebinarSide = lazy(() => import("./pages/WebinarSide"));
@@ -122,6 +127,8 @@ const queryClient = new QueryClient({
     onError: (error, _variables, _context, mutation) => logMutationFejl(error, mutation.options.mutationKey),
   }),
 });
+// Tjenestekonti (30/9): de imperative opslag deler cache med useTjenestekonti.
+brugTjenestekontiKlient(queryClient);
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading, isAdvisor, membershipTier } = useAuth();
@@ -272,6 +279,11 @@ const App = () => (
                   alle kald går gennem edge-funktionen webinar-delt, som kun svarer
                   med det færdige dashboard. Ingen skal, ingen navigation. */}
               <Route path="/delt/webinar" element={<DeltWebinar />} />
+              {/* «Må vi ringe til dig?» (2/10): en webinarDELTAGER uden konto lander
+                  her fra Klaviyos «Deltog»-mail med ?t=<token>. Uguardet som /aftale —
+                  alle kald går gennem edge-funktionen ring-mig-op, som verificerer
+                  tokenet og dømmer, om tilmeldingen deltog. */}
+              <Route path="/ring-mig-op" element={<RingMigOp />} />
               {/* Webinarmotorens seerflade (skive 2, 30/9-2026 — docs/webinarmotor.md §6):
                   en person UDEN konto. /w/:slug = rummet med token (?t= eller fanens
                   sessionStorage), ellers tilmeldingen; /tilmeld = altid tilmeldingen;
@@ -333,6 +345,7 @@ const App = () => (
                   4/9): MIDLERTIDIG rute ved siden af /members til swappet —
                   mønstret fra de fire tidligere Hb-flytninger. */}
               <Route path="/virksomheder" element={<AdvisorRoute><Virksomheder /></AdvisorRoute>} />
+              <Route path="/engagement" element={<AdvisorRoute><Engagement /></AdvisorRoute>} />
               {/* «Genkør flere rapporter» (17/9): rådgiverens masse-genkørsel i browseren — filen fra storage,
                   samme rapport-id, aldrig overwrite. Nået fra virksomhedslisten. */}
               <Route path="/virksomheder/genkoer" element={<AdvisorRoute><GenkoerRapporter /></AdvisorRoute>} />
@@ -353,6 +366,10 @@ const App = () => (
               {/* Økonomioverblikket (Ø2, 18/9): kun partnere. Tom side indtil Ø3. */}
               <Route path="/oekonomi" element={<PartnerRoute><Oekonomi /></PartnerRoute>} />
               <Route path="/webinar" element={<AdvisorRoute><Webinar /></AdvisorRoute>} />
+              {/* Nyhedsagenten (30/9, skive 1): rådgiverens godkendelse af ugens nyhedsudkast — N1, intet publiceres uden klik her. Nås fra klokken. */}
+              <Route path="/nyheder" element={<AdvisorRoute><Nyheder /></AdvisorRoute>} />
+              {/* «Må vi ringe til dig?» (2/10): rådgivernes kø af dem, der bad om et opkald — fra klokken og menupunktet «Opkald» (Jonas 2/10 14:22). */}
+              <Route path="/opkald" element={<AdvisorRoute><Opkald /></AdvisorRoute>} />
               {/* Webinarmotorens opsætning (skive 3, 30/9-2026 — docs/webinarmotor.md §7): webinar, sessioner
                   (intern ja/nej) og tidslinjen. AdvisorRoute + RLS (kun rådgivere skriver). Intet menupunkt endnu. */}
               <Route path="/webinar/motor" element={<AdvisorRoute><WebinarMotor /></AdvisorRoute>} />

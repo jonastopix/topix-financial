@@ -152,7 +152,7 @@ export const HbBudgetBva = ({ baseRows, year, companyId }: Props) => {
       )}
 
       {/* Tre kort: budget + realiseret + tone-farvet afvigelse */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {summaryCards.map((card) => {
           const tone = deriveBudgetTone({ budget: card.budget, actual: card.actual, isRevenue: card.isRevenue });
           return (

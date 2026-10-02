@@ -20,11 +20,19 @@ describe("velkomstTekst.guard — HbOnboardingTjekliste", () => {
   });
 
   it("overlejringen læser tilstanden gennem velkomstTekst(pilleTraekkerSig) — samme prop skallen allerede giver boksen", () => {
-    expect(kode).toContain('import { erVelkomstHash, velkomstTekst } from "@/lib/hjemmebane/ankomst";');
+    expect(kode).toContain('import { erVelkomstHash, velkomstTekst, velkomstVisesAutomatisk } from "@/lib/hjemmebane/ankomst";');
     expect(kode).toContain("{velkomstTekst(pilleTraekkerSig)}");
     expect(kode).toContain("pilleTraekkerSig={pilleTraekkerSig}");
     // Ingen ny prop gennem skallen: HbMemberShell giver stadig præcis den ene.
     const skal = udenKommentarer(laes("src/components/hjemmebane/HbMemberShell.tsx"));
     expect(skal.match(/pilleTraekkerSig=\{tjeklistePilleTraekkerSig\}/g) ?? []).toHaveLength(1);
+  });
+
+  it("den automatiske velkomst går gennem velkomstVisesAutomatisk med skallens erErfarentMedlem (30/9, PR #1192)", () => {
+    expect(kode).toContain("const visVelkomstAutomatisk = velkomstVisesAutomatisk({");
+    expect(kode).toContain("erfarentMedlem,\n  });");
+    const skal = udenKommentarer(laes("src/components/hjemmebane/HbMemberShell.tsx"));
+    expect(skal).toContain("const tjeklisteErfarentMedlem = erErfarentMedlem(tjeklisteData.medlemSiden, new Date());");
+    expect(skal.match(/erfarentMedlem=\{tjeklisteErfarentMedlem\}/g) ?? []).toHaveLength(1);
   });
 });

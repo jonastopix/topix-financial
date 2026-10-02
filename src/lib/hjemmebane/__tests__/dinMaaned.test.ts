@@ -195,3 +195,24 @@ describe("dinMaanedDom", () => {
     expect(JSON.stringify(d)).not.toContain("%");
   });
 });
+
+import { senesteNoegle, talAlderTekst } from "../dinMaaned";
+describe("talAlderTekst — kun når tallene er bagud efter husets frist (forside v3)", () => {
+  const nu = new Date("2026-10-02T18:00:00Z");
+  it("Topix 2/10: august er seneste, septembers frist 20/10 er ikke passeret → frisk", () => expect(talAlderTekst("2026-08", nu)).toBeNull());
+  it("juni → 3 måneder gamle", () => expect(talAlderTekst("2026-06", nu)).toBe("3 måneder gamle"));
+  it("juli → 2 måneder gamle (augusts frist mandag 21/9 passeret)", () => expect(talAlderTekst("2026-07", nu)).toBe("2 måneder gamle"));
+  it("september (åben måned i hus) → frisk", () => expect(talAlderTekst("2026-09", nu)).toBeNull());
+  it("på fristdagen selv er august stadig ikke for gammel: 20/10 kl. 23 dansk → frisk; 21/10 → 1 måned gammel", () => {
+    expect(talAlderTekst("2026-08", new Date("2026-10-20T21:00:00Z"))).toBeNull();
+    expect(talAlderTekst("2026-08", new Date("2026-10-21T08:00:00Z"))).toBe("1 måned gammel");
+  });
+  it("ingen/ugyldig → null", () => {
+    expect(talAlderTekst(null, nu)).toBeNull();
+    expect(talAlderTekst("2026-8", nu)).toBeNull();
+  });
+  it("senesteNoegle", () => {
+    expect(senesteNoegle([{ key: "2026-03" }, { key: "2026-08" }, { key: "2026-01" }])).toBe("2026-08");
+    expect(senesteNoegle([])).toBeNull();
+  });
+});

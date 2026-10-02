@@ -1,64 +1,130 @@
-import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BookOpen, Plus } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { SAET_MAAL_PARAM, SAET_MAAL_VAERDI, SKARPT_PARAM } from "@/lib/hjemmebane/forsideMaal";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
-import { kraevRaekker } from "@/lib/kraevRaekker";
-import { MILESTONE_CATEGORIES, type MilestoneCategory } from "@/lib/milestoneCategories";
-import { MILESTONE_SUGGESTIONS } from "@/lib/milestoneSuggestions";
-import { dineMaalDom, DINE_SKRIDT_FEJL_TEKST, TILFOEJ_SKRIDT_FEJL_TEKST, TILFOEJ_SKRIDT_OK_TEKST, type SkridtTilDineMaal } from "@/lib/hjemmebane/dineMaal";
+import { useDineMaalGrundlag, useDineMaalSkrivning } from "@/hooks/dineMaalGrundlag";
+import { useMaalPladsdom } from "@/hooks/maalPladsdom";
+import { bekraeftelseSpaerret } from "@/lib/hjemmebane/maalPladsdom";
+import { dineMaalDom, doemMaalFristModSkridt, lokalDatoStreng, TILFOEJ_SKRIDT_FEJL_TEKST, TILFOEJ_SKRIDT_OK_TEKST, type SkridtTilDineMaal } from "@/lib/hjemmebane/dineMaal";
 import type { MaalRaekke } from "@/lib/hjemmebane/planen";
-import { MAX_AKTIVE_MAAL } from "@/lib/hjemmebane/maal";
+import { maalKort, skarptForslag, type MaalKort as MaalKortDom } from "@/lib/hjemmebane/maalTal";
+import type { RetningNoegle } from "@/lib/hjemmebane/maalRetning";
+import {
+  AFVENTER_MIGRATION_TEKST,
+  chipTone,
+  DINE_MAAL_FEJL_TEKST,
+  DINE_MAAL_OVERSKRIFT,
+  eyebrowTekst,
+  hovedLinje,
+  KVARTALSTJEK_FEJLEDE_TEKST,
+  PROEV_IGEN,
+  REJSEN_ORD,
+  statusChips,
+  TALLENE_FEJLEDE_TEKST,
+} from "@/lib/hjemmebane/dineMaalFlade";
 import { HbAdvisorCompanyPrompt } from "../HbAdvisorCompanyPrompt";
 import { HbSection } from "../HbSection";
 import { HbCard } from "../HbCard";
-import { HbTag } from "../HbTag";
-import { HbButton } from "../HbButton";
+import { HbStedsSaetning } from "../HbStedsSaetning";
+import { fornavn } from "@/lib/hjemmebane/ansigter";
 import { HbMaalRaekke } from "./HbMaalRaekke";
 import { HbMaalForklaring } from "./HbMaalForklaring";
-import { useMilestones, type Milestone, type NyMilestone } from "./useMilestones";
-import { MilestoneDetaljeDialog, OpretMilestoneDialog, SletMilestoneDialog } from "./MilestoneDialoger";
+import { useMilestones, type Milestone } from "./useMilestones";
+import { SletMilestoneDialog } from "./MilestoneDialoger";
+import { JeresRetning } from "./JeresRetning";
+import { Chip, MaalKort, TomPladsKort } from "./MaalKort";
+import { Rejsen } from "./Rejsen";
+import { SaetMaalGuide, type GuideTilstand } from "./SaetMaalGuide";
+import { RedigerMaalDialog } from "./RedigerMaalDialog";
+import { BekraeftMaalKort, type BekraeftHandling, type KvartalHandling } from "./BekraeftMaalKort";
+import { aktiverFelter, BEKRAEFT_ORD, KVARTAL_ORD, statusEfterKvartalValg, type Kvartal } from "@/lib/hjemmebane/maalBekraeft";
 
 /**
- * «Dine mål» — /milestones i Hjemmebane, «Én plan pr. virksomhed», fase 3
- * (16/9-2026). Afløser MilestonesView (etape 1, 4/9): samme rute, samme
- * datalag (useMilestones — en ren flytning af de gamle skrivninger), samme
- * tre portaler (MilestoneDialoger). Nyt er det planen giver: målene med
- * SKRIDTENE under (◻ aktive med frist, ? venter, ✓ gjorte som historik),
- * fremdriften «2 af 3 skridt gjort · 67 %» fra maal.ts/planen.ts (samme
- * motor som opgave-luk skriver med og som rådgiverens «Planen» viser),
- * «Marker som nået», og grænsen på tre aktive sagt i klart sprog.
+ * «Dine mål» — /milestones (fladen 1/10-2026; designet Jonas sagde ja til kl.
+ * 21:04, «Jeres retning» 22:37; docs/dine-maal-design.md §8). Afløser fase 3-siden
+ * (16/9) — listen med skyder og blandet procent. Siden, oppefra (hierarkiet
+ * rettet 2/10-2026, docs/dine-maal-design.md §8 «Hierarkiet 2/10»):
+ *   1. Hovedet: eyebrow «Dine mål · <måned år>», «Hvor I er på vej hen»,
+ *      stedsætningen, ÉN hovedlinje (hovedLinje — aldrig to linjer oven på
+ *      hinanden, aldrig «5 af 3»; neutral farve) og status-chips fra motoren.
+ *   2. «Jeres retning» — de tre svar fra handoutet i det mørkegrønne felt (JeresRetning).
+ *   3. «Venter på jeres ja» — forslag, gamle mål og kvartalstjek (BekraeftMaalKort;
+ *      stod før OVER hovedet — flyttet under retningen 2/10).
+ *   4. MÅLKORTENE (1–3, MaalKort) i et gitter + den stiplede plads (TomPladsKort).
+ *   5. «Rejsen» — motorens 12-måneders tidslinje (Rejsen).
+ *   Nået og parkeret står foldet nederst som før (HbMaalRaekke — Genåbn/Aktivér/Slet).
  *
- * HVEM EJER MÅLENE — Jonas 16/9, ordret: «Nej. Vi er rådgivere, men det er
- * medlemmernes virksomheder.» Medlemmet opretter, omdøber, parkerer,
- * sletter og markerer som nået selv (klienten skriver direkte til
- * milestones som før — RLS er UÆNDRET i alle faser); rådgiveren kan det
- * samme fra «Planen» (maal-skriv); AI'en kan ikke. Højst tre aktive for
- * alle — håndhævet af databasen (trigger 20260917150000); fladen siger det
- * på forhånd (graenseTekst) og oversætter afvisningen (maalFejlTekst).
- * Planens punkter «ingen opret-knap» og «ingen slet/parkér/redigér» UDGÅR.
+ * MOTOREN REGNER ALT (lib/hjemmebane/maalTal gennem hooks/dineMaalGrundlag:
+ * kort, tidslinje, retning, måneder); fladen tegner. Handlingernes dom er
+ * stadig dineMaal.dineMaalDom (→ planen → milepaelDom): kanParkere, kanMarkere-
+ * Naaet, kanSlette, kanTilfoejeSkridt — og skridt-linjerne under «N skridt mere».
  *
- * DOMMEN er ren (lib/hjemmebane/dineMaal → planen → milepaelDom): fladen
- * filtrerer og dømmer intet selv — den tegner dom.aktive/parkerede/naaede
- * og x.handlinger. SKYDEREN (klik på baren / «nuværende værdi») kun for mål
- * UDEN skridt (kanSaetteFremdrift); mål med skridt får fremdriften fra
- * skridtene.
+ * HVEM EJER MÅLENE — uændret (Jonas 16/9: «det er medlemmernes virksomheder»):
+ * de gamle skriveveje genbruges ordret — useMilestones' markerNaaet, opdaterFelt
+ * (parkér, aktivér, genåbn, redigér: titel/frist/tastet tal), slet; opgave-luk
+ * («Gjort»), skridt-tilfoej («Tilføj skridt» og guidens trin 3). NYT er guiden
+ * (SaetMaalGuide), som opretter og gør skarpt gennem dineMaalGrundlag's
+ * opretMaalMedTal/goerMaalSkarpt (bogført klientskriver, maalSkriv.guard) og
+ * gemmer retningen gennem gemRetning. Rådgiveren ser siden for en virksomhed
+ * (companyId fra useAuth) og kan det samme som i dag.
  *
- * SKRIDTENE hentes her (company_actions med maal_id, alle statusser —
- * gjorte er historik) med kraevRaekker: fejl er ikke tom. «Gjort» på et
- * aktivt skridt kalder opgave-luk (samme vej som forsiden); derefter
- * genhentes både skridt og mål, så fremdriften rykker i samme render.
- * Parkerede og nåede står foldet.
+ * Ingen confirm(): slet bekræftes i siden (SletMilestoneDialog). Fejl og tomme
+ * tilstande er rolige (kraevRaekker/HentningsFejl bag hooken; «Prøv igen»).
+ *
+ * Rådets fund (1/10 aften): (3) rådgiveren LÆSER retningen, retter den ikke
+ * (gemRetning skriver på den indloggedes eget user_id — kanRette = !isAdvisor);
+ * (6) retningen tegnes først, når dens egen hentning er færdig (retningHenter),
+ * og en tom kladde gemmes aldrig oven på svar; (7) ved fejl i mål-hentningen
+ * vises hverken hovedlinje eller chips; (12) et kort uden dom får ALLE
+ * handlinger false (fail-closed); (13) «Redigér» holder sig åben, når
+ * opdaterFelt svarer nej; (14) «Skrevet af en anden i virksomheden», når
+ * retningens række ikke er den indloggedes; (16) `nu` er hookets tikkende ur —
+ * guiden får ÅBNINGSTIDSPUNKTET, så dens nulstilling ikke tikker; (21) «Gør
+ * målet skarpt» er låst, når den rå række mangler.
+ *
+ * SKIVE 3 (2/10-2026, Jonas' svar 1/10 kl. 22:04–22:09; maalBekraeft.ts):
+ * UNDER retningen (2/10 eftermiddag; før: øverst, før hovedet) står BekraeftMaalKort: nye forslag («Det er vores
+ * mål» / «Ikke nu»), de gamle mål («Er det stadig jeres mål?» — Behold / Slip)
+ * og kvartalstjekkene (Behold · Justér tal og dato · Parkér · Nået).
+ * Skrivningerne er hookets (skriv.bekraeft/slip/markerNaaet/registrerKvartalstjek
+ * — medlemmets klientvej, samme RLS); kvartalstjekkets «Nået» går gennem
+ * hookets GUARDEDE markerNaaet (ok/grund — som forsiden; rådets fund 1:
+ * useMilestones.markerNaaet svarer void og sluger fejlen, så rækken ville
+ * blive skrevet efter en fejlet handling), og rækken registreres KUN efter ok;
+ * målkortets «Markér som nået» går stadig gennem useMilestones (fejringen).
+ * «Justér» åbner RedigerMaalDialog, og tjekket registreres som 'justeret'
+ * FØRST når dialogen har gemt (kvartalEfterGem). Fejler kvartalstjek-
+ * hentningen (kvartalstjekFejlede — ikke «tabellen mangler»), tegnes INTET
+ * tjek (fund 6: uden de registrerede rækker ville et taget tjek vises igen),
+ * og siden siger det med KVARTALSTJEK_FEJLEDE_TEKST.
+ * «Aktivér» under Parkeret (fund 13) og «Genåbn» under Nået (runde 2, fund 3):
+ * er målet ubekræftet, er klikket også bekræftelsen — aktiverFelter skriver
+ * bekraeftet_at/bekraeftet_af med status. Kvartalstjekkets «Nået» fejrer som
+ * målkortets (useMilestones.fejr — runde 2, fund 7), efter ok og før rækken;
+ * før rækken dømmes doemKvartalstjek (= policyen), så grunden vises (fund 9).
+ * «Justér» nulstilles ved luk uden gem (kvartalEfterGem → null i onClose), så
+ * en senere «Redigér» aldrig registrerer et tjek, der ikke blev taget (fund 2).
+ * Rådgiveren læser kortene (kanKlikke = !rawAdvisor — som retningen).
+ * Kortene (g.kort) er KUN de bekræftede aktive mål; pladsen dømmes af
+ * databasens tælling, og «Plads, når I har taget stilling» står, når de
+ * ubekræftede fylder (dom.pladsOptagetAfUbekraeftede). Hovedlinjen tæller
+ * databasens aktive: «N mål … · M venter på jeres ja · pladsen» (fund 3).
+ *
+ * Rådets runde 2: (2) «kan rette retningen» dømmes af den RÅ rådgiverrolle
+ * (useAuth's isAdvisor, som HbMemberShell's hjerteslag) — ikke af «Se som
+ * medlem»: gemRetning skriver på den indloggedes eget user_id, og i «Se som
+ * medlem» er rådgiveren stadig rådgiver; (7) guidens frosne `nu` gives videre
+ * til opret/goerSkarpt, så dommen ikke skifter ved midnat, mens guiden er åben.
  */
 
-const STARTER_PICKS: { title: string; cat: MilestoneCategory }[] = [
-  { title: "Opnå positiv bundlinje", cat: "profit" },
-  { title: "Nå 100 aktive kunder", cat: "kunder" },
-  { title: "Reducér driftsomkostninger med 20%", cat: "profit" },
-];
+/** Fail-closed (fund 12): et kort, dommen ikke kender, kan intet. */
+const INGEN_HANDLINGER = { kanMarkereNaaet: false, kanGenaabne: false, kanParkere: false, kanAktivere: false, kanSlette: false, kanSaetteFremdrift: false, kanTilfoejeSkridt: false } as const;
+const GUIDE_NY: GuideTilstand = { art: "ny" };
 
 /** useMilestones' række → planens form (deadline som «YYYY-MM-DD»). */
 const tilMaalRaekke = (m: Milestone): MaalRaekke => ({
@@ -72,50 +138,45 @@ const tilMaalRaekke = (m: Milestone): MaalRaekke => ({
   progress_updated_at: m.progress_updated_at,
   completed_at: m.completed_at,
   created_at: m.created_at,
+  // Skive 3: bekræftelsen følger med til dommen (undefined = kolonnen ikke læst).
+  ...("bekraeftet_at" in m ? { bekraeftet_at: m.bekraeftet_at ?? null } : {}),
 });
 
+const fejlBesked = async (error: { message: string; context?: { json?: () => Promise<{ error?: string }> } }): Promise<string> => {
+  let besked = error.message;
+  try {
+    const svar = await error.context?.json?.();
+    if (svar?.error) besked = svar.error;
+  } catch { /* behold error.message */ }
+  return besked;
+};
+
+const fokus = "rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hb-evergreen focus-visible:ring-offset-2";
+
 export const DineMaalView = () => {
-  const { user, companyId, isAdvisor: rawAdvisor } = useAuth();
+  const { user, companyId, isAdvisor: rawAdvisor, profile } = useAuth();
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
-  const { milestones, loading, saetFremgang, saetNuvaerendeVaerdi, markerNaaet, slet, opdaterFelt, opret, genhent } = useMilestones({
+  const queryClient = useQueryClient();
+
+  // De gamle skriveveje (medlemmet ejer sine mål — RLS uændret).
+  const { milestones, loading, markerNaaet, slet, opdaterFelt, genhent, fejr } = useMilestones({
     userId: user?.id ?? null,
     companyId: companyId ?? null,
     isAdvisor,
   });
-  const queryClient = useQueryClient();
-
-  // Skridtene under målene: alle company_actions med maal_id hos virksomheden
-  // (også gjorte/lukkede — historik). KASTER ved fejl: tom er et svar, fejl er ikke.
-  const skridtQuery = useQuery({
-    queryKey: ["dine-maal", "skridt", companyId],
-    queryFn: async () => {
-      const skridtRes = await supabase
-        .from("company_actions")
-        .select("id, title, status, due_date, maal_id, closed_at")
-        .eq("company_id", companyId!)
-        .not("maal_id", "is", null)
-        .order("created_at", { ascending: true })
-        .limit(200);
-      return kraevRaekker(skridtRes, "company_actions") as SkridtTilDineMaal[];
-    },
-    enabled: !!companyId,
-    staleTime: 60_000,
-  });
+  // Motoren: kort, tidslinje, retning og de målte måneder (til guiden).
+  const g = useDineMaalGrundlag(companyId ?? undefined);
+  const skriv = useDineMaalSkrivning({ companyId, efter: genhent });
+  // Fund 16: hookets tikkende ur — ikke et Date frosset ved mount.
+  const nu = g.nu;
 
   // «Gjort» på et skridt — opgave-luk (udfald done); fremdriften skrives af
   // functionen (rykMaalFremdrift), så begge kilder genhentes bagefter.
   const gjortMutation = useMutation({
     mutationFn: async (opgaveId: string) => {
       const { error } = await supabase.functions.invoke("opgave-luk", { body: { opgaveId, udfald: "done" } });
-      if (error) {
-        let besked = error.message;
-        try {
-          const svar = await (error as { context?: { json?: () => Promise<{ error?: string }> } }).context?.json?.();
-          if (svar?.error) besked = svar.error;
-        } catch { /* behold error.message */ }
-        throw new Error(besked);
-      }
+      if (error) throw new Error(await fejlBesked(error));
     },
     onSuccess: async () => {
       toast.success("Skridtet er gjort");
@@ -126,22 +187,11 @@ export const DineMaalView = () => {
     onError: (e: Error) => toast.error("Skridtet blev ikke lukket", { description: e.message }),
   });
 
-  // «Tilføj skridt» (skridt-tilfoej, 17/9 — Jonas «ja», fristen «1»): medlemmets
-  // eget skridt under et aktivt mål, aktivt fra start. Functionen dømmer
-  // (medlemskab, målet aktivt, titel, frist, dubletkontrol); fejl-body'en vises
-  // ordret under formularen (opgaveMutation-mønstret); bagefter genhentes
-  // skridt og mål, så fremdriften rykker i samme render.
+  // «Tilføj skridt» (skridt-tilfoej, 17/9) — kortets formular og guidens trin 3.
   const tilfoejMutation = useMutation({
     mutationFn: async (input: { maalId: string; titel: string; dueDate: string }) => {
       const { error } = await supabase.functions.invoke("skridt-tilfoej", { body: { companyId, ...input } });
-      if (error) {
-        let besked = error.message;
-        try {
-          const svar = await (error as { context?: { json?: () => Promise<{ error?: string }> } }).context?.json?.();
-          if (svar?.error) besked = svar.error;
-        } catch { /* behold error.message */ }
-        throw new Error(besked);
-      }
+      if (error) throw new Error(await fejlBesked(error));
     },
     onSuccess: async () => {
       toast.success(TILFOEJ_SKRIDT_OK_TEKST);
@@ -161,34 +211,152 @@ export const DineMaalView = () => {
     }
   };
 
-  const [opretAaben, setOpretAaben] = useState(false);
-  const [forudfyldt, setForudfyldt] = useState<Partial<NyMilestone> | null>(null);
-  const [aabenId, setAabenId] = useState<string | null>(null);
+  // Guiden bærer sit ÅBNINGSTIDSPUNKT (fund 16/20): dens nulstilling afhænger af `nu`, som derfor ikke må tikke, mens den er åben.
+  const [guide, setGuide] = useState<{ tilstand: GuideTilstand; nu: Date } | null>(null);
+  const [redigerId, setRedigerId] = useState<string | null>(null);
+  // Skive 3: et kvartalstjek, hvis «Justér» åbnede redigeringen — registreres som 'justeret', når dialogen har gemt.
+  const [kvartalEfterGem, setKvartalEfterGem] = useState<{ maalId: string; kvartal: Kvartal } | null>(null);
   const [sletId, setSletId] = useState<string | null>(null);
+  const aabnGuide = (tilstand: GuideTilstand) => setGuide({ tilstand, nu: new Date() });
+  // Forsidens mørke kort «Sæt jeres første mål» (2/10 aften) lander her med ?saet=maal: guiden åbnes ÉN gang,
+  // og parameteren fjernes (replace), så «tilbage» og en genindlæsning ikke åbner den igen.
+  const [soegeParams, setSoegeParams] = useSearchParams();
+  const vilSaetteMaal = soegeParams.get(SAET_MAAL_PARAM) === SAET_MAAL_VAERDI;
+  useEffect(() => {
+    if (!vilSaetteMaal) return;
+    setGuide({ tilstand: GUIDE_NY, nu: new Date() });
+    const naeste = new URLSearchParams(soegeParams);
+    naeste.delete(SAET_MAAL_PARAM);
+    setSoegeParams(naeste, { replace: true });
+  }, [vilSaetteMaal, soegeParams, setSoegeParams]);
+  // Runde 2, fund 7: guidens frosne åbningstidspunkt bærer også dommen i skriverne.
+  const guideNu = guide?.nu ?? nu;
 
-  const dom = useMemo(
-    () => dineMaalDom(milestones.map(tilMaalRaekke), skridtQuery.data ?? [], new Date()),
-    [milestones, skridtQuery.data],
+  // Pladsernes regel, MÅLT i databasen (skive 3, punkt 13; migration 20261002241000): «alle» indtil den er kørt.
+  const pladsdom = useMaalPladsdom();
+  // Handlingernes dom (uændret): dineMaalDom → planen → milepaelDom.
+  const skridtTilDom = useMemo<SkridtTilDineMaal[]>(
+    () => (g.grundlag?.skridt ?? []).map((s) => ({ id: s.id, title: s.title, status: s.status, due_date: s.due_date, maal_id: s.maal_id, closed_at: s.closed_at ?? null, source_type: s.source_type ?? null })),
+    [g.grundlag?.skridt],
   );
+  const dom = useMemo(() => dineMaalDom(milestones.map(tilMaalRaekke), skridtTilDom, nu, pladsdom), [milestones, skridtTilDom, nu, pladsdom]);
+  const forMedlemAf = useMemo(() => new Map([...dom.aktive, ...dom.parkerede, ...dom.naaede].map((x) => [x.plan.maal.id, x])), [dom]);
   const msAf = useMemo(() => new Map(milestones.map((m) => [m.id, m])), [milestones]);
-  const aaben: Milestone | null = milestones.find((m) => m.id === aabenId) ?? null;
-  const aabenBeregnet = aaben ? [...dom.aktive, ...dom.parkerede, ...dom.naaede].find((x) => x.plan.maal.id === aaben.id)?.plan.beregnet ?? false : false;
+  const maalMedTalAf = useMemo(() => new Map((g.grundlag?.maal ?? []).map((m) => [m.id, m])), [g.grundlag?.maal]);
+  // Forsidens målkort «Sæt et tal på» (2/10 aften) lander her med ?skarpt=<målets id>: guiden «Gør målet skarpt»
+  // åbnes ÉN gang for præcis det mål, når motorens kort og den rå række er hentet — og kun for et gammelt
+  // mål (kort.goerSkarpt). Parameteren fjernes (replace) i alle tilfælde, også når målet ikke findes.
+  const skarptId = soegeParams.get(SKARPT_PARAM);
+  useEffect(() => {
+    if (!skarptId || g.isLoading) return;
+    const k = g.kort.find((x) => x.id === skarptId);
+    const raa = maalMedTalAf.get(skarptId);
+    if (k && raa && k.goerSkarpt) setGuide({ tilstand: { art: "skarpt", maalId: k.id, titel: k.titel, forslag: skarptForslag(raa), frist: k.frist }, nu: new Date() });
+    const naeste = new URLSearchParams(soegeParams);
+    naeste.delete(SKARPT_PARAM);
+    setSoegeParams(naeste, { replace: true });
+  }, [skarptId, g.isLoading, g.kort, maalMedTalAf, soegeParams, setSoegeParams]);
+
   const tilSletning: Milestone | null = milestones.find((m) => m.id === sletId) ?? null;
+  // Redigér: de aktive kort står i g.kort; et parkeret/nået mål (rækkerne nederst) får sit kort af motoren på stedet.
+  const tilRedigering: MaalKortDom | null = useMemo(() => {
+    if (!redigerId) return null;
+    const aktivt = g.kort.find((k) => k.id === redigerId);
+    if (aktivt) return aktivt;
+    const raa = maalMedTalAf.get(redigerId);
+    return raa && g.grundlag ? maalKort(raa, g.grundlag.skridt, g.grundlag.maaneder, nu) : null;
+  }, [redigerId, g.kort, g.grundlag, maalMedTalAf, nu]);
+
+  const skridtUnder = (maalId: string) => skridtTilDom.filter((s) => s.maal_id === maalId);
+  const maalFristGrund = (maalId: string, dato: string | null): string | null => {
+    const d = doemMaalFristModSkridt(dato, skridtUnder(maalId));
+    return d.ok === false ? d.grund : null;
+  };
+  /** Svarer med fejlteksten ordret, eller null ved ja (fund 13) — dialogen holder sig åben ved nej. */
+  const opdaterMaalFelt = async (id: string, fields: Record<string, unknown>): Promise<string | null> => {
+    if ("deadline" in fields) {
+      const grund = maalFristGrund(id, fields.deadline ? lokalDatoStreng(fields.deadline as Date) : null);
+      if (grund) { toast.error("Målets frist blev ikke ændret", { description: grund }); return grund; }
+    }
+    const svar = await opdaterFelt(id, fields);
+    if (svar.ok === false) return svar.grund;
+    await queryClient.invalidateQueries({ queryKey: ["dine-maal"] });
+    return null;
+  };
+  // «Markér som nået» — useMilestones' skriver (status completed, fejringen) + motorens nøgler gøres forældede.
+  const markerNaaetOgRyd = async (id: string) => {
+    await markerNaaet(id);
+    await queryClient.invalidateQueries({ queryKey: ["dine-maal"] });
+  };
   const busy = gjortMutation.isPending || tilfoejMutation.isPending;
+
+  // Skive 3 — bekræftelsen og kvartalstjekket (medlemmets klientvej; rådgiveren læser).
+  const kanBekraefte = !rawAdvisor;
+  const bekraeftHandling = async (maalId: string, handling: BekraeftHandling): Promise<string | null> => {
+    if (!user || !companyId) return "Du er ikke logget ind";
+    if (!kanBekraefte) return BEKRAEFT_ORD.kunMedlemmet;
+    const s = handling === "bekraeft" ? await skriv.bekraeft({ maalId, userId: user.id, nu: new Date() }) : await skriv.slip({ maalId });
+    if (s.ok === false) return s.grund;
+    toast.success(handling === "bekraeft" ? BEKRAEFT_ORD.bekraeftet : BEKRAEFT_ORD.slippet);
+    return null;
+  };
+  const registrerKvartal = async (maalId: string, kvartal: Kvartal, valg: KvartalHandling["valg"]): Promise<string | null> => {
+    if (!user || !companyId) return "Du er ikke logget ind";
+    // Runde 2, fund 9: klientens dom (= policyens) FØR INSERT'en, på målet som det står EFTER handlingen —
+    // grunden («ikke forfaldent», «allerede besvaret» …) vises i stedet for en generisk fejl.
+    const raa = maalMedTalAf.get(maalId);
+    const s = await skriv.registrerKvartalstjek({
+      maalId, companyId, userId: user.id, kvartal, valg,
+      maal: raa ? { id: raa.id, status: statusEfterKvartalValg(raa.status, valg), bekraeftet_at: raa.bekraeftet_at } : null,
+      tjek: g.grundlag?.kvartalstjek ?? [],
+      nu: new Date(),
+    });
+    if (s.ok === false) return s.grund;
+    toast.success(KVARTAL_ORD.registreret);
+    return null;
+  };
+  const kvartalHandling = async (h: KvartalHandling): Promise<string | null> => {
+    if (!kanBekraefte) return BEKRAEFT_ORD.kunMedlemmet;
+    // Handlingen FØR rækken (filhovedet i dineMaalGrundlag.registrerKvartalstjek).
+    if (h.valg === "parkeret") {
+      const s = await skriv.slip({ maalId: h.maalId });
+      if (s.ok === false) return s.grund;
+    } else if (h.valg === "naaet") {
+      // Fund 1: den GUARDEDE skriver (ok/grund, status 'active' → 'completed', nul rækker = fejl) — rækken kun efter ok.
+      const s = await skriv.markerNaaet({ maalId: h.maalId });
+      if (s.ok === false) return s.grund;
+      // Runde 2, fund 7: SAMME fejring som målkortets «Markér som nået» (useMilestones.fejr) — efter ok, før rækken.
+      fejr(msAf.get(h.maalId)?.title ?? maalMedTalAf.get(h.maalId)?.title ?? "");
+    }
+    return registrerKvartal(h.maalId, h.kvartal, h.valg);
+  };
+  const aabnJuster = (maalId: string, kvartal: Kvartal) => {
+    setKvartalEfterGem({ maalId, kvartal });
+    setRedigerId(maalId);
+  };
 
   if (isAdvisor && !companyId) {
     return <HbAdvisorCompanyPrompt />;
   }
 
-  const aabnMedForslag = (pick: { title: string; cat: MilestoneCategory }) => {
-    const s = MILESTONE_SUGGESTIONS[pick.cat]?.find((x) => x.title === pick.title);
-    if (!s) return;
-    setForudfyldt({ title: s.title, description: s.description, category: pick.cat });
-    setOpretAaben(true);
-  };
-  const aabnTom = () => {
-    setForudfyldt(null);
-    setOpretAaben(true);
+  const kort = g.kort;
+  const chips = statusChips(kort);
+  const henter = loading || g.isLoading;
+  const tomPlads = !dom.overGraensen && dom.kanOprette;
+  // Fund 3 + runde 2 fund 2: rådgiveren retter ikke retningen — heller ikke i «Se som medlem» (den RÅ rolle).
+  const kanRetteRetning = !rawAdvisor;
+  // Fund 14 — og 2/10: ALDRIG for rådgiveren (den rå rolle): for rådgiveren er enhver række «en andens», og linjen sagde intet.
+  const retningErEgen = !!g.retning?.userId && !!user && g.retning.userId === user.id;
+  const retningSkrevetAfAnden = !rawAdvisor && !!g.retning?.userId && !!user && !retningErEgen;
+  // Fornavnet KUN fra den indloggedes egen profil (useAuth), når rækken er dennes — ingen nyt opslag, ingen ny RLS.
+  const retningFornavn = retningErEgen ? fornavn(profile?.full_name) : null;
+  const gemRetning = async (svar: Record<RetningNoegle, string>): Promise<string | null> => {
+    if (!user || !companyId) return "Du er ikke logget ind";
+    if (!kanRetteRetning) return "Kun virksomheden kan skrive sin retning";
+    const s = await skriv.gemRetning({ companyId, userId: user.id, svar });
+    if (s.ok === false) return s.grund;
+    toast.success("Jeres retning er gemt");
+    return null;
   };
 
   const raekke = (x: (typeof dom.aktive)[number]) => {
@@ -200,14 +368,15 @@ export const DineMaalView = () => {
         x={x}
         ms={ms}
         busy={busy}
-        onAabn={() => setAabenId(ms.id)}
-        onFremgang={(p) => void saetFremgang(ms.id, p)}
-        onNaaet={() => void markerNaaet(ms.id)}
+        onAabn={() => setRedigerId(ms.id)}
+        onFremgang={() => undefined}
+        onNaaet={() => void markerNaaetOgRyd(ms.id)}
         // Genåbn/aktivér: status active — det fjerde aktive afvises af databasen (husets tekst via maalFejlTekst).
-        // Et mål nået på 100 % uden skridt sættes tilbage til 0 (som skiftFuldfoert gjorde).
-        onGenaabn={() => void opdaterFelt(ms.id, { status: "active", ...(!x.plan.beregnet && x.plan.fremdrift >= 100 ? { progress: 0 } : {}) })}
-        onAktiver={() => void opdaterFelt(ms.id, { status: "active" })}
-        onParker={() => void opdaterFelt(ms.id, { status: "parked" })}
+        // Fund 13 + runde 2 fund 3: BEGGE er et klik — et ubekræftet mål (et nået, ubekræftet mål fra før skive 3,
+        // eller et parkeret forslag) bekræftes i samme skrivning (medlemmet; rådgiveren får kun status).
+        onGenaabn={() => void opdaterMaalFelt(ms.id, aktiverFelter(ms, rawAdvisor ? null : (user?.id ?? null), new Date()))}
+        onAktiver={() => void opdaterMaalFelt(ms.id, aktiverFelter(ms, rawAdvisor ? null : (user?.id ?? null), new Date()))}
+        onParker={() => void opdaterMaalFelt(ms.id, { status: "parked" })}
         onSlet={() => setSletId(ms.id)}
         onSkridtGjort={(id) => gjortMutation.mutate(id)}
         onTilfoejSkridt={tilfoejSkridt}
@@ -215,141 +384,210 @@ export const DineMaalView = () => {
     );
   };
 
-  const opretKnap = (
-    <HbButton onClick={aabnTom} className="gap-1.5" disabled={!dom.kanOprette} title={dom.kanOprette ? undefined : dom.graenseTekst}>
-      <Plus className="h-4 w-4" />
-      Sæt et mål
-    </HbButton>
-  );
-
   return (
-    <div data-dine-maal-aktive={dom.aktive.length} data-dine-maal-over-graensen={dom.overGraensen ? "1" : "0"}>
-      <section className="flex flex-wrap items-end justify-between gap-4">
-        <div className="max-w-3xl">
-          <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">Dine tal</p>
-          <h1 className="mt-3 font-editorial text-4xl font-medium leading-[1.1] tracking-tight text-hb-ink md:text-5xl">Dine mål</h1>
-          <p className="mt-3 text-sm text-hb-ink-soft">Højst {MAX_AKTIVE_MAAL} aktive mål ad gangen — og skridtene der fører derhen.</p>
-        </div>
-        {!loading && !dom.tom && opretKnap}
+    <div data-dine-maal-aktive={kort.length} data-dine-maal-over-graensen={dom.overGraensen ? "1" : "0"} data-dine-maal-ubekraeftede={g.bekraeftelser.forslag.length + g.bekraeftelser.gamle.length}>
+      {/* ── 1. Hovedet ── */}
+      <section className="max-w-3xl">
+        <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">{eyebrowTekst(nu)}</p>
+        <h1 className="mt-3 font-editorial text-4xl font-medium leading-[1.1] tracking-tight text-hb-ink md:text-5xl">{DINE_MAAL_OVERSKRIFT}</h1>
+        {/* Stedsætningen under h1 (rådets fund 7, 2/10): eyebrow → h1 → én sætning; hovedlinjen og chips under er status, ikke intro. */}
+        <HbStedsSaetning sti="/milestones" className="mt-3" />
+        {/* ÉN hovedlinje (2/10): hovedLinje bærer også grænsen — dom.graenseTekst tegnes ikke her (forsiden har den). Neutral farve: status, ikke alarm. */}
+        {!henter && !g.isError && (
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+            <p className="text-sm text-hb-ink-soft" data-hoved-linje>{hovedLinje(kort.length, dom.ubekraeftede.length, dom.pladsdom)}</p>
+            {chips.length > 0 && (
+              <ul className="flex flex-wrap gap-1.5" aria-label="Status på målene">
+                {chips.map((c) => (
+                  <li key={c.status}>
+                    <Chip tone={chipTone(c.status)} data-status-chip={c.status}>{c.tekst}</Chip>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
       </section>
 
-      {loading ? (
-        <div aria-hidden className="mt-10">
-          <div className="h-4 w-1/3 animate-pulse rounded bg-hb-line/60" />
-          <div className="mt-4 h-24 animate-pulse rounded-hb bg-hb-line/40" />
-        </div>
-      ) : dom.tom ? (
-        <HbSection eyebrow="Kom i gang" title="Sæt dit første mål" hairline className="mt-10">
-          {/* «Hvad er et mål?» (tillæg 17/9) — samme kilde og samme åbne form som forsidens «Din plan» uden mål. */}
-          <HbMaalForklaring />
-          <p className="mt-5 max-w-xl text-sm leading-relaxed text-hb-ink-soft">
-            Start med et af forslagene, eller sæt dit eget — din rådgiver kan også sætte mål sammen med dig.
-          </p>
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            {opretKnap}
-            <Link to="/handouts" className="inline-flex items-center gap-2 text-sm text-hb-evergreen underline-offset-4 hover:underline">
-              <BookOpen className="h-4 w-4" />
-              Gå til Handouts — løftestængerne kan blive til mål
-            </Link>
-          </div>
-          <div className="mt-8 grid gap-4 sm:grid-cols-3">
-            {STARTER_PICKS.map((pick) => {
-              const cfg = MILESTONE_CATEGORIES[pick.cat];
-              const Ikon = cfg.icon;
-              const s = MILESTONE_SUGGESTIONS[pick.cat]?.find((x) => x.title === pick.title);
-              if (!s) return null;
-              return (
-                <HbCard
-                  key={pick.title}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => aabnMedForslag(pick)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); aabnMedForslag(pick); }
-                  }}
-                  className="cursor-pointer p-5 text-left"
-                >
-                  <HbTag className="gap-1 px-2 py-0.5 text-[11px]">
-                    <Ikon className="h-3 w-3" />
-                    {cfg.label}
-                  </HbTag>
-                  <h3 className="mt-3 font-editorial text-lg font-medium leading-snug text-hb-ink">{s.title}</h3>
-                  <p className="mt-1 text-sm leading-relaxed text-hb-ink-soft line-clamp-2">{s.description}</p>
-                </HbCard>
-              );
-            })}
-          </div>
-        </HbSection>
-      ) : (
-        <>
-          {/* ── Jeres mål: de aktive med skridtene under ── */}
-          <HbSection eyebrow={`Jeres mål · ${dom.aktive.length}`} hairline className="mt-10">
-            <p className={dom.overGraensen ? "-mt-2 mb-3 text-sm font-medium text-hb-rust" : "-mt-2 mb-3 text-sm text-hb-ink-soft"} data-graense-tekst>
-              {dom.graenseTekst}
-            </p>
-            {skridtQuery.isError && (
-              <p className="mb-3 text-sm text-hb-rust">
-                {DINE_SKRIDT_FEJL_TEKST}{" "}
-                <button type="button" onClick={() => void skridtQuery.refetch()} className="underline-offset-4 hover:underline">Prøv igen</button>
-              </p>
-            )}
-            <HbCard className="px-5 py-2">
-              {dom.aktive.length > 0 ? (
-                <ul className="divide-y divide-hb-line">{dom.aktive.map(raekke)}</ul>
-              ) : (
-                <p className="py-3 text-sm text-hb-ink-soft">Ingen aktive mål lige nu — aktivér et parkeret, eller sæt et nyt.</p>
-              )}
-            </HbCard>
-          </HbSection>
+      {/* ── 2. Jeres retning ── */}
+      <div className="mt-7 md:mt-8">
+        <JeresRetning
+          retning={g.retning}
+          isLoading={(henter || g.retningHenter) && !g.retning}
+          fejlede={g.retningFejlede}
+          onGem={gemRetning}
+          kanRette={kanRetteRetning}
+          skrevetAfAnden={retningSkrevetAfAnden}
+          fornavn={retningFornavn}
+        />
+      </div>
 
-          {/* ── Nået: historik med dato — foldet ── */}
-          {dom.naaede.length > 0 && (
-            <HbSection eyebrow={`Nået · ${dom.naaede.length}`} hairline className="mt-12">
-              <details data-dine-maal-naaede={dom.naaede.length}>
-                <summary className="cursor-pointer text-sm text-hb-ink-soft">Vis de nåede mål</summary>
-                <HbCard className="mt-3 px-5 py-2">
-                  <ul className="divide-y divide-hb-line">{dom.naaede.map(raekke)}</ul>
-                </HbCard>
-              </details>
-            </HbSection>
-          )}
-
-          {/* ── Parkeret — foldet ── */}
-          {dom.parkerede.length > 0 && (
-            <HbSection eyebrow={`Parkeret · ${dom.parkerede.length}`} hairline className="mt-12">
-              <details data-dine-maal-parkerede={dom.parkerede.length}>
-                <summary className="cursor-pointer text-sm text-hb-ink-soft">Vis de parkerede mål — fremdriften kan ikke ændres, før de er aktiveret igen</summary>
-                <HbCard className="mt-3 px-5 py-2">
-                  <ul className="divide-y divide-hb-line">{dom.parkerede.map(raekke)}</ul>
-                </HbCard>
-              </details>
-            </HbSection>
-          )}
-        </>
+      {/* ── 3. Skive 3: forslag, gamle mål og kvartalstjek — «venter på jeres ja», under retningen (2/10), før målene ── */}
+      {!henter && !g.isError && (
+        <BekraeftMaalKort
+          bekraeftelser={g.bekraeftelser}
+          kvartalstjek={g.kvartalstjekFejlede ? [] : g.kvartalstjek}
+          kanKlikke={kanBekraefte}
+          bekraeftSpaerret={bekraeftelseSpaerret(dom.pladsdom, dom.aktive.length)}
+          onBekraeft={bekraeftHandling}
+          onKvartal={kvartalHandling}
+          onJuster={aabnJuster}
+          className="mt-6"
+        />
       )}
 
-      {/* ── Portalerne (MilestoneDialoger, etape 2): opret, detalje/rediger, slet ── */}
-      <OpretMilestoneDialog
-        open={opretAaben}
-        onOpenChange={(v) => { setOpretAaben(v); if (!v) setForudfyldt(null); }}
-        forudfyldt={forudfyldt}
-        onOpret={opret}
+      {/* Fund 6: kvartalstjek-hentningen fejlede — ingen tjek tegnes (ovenfor), og det siges. */}
+      {!henter && !g.isError && g.kvartalstjekFejlede && <p className="mt-6 text-sm text-hb-rust" data-kvartalstjek-fejlede>{KVARTALSTJEK_FEJLEDE_TEKST}</p>}
+
+      {/* ── 4. Målene ── */}
+      <HbSection eyebrow="Jeres mål" hairline className="mt-10">
+        {g.isError ? (
+          <HbCard className="p-5" data-dine-maal="fejl">
+            <p className="text-sm text-hb-rust">
+              {DINE_MAAL_FEJL_TEKST}{" "}
+              <button type="button" onClick={() => void queryClient.invalidateQueries({ queryKey: ["dine-maal"] })} className={cn("underline-offset-4 hover:underline", fokus)}>{PROEV_IGEN}</button>
+            </p>
+          </HbCard>
+        ) : henter ? (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3" aria-busy="true" data-dine-maal="henter">
+            {[0, 1, 2].map((i) => (
+              <HbCard key={i} className="min-h-[18rem] p-5 md:p-6">
+                <div className="animate-pulse">
+                  <div className="h-5 w-24 rounded-full bg-hb-line/70" />
+                  <div className="mt-4 h-6 w-4/5 rounded bg-hb-line/70" />
+                  <div className="mt-5 h-10 w-2/3 rounded bg-hb-line/70" />
+                  <div className="mt-5 h-1.5 w-full rounded-full bg-hb-line" />
+                  <div className="mt-8 h-4 w-1/2 rounded bg-hb-line/60" />
+                </div>
+              </HbCard>
+            ))}
+          </div>
+        ) : (
+          <>
+            {g.afventerMigration && <p className="-mt-2 mb-3 text-sm text-hb-ink-soft" data-afventer-migration>{AFVENTER_MIGRATION_TEKST}</p>}
+            {g.tallenFejlede && !g.afventerMigration && <p className="-mt-2 mb-3 text-sm text-hb-ink-soft" data-tallene-fejlede>{TALLENE_FEJLEDE_TEKST}</p>}
+            {kort.length === 0 && (
+              <div className="mb-5 max-w-2xl" data-dine-maal="tom">
+                <HbMaalForklaring />
+              </div>
+            )}
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3" data-maal-gitter>
+              {kort.map((k) => {
+                const x = forMedlemAf.get(k.id);
+                const handlinger = x?.handlinger ?? INGEN_HANDLINGER;
+                const raa = maalMedTalAf.get(k.id);
+                return (
+                  <MaalKort
+                    key={k.id}
+                    kort={k}
+                    handlinger={handlinger}
+                    skridtLinjer={x?.skridtLinjer ?? []}
+                    busy={busy}
+                    onGjort={(id) => gjortMutation.mutate(id)}
+                    onTilfoejSkridt={tilfoejSkridt}
+                    onRediger={() => setRedigerId(k.id)}
+                    onParker={() => void opdaterMaalFelt(k.id, { status: "parked" })}
+                    onNaaet={() => void markerNaaetOgRyd(k.id)}
+                    onSlet={() => setSletId(k.id)}
+                    onGoerSkarpt={raa ? () => aabnGuide({ art: "skarpt", maalId: k.id, titel: k.titel, forslag: skarptForslag(raa), frist: k.frist }) : null}
+                  />
+                );
+              })}
+              {tomPlads && <TomPladsKort onSaetMaal={() => aabnGuide(GUIDE_NY)} />}
+              {/* Skive 3: pladsen er optaget af ubekræftede mål (databasens tælling) — sig det, lov ingen plads. */}
+              {!tomPlads && dom.pladsOptagetAfUbekraeftede && (
+                <div className="flex min-h-[14rem] items-center rounded-hb border border-dashed border-hb-ink/25 p-5 md:p-6" data-maal-plads-optaget>
+                  <p className="text-sm text-hb-ink-soft">{BEKRAEFT_ORD.pladsOptaget}</p>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </HbSection>
+
+      {/* ── 5. Rejsen ── */}
+      {!henter && !g.isError && g.tidslinje && (
+        <HbSection eyebrow={REJSEN_ORD.eyebrow} title={REJSEN_ORD.titel} hairline className="mt-12">
+          <Rejsen tidslinje={g.tidslinje} />
+        </HbSection>
+      )}
+
+      {/* ── Nået: historik med dato — foldet ── */}
+      {!loading && dom.naaede.length > 0 && (
+        <HbSection eyebrow={`Nået · ${dom.naaede.length}`} hairline className="mt-12">
+          <details data-dine-maal-naaede={dom.naaede.length}>
+            <summary className={cn("cursor-pointer text-sm text-hb-ink-soft", fokus)}>Vis de nåede mål</summary>
+            <HbCard className="mt-3 px-5 py-2">
+              <ul className="divide-y divide-hb-line">{dom.naaede.map(raekke)}</ul>
+            </HbCard>
+          </details>
+        </HbSection>
+      )}
+
+      {/* ── Parkeret — foldet ── */}
+      {!loading && dom.parkerede.length > 0 && (
+        <HbSection eyebrow={`Parkeret · ${dom.parkerede.length}`} hairline className="mt-12">
+          <details data-dine-maal-parkerede={dom.parkerede.length}>
+            <summary className={cn("cursor-pointer text-sm text-hb-ink-soft", fokus)}>Vis de parkerede mål</summary>
+            <HbCard className="mt-3 px-5 py-2">
+              <ul className="divide-y divide-hb-line">{dom.parkerede.map(raekke)}</ul>
+            </HbCard>
+          </details>
+        </HbSection>
+      )}
+
+      {/* ── Guiden (opret / gør skarpt), redigér og slet ── */}
+      <SaetMaalGuide
+        open={guide !== null}
+        onClose={() => setGuide(null)}
+        tilstand={guide?.tilstand ?? GUIDE_NY}
+        maaneder={g.grundlag?.maaneder ?? null}
+        nu={guideNu}
+        onOpret={async (input) => {
+          if (!user || !companyId) return { ok: false, grund: "Du er ikke logget ind", afventerMigration: false };
+          const s = await skriv.opret({ companyId, userId: user.id, input, nu: guideNu, maaneder: g.grundlag?.maaneder ?? null });
+          if (s.ok) toast.success("Målet er sat");
+          return s;
+        }}
+        onGoerSkarpt={async (maalId, input) => {
+          const s = await skriv.goerSkarpt({ maalId, input, nu: guideNu, maaneder: g.grundlag?.maaneder ?? null });
+          if (s.ok) toast.success("Målet er gjort skarpt");
+          return s;
+        }}
+        onTilfoejSkridt={tilfoejSkridt}
       />
-      <MilestoneDetaljeDialog
-        ms={aaben}
-        open={!!aaben}
-        onOpenChange={(v) => { if (!v) setAabenId(null); }}
-        // Mål MED skridt: fremdriften regnes af skridtene — detaljens hurtig-fremdrift og «nuværende værdi» siger det i stedet for at skrive.
-        onQuickProgress={aabenBeregnet ? () => toast.info("Fremdriften regnes af skridtene under målet") : saetFremgang}
-        onUpdateField={opdaterFelt}
-        onUpdateCurrentValue={aabenBeregnet ? async () => { toast.info("Fremdriften regnes af skridtene under målet"); } : saetNuvaerendeVaerdi}
+      <RedigerMaalDialog
+        kort={tilRedigering}
+        open={tilRedigering !== null}
+        onClose={() => { setRedigerId(null); setKvartalEfterGem(null); }}
+        nu={nu}
+        doemFrist={(dato) => (tilRedigering ? maalFristGrund(tilRedigering.id, dato) : null)}
+        tastetTal={tilRedigering ? (maalMedTalAf.get(tilRedigering.id)?.current_value ?? null) : null}
+        enhed={tilRedigering ? (maalMedTalAf.get(tilRedigering.id)?.unit ?? null) : null}
+        onGem={async (felter) => {
+          if (!tilRedigering) return "Målet findes ikke længere — genindlæs siden.";
+          const grund = await opdaterMaalFelt(tilRedigering.id, felter);
+          // Skive 3: «Justér tal og dato» fra et kvartalstjek — registreres som 'justeret' FØRST når gemt.
+          if (!grund && kvartalEfterGem?.maalId === tilRedigering.id) {
+            const k = kvartalEfterGem;
+            setKvartalEfterGem(null);
+            const r = await registrerKvartal(k.maalId, k.kvartal, "justeret");
+            if (r) toast.error(r);
+          }
+          return grund;
+        }}
       />
       <SletMilestoneDialog
         ms={tilSletning}
         open={!!tilSletning}
         onOpenChange={(v) => { if (!v) setSletId(null); }}
         onSlet={() => {
-          if (tilSletning) slet(tilSletning.id, tilSletning.title);
+          if (tilSletning) {
+            void (async () => {
+              await slet(tilSletning.id, tilSletning.title);
+              await queryClient.invalidateQueries({ queryKey: ["dine-maal"] });
+            })();
+          }
           setSletId(null);
         }}
       />

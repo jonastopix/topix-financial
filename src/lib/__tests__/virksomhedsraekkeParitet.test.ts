@@ -15,7 +15,8 @@ import {
 } from "../../../supabase/functions/_shared/virksomhedsraekke.ts";
 
 // Parity gate — the Deno copy at supabase/functions/_shared/virksomhedsraekke.ts
-// is what import-application og monday-webhook actually insert with, via
+// is what import-application og ansøgningsmotoren actually insert with (og
+// monday-webhook gjorde, indtil den blev nedlagt 2/10-2026), via
 // _shared/virksomhedsOprettelse.ts. The frontend copy is the one the unit
 // tests lock. If this block fails, the two files have drifted and must be
 // re-synced — otherwise the tests guard a row nobody inserts.

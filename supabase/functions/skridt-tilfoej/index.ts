@@ -26,7 +26,10 @@
 //      company_members-række hos virksomheden (RLS gater; en rådgiver der
 //      OGSÅ er medlem afvises ikke — rådgiverens egen vej er foreslaa-opgave).
 //   5. FØRST derefter service-role: målet findes hos SAMME virksomhed og er
-//      aktivt (404/409 — samme tekster som foreslaa-opgave).
+//      aktivt (404/409 — samme tekster som foreslaa-opgave). Har målet en
+//      frist, må skridtets frist højst være den (doemFristModMaal, Jonas
+//      1/10-2026) — grunden ordret og dommens kode: 400 «efter_maalets_frist»
+//      eller «maalets_frist_passeret», 500 «maalets_frist_ulaeselig».
 //   6. Dubletkontrollen: doemSkrivning med skriveren «medlem» (kun
 //      dubletkontrol — som rådgiveren, valg A) og målets id (afvist under
 //      samme mål kommer aldrig igen, fase 5). 409 med klar tekst.
@@ -43,7 +46,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { validerSkridtTitel } from "../_shared/foreslaaOpgaveValidering.ts";
-import { doemFrist, doemSkrivning, SKRIVE_SELECT_KOLONNER, skriveFilter } from "../_shared/skridtForslag.ts";
+import { doemFrist, doemFristModMaal, doemSkrivning, SKRIVE_SELECT_KOLONNER, skriveFilter } from "../_shared/skridtForslag.ts";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -118,7 +121,7 @@ Deno.serve(async (req) => {
   // ikke» (404), aldrig som et link på tværs. Samme tekster som foreslaa-opgave.
   const { data: maal, error: maalErr } = await adminClient
     .from("milestones")
-    .select("id, status")
+    .select("id, status, deadline")
     .eq("id", maalId)
     .eq("company_id", companyId)
     .maybeSingle();
@@ -131,6 +134,19 @@ Deno.serve(async (req) => {
   }
   if ((maal as { status: string }).status !== "active") {
     return jsonResponse({ error: "Målet er ikke aktivt — et skridt kan kun høre til et aktivt mål" }, 409);
+  }
+  // Skridtets frist højst målets frist (Jonas 1/10-2026) — samme dom som
+  // formularen (doemFristModMaal); grunden ordret og dommens kode som
+  // `grund` (rådets fund L1, 1/10): «efter_maalets_frist» og
+  // «maalets_frist_passeret» er medlemmets valg (400); en ulæselig målfrist
+  // er vores data (500, «maalets_frist_ulaeselig»), aldrig medlemmets fejl.
+  const modMaal = doemFristModMaal(fristDom.dato, (maal as { deadline: string | null }).deadline, nu);
+  if (!modMaal.ok) {
+    if (modMaal.kode === "maalets_frist_ulaeselig") {
+      console.error("[skridt-tilfoej] målets frist kan ikke læses:", maalId);
+      return jsonResponse({ error: modMaal.grund, grund: modMaal.kode }, 500);
+    }
+    return jsonResponse({ error: modMaal.grund, grund: modMaal.kode }, 400);
   }
 
   // ── 6. Dubletkontrollen FØR insert — skriveren er medlemmet ──

@@ -295,7 +295,6 @@ export const OMRAADE_LABELS: Record<string, string> = {
   classroom: "Fundamentet",
   academy: "Kursus",
   rabataftaler: "Rabataftale",
-  quick_wins: "Quick win",
   start_her: "Start her",
 };
 

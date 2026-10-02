@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge — FØR functionerne
+-- KØRT i prod (målt 1/10-2026: filens markørobjekter findes i prod; hovedet vendt efterfølgende). DEPLOY: manuelt i Lovable → SQL editor efter merge — FØR functionerne
 -- ansoegning-link, ansoegning-handling og ansoegning-rykker-cron udrulles.
 --
 -- «Genoptag nu» (18/9 aften, hul fundet i Jonas' prøve): en pause kunne hverken

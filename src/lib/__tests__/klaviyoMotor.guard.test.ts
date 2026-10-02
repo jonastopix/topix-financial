@@ -139,14 +139,14 @@ describe("klaviyoMotor.guard", () => {
     expect(skab).toContain('udfald: "afvist"');
     // Migrationen, kolonnen kræver, er IKKE KØRT.
     const sql = laes(AFVEG_MIGRATION);
-    expect(sql.startsWith("-- IKKE KØRT.")).toBe(true);
+    expect(sql).toMatch(/^-- (IKKE KØRT\.|KØRT i prod)/); // hovedet vendes ved kørsel (regelsættet §4c (dd))
     expect(sql).toContain("add column if not exists klaviyo_afveg");
   });
 
   it("6. config.toml har verify_jwt = true, og migrationen er IKKE KØRT", () => {
     expect(laes(CONFIG)).toMatch(/\[functions\.klaviyo-motor\]\s*\n\s*verify_jwt = true/);
     const sql = laes(MIGRATION);
-    expect(sql.startsWith("-- IKKE KØRT.")).toBe(true);
+    expect(sql).toMatch(/^-- (IKKE KØRT\.|KØRT i prod)/); // hovedet vendes ved kørsel (regelsættet §4c (dd))
     // Sporet må ikke kunne rettes: ingen UPDATE- eller DELETE-politik.
     expect(sql).not.toMatch(/for update to authenticated/);
     expect(sql).not.toMatch(/for delete to authenticated/);

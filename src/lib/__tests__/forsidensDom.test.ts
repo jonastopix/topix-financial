@@ -23,7 +23,7 @@ import type { Signal } from "@/lib/virksomhedsSignaler";
 import type { Fornyelsestilstand } from "@/lib/fornyelse";
 import type { Betalingsfristtilstand } from "@/lib/betalingsfrist";
 import type { MaalRaekke } from "@/lib/hjemmebane/planen";
-import { ALVOR_INGEN_MAAL, ALVOR_MAAL, ALVOR_REFLEKSION_HJAELP, maalTilstandstekst, refleksionBesvaret, refleksionsPeriode, refleksionUddrag, REFLEKSION_MIN_TEGN, REFLEKSION_UDDRAG, STILSTAND_LAENGE_DAGE } from "@/lib/forsidensDom";
+import { ALVOR_INGEN_MAAL, ALVOR_MAAL, MAAL_ALLE_GJORT_RAADGIVER_TEKST, ALVOR_REFLEKSION_HJAELP, maalTilstandstekst, refleksionBesvaret, refleksionsPeriode, refleksionUddrag, REFLEKSION_MIN_TEGN, REFLEKSION_UDDRAG, STILSTAND_LAENGE_DAGE } from "@/lib/forsidensDom";
 import { BOELGE_FRA, BOELGENS_LEDSAGERE, boelgeDagTekst, USAEDVANLIGT_MANGE_TEKST, usaedvanligtMangeTekst, type Boelgelinje } from "@/lib/forsidensDom";
 import { ALVOR_BETALT_IKKE_OPRETTET, BETALT_NOEGLE, betaltGrundTekst, betaltIkkeOprettetTekst, betaltLinje, FORM as FORM_KORT, INDSATS as INDSATS_KORT, type BetaltIkkeOprettet, type Betaltlinje } from "@/lib/forsidensDom";
 import { ALVOR_ANSOEGNINGER_VENTER, ansoegningerTekst, ansoegningslinje, type Ansoegningslinje, type AnsoegningTilForside } from "@/lib/forsidensDom";
@@ -537,30 +537,21 @@ describe("de tre former (§3)", () => {
     });
   });
 
-  // Fase 0b («Én plan»): «din afgørelse» kun for forslag med en godkend-vej;
-  // resten «til orientering». Uden tallet (ældre kaldere): den gamle tekst.
-  it("puklen med godkend-vej (0b): alle kan godkendes → den gamle tekst; ingen → «til orientering»; blandet → begge tal", () => {
-    const alle = afgoerForsidensDom([
-      virksomhed({ companyId: "a", navn: "Alfa", signaler: [agentforslag], agentforslagVenter: 2, agentforslagMedGodkendVej: 2 }),
-    ], NU);
-    expect(alle.underStregen.pukler[0].tekst).toBe("2 agentforslag hos Alfa venter på din afgørelse");
-    const ingen = afgoerForsidensDom([
-      virksomhed({ companyId: "a", navn: "Alfa", signaler: [agentforslag], agentforslagVenter: 2, agentforslagMedGodkendVej: 0 }),
-    ], NU);
-    expect(ingen.underStregen.pukler[0].tekst).toBe("2 agentforslag hos Alfa til orientering — de kan kun forkastes");
-    const blandet = afgoerForsidensDom([
-      virksomhed({ companyId: "a", navn: "Alfa", signaler: [agentforslag], agentforslagVenter: 3, agentforslagMedGodkendVej: 1 }),
-      virksomhed({ companyId: "b", navn: "Bravo", signaler: [agentforslag], agentforslagVenter: 2, agentforslagMedGodkendVej: 2 }),
-    ], NU);
-    expect(blandet.underStregen.pukler[0].tekst).toBe("5 agentforslag: 3 venter på din afgørelse, 2 til orientering");
-    expect(blandet.underStregen.pukler[0].antal).toBe(5);
-  });
-  it("puklen uden tallet hos ÉN af flere virksomheder: summen kendes ikke → den gamle tekst", () => {
+  // 30/9 (agent-forslag-design §9): tallet ER det godkendbare — kalderne
+  // tæller med kraeverAfgoerelse. Puklen siger derfor altid «din afgørelse»;
+  // 0b's «til orientering»-tekst og feltet agentforslagMedGodkendVej udgik.
+  it("puklens tekst lover kun en afgørelse — der findes ingen «til orientering»-pukkel", () => {
     const d = afgoerForsidensDom([
-      virksomhed({ companyId: "a", navn: "Alfa", signaler: [agentforslag], agentforslagVenter: 1, agentforslagMedGodkendVej: 0 }),
-      virksomhed({ companyId: "b", navn: "Bravo", signaler: [agentforslag], agentforslagVenter: 1 }),
+      virksomhed({ companyId: "a", navn: "Alfa", signaler: [agentforslag], agentforslagVenter: 2 }),
     ], NU);
-    expect(d.underStregen.pukler[0].tekst).toBe("2 agentforslag venter på din afgørelse");
+    expect(d.underStregen.pukler[0].tekst).toBe("2 agentforslag hos Alfa venter på din afgørelse");
+    expect(d.underStregen.pukler[0].tekst).not.toContain("orientering");
+  });
+  it("nul forslag, der kræver rådgiveren → ingen pukkel, selv om signalet findes", () => {
+    const d = afgoerForsidensDom([
+      virksomhed({ companyId: "a", navn: "Alfa", signaler: [agentforslag], agentforslagVenter: 0 }),
+    ], NU);
+    expect(d.underStregen.pukler.filter((p) => p.slags === "agentforslag")).toEqual([]);
   });
 
   it("puklen hos FLERE virksomheder: alle bæres med, flest forslag først, teksten nævner ingen ved navn", () => {
@@ -973,8 +964,25 @@ describe("mål uden bevægelse (tolvte slags, fase 4)", () => {
     expect(g.tekst).toBe("17 aktive mål — gennemgå planen: behold højst 3");
   });
   it("parkerede og nåede mål tæller hverken i stilstand eller gennemgang", () => {
-    const d = afgoerForsidensDom([virksomhed({ maal: [maal({ status: "parked", dageSiden: 90 }), maal({ status: "completed", dageSiden: 90 }), maal({ progress: 100, dageSiden: 90 }), maal({ dageSiden: 1 })] })], NU);
+    const d = afgoerForsidensDom([virksomhed({ maal: [maal({ status: "parked", dageSiden: 90 }), maal({ status: "completed", dageSiden: 90 }), maal({ dageSiden: 1 })] })], NU);
     expect(maalGrund(d)).toBeUndefined();
+  });
+  it("1/10-2026 (Jonas: nået kun ved klik): et AKTIVT mål på 100 % er ikke nået — står det stille i 90 dage, er det stilstand", () => {
+    // Før 1/10 regnede dommen progress 100 som nået og sprang det over.
+    const d = afgoerForsidensDom([virksomhed({ maal: [maal({ progress: 100, dageSiden: 90 }), maal({ dageSiden: 1 })] })], NU);
+    expect(maalGrund(d)?.slags).toBe("maal_uden_bevaegelse");
+  });
+  it("rådets fund L4 (1/10): et aktivt mål på 100 % «mangler at blive markeret nået» — ikke «har ikke rykket sig»", () => {
+    expect(MAAL_ALLE_GJORT_RAADGIVER_TEKST).toBe("Alle skridt er gjort — mangler at blive markeret nået");
+    const en = maalGrund(afgoerForsidensDom([virksomhed({ navn: "Floren Engros", maal: [maal({ title: "Ny kunde", progress: 100, dageSiden: 40 })] })], NU))!;
+    expect(en.tekst).toBe("«Ny kunde»: Alle skridt er gjort — mangler at blive markeret nået");
+    expect(en.handling).toBe("Spørg Floren Engros, om målet er nået");
+    const to = maalGrund(afgoerForsidensDom([virksomhed({ maal: [maal({ progress: 100, dageSiden: 40 }), maal({ progress: 100, dageSiden: 35 })] })], NU))!;
+    expect(to.tekst).toBe("2 mål: Alle skridt er gjort — mangler at blive markeret nået");
+    // Blandet: stilstanden nævnes med sine egne dage, de færdige for sig.
+    const blandet = maalGrund(afgoerForsidensDom([virksomhed({ navn: "Floren Engros", maal: [maal({ title: "Salg", dageSiden: 40 }), maal({ progress: 100, dageSiden: 90 })] })], NU))!;
+    expect(blandet.tekst).toBe("Målet «Salg» har ikke rykket sig i 40 dage · 1 mål med alle skridt gjort mangler at blive markeret nået");
+    expect(blandet.handling).toBe("Spørg Floren Engros hvad der står i vejen");
   });
   it("den samlede linje nævner gennemgang og stilstand hver for sig", () => {
     const d = afgoerForsidensDom([

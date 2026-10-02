@@ -20,11 +20,17 @@
  *
  * «Marker som nået» sætter status = 'completed' (completed_at sættes af
  * triggeren milestone_completed_at, fase 1) — fremdriften røres ikke. Jonas
- * 16/9 («A»): 100 % betyder at alle skridt er gjort, og målet vises som
- * færdigt; «nået» er derudover medlemmets eksplicitte valg, også under 100 %.
+ * 16/9 («A»): 100 % betyder at alle skridt er gjort. RETTET 1/10-2026 (Jonas
+ * 11:37, målt: «klikker gjort på et skridt, så lukker målet»): et mål bliver
+ * ALDRIG nået af sig selv, fordi alle skridt er gjort — «nået» er KUN
+ * medlemmets/rådgiverens klik (milepaelDom.erMarkeretNaaet). Et aktivt mål
+ * på 100 % står under de aktive med baren fuld og ALLE_SKRIDT_GJORT_TEKST.
  */
 import { fremdriftTekst, planenDom, type MaalIPlanen, type MaalRaekke, type SkridtRaekke } from "./planen";
 import { kanOpretteMaal, MAX_AKTIVE_MAAL } from "./maal";
+import { danskDato } from "./skridtForslag";
+import { erBekraeftet } from "./maalBekraeft";
+import { aktiveDerTaeller, type Pladsdom } from "./maalPladsdom";
 
 /** Det af company_actions-rækken medlemmets flader læser: planens skridt +
     closed_at (historik: «gjort 12. sep.»). */
@@ -52,7 +58,7 @@ export interface SkridtLinje {
 export interface MedlemsHandlinger {
   /** Aktivt mål → completed. */
   kanMarkereNaaet: boolean;
-  /** Nået mål → active igen. Nej når der ikke er plads, og nej når alle skridt er gjort (fremdriften ville stadig være 100). */
+  /** Nået mål → active igen. Nej når der ikke er plads. (Før 1/10 også nej når alle skridt var gjort — 100 % dømtes som nået; det gør det ikke længere.) */
   kanGenaabne: boolean;
   /** Aktivt mål → parked. */
   kanParkere: boolean;
@@ -75,19 +81,35 @@ export interface MaalForMedlem {
   fremdriftTekst: string;
   /** Antal gjorte skridt — historikkens fold-overskrift. */
   gjorte: number;
+  /** Aktivt mål med tællende skridt, hvor alle er gjort (100 %) — men IKKE nået:
+      fladen siger ALLE_SKRIDT_GJORT_TEKST ved «Marker som nået» (Jonas 1/10). */
+  alleSkridtGjort: boolean;
 }
 
 export interface DineMaalDom {
+  /** De BEKRÆFTEDE aktive mål (skive 3) — dem, der tæller i pladserne og vises som kort. */
   aktive: MaalForMedlem[];
+  /** Aktive mål uden bekræftelse (skive 3, Jonas 1/10: «Ja, ét klik»): forslag/gamle mål, der venter
+      på «Det er vores mål» / «Behold». Tæller ikke i pladserne. Tom, når kolonnen ikke er læst. */
+  ubekraeftede: MaalForMedlem[];
   parkerede: MaalForMedlem[];
   naaede: MaalForMedlem[];
   /** Ingen mål overhovedet. */
   tom: boolean;
-  /** Under tre aktive. */
+  /** Under tre aktive — DATABASENS tælling efter den MÅLTE regel (maalPladsdom.ts): «alle» = triggeren
+      fra 20260917150000 tæller alle status = 'active', også ubekræftede; «kun_bekraeftede» = triggeren
+      fra 20261002241000 tæller kun bekræftede. Fladen lover aldrig en plads, databasen afviser. */
   kanOprette: boolean;
-  /** Grænsen på tre i klart sprog — altid én sætning. */
+  /** Pladserne er ledige blandt de bekræftede, men de ubekræftede fylder databasens tre (KUN under reglen
+      «alle»): fladen siger «Plads, når I har taget stilling» (BEKRAEFT_ORD.pladsOptaget) i stedet for
+      «Sæt et mål». Altid false under «kun_bekraeftede» — der fylder et forslag ingen plads. */
+  pladsOptagetAfUbekraeftede: boolean;
+  /** Grænsen på tre i klart sprog — altid én sætning. Tæller databasens aktive efter reglen: under «alle»
+      bekræftede + «N venter på jeres ja» (fund 3); under «kun_bekraeftede» kun de bekræftede. */
   graenseTekst: string;
-  /** Flere end tre aktive (mål fra før grænsen). */
+  /** Reglen, dommen blev regnet efter — så fladen kan vise den samme i hovedlinjen (dineMaalFlade.hovedLinje). */
+  pladsdom: Pladsdom;
+  /** Flere end tre aktive (mål fra før grænsen) — databasens tælling (planen.gennemgang). */
   overGraensen: boolean;
 }
 
@@ -124,29 +146,49 @@ export function skridtLinjer(skridt: readonly SkridtTilDineMaal[]): SkridtLinje[
   });
 }
 
-/** Grænsen på tre i klart sprog. */
-export function graenseTekst(antalAktive: number): string {
-  if (antalAktive <= 0) return `Du kan have op til ${MAX_AKTIVE_MAAL} aktive mål ad gangen.`;
+/** Skive 3, rådets fund 3: pladserne er fyldt af ubekræftede mål — lov ingen plads. Samme ord som
+    dineMaalFlade.TAG_STILLING_TEKST («venter på jeres ja», runde 2 fund 4). */
+export const GRAENSE_TAG_STILLING_TEKST = "Svar på de mål, der venter på jeres ja, for at få plads til jeres eget.";
+
+/**
+ * Grænsen på tre i klart sprog. Tæller DATABASENS aktive efter den målte regel
+ * (maalPladsdom.ts): under «alle» bekræftede + ubekræftede (triggeren fra
+ * 20260917150000 tæller begge, rådets fund 3) — de ubekræftede nævnes som «N
+ * venter på jeres ja», og fylder de pladserne, siger teksten «Svar på …» i
+ * stedet for «plads til N mere». Under «kun_bekraeftede» (20261002241000)
+ * tæller kun de bekræftede; «N venter på jeres ja» nævnes stadig, men tager
+ * aldrig en plads, og «Svar på …» siges aldrig. Flere BEKRÆFTEDE end tre (mål
+ * fra før grænsen) siger det FØRST — under begge regler, aldrig «5 af 3 aktive
+ * mål» (målt i drift 2/10, Rallysupport). /milestones tegner den ikke længere
+ * (ÉN hovedlinje, dineMaalFlade.hovedLinje); forsidens «Din plan» gør.
+ */
+export function graenseTekst(antalBekraeftede: number, antalUbekraeftede = 0, pladsdom: Pladsdom = "alle"): string {
+  const antalAktive = aktiveDerTaeller(antalBekraeftede, antalUbekraeftede, pladsdom);
+  const venter = antalUbekraeftede > 0 ? ` · ${antalUbekraeftede === 1 ? "1 venter på jeres ja" : `${antalUbekraeftede} venter på jeres ja`}` : "";
+  if (antalBekraeftede > MAX_AKTIVE_MAAL) return `Du har ${antalBekraeftede} aktive mål${venter} — flere end de ${MAX_AKTIVE_MAAL} der er plads til. Parkér eller markér nogle som nået, så I står med højst ${MAX_AKTIVE_MAAL}.`;
+  if (antalAktive <= 0 && antalUbekraeftede <= 0) return `Du kan have op til ${MAX_AKTIVE_MAAL} aktive mål ad gangen.`;
   if (antalAktive < MAX_AKTIVE_MAAL) {
     const plads = MAX_AKTIVE_MAAL - antalAktive;
-    return `${antalAktive} af ${MAX_AKTIVE_MAAL} aktive mål — plads til ${plads} mere.`;
+    return `${antalBekraeftede} af ${MAX_AKTIVE_MAAL} aktive mål${venter} — plads til ${plads} mere.`;
   }
-  if (antalAktive === MAX_AKTIVE_MAAL) return `Du har ${MAX_AKTIVE_MAAL} aktive mål — det er det højeste. Parkér eller markér et som nået for at få plads til et nyt.`;
-  return `Du har ${antalAktive} aktive mål — flere end de ${MAX_AKTIVE_MAAL} der er plads til. Parkér eller markér nogle som nået, så I står med højst ${MAX_AKTIVE_MAAL}.`;
+  // «Svar på …» kun under «alle»: under «kun_bekraeftede» fylder et forslag ingen plads.
+  if (antalUbekraeftede > 0 && antalBekraeftede < MAX_AKTIVE_MAAL && pladsdom === "alle") return `${antalBekraeftede} af ${MAX_AKTIVE_MAAL} aktive mål${venter} — ${GRAENSE_TAG_STILLING_TEKST}`;
+  // Tre bekræftede: det højeste — også når flere venter (et ja ville afvises af databasen).
+  return `Du har ${MAX_AKTIVE_MAAL} aktive mål${venter} — det er det højeste. Parkér eller markér et som nået for at få plads til et nyt.`;
 }
 
 function medHandlinger(x: MaalIPlanen, skridtAf: Map<string, SkridtTilDineMaal[]>, plads: boolean): MaalForMedlem {
-  const alleGjort = x.beregnet && x.fremdrift >= 100;
   const handlinger: MedlemsHandlinger = x.dom.aktiv
     ? { kanMarkereNaaet: true, kanGenaabne: false, kanParkere: true, kanAktivere: false, kanSlette: true, kanSaetteFremdrift: !x.beregnet, kanTilfoejeSkridt: true }
     : x.dom.parkeret
       ? { kanMarkereNaaet: false, kanGenaabne: false, kanParkere: false, kanAktivere: plads, kanSlette: true, kanSaetteFremdrift: false, kanTilfoejeSkridt: false }
-      : { kanMarkereNaaet: false, kanGenaabne: plads && !alleGjort, kanParkere: false, kanAktivere: false, kanSlette: true, kanSaetteFremdrift: false, kanTilfoejeSkridt: false };
+      : { kanMarkereNaaet: false, kanGenaabne: plads, kanParkere: false, kanAktivere: false, kanSlette: true, kanSaetteFremdrift: false, kanTilfoejeSkridt: false };
   const linjer = skridtLinjer(skridtAf.get(x.maal.id) ?? []);
-  return { plan: x, handlinger, skridtLinjer: linjer, fremdriftTekst: fremdriftTekst(x), gjorte: x.skridt.gjorte.length };
+  const alleSkridtGjort = x.dom.aktiv && x.beregnet && x.fremdrift >= 100;
+  return { plan: x, handlinger, skridtLinjer: linjer, fremdriftTekst: fremdriftTekst(x), gjorte: x.skridt.gjorte.length, alleSkridtGjort };
 }
 
-export function dineMaalDom(maal: readonly MaalRaekke[], skridt: readonly SkridtTilDineMaal[], nu: Date): DineMaalDom {
+export function dineMaalDom(maal: readonly MaalRaekke[], skridt: readonly SkridtTilDineMaal[], nu: Date, pladsdom: Pladsdom = "alle"): DineMaalDom {
   const plan = planenDom(maal, skridt, nu);
   const skridtAf = new Map<string, SkridtTilDineMaal[]>();
   for (const s of skridt) {
@@ -155,16 +197,23 @@ export function dineMaalDom(maal: readonly MaalRaekke[], skridt: readonly Skridt
     liste.push(s);
     skridtAf.set(s.maal_id, liste);
   }
-  const plads = kanOpretteMaal(plan.aktive.length);
+  const bekraeftede = plan.aktive.filter((x) => erBekraeftet(x.maal));
+  const ubekraeftede = plan.aktive.filter((x) => !erBekraeftet(x.maal));
+  // Skive 3: pladsen dømmes som DATABASEN efter den målte regel (maalPladsdom.ts) — se DineMaalDom.kanOprette.
+  // «alle»: plan.aktive.length (= bekræftede + ubekræftede); «kun_bekraeftede»: kun de bekræftede.
+  const plads = kanOpretteMaal(aktiveDerTaeller(bekraeftede.length, ubekraeftede.length, pladsdom));
   const til = (x: MaalIPlanen) => medHandlinger(x, skridtAf, plads);
   return {
-    aktive: plan.aktive.map(til),
+    aktive: bekraeftede.map(til),
+    ubekraeftede: ubekraeftede.map(til),
     parkerede: plan.parkerede.map(til),
     naaede: plan.naaede.map(til),
     tom: maal.length === 0,
     kanOprette: plads,
-    graenseTekst: graenseTekst(plan.aktive.length),
+    pladsOptagetAfUbekraeftede: pladsdom === "alle" && !plads && kanOpretteMaal(bekraeftede.length),
+    graenseTekst: graenseTekst(bekraeftede.length, ubekraeftede.length, pladsdom),
     overGraensen: plan.gennemgang,
+    pladsdom,
   };
 }
 
@@ -188,3 +237,67 @@ export const DINE_SKRIDT_FEJL_TEKST = "Dine skridt kunne ikke hentes. Prøv igen
 export const TILFOEJ_SKRIDT_KNAP_TEKST = "Tilføj skridt";
 export const TILFOEJ_SKRIDT_FEJL_TEKST = "Skridtet blev ikke tilføjet";
 export const TILFOEJ_SKRIDT_OK_TEKST = "Skridtet er tilføjet — det tæller med i målets fremdrift";
+/** Aktivt mål, alle skridt gjort (1/10-2026): målet lukker ikke af sig selv — medlemmet afgør. */
+export const ALLE_SKRIDT_GJORT_TEKST = "Alle skridt er gjort — marker målet som nået, når I er i mål.";
+
+/** Datovælgerens Date (lokal midnat, react-day-picker) → «YYYY-MM-DD» på den
+    dag medlemmet KLIKKEDE. toISOString() gav dagen før i dansk tid (lokal
+    midnat = 22:00/23:00 UTC dagen før) — rettet 1/10-2026 sammen med
+    fristreglen, fordi sammenligningen med skridtenes frister ellers ramte
+    én dag forkert. */
+export function lokalDatoStreng(d: Date): string {
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
+/** Det seneste ÅBNE skridts frist under et mål (status active ELLER
+    proposed, med frist — SAMME filter som doemMaalFristModSkridt, rådets
+    fund K3 1/10 eftermiddag; før kun active, så datovælgerens grå dage og
+    dommen kunne være uenige om et forslag med frist) — den tidligste dag,
+    målets frist må have. Ved flere skridt på samme dag: det første i
+    listen. null uden sådanne skridt. */
+export function senesteAabneSkridt(
+  skridt: readonly Pick<SkridtTilDineMaal, "status" | "due_date" | "title">[],
+): { dato: string; titel: string } | null {
+  let bedst: { dato: string; titel: string } | null = null;
+  for (const s of skridt) {
+    if ((s.status !== "active" && s.status !== "proposed") || !s.due_date) continue;
+    const dato = s.due_date.slice(0, 10);
+    if (bedst == null || dato > bedst.dato) bedst = { dato, titel: s.title };
+  }
+  return bedst;
+}
+
+/** Toasten efter «Udskyd» (rådets fund R1, 1/10 eftermiddag): begrænsede
+    opgave-udskyd fristen til målets (svarfeltet begraenset_til_maalets_frist),
+    siger toasten den FAKTISKE nye dato — ellers ville medlemmet tro, at
+    skridtet fik de sædvanlige 14 dage. Uden feltet (gammel kode i drift) eller
+    uden en læselig dato: den normale tekst. */
+export const UDSKUDT_TEKST = "Opgaven er udskudt";
+export function udskudtToastTekst(svar: unknown): string {
+  const s = (svar ?? null) as { begraenset_til_maalets_frist?: unknown; opgave?: { due_date?: unknown } | null } | null;
+  const dato = typeof s?.opgave?.due_date === "string" ? s.opgave.due_date : null;
+  if (s?.begraenset_til_maalets_frist === true && dato && /^\d{4}-\d{2}-\d{2}/.test(dato)) {
+    return `Udskudt til ${danskDato(dato.slice(0, 10)).replace(/ \d{4}$/, "")} — målets frist`;
+  }
+  return UDSKUDT_TEKST;
+}
+
+/** Hjælpeteksten ved detaljens datovælger, når dagene før det seneste åbne
+    skridts frist er slået fra (rådets fund M2, 1/10) — så de grå dage har en
+    forklaring, før medlemmet klikker. */
+export function tidligsteMaalFristTekst(dato: string, titel: string): string {
+  return `Tidligst ${danskDato(dato)} — skridtet «${titel}» har frist den dag. Ryk eller luk skridtet først, hvis målet skal slutte før.`;
+}
+
+/**
+ * MÅLETS NYE FRIST MOD SKRIDTENES (Jonas 1/10-2026: et skridt må ikke have en
+ * frist længere ude end målet). Rykkes målets frist til FØR et åbent skridts
+ * frist, NÆGTES ændringen med en tydelig besked — VALGET (det roligste):
+ * ingen skridt rykkes stille. Dommen bor siden 1/10 eftermiddag i
+ * skridtForslag.ts (spejlet i _shared), fordi maal-skriv «rediger» —
+ * rådgiverens vej — dømmer med den SAMME dom som medlemmets flade; den
+ * gentages her som re-eksport, så fladerne importerer som før.
+ */
+export { doemMaalFristModSkridt, type MaalFristDom } from "./skridtForslag";

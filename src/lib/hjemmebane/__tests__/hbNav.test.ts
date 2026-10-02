@@ -14,6 +14,17 @@ import { BLOK_MEDLEMMETS_FLADER, BLOK_PLATFORM, bygHbNav, type HbAktiv } from "@
 // listerne nedenfor er fortsat ordrede toEqual, så en forskudt eller
 // omdøbt nabo fejler. Podcasten lever videre som et tekstlink til Spotify
 // nederst i sidebaren (HbSidebar.test.tsx), ikke som menupunkt.
+// Ændret med vilje 1/10 (Jonas 1/10 22:29, handouts i Akademiet): «Handouts»
+// ud af det FULDE medlems menu — abonnent og rådgiver beholder punktet
+// (rådets beslutning 2/10: abonnenten har ingen lektioner, så listen er
+// dens eneste vej til handouts). handoutsIAkademiet.guard dom 1.
+// Ændret med vilje 2/10 nat (SEKS STEDER — FORBEREDT, afventer Jonas' ja
+// kl. 08:15; Jonas 1/10 22:50 «Fedt med menuen. Jeg er enig med dig»): det
+// fulde medlems menu er seks steder — Dit Boardroom · Dine tal (tre) · Dine
+// mål (eget punkt) · Netværket (Community, Events, Medlemmerne, Fordele,
+// Anbefal) · Akademiet · Din rådgiver. Ingen rute er ændret. Abonnenten og
+// rådgiveren er URØRTE (deres lister nedenfor er ordret som før).
+// seksSteder.guard holder rækkefølgen og ruterne.
 
 const flad = (nav: ReturnType<typeof bygHbNav>) =>
   nav.map((n) => ({
@@ -23,6 +34,9 @@ const flad = (nav: ReturnType<typeof bygHbNav>) =>
     children: n.children?.map((c) => ({ label: c.label, to: c.to ?? null })) ?? null,
   }));
 
+/** Det fulde medlems «Dine tal» (seks steder, 2/10): de tre tal-flader.
+    «Dine mål» er eget punkt; «Handouts» er UDE (1/10-2026 nat: handouts
+    hører til Akademiet som lektionens øvelse — handoutsIAkademiet.guard). */
 const DINE_TAL = {
   label: "Dine tal",
   to: null,
@@ -31,29 +45,50 @@ const DINE_TAL = {
     { label: "Rapportering", to: "/reports" },
     { label: "KPI'er", to: "/kpis" },
     { label: "Budget", to: "/budget" },
-    // «Dine mål» («Én plan», fase 3, 16/9) — rettet med vilje.
-    { label: "Dine mål", to: "/milestones" },
-    { label: "Handouts", to: "/handouts" },
   ],
 };
 
-describe("medlemmets menu — ordret som før 8/9", () => {
-  it("fuldt medlem: ni punkter i medlemmets rækkefølge, ingen overskrifter", () => {
-    expect(flad(bygHbNav({ isAdvisor: false, erAbonnent: false, active: "boardroom" }))).toEqual([
-      { label: "Dit Boardroom", to: "/", blok: null, children: null },
-      DINE_TAL,
-      { label: "Din rådgiver", to: null, blok: null, children: [{ label: "Chat", to: "/chat" }, { label: "Book session", to: "/book-session" }] },
-      { label: "Akademiet", to: "/akademiet", blok: null, children: null },
-      { label: "Rabataftaler", to: "/rabataftaler", blok: null, children: null },
-      { label: "Events", to: "/events", blok: null, children: null },
-      { label: "Netværket", to: "/medlemmer", blok: null, children: null },
-      { label: "Community", to: "/community", blok: null, children: null },
-      { label: "Fortæl det videre", to: "/deling", blok: null, children: null },
-    ]);
+/** Abonnentens «Dine tal» — ORDRET som før 2/10: Dine mål («Én plan», fase 3,
+    16/9) og Handouts (2/10: ingen lektioner, så listen er dens eneste vej). */
+const DINE_TAL_ABONNENT = {
+  ...DINE_TAL,
+  children: [...DINE_TAL.children, { label: "Dine mål", to: "/milestones" }, { label: "Handouts", to: "/handouts" }],
+};
+
+/** De seks steder (2/10) — ordret, så en forskudt eller omdøbt nabo fejler. */
+const SEKS_STEDER_MENU = [
+  { label: "Dit Boardroom", to: "/", blok: null, children: null },
+  DINE_TAL,
+  { label: "Dine mål", to: "/milestones", blok: null, children: null },
+  {
+    label: "Netværket",
+    to: null,
+    blok: null,
+    children: [
+      { label: "Community", to: "/community" },
+      { label: "Events", to: "/events" },
+      { label: "Medlemmerne", to: "/medlemmer" },
+      { label: "Fordele", to: "/rabataftaler" },
+      { label: "Anbefal", to: "/deling" },
+    ],
+  },
+  { label: "Akademiet", to: "/akademiet", blok: null, children: null },
+  { label: "Din rådgiver", to: null, blok: null, children: [{ label: "Chat", to: "/chat" }, { label: "Book session", to: "/book-session" }] },
+];
+
+describe("medlemmets menu — seks steder (2/10); abonnenten ordret som før 8/9", () => {
+  it("fuldt medlem: seks steder i forslagets rækkefølge, ingen overskrifter", () => {
+    expect(flad(bygHbNav({ isAdvisor: false, erAbonnent: false, active: "boardroom" }))).toEqual(SEKS_STEDER_MENU);
   });
-  it("abonnenten: kun Dine tal og Rabataftaler; hjemlinket er /kpis", () => {
+  it("ingen rute er ændret: de ni gamle links findes alle som toppunkt eller barn", () => {
+    const nav = bygHbNav({ isAdvisor: false, erAbonnent: false, active: "boardroom" });
+    const links = nav.flatMap((n) => [n.to, ...(n.children ?? []).map((c) => c.to)]).filter(Boolean);
+    for (const to of ["/", "/reports", "/kpis", "/budget", "/milestones", "/chat", "/book-session", "/akademiet", "/rabataftaler", "/events", "/medlemmer", "/community", "/deling"]) expect(links).toContain(to);
+    expect(links).not.toContain("/handouts");
+  });
+  it("abonnenten: kun Dine tal (med Handouts) og Rabataftaler; hjemlinket er /kpis", () => {
     expect(flad(bygHbNav({ isAdvisor: false, erAbonnent: true, active: "noegletal" }))).toEqual([
-      DINE_TAL,
+      DINE_TAL_ABONNENT,
       { label: "Rabataftaler", to: "/rabataftaler", blok: null, children: null },
     ]);
   });
@@ -70,7 +105,7 @@ describe("medlemmets menu — ordret som før 8/9", () => {
     }
   });
   it("aktiv-markeringen følger `active` — og præcis ét punkt er aktivt", () => {
-    const tilfaelde: Array<[HbAktiv, string]> = [["boardroom", "Dit Boardroom"], ["akademiet", "Akademiet"], ["community", "Community"], ["chat", "Chat"], ["budget", "Budget"], ["deling", "Fortæl det videre"]];
+    const tilfaelde: Array<[HbAktiv, string]> = [["boardroom", "Dit Boardroom"], ["akademiet", "Akademiet"], ["community", "Community"], ["chat", "Chat"], ["budget", "Budget"], ["deling", "Anbefal"], ["milestones", "Dine mål"], ["medlemmer", "Medlemmerne"], ["rabataftaler", "Fordele"], ["events", "Events"]];
     for (const [active, label] of tilfaelde) {
       const nav = bygHbNav({ isAdvisor: false, erAbonnent: false, active });
       const aktive = nav.flatMap((n) => [...(n.active ? [n.label] : []), ...(n.children ?? []).filter((c) => c.active).map((c) => c.label)]);
@@ -91,6 +126,8 @@ describe("rådgiverens menu — det I bruger øverst (Jonas 8/9)", () => {
       ["Virksomheder", "/virksomheder", null],
       ["Ansøgninger", "/ansoegninger", null],
       ["Webinar", "/webinar", null],
+      ["Opkald", "/opkald", null],
+      ["Engagement", "/engagement", null],
       ["Indbakke", "/chat", null],
       ["Community", "/community", null],
       ["Indhold", "/admin/indhold", null],
@@ -103,7 +140,7 @@ describe("rådgiverens menu — det I bruger øverst (Jonas 8/9)", () => {
       ["Platform", null, BLOK_PLATFORM],
     ]);
   });
-  it("Dine tal bliver med sine fem; Book session, Dit Boardroom og Opgaver er ude", () => {
+  it("Dine tal bliver med sine fem (Handouts kun her — rådgiverens vej ind i virksomhedens handouts, 1/10); Book session, Dit Boardroom og Opgaver er ude", () => {
     const labels = nav.flatMap((n) => [n.label, ...(n.children ?? []).map((c) => c.label)]);
     expect(nav.find((n) => n.label === "Dine tal")?.children?.map((c) => c.label)).toEqual(["Rapportering", "KPI'er", "Budget", "Dine mål", "Handouts"]);
     for (const l of ["Book session", "Dit Boardroom", "Opgaver", "Din rådgiver", "Chat"]) expect(labels).not.toContain(l);
@@ -131,11 +168,13 @@ describe("rådgiverens menu — det I bruger øverst (Jonas 8/9)", () => {
   });
   it("partneren får «Økonomi» sidst i den øverste blok, efter Indhold, uden blok-overskrift; aktiv på /oekonomi", () => {
     const p = bygHbNav({ isAdvisor: true, erAbonnent: false, active: "boardroom", isPartner: true });
-    expect(flad(p).slice(0, 9).map((n) => [n.label, n.to, n.blok])).toEqual([
+    expect(flad(p).slice(0, 11).map((n) => [n.label, n.to, n.blok])).toEqual([
       ["Forside", "/", null],
       ["Virksomheder", "/virksomheder", null],
       ["Ansøgninger", "/ansoegninger", null],
       ["Webinar", "/webinar", null],
+      ["Opkald", "/opkald", null],
+      ["Engagement", "/engagement", null],
       ["Indbakke", "/chat", null],
       ["Community", "/community", null],
       ["Indhold", "/admin/indhold", null],
@@ -157,6 +196,11 @@ describe("rådgiverens menu — det I bruger øverst (Jonas 8/9)", () => {
     }
     expect(bygHbNav({ isAdvisor: true, erAbonnent: false, active: "webinar" }).find((n) => n.label === "Webinar")?.active).toBe(true);
     expect(nav.find((n) => n.label === "Webinar")?.active).toBe(false);
+    // Jonas 2/10 14:22: «Opkald» står lige under Webinar og er aktiv på /opkald.
+    const raad = bygHbNav({ isAdvisor: true, erAbonnent: false, active: "opkald" });
+    const navne = raad.map((n) => n.label);
+    expect(navne.indexOf("Opkald")).toBe(navne.indexOf("Webinar") + 1);
+    expect(raad.find((n) => n.label === "Opkald")?.active).toBe(true);
   });
   it("et medlem ser ALDRIG «Webinar» — heller ikke som partner", () => {
     for (const p of [false, true]) {
@@ -168,35 +212,37 @@ describe("rådgiverens menu — det I bruger øverst (Jonas 8/9)", () => {
   });
 });
 
-/* «Dit certifikat» (29/9): tiende punkt, SIDST efter «Fortæl det videre» —
-   og KUN når `certifikat` er sat (berettiget fuldt medlem). Uden det er
-   menuen ordret som ovenfor (de ni punkter i toEqual holder stadig). Tre
-   tilstande: «ny» = mærket «Ny» til siden selv, «laast» = hængelås,
-   «aaben» = punktet alene. Abonnenten og rådgiveren får det aldrig. */
+/* «Dit certifikat» (29/9): SIDST — til 2/10 tiende punkt efter «Fortæl det
+   videre», nu (seks steder) syvende punkt efter «Din rådgiver» — og KUN når
+   `certifikat` er sat (berettiget fuldt medlem). Uden det er menuen ordret
+   som ovenfor (de seks steder i toEqual holder stadig). Tre tilstande: «ny»
+   = mærket «Ny» til siden selv, «laast» = hængelås, «aaben» = punktet alene.
+   Abonnenten og rådgiveren får det aldrig. */
 describe("«Dit certifikat» — sidst i medlemmets menu, kun når sat (29/9)", () => {
   const medlem = (certifikat?: "ny" | "laast" | "aaben" | null, active: HbAktiv = "boardroom") => bygHbNav({ isAdvisor: false, erAbonnent: false, active, certifikat });
-  it("uden certifikat (udeladt eller null): ni punkter, intet hedder Dit certifikat", () => {
+  const SEKS = 6;
+  it("uden certifikat (udeladt eller null): seks punkter, intet hedder Dit certifikat", () => {
     for (const nav of [medlem(), medlem(null)]) {
-      expect(nav).toHaveLength(9);
+      expect(nav).toHaveLength(SEKS);
       expect(nav.map((n) => n.to)).not.toContain("/certifikat");
     }
   });
-  it("«aaben»: tiende og sidste punkt, efter «Fortæl det videre», uden mærke og uden lås", () => {
+  it("«aaben»: syvende og sidste punkt, efter «Din rådgiver», uden mærke og uden lås", () => {
     const nav = medlem("aaben");
-    expect(nav).toHaveLength(10);
-    expect(flad(nav).slice(0, 9)).toEqual(flad(medlem()));
-    const sidste = nav[9];
+    expect(nav).toHaveLength(SEKS + 1);
+    expect(flad(nav).slice(0, SEKS)).toEqual(flad(medlem()));
+    const sidste = nav[SEKS];
     expect(sidste).toEqual({ label: "Dit certifikat", to: "/certifikat", active: false });
-    expect(nav[8].label).toBe("Fortæl det videre");
+    expect(nav[SEKS - 1].label).toBe("Din rådgiver");
   });
   it("«ny»: mærket «Ny» peger på siden selv; «laast»: hængelåsen — og aldrig begge", () => {
-    const ny = medlem("ny")[9];
+    const ny = medlem("ny")[SEKS];
     expect(ny.maerke).toEqual({ tekst: "Ny", to: "/certifikat", titel: "Dit certifikat er klar til at blive hentet" });
     expect(ny.laast).toBeUndefined();
-    const laast = medlem("laast")[9];
+    const laast = medlem("laast")[SEKS];
     expect(laast.laast).toBe(true);
     expect(laast.maerke).toBeUndefined();
-    expect(medlem("aaben")[9].maerke).toBeUndefined();
+    expect(medlem("aaben")[SEKS].maerke).toBeUndefined();
   });
   it("aktiv på /certifikat — og præcis ét punkt er aktivt", () => {
     const nav = medlem("aaben", "certifikat");

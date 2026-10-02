@@ -40,12 +40,14 @@ import { IKKE_KOMMET_IGEN_PRAEFIKS, KOHORTE_OVERSKRIFT, ikkeKommetIgenDele, ikke
 import { HbTag } from "@/components/hjemmebane/HbTag";
 import { HbAvatar } from "@/components/hjemmebane/HbAvatar";
 import { ONLINE_DOM_KEY, hentOnlineDom, useOnlineMedlemmer } from "@/hooks/onlineMedlemmer";
-import { onlineMedlemmer, onlineOverskrift, onlineTitel, onlineUdsnit } from "@/lib/hjemmebane/online";
+import { onlineChatSti, onlineLinkEtiket, onlineMedlemmer, onlineOverskrift, onlineTitel, onlineUdsnit } from "@/lib/hjemmebane/online";
 import { HentningsFejl } from "@/lib/kraevRaekker";
 import { cn } from "@/lib/utils";
 import { raadgiverHentefejlTekst } from "@/lib/raadgiverHentefejl";
 import { useMedlemsOverblik } from "@/hooks/medlemsOverblik";
 import { ManglerAtBooke } from "./ManglerAtBooke";
+import { KvartalstjekVenter } from "./KvartalstjekVenter";
+import { useKvartalstjekOverblik } from "@/hooks/kvartalstjekOverblik";
 import { SVARTID_KEY, hentSvartid } from "@/hooks/svartid";
 import { SvartidsUret } from "./SvartidsUret";
 import { EYEBROW, Fremdrift, KORT, Maerke, MIKRO, TalFelt, type FeltTilstand } from "./HoejreKolonne";
@@ -458,6 +460,8 @@ const DomLinje = ({ l, onLuk, lukker }: { l: Linje; onLuk: (linje: LukbarLinje, 
 
 export const RaadgiverForsideView = () => {
   const { user, profile, isAdvisor } = useAuth();
+  // Tjenestekonti (30/9): stemplet «siden sidst» — se sidenSidstQuery.
+  const { laeseMarkeringTilladt } = useAuth();
   const queryClient = useQueryClient();
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ADVISOR_DASHBOARD_QUERY_KEY(user?.id),
@@ -477,8 +481,10 @@ export const RaadgiverForsideView = () => {
   // adskilt fra forsidens datalag, så en fejl her ikke vælter dommen.
   // Hook i topblokken, før nogen betinget return (React #310).
   const sidenSidstQuery = useQuery({
-    queryKey: SIDEN_SIDST_KEY(user?.id),
-    queryFn: () => hentSidenSidst(user!.id),
+    // Flaget i nøglen (30/9, tjenestekonto.guard dom 6): en tjenestekonto
+    // flytter aldrig stemplet; for alle andre sættes det, når svaret er kommet.
+    queryKey: [...SIDEN_SIDST_KEY(user?.id), laeseMarkeringTilladt],
+    queryFn: () => hentSidenSidst(user!.id, new Date(), laeseMarkeringTilladt),
     enabled: !!user,
     staleTime: 5 * 60_000,
   });
@@ -518,12 +524,13 @@ export const RaadgiverForsideView = () => {
     enabled: !!user,
     staleTime: 5 * 60_000,
   });
-  // Online nu (Jonas 16/9; hooks/onlineMedlemmer + lib/hjemmebane/online):
-  // rådgiveren lytter på den private Presence-kanal (tracker aldrig) og slår
-  // navn, billede og virksomhed op for netop de id'er der er online — nøglen
-  // bærer id'erne, så et nyt medlem online giver ét opslag. Kanalen har sin
-  // egen status (henter · live · fejl); hentningen er en query. Hooks i
-  // topblokken, før nogen betinget return (React #310).
+  // Online nu (Jonas 16/9; hjerteslag 30/9; hooks/onlineMedlemmer +
+  // lib/hjemmebane/online): rådgiveren henter friske hjerteslag (hvert 30. s
+  // og ved fokus) og slår navn, billede og virksomhed op for netop de id'er
+  // der er online — nøglen bærer id'erne, så et nyt medlem online giver ét
+  // opslag. Hjerteslagene har deres egen status (henter · live · fejl);
+  // opslaget er en query. Hooks i topblokken, før nogen betinget return
+  // (React #310).
   const online = useOnlineMedlemmer(!!user);
   const onlineQuery = useQuery({
     queryKey: ONLINE_DOM_KEY(online.ids),
@@ -546,6 +553,8 @@ export const RaadgiverForsideView = () => {
   // hentning og nøgle — en fejl her lader forsiden stå. Hook i topblokken,
   // før nogen betinget return (React #310).
   const overblikQuery = useMedlemsOverblik(!!user);
+  // Skive 3 (2/10): kvartalstjekkene — egen nøgle, fail-soft på migrationen (hooks/kvartalstjekOverblik).
+  const kvartalstjekQuery = useKvartalstjekOverblik(!!user);
   // Svartids-uret (30/9, hooks/svartid + lib/svartid): median svartid i
   // chatten, ældste ubesvarede og «Intet venter»-streaken. KUN rådgivere:
   // query'en kører kun med rollen, og kortet tegner intet uden den
@@ -636,12 +645,13 @@ export const RaadgiverForsideView = () => {
   };
   const sessionerListe = sessionerQuery.data ? dagensSessioner({ ...sessionerQuery.data, nu }) : null;
   const sessionerFelt = felt(sessionerQuery, "sessioner", sessionerListe ? sessionerListe.length : null);
-  // Online: kanalen har sin egen status (henter · live · fejl), opslaget er en
-  // query. Kanalfejl FØRST, så skelet, så opslagsfejl, så listen (onlineMedlemmer).
+  // Online: hjerteslagene har deres egen status (henter · live · fejl), opslaget
+  // er en query. Hjerteslagsfejl FØRST, så skelet, så opslagsfejl, så listen
+  // (onlineMedlemmer).
   let onlineFelt: FeltTilstand;
   let onlineListe: ReturnType<typeof onlineMedlemmer> | null = null;
   if (online.status === "fejl") {
-    iDagFejl.push({ noegle: "online", tekst: raadgiverHentefejlTekst(new HentningsFejl("realtime_presence", "kanalen kunne ikke åbnes"), "forsiden") });
+    iDagFejl.push({ noegle: "online", tekst: raadgiverHentefejlTekst(new HentningsFejl("online_hjerteslag", "hjerteslagene kunne ikke hentes"), "forsiden") });
     onlineFelt = { art: "fejl" };
   } else if (online.status === "henter" || (online.ids.length > 0 && !onlineQuery.data && !onlineQuery.isError)) {
     onlineFelt = { art: "henter" };
@@ -791,7 +801,23 @@ export const RaadgiverForsideView = () => {
                 <ul className="mt-2 flex flex-wrap gap-1" data-online-antal={iDag.online.liste.length}>
                   {viste.map((m) => (
                     <li key={m.user_id}>
-                      <HbAvatar navn={m.navn} avatarUrl={m.avatar_url} stoerrelse="sm" title={onlineTitel(m)} />
+                      {/* Klikbart (Jonas 1/10): et rigtigt link direkte til
+                          virksomhedens samtale (onlineChatSti =
+                          /chat?companyId=…); uden virksomhed intet link. */}
+                      {(() => {
+                        const sti = onlineChatSti(m);
+                        const avatar = <HbAvatar navn={m.navn} avatarUrl={m.avatar_url} stoerrelse="sm" title={onlineTitel(m)} />;
+                        return sti ? (
+                          <Link
+                            to={sti}
+                            aria-label={onlineLinkEtiket(m)}
+                            data-online-chat-link
+                            className="block rounded-full transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hb-evergreen focus-visible:ring-offset-2"
+                          >
+                            {avatar}
+                          </Link>
+                        ) : avatar;
+                      })()}
                     </li>
                   ))}
                   {flere > 0 && (
@@ -910,6 +936,12 @@ export const RaadgiverForsideView = () => {
             første man skal se. Dommen er motorens manglerAtBooke. */}
         <div className="mt-5 border-t border-hb-line pt-4">
         <ManglerAtBooke hentning={overblikQuery} virksomhedsLink={virksomhedsLink} linkKlasse={TEKSTLINK} />
+        </div>
+        {/* KVARTALSTJEK (skive 3, 2/10 — Jonas 1/10: «rådgiverne skal have som en linje på
+            forsiden»): «N kvartalstjek venter hos medlemmerne», foldbar med
+            virksomhederne (KvartalstjekVenter.tsx). Tjekket sker hos medlemmet. */}
+        <div className="mt-5 border-t border-hb-line pt-4">
+        <KvartalstjekVenter hentning={kvartalstjekQuery} virksomhedsLink={virksomhedsLink} linkKlasse={TEKSTLINK} />
         </div>
         </div>
         </aside>

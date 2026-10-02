@@ -4,14 +4,13 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Check, Download, ExternalLink, Lock, Undo2 } from "lucide-react";
 import { AREAS, ITEM_TYPES, getAssetPreviewUrl } from "@/lib/hjemmebane/adminContentApi";
-import { getOwnHandout, listItemAttachments } from "@/lib/hjemmebane/akademiApi";
-import { handoutConfigs, type HandoutModule } from "@/lib/handoutConfig";
-import { calcHandoutProgress } from "@/lib/handoutUtils";
+import { egetSeenAt, listItemAttachments } from "@/lib/hjemmebane/akademiApi";
 import { hasRichTextContent } from "@/lib/hjemmebane/richtext";
 import { useAuth } from "@/hooks/useAuth";
 import { formatDuration } from "@/components/hjemmebane/admin/editors/shared";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 import { HbVideoEmbed } from "../HbVideoEmbed";
+import { OevelseKort } from "../OevelseKort";
 import { BrugbarSpoergsmaal } from "../BrugbarSpoergsmaal";
 import { isTrackedEntry, useAkademiData } from "../useAkademiData";
 import { sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
@@ -77,59 +76,11 @@ const MaterialsSection = ({ itemId, unlocked }: { itemId: string; unlocked: bool
   );
 };
 
-/** Refleksionskortet (lektion→handout-kobling, fase 1): vises kun når
-    item.handout_module er sat og elementet er dryp-ulåst. Status læses fra
-    medlemmets EGEN handouts-række via getOwnHandout (self-only RLS dækker;
-    advisors har typisk ingen række → "Ikke startet" — korrekt preview af
-    medlemsstart). Definition + procent genbruger handoutConfigs/
-    calcHandoutProgress — ingen duplikeret logik. Internt <Link> (aldrig
-    _blank): refleksionerne bliver på platformen. */
-const HandoutSection = ({ module, unlocked }: { module: string; unlocked: boolean }) => {
-  const { user } = useAuth();
-  const config = handoutConfigs[module as HandoutModule];
-  const query = useQuery({
-    queryKey: ["akademi", "handout", module],
-    queryFn: () => getOwnHandout(user!.id, module),
-    enabled: unlocked && !!config && !!user,
-  });
-
-  if (!config) return null; // ukendt nøgle (CHECK forhindrer det — defensivt)
-
-  const row = query.data;
-  const statusText =
-    !row || row.status === "not_started"
-      ? "Ikke startet"
-      : row.status === "completed"
-        ? "Udfyldt ✓"
-        : `I gang · ${calcHandoutProgress(
-            config,
-            (row.responses as Record<string, string>) || {},
-            (row.checklist as Record<string, boolean>) || {},
-            (row.levers as string[]) || [],
-          )} %`;
-
-  return (
-    <section className="mt-8 rounded-hb border border-hb-line bg-hb-sage/20 px-6 py-5">
-      <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">Handout</p>
-      <h2 className="mt-2 font-editorial text-xl font-medium text-hb-ink">{config.title}</h2>
-      <p className="mt-1 text-sm leading-relaxed text-hb-ink-soft">{config.subtitle}</p>
-      <div className="mt-4 flex flex-wrap items-center gap-3">
-        <Link to={`/handouts?module=${module}`}>
-          <HbButton variant="secondary">
-            Åbn handoutet
-            <ArrowRight className="h-4 w-4" />
-          </HbButton>
-        </Link>
-        <span className="text-sm text-hb-ink-soft">{query.isLoading ? "" : statusText}</span>
-      </div>
-    </section>
-  );
-};
-
 export const ElementView = ({ areaKey, slug }: { areaKey: string; slug: string }) => {
   const data = useAkademiData();
   const entry = data.bySlug.get(slug);
   const seenWrittenRef = useRef<string | null>(null);
+  const { laeseMarkeringTilladt } = useAuth();
   /** «Kunne du bruge den?»: item.id for den lektion der er svaret på i
       DETTE besøg. Kvitteringen vises kun når svaret OGSÅ står i cachen
       (progress.brugbar != null): ved succes står det der, og kvitteringen
@@ -140,25 +91,36 @@ export const ElementView = ({ areaKey, slug }: { areaKey: string; slug: string }
       Nøglet pr. item.id, fordi komponenten lever videre på tværs af slugs. */
   const [brugbarSvaretFor, setBrugbarSvaretFor] = useState<string | null>(null);
 
-  // seen_at ved første visning — én gang pr. element pr. besøg.
+  // seen_at ved første visning — én gang pr. element pr. besøg. En
+  // tjenestekonto KIGGER (30/9, tjenestekonto.guard dom 6): intet stempel;
+  // flaget i afhængighederne, så stemplet venter, mens opslaget henter.
+  // F0 (2/10): kun medlemmets EGET seen_at tæller (egetSeenAt) — på en
+  // backfillet batch-række er seen_at rådgiverens stempel, og hendes besøg
+  // skal nu efterlade et spor (akademi-grundlag §6, grænse 3).
   useEffect(() => {
-    if (!entry || data.loading || !entry.drip.unlocked) return;
-    if (entry.progress?.seen_at || seenWrittenRef.current === entry.item.id) return;
+    if (!entry || data.loading || !entry.drip.unlocked || !laeseMarkeringTilladt) return;
+    if (egetSeenAt(entry.progress) || seenWrittenRef.current === entry.item.id) return;
     seenWrittenRef.current = entry.item.id;
     data.writeProgress(entry.item.id, { seen_at: new Date().toISOString() });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entry?.item.id, data.loading]);
+  }, [entry?.item.id, data.loading, laeseMarkeringTilladt]);
 
   if (data.loading) return <p className="text-sm text-hb-ink-soft">Henter…</p>;
 
-  const areaLabel = AREAS.find((a) => a.key === areaKey)?.label ?? areaKey;
+  // Tilbage-linket peger kun på et område, medlemmet kan se: et område
+  // uden for Akademiet (push, eller et skjult område siden 1/10-2026) må
+  // hverken nævnes eller linkes — så går linket til /akademiet.
+  const rutensOmraade = AREAS.find((a) => a.key === areaKey);
+  const tilbage = rutensOmraade?.akademi
+    ? { to: `/akademiet/${areaKey}`, label: rutensOmraade.label }
+    : { to: "/akademiet", label: "Akademiet" };
 
   // Fejlet FØR «findes ikke» (de nitten, 10/9): et element der ikke kunne
   // hentes er ikke et element der ikke er publiceret.
   if (data.fejlede) {
     return (
       <div>
-        <BackLink areaKey={areaKey} label={areaLabel} />
+        <BackLink to={tilbage.to} label={tilbage.label} />
         <p className="mt-8 text-sm text-hb-ink-soft">{sektionsfejlTekst("akademiet")} Prøv igen om lidt.</p>
       </div>
     );
@@ -170,7 +132,7 @@ export const ElementView = ({ areaKey, slug }: { areaKey: string; slug: string }
   if (!entry || !entryArea?.akademi) {
     return (
       <div>
-        <BackLink areaKey={areaKey} label={areaLabel} />
+        <BackLink to={tilbage.to} label={tilbage.label} />
         <p className="mt-8 text-sm text-hb-ink-soft">Elementet findes ikke (eller er ikke publiceret).</p>
       </div>
     );
@@ -181,7 +143,7 @@ export const ElementView = ({ areaKey, slug }: { areaKey: string; slug: string }
   if (!drip.unlocked) {
     return (
       <div>
-        <BackLink areaKey={areaKey} label={areaLabel} />
+        <BackLink to={tilbage.to} label={tilbage.label} />
         <div className="mt-8 flex max-w-2xl items-center gap-3 rounded-hb border border-hb-line bg-hb-sage/30 px-6 py-5 text-sm leading-relaxed text-hb-ink">
           <Lock className="h-4 w-4 shrink-0" />
           Dette element åbner om {drip.daysUntil} dag{drip.daysUntil === 1 ? "" : "e"} — det
@@ -221,7 +183,7 @@ export const ElementView = ({ areaKey, slug }: { areaKey: string; slug: string }
 
   return (
     <div>
-      <BackLink areaKey={areaKey} label={areaLabel} />
+      <BackLink to={tilbage.to} label={tilbage.label} />
 
       <article className="mt-6 max-w-3xl">
         <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">
@@ -241,9 +203,10 @@ export const ElementView = ({ areaKey, slug }: { areaKey: string; slug: string }
             <HbVideoEmbed
               itemId={item.id}
               resumeAt={done ? null : (progress?.last_position_seconds ?? null)}
-              onPosition={(seconds) =>
-                data.writeProgress(item.id, { last_position_seconds: seconds })
-              }
+              onPosition={(seconds) => {
+                // Afspilningspositionen er også et spor af at kigge (dom 6).
+                if (laeseMarkeringTilladt) data.writeProgress(item.id, { last_position_seconds: seconds });
+              }}
               onCompleted={() => {
                 if (!done) acknowledge();
               }}
@@ -278,8 +241,12 @@ export const ElementView = ({ areaKey, slug }: { areaKey: string; slug: string }
           />
         )}
 
+        {/* Øvelsen (handouts i Akademiet, 1/10-2026 nat): handoutet er
+            lektionens øvelse, og overordnet henviser til Dine mål —
+            OevelseKort/lib/hjemmebane/oevelse.ts. `fra` er denne lektion,
+            så «Tilbage» i editoren fører hertil (rådets fund 4, 2/10). */}
         {item.handout_module && (
-          <HandoutSection module={item.handout_module} unlocked={drip.unlocked} />
+          <OevelseKort module={item.handout_module} unlocked={drip.unlocked} fra={{ area: areaKey, slug }} />
         )}
 
         <MaterialsSection itemId={item.id} unlocked={drip.unlocked} />
@@ -356,9 +323,9 @@ export const ElementView = ({ areaKey, slug }: { areaKey: string; slug: string }
   );
 };
 
-const BackLink = ({ areaKey, label }: { areaKey: string; label: string }) => (
+const BackLink = ({ to, label }: { to: string; label: string }) => (
   <Link
-    to={`/akademiet/${areaKey}`}
+    to={to}
     className="flex items-center gap-2 text-sm text-hb-ink-soft transition-colors hover:text-hb-ink"
   >
     <ArrowLeft className="h-4 w-4" />

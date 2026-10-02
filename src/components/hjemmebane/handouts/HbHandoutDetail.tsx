@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Check, Loader2, CheckCircle2, RotateCcw, Eye, Target, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -16,7 +16,9 @@ import {
   type LeverMilestone,
 } from "@/lib/handoutEngine";
 import { listPublishedItems } from "@/lib/hjemmebane/akademiApi";
+import { MEDLEM_SKJULTE_OMRAADER } from "@/lib/hjemmebane/adminContentApi";
 import { hoererTilTekst, lektionerForModul, lektionsSti } from "@/lib/hjemmebane/lektionerForModul";
+import { OEVELSE_EYEBROW, oevelseTilbage } from "@/lib/hjemmebane/oevelse";
 import { sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
 import { HbSection } from "../HbSection";
 import { HbCard } from "../HbCard";
@@ -39,10 +41,21 @@ interface HbHandoutDetailProps {
   onBack: () => void;
   userId?: string; // for advisor viewing another member
   onModuleSelect?: (module: HandoutModule) => void;
+  /** Handouts i Akademiet (1/10-2026 nat): medlemmet kom fra Akademiet —
+      eyebrow'en er «Øvelse», og «Tilbage» er et link til den lektion, der
+      bærer modulet (oevelseTilbage: afsenderen `fra`, ellers den første,
+      ellers /akademiet), ikke onBack til en liste, som medlemmet ikke har
+      længere. «Næste modul» vises ikke (listen er rådgiverens, legatets og
+      abonnentens). */
+  tilbageTilAkademiet?: boolean;
+  /** Afsenderen fra URL'en (`fra=<area>/<slug>`) — valideres i
+      oevelseTilbage mod modulets lektioner; aldrig en fri URL. */
+  fra?: string | null;
 }
 
-export const HbHandoutDetail = ({ config, onBack, userId, onModuleSelect }: HbHandoutDetailProps) => {
+export const HbHandoutDetail = ({ config, onBack, userId, onModuleSelect, tilbageTilAkademiet = false, fra = null }: HbHandoutDetailProps) => {
   const { user, companyId, companyName } = useAuth();
+  const queryClient = useQueryClient();
   const [industry, setIndustry] = useState<string | null>(null);
   const effectiveUserId = userId || user?.id;
   const isOwner = !userId || userId === user?.id;
@@ -68,8 +81,25 @@ export const HbHandoutDetail = ({ config, onBack, userId, onModuleSelect }: HbHa
   // og dermed intet link — ikke en fejl. Hooken står i topblokken, før
   // `if (loading)` (React #310).
   const lektionerQuery = useQuery({ queryKey: ["akademi", "items"], queryFn: listPublishedItems });
-  const lektioner = lektionerForModul(lektionerQuery.data ?? [], config.module);
+  // Skjulte områder (Quick Wins, 1/10-2026) må ikke blive et «Hører til»-link:
+  // cachen deles med admin-fladerne og er ufiltreret, så filtret står her.
+  const lektioner = lektionerForModul(
+    (lektionerQuery.data ?? []).filter((i) => !MEDLEM_SKJULTE_OMRAADER.has(i.area)),
+    config.module,
+  );
   const hoererTil = hoererTilTekst(lektioner.length);
+  const tilbage = tilbageTilAkademiet ? oevelseTilbage(lektioner, fra) : null;
+  // Mens kataloget hentes, er lektionen ukendt: linket peger på Akademiet
+  // uden tekst (kun pilen), så «Akademiet» ikke blinker før lektionens navn
+  // (rådets fund 9, 2/10).
+  const tilbageTekstKlar = !lektionerQuery.isPending;
+
+  // Øvelsens kort (OevelseKort) læser status fra ["akademi","handout",modul]
+  // — efter gem og «Markér udfyldt» friskes den, så kortet viser det nye
+  // (rådets fund 7, 2/10).
+  const friskOevelseKort = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ["akademi", "handout", config.module] });
+  }, [queryClient, config.module]);
 
   // Load handout data (H1a + H1b i motoren)
   const loadData = useCallback(async () => {
@@ -127,12 +157,15 @@ export const HbHandoutDetail = ({ config, onBack, userId, onModuleSelect }: HbHa
     });
     if (!result.skipped) {
       if (result.error) { toast.error("Fejl ved gem", { description: result.error.message }); }
-      else if (!handoutId && result.handoutId) { setHandoutId(result.handoutId); }
+      else {
+        if (!handoutId && result.handoutId) { setHandoutId(result.handoutId); }
+        friskOevelseKort();
+      }
     }
 
     setSaveStatus("saved");
     setTimeout(() => setSaveStatus("idle"), 2000);
-  }, [effectiveUserId, isOwner, config.module, handoutId]);
+  }, [effectiveUserId, isOwner, config.module, handoutId, friskOevelseKort]);
 
   const debounceSave = useCallback((r: Record<string, string>, c: Record<string, boolean>, l: string[]) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -170,6 +203,7 @@ export const HbHandoutDetail = ({ config, onBack, userId, onModuleSelect }: HbHa
       toast.error("Fejl", { description: result.error.message });
     } else {
       setHandoutStatus(result.newStatus);
+      friskOevelseKort();
       toast.success(result.newStatus === "completed" ? "Handout markeret som udfyldt ✓" : "Handout genåbnet");
     }
   };
@@ -191,14 +225,24 @@ export const HbHandoutDetail = ({ config, onBack, userId, onModuleSelect }: HbHa
       {/* ── Header ── */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <button
-            type="button"
-            onClick={onBack}
-            className="mb-3 inline-flex items-center gap-1.5 text-sm text-hb-ink-soft transition-colors hover:text-hb-ink"
-          >
-            <ArrowLeft className="h-4 w-4" /> Tilbage
-          </button>
-          <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">Handout</p>
+          {tilbage ? (
+            <Link
+              to={tilbage.to}
+              aria-label="Tilbage"
+              className="mb-3 inline-flex items-center gap-1.5 text-sm text-hb-ink-soft transition-colors hover:text-hb-ink"
+            >
+              <ArrowLeft className="h-4 w-4" /> {tilbageTekstKlar ? tilbage.label : ""}
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={onBack}
+              className="mb-3 inline-flex items-center gap-1.5 text-sm text-hb-ink-soft transition-colors hover:text-hb-ink"
+            >
+              <ArrowLeft className="h-4 w-4" /> Tilbage
+            </button>
+          )}
+          <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">{tilbage ? OEVELSE_EYEBROW : "Handout"}</p>
           <h1 className="mt-2 font-editorial text-3xl font-medium leading-tight text-hb-ink md:text-4xl">{config.title}</h1>
           <p className="mt-2 text-sm text-hb-ink-soft">{config.subtitle} · {progress}% udfyldt</p>
           {/* Fejlet ≠ tom (hentefejl.ts): kunne kataloget ikke hentes, siges det
@@ -380,8 +424,9 @@ export const HbHandoutDetail = ({ config, onBack, userId, onModuleSelect }: HbHa
         </div>
       )}
 
-      {/* Next module prompt after completion */}
-      {isCompleted && (() => {
+      {/* Next module prompt after completion — kun hvor der er en liste at
+          vælge i (onModuleSelect); fra Akademiet er næste skridt lektionen. */}
+      {isCompleted && onModuleSelect && (() => {
         const currentIdx = moduleOrder.indexOf(config.module);
         const nextModule = currentIdx >= 0 && currentIdx < moduleOrder.length - 1
           ? moduleOrder[currentIdx + 1]

@@ -40,8 +40,11 @@ export const MAX_AKTIVE_MAAL = 3;
  * JONAS 16/9 (ordret) til 100 %-spørgsmålet: «A» — 100 % betyder at alle
  * skridt er gjort, og målet vises som færdigt; i fase 3 får fladen «Marker
  * som nået».
- * Motoren klipper altså IKKE til 99: alle skridt gjort = 100 = færdigt på
- * skærmen (afgoerMilepael dømmer faerdig ved progress >= 100).
+ * Motoren klipper altså IKKE til 99: alle skridt gjort = 100 (baren er fuld).
+ * JONAS 1/10-2026 (fejlen «klikker gjort på et skridt, så lukker målet»):
+ * 100 er IKKE «nået» — afgoerMilepael dømmer nået KUN på status =
+ * 'completed' (erMarkeretNaaet), og kun et menneske skriver den. Målet
+ * bliver stående under de aktive med «Marker som nået».
  */
 export function maalFremdrift(skridt: readonly SkridtTilFremdrift[], nuvaerende: number | null | undefined): number {
   const taellende = skridt.filter((s) => TAELLENDE_SKRIDT.includes(s.status));

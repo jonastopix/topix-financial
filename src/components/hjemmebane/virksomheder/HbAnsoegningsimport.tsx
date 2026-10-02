@@ -227,7 +227,7 @@ export const HbAnsoegningsimport = ({ aaben, onLuk }: { aaben: boolean; onLuk: (
             </ul>
           )}
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <HbField label="Email *" htmlFor={`${FELT_ID}email`}>
               <HbInput id={`${FELT_ID}email`} type="email" value={felter.email} onChange={(e) => saet({ email: e.target.value })} />
             </HbField>

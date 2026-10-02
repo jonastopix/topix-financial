@@ -1,8 +1,10 @@
 /**
  * Konstant-tid-sammenligning af to strenge.
  *
- * HVORFOR DEN FINDES: monday-webhook autentificerer en board-webhook på en
- * delt hemmelighed i URL'en (14/9-2026, _shared/mondayVaern.ts). En
+ * HVORFOR DEN FINDES: født 14/9-2026 til den nu nedlagte monday-webhook (2/10:
+ * Monday opsagt, functionen svarer 410), som autentificerede en board-webhook
+ * på en delt hemmelighed i URL'en. Lever videre i aftale-underskrift,
+ * webhookSignatur, ewebinarSignatur og delingstokenAuth. En
  * almindelig `===` på strenge stopper ved første forskellige tegn, og
  * tiden det tager røber hvor mange tegn af hemmeligheden der var rigtige.
  * Målt 14/9: huset havde ingen konstant-tid-hjælper — de to

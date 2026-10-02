@@ -194,6 +194,31 @@ const Kurve = ({ kurve }: { kurve: KurvePunkt[] }) => {
   );
 };
 
+/** MRR-broens kolonner — ÉN liste til både overskriftsrækken (desktop) og etiketterne i hver række (mobil),
+ *  så de aldrig kan sige noget forskelligt. Jonas 1/10-2026: «Sæt labels på kolonnerne … Det er svært at
+ *  regne ud for vores bogholder, hvad der er hvad.» Ordene er bogholderens: primo/ultimo, ekskl. moms. */
+const BRO_KOLONNER = {
+  maaned: "Måned",
+  start: "MRR primo",
+  ny: "+ Nye kunder",
+  op: "+ Fornyet op",
+  ned: "− Fornyet ned",
+  tabt: "− Ophørt",
+  slut: "MRR ultimo",
+} as const;
+const BRO_FORKLARING =
+  "MRR = månedlig tilbagevendende omsætning ekskl. moms, periodiseret: kontraktårets pris fordelt ligeligt på årets måneder. MRR primo + ændringerne = MRR ultimo. Pilen viser virksomhederne bag en måned.";
+
+const BroOverskrift = () => (
+  <div className="hidden border-t border-hb-line pb-2 pt-3 md:grid md:grid-cols-[6rem_repeat(6,minmax(0,1fr))_2rem] md:items-end md:gap-3" data-bro-overskrift aria-hidden="true">
+    <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{BRO_KOLONNER.maaned}</span>
+    {[BRO_KOLONNER.start, BRO_KOLONNER.ny, BRO_KOLONNER.op, BRO_KOLONNER.ned, BRO_KOLONNER.tabt, BRO_KOLONNER.slut].map((t) => (
+      <span key={t} className="text-right text-[10px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{t}</span>
+    ))}
+    <span />
+  </div>
+);
+
 const BroRaekke = ({ m }: { m: BroMaaned }) => {
   const [aaben, setAaben] = useState(false);
   const harPoster = m.poster.length > 0;
@@ -202,12 +227,12 @@ const BroRaekke = ({ m }: { m: BroMaaned }) => {
       <div className="grid grid-cols-[5rem_1fr] items-baseline gap-3 md:grid-cols-[6rem_repeat(6,minmax(0,1fr))_2rem]">
         <span className="text-sm font-medium text-hb-ink">{maanedsLabel(m.key)}</span>
         <div className="grid grid-cols-3 gap-2 text-right text-sm tabular-nums md:contents">
-          <Tal label="start" v={m.start_oere} />
-          <Tal label="+ ny" v={m.ny_oere} plus />
-          <Tal label="+ fornyet op" v={m.fornyet_op_oere} plus />
-          <Tal label="− fornyet ned" v={m.fornyet_ned_oere} plus />
-          <Tal label="− tabt" v={m.tabt_oere} plus />
-          <Tal label="slut" v={m.slut_oere} staerk />
+          <Tal label={BRO_KOLONNER.start} v={m.start_oere} />
+          <Tal label={BRO_KOLONNER.ny} v={m.ny_oere} plus />
+          <Tal label={BRO_KOLONNER.op} v={m.fornyet_op_oere} plus />
+          <Tal label={BRO_KOLONNER.ned} v={m.fornyet_ned_oere} plus />
+          <Tal label={BRO_KOLONNER.tabt} v={m.tabt_oere} plus />
+          <Tal label={BRO_KOLONNER.slut} v={m.slut_oere} staerk />
         </div>
         {harPoster ? (
           <button type="button" onClick={() => setAaben((a) => !a)} aria-expanded={aaben} className="justify-self-end text-hb-ink-soft hover:text-hb-ink" aria-label={`${aaben ? "Skjul" : "Vis"} virksomhederne bag ${maanedsLabel(m.key)}`}>
@@ -329,7 +354,7 @@ const Kundevaerdi = ({ dom }: { dom: Extract<DashboardDom, { tom: false }> }) =>
 const Udestaaende = ({ dom }: { dom: Extract<DashboardDom, { tom: false }> }) => {
   const u = dom.udestaaende;
   return (
-    <div className="grid gap-8 md:grid-cols-2" data-oekonomi-udestaaende={u.raekker.length}>
+    <div className="grid grid-cols-1 gap-8 md:grid-cols-2" data-oekonomi-udestaaende={u.raekker.length}>
       <div>
         {/* Ø3b: forfaldne betalinger der ikke er kommet — ikke «anerkendt, men ikke betalt» (timing på rater med fast trækdato). */}
         <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">Forfaldent, ikke betalt · {kr(u.i_alt_oere)}</p>
@@ -394,6 +419,8 @@ export const OekonomiView = ({ nu = new Date() }: { nu?: Date }) => {
           </HbSection>
 
           <HbSection eyebrow="MRR-broen" title="De seneste 12 måneder" hairline className={sektion}>
+            <p className="mb-4 text-sm text-hb-ink-soft" data-bro-forklaring>{BRO_FORKLARING}</p>
+            <BroOverskrift />
             <ul data-oekonomi-bro={dom.bro.length}>
               {dom.bro.map((m) => <BroRaekke key={m.key} m={m} />)}
             </ul>
