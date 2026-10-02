@@ -9,7 +9,7 @@ import { HentningsFejl, kraevRaekker } from "@/lib/kraevRaekker";
 import { erManglendeKolonne } from "@/lib/manglendeTabel";
 import { dineMaalKvartalstjekKey, hentKvartalstjek, useDineMaalGrundlag } from "@/hooks/dineMaalGrundlag";
 import { delBekraeftelser, ventendeKvartalstjekAlle } from "@/lib/hjemmebane/maalBekraeft";
-import { FORSIDE_MAAL_ORD, forsideMaalTilstand, forslagListe, SAET_MAAL_STI } from "@/lib/hjemmebane/forsideMaal";
+import { erPlanPunkt, FORSIDE_MAAL_ORD, forsideMaalTilstand, forslagListe, SAET_MAAL_STI, skarptSti } from "@/lib/hjemmebane/forsideMaal";
 import { ForsideMaalKort, VenterLinje } from "./ForsideMaalKort";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
@@ -1049,7 +1049,11 @@ const FocusCard = ({
   // Kompakt (forsidens top, 2/10 aften — «designet skal sidde»): ét primært punkt og højst TO stille
   // linjer, og højst ÉN «Måske relevant» — kortet bar før seks-syv linjer under knappen. Resten af
   // punkterne står i «Din plan» lige under. «fuld» er uændret.
-  const displayed = items.slice(0, variant === "kompakt" ? 3 : 4);
+  // 2/10 aften (Jonas' skærm 19:29): i kompakt står skridt og mål-punkter IKKE som stille linjer — de står
+  // med knapper i «Din plan» lige under (dobbeltvisning). Det PRIMÆRE punkt er urørt (motorens valg).
+  const displayed = variant === "kompakt"
+    ? [...items.slice(0, 1), ...items.slice(1).filter((i) => !erPlanPunkt(i))].slice(0, 3)
+    : items.slice(0, 4);
   const visteRelevante = variant === "kompakt" ? relevante.slice(0, 1) : relevante;
   const primary = displayed[0];
   const quiet = displayed.slice(1);
@@ -2230,6 +2234,7 @@ export const BoardroomView = () => {
                     fremdrift={x.plan.plan.fremdrift}
                     fristTekst={x.plan.plan.maal.deadline ? fristTekst(x.plan.plan.maal.deadline, tilDatoStreng(new Date())) : null}
                     fristForfalden={x.plan.plan.dom.forfalden}
+                    skarptHref={skarptSti(x.plan.plan.maal.id)}
                   >
                     {/* Skridtene under målet: det NÆSTE aktive (forfaldne øverst), så forslagene — resten bor på Dine mål. */}
                     {(x.aktive.length > 0 || x.forslag.length > 0) && (
@@ -2245,19 +2250,24 @@ export const BoardroomView = () => {
                     {x.aktive.length > 1 && (
                       <Link to="/milestones" className="mt-1 inline-block text-xs text-hb-ink-soft underline-offset-4 hover:text-hb-ink hover:underline" data-flere-skridt={x.aktive.length - 1}>{FORSIDE_MAAL_ORD.flereSkridt(x.aktive.length - 1)}</Link>
                     )}
-                    {x.alleGjort && (
-                      <p className="mt-2 text-sm" data-alle-gjort>
-                        <Link to="/milestones" className="text-hb-evergreen underline-offset-4 hover:underline">{ALLE_SKRIDT_GJORT_TEKST}</Link>
-                      </p>
-                    )}
+                    {/* Ingen åbne skridt: enten er alle gjort (sig det, og peg på «nået» — klikket bor på Dine mål),
+                        eller der er ingen endnu (spørg om det første). Aldrig begge linjer på én gang (Jonas' skærm 2/10). */}
+                    {x.aktive.length + x.forslag.length === 0 && (x.udenSkridt ? (
+                      <p className="mt-1.5 font-editorial text-base font-medium leading-snug text-hb-ink" data-uden-skridt>{FORSIDE_MAAL_ORD.foersteSkridt}</p>
+                    ) : (
+                      <div className="mt-1.5" data-alle-gjort>
+                        <p className="text-[15px] font-medium leading-snug text-hb-ink"><span className="text-hb-evergreen">✓</span> {FORSIDE_MAAL_ORD.alleGjort}</p>
+                        <Link to="/milestones" className="mt-1 inline-block text-sm text-hb-evergreen underline-offset-4 hover:underline" title={ALLE_SKRIDT_GJORT_TEKST}>{FORSIDE_MAAL_ORD.markerNaaet}</Link>
+                      </div>
+                    ))}
                     {/* «+ Tilføj skridt» — #946's formular (samme function). Uden skridt: «Tilføj det første skridt». */}
                     {tilfoejAaben === x.plan.plan.maal.id ? (
                       <div className="mt-3">
                         <TilfoejSkridtForm maalId={x.plan.plan.maal.id} maalFrist={x.plan.plan.maal.deadline} busy={planBusy} onTilfoej={(titel, dueDate) => tilfoejSkridt(x.plan.plan.maal.id, titel, dueDate)} onLuk={() => setTilfoejAaben(null)} knapTekst={x.udenSkridt ? MAAL_UDEN_SKRIDT_TEKST : undefined} />
                       </div>
                     ) : (
-                      <button type="button" disabled={planBusy} onClick={() => setTilfoejAaben(x.plan.plan.maal.id)} className={cn("text-xs text-hb-evergreen underline-offset-4 hover:underline disabled:opacity-50", x.aktive.length + x.forslag.length === 0 ? "mt-2 block font-editorial text-base" : "mt-3 block")} data-handling="tilfoej-skridt">
-                        + {x.aktive.length + x.forslag.length === 0 ? MAAL_UDEN_SKRIDT_TEKST : TILFOEJ_SKRIDT_KNAP_TEKST}
+                      <button type="button" disabled={planBusy} onClick={() => setTilfoejAaben(x.plan.plan.maal.id)} className="mt-3 block text-xs font-medium text-hb-evergreen underline-offset-4 hover:underline disabled:opacity-50" data-handling="tilfoej-skridt">
+                        + {x.udenSkridt ? MAAL_UDEN_SKRIDT_TEKST : TILFOEJ_SKRIDT_KNAP_TEKST}
                       </button>
                     )}
                   </ForsideMaalKort>
@@ -2271,9 +2281,9 @@ export const BoardroomView = () => {
           {plan.overGraensen && <p className="mt-1 text-sm text-hb-rust">{plan.graenseTekst}</p>}
           {/* JERES SKRIDT: skridt uden mål, under andre mål og under mål, der venter på et ja — med forsidens knapper. */}
           {(plan.udenMaal.aktive.length > 0 || plan.udenMaal.forslag.length > 0) && (
-            <div className="mt-8" data-plan-uden-maal>
+            <HbCard className="mt-4 px-5 py-4 md:px-6" data-plan-uden-maal>
               <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{UDEN_MAAL_OVERSKRIFT}</p>
-              <ul className="mt-2">
+              <ul className="mt-1">
                 {plan.udenMaal.aktive.map((a) => (
                   <PlanSkridtRaekke key={a.id} skridt={a} slags="aktiv" busy={planBusy} maalFrist={maalFristFor(a)} onKald={(kald) => opgaveMutation.mutate(kald)} />
                 ))}
@@ -2281,13 +2291,13 @@ export const BoardroomView = () => {
                   <PlanSkridtRaekke key={f.id} skridt={f} slags="forslag" ansigt={raadgiverAnsigt(f, raadgivere)} busy={planBusy} maalFrist={maalFristFor(f)} onKald={(kald) => opgaveMutation.mutate(kald)} />
                 ))}
               </ul>
-            </div>
+            </HbCard>
           )}
           {/* Skive 3 (rådets fund 7): skridt under et UBEKRÆFTET mål venter med målet — ikke «Uden mål». */}
           {(plan.venterPaaJa.aktive.length > 0 || plan.venterPaaJa.forslag.length > 0) && (
-            <div className="mt-8" data-plan-venter-paa-ja>
+            <HbCard className="mt-4 px-5 py-4 md:px-6" data-plan-venter-paa-ja>
               <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{VENTER_PAA_JA_OVERSKRIFT}</p>
-              <ul className="mt-2">
+              <ul className="mt-1">
                 {plan.venterPaaJa.aktive.map((a) => (
                   <PlanSkridtRaekke key={a.id} skridt={a} slags="aktiv" busy={planBusy} maalFrist={maalFristFor(a)} onKald={(kald) => opgaveMutation.mutate(kald)} />
                 ))}
@@ -2295,12 +2305,12 @@ export const BoardroomView = () => {
                   <PlanSkridtRaekke key={f.id} skridt={f} slags="forslag" ansigt={raadgiverAnsigt(f, raadgivere)} busy={planBusy} maalFrist={maalFristFor(f)} onKald={(kald) => opgaveMutation.mutate(kald)} />
                 ))}
               </ul>
-            </div>
+            </HbCard>
           )}
           {(plan.andre.aktive.length > 0 || plan.andre.forslag.length > 0) && (
-            <div className="mt-8" data-plan-andre>
+            <HbCard className="mt-4 px-5 py-4 md:px-6" data-plan-andre>
               <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{ANDRE_MAAL_OVERSKRIFT}</p>
-              <ul className="mt-2">
+              <ul className="mt-1">
                 {plan.andre.aktive.map((a) => (
                   <PlanSkridtRaekke key={a.id} skridt={a} slags="aktiv" busy={planBusy} maalFrist={maalFristFor(a)} onKald={(kald) => opgaveMutation.mutate(kald)} />
                 ))}
@@ -2308,14 +2318,14 @@ export const BoardroomView = () => {
                   <PlanSkridtRaekke key={f.id} skridt={f} slags="forslag" ansigt={raadgiverAnsigt(f, raadgivere)} busy={planBusy} maalFrist={maalFristFor(f)} onKald={(kald) => opgaveMutation.mutate(kald)} />
                 ))}
               </ul>
-            </div>
+            </HbCard>
           )}
           {/* «Hvad er et mål?» (tillæg 17/9) — foldet nederst i alle tre tilstande (2/10 aften: før stod den åben i
               tom-tilstanden og øverst med mål; nu bærer det mørke kort invitationen, og forklaringen er et opslag). */}
-          <details className="mt-6" data-maal-forklaring-fold>
+          {maalTilstand !== "maal" && <details className="mt-5" data-maal-forklaring-fold>
             <summary className="inline-block cursor-pointer list-none text-sm text-hb-evergreen underline-offset-4 hover:underline [&::-webkit-details-marker]:hidden">{MAAL_FORKLARING_OVERSKRIFT}</summary>
             <HbMaalForklaring udenOverskrift className="mt-3" />
-          </details>
+          </details>}
         </HbSection>
       )}
 

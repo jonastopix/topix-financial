@@ -129,7 +129,8 @@ export const enKildeTreSteder = (filer: Record<string, string>): boolean => {
   const tekst = "Et mål er det, du vil nå med din virksomhed det næste halve til hele år.";
   const eksempel = "Positiv bundlinje hver måned inden jul";
   const kunKilden = Object.entries(filer).every(([sti, k]) => sti === KILDE || (!k.includes(tekst) && !k.includes(eksempel) && !k.includes("Hvad er et mål?")));
-  const fold = forside.slice(forside.indexOf('<details className="mt-6" data-maal-forklaring-fold>'), forside.indexOf("</details>"));
+  // 2/10 aften (efter Jonas' skærm 19:29): foldet KUN i tilstand B og C — med mål er forklaringen en løs rest.
+  const fold = forside.slice(forside.indexOf('{maalTilstand !== "maal" && <details className="mt-5" data-maal-forklaring-fold>'), forside.indexOf("</details>"));
   // Fladen 1/10-2026: den tomme tilstand er blokken data-dine-maal="tom" FØR gitteret med den stiplede plads «Sæt et mål».
   const viewTom = view.slice(view.indexOf('data-dine-maal="tom"'), view.indexOf("<TomPladsKort", view.indexOf('data-dine-maal="tom"')));
   return kilde.includes('export const MAAL_FORKLARING_OVERSKRIFT = "Hvad er et mål?";') &&
@@ -138,7 +139,7 @@ export const enKildeTreSteder = (filer: Record<string, string>): boolean => {
     kunKilden &&
     komponent.includes('import { MAAL_EKSEMPLER, MAAL_FORKLARING_OVERSKRIFT, MAAL_FORKLARING_TEKST } from "@/lib/hjemmebane/maalForklaring";') &&
     komponent.includes("{MAAL_EKSEMPLER.map((e) => (") && komponent.includes("{MAAL_FORKLARING_TEKST}") &&
-    // 1. forsiden: foldet <details> nederst i «Din plan», i alle tre tilstande (2/10 aften)
+    // 1. forsiden: foldet <details> nederst i «Din plan» i tilstand B og C (2/10 aften)
     forside.includes('import { HbMaalForklaring } from "../milestones/HbMaalForklaring";') &&
     fold.length > 0 && forside.indexOf('data-maal-forklaring-fold') > forside.indexOf('{maalTilstand === "tom" && (') &&
     fold.includes("{MAAL_FORKLARING_OVERSKRIFT}</summary>") && fold.includes('<HbMaalForklaring udenOverskrift className="mt-3" />') && !/<details[^>]*\bopen\b/.test(fold) &&
@@ -200,7 +201,7 @@ describe("forsidePlan.guard — PR 3: én sektion, skridt under mål, samme func
     expect(enKildeTreSteder({ ...filer, [VIEW]: filer[VIEW].replace("<HbMaalForklaring />", "") })).toBe(false);
     expect(enKildeTreSteder({ ...filer, [DIALOG]: filer[DIALOG].replace("beskrivelse={trin === 1 ? MAAL_FORKLARING_TEKST : undefined}", 'beskrivelse="Definer dit mål og vælg en kategori."') })).toBe(false);
     expect(enKildeTreSteder({ ...filer, [DIALOG]: filer[DIALOG].replace("data-guide-eksempler>{maalEksemplerHjaelp()}</p>}", "data-guide-eksempler>Fx</p>}") })).toBe(false);
-    expect(enKildeTreSteder({ ...filer, [FORSIDE]: filer[FORSIDE].replace('<details className="mt-6" data-maal-forklaring-fold>', '<details open className="mt-6" data-maal-forklaring-fold>') })).toBe(false);
+    expect(enKildeTreSteder({ ...filer, [FORSIDE]: filer[FORSIDE].replace('<details className="mt-5" data-maal-forklaring-fold>', '<details open className="mt-5" data-maal-forklaring-fold>') })).toBe(false);
   });
   it("selvbevis 5: en fejring der regner procenten selv, eller uden FejringRaekke, falder", () => {
     expect(fejringenHolder(dom, forside.replace("setFejring(lavFejring(skridt, maal?.title ?? null, progress))", "setFejring(lavFejring(skridt, maal?.title ?? null, Math.round((100 * gjort) / alle)))"))).toBe(false);

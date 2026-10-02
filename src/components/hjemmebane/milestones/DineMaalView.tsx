@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { SAET_MAAL_PARAM, SAET_MAAL_VAERDI } from "@/lib/hjemmebane/forsideMaal";
+import { SAET_MAAL_PARAM, SAET_MAAL_VAERDI, SKARPT_PARAM } from "@/lib/hjemmebane/forsideMaal";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -243,6 +243,19 @@ export const DineMaalView = () => {
   const forMedlemAf = useMemo(() => new Map([...dom.aktive, ...dom.parkerede, ...dom.naaede].map((x) => [x.plan.maal.id, x])), [dom]);
   const msAf = useMemo(() => new Map(milestones.map((m) => [m.id, m])), [milestones]);
   const maalMedTalAf = useMemo(() => new Map((g.grundlag?.maal ?? []).map((m) => [m.id, m])), [g.grundlag?.maal]);
+  // Forsidens målkort «Sæt et tal på» (2/10 aften) lander her med ?skarpt=<målets id>: guiden «Gør målet skarpt»
+  // åbnes ÉN gang for præcis det mål, når motorens kort og den rå række er hentet — og kun for et gammelt
+  // mål (kort.goerSkarpt). Parameteren fjernes (replace) i alle tilfælde, også når målet ikke findes.
+  const skarptId = soegeParams.get(SKARPT_PARAM);
+  useEffect(() => {
+    if (!skarptId || g.isLoading) return;
+    const k = g.kort.find((x) => x.id === skarptId);
+    const raa = maalMedTalAf.get(skarptId);
+    if (k && raa && k.goerSkarpt) setGuide({ tilstand: { art: "skarpt", maalId: k.id, titel: k.titel, forslag: skarptForslag(raa), frist: k.frist }, nu: new Date() });
+    const naeste = new URLSearchParams(soegeParams);
+    naeste.delete(SKARPT_PARAM);
+    setSoegeParams(naeste, { replace: true });
+  }, [skarptId, g.isLoading, g.kort, maalMedTalAf, soegeParams, setSoegeParams]);
 
   const tilSletning: Milestone | null = milestones.find((m) => m.id === sletId) ?? null;
   // Redigér: de aktive kort står i g.kort; et parkeret/nået mål (rækkerne nederst) får sit kort af motoren på stedet.
