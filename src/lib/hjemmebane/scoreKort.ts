@@ -15,6 +15,8 @@ import { flytMaaned, fristDato } from "@/lib/boardroomScore/streak";
 import { loefterMitTal } from "@/lib/boardroomScore/loefter";
 import type { Handling, ScoreDom, Soejler, SoejleNavn, StreakDom } from "@/lib/boardroomScore/typer";
 import { maanedsnavn } from "@/lib/maanedsnoegle";
+import { antalOpnaaet, TROFAEER, type TrofaeDom } from "@/lib/gamification/trofaeer";
+import { kortDato } from "@/lib/hjemmebane/forsideDato";
 
 export const SCORE_FORBEHOLD = "Scoren er et helbredstal, ikke en kreditvurdering.";
 /** Rolig tomtilstand, mens hukommelsen om første godkendelse (migration 20260930130000) ikke findes i drift. */
@@ -264,4 +266,67 @@ export function streakKortLinje(streak: StreakDom): { tal: string; frist: string
   const l = streakLinjer(streak);
   if (l.laengde === 0) return { tal: l.status, frist: l.frist, erStatus: true };
   return { tal: `${l.laengde} ${l.enhed}`, frist: l.frist, erStatus: false };
+}
+
+// ── Forside-varianten (docs/forside-v3.md §3 «Score kompakt», 2/10-2026) ─────
+/** Forbeholdet i forside-kortets bundlinje (mockuppens ordlyd — kortere end SCORE_FORBEHOLD). */
+export const SCORE_FORSIDE_FORBEHOLD = "Et helbredstal, ikke en kreditvurdering.";
+/**
+ * Forside-ringens radius (mockuppen: 92 × 92 px, r = 38, streg 5 — viewBox 0 0 92 92,
+ * centrum 46: 46 − 38 − 5/2 = 5,5 px luft til kanten). Buen regnes af den samme
+ * ringBue(vaerdi, 1000, FORSIDE_RING_RADIUS). Eksempel: 733 → omkreds 2π × 38 = 238,76 → buen 175,01.
+ */
+export const FORSIDE_RING_RADIUS = 38;
+/** Mikro-mærket foran forside-kortets ene løfter. */
+export const LOEFTER_MEST_MAERKE = "Løfter mest";
+
+/**
+ * Streaken som ÉN linje på forsiden, med forsidens ene datoformat (kortDato):
+ *   aktiv  → «1 måned i træk · næste frist tirs. 20. okt.»
+ *   brudt  → «Streaken er brudt. Godkend inden tirs. 20. okt. for at starte en ny»
+ *   ingen  → «Ingen streak endnu · første frist tirs. 20. okt.»
+ * Fristen er motorens: fristDato(dom.streak.naesteFrist.key) — den 20. i måneden
+ * efter, rykket til næste hverdag (streak.ts). Er den åbne måned allerede i hus,
+ * er naesteFrist.key måneden EFTER (streak.ts:streakDom), så linjen siger den
+ * frist, der faktisk er den næste. Linjen regner ingen frist selv.
+ */
+export function streakForsideLinje(streak: StreakDom, nu: Date): string {
+  const dato = kortDato(fristDato(streak.naesteFrist.key), nu);
+  if (streak.status === "aktiv" && streak.laengde > 0) {
+    const l = streakLinjer(streak);
+    return `${l.laengde} ${l.enhed} · næste frist ${dato}`;
+  }
+  if (streak.status === "brudt") return `Streaken er brudt. Godkend inden ${dato} for at starte en ny`;
+  return `${STREAK_INGEN_TEKST} · første frist ${dato}`;
+}
+
+/**
+ * «N af 8 trofæer» — N = antalOpnaaet (samme tal som TrofaeAntal), 8 = katalogets
+ * størrelse (TROFAEER.length), aldrig hårdkodet. Henter (undefined), fejl eller
+ * en tom liste → null (ingen linje; fail-soft som TrofaeKort).
+ */
+export function trofaeLinje(trofaeer: readonly TrofaeDom[] | undefined, fejl: boolean): string | null {
+  if (fejl || !trofaeer || trofaeer.length === 0) return null;
+  return `${antalOpnaaet(trofaeer)} af ${TROFAEER.length} trofæer`;
+}
+
+/**
+ * Forside-kortets ENE løfter: den øverste af loefterLinjer — MEDMINDRE den
+ * peger samme sted hen som forsidens primære handling (`undgaaSti`, fx
+ * «/reports», når «Det vigtigste lige nu» allerede siger «Godkend dine tal»).
+ * Så vises den næste i rækken (motorens rækkefølge, aldrig omsorteret). Ingen
+ * tilbage → null (ingen linje). En løfter uden sti (et mål) rammes aldrig af
+ * `undgaaSti`; en tom/null `undgaaSti` undgår intet.
+ */
+export function loefterMest(linjer: readonly LoefterLinje[], undgaaSti: string | null | undefined): LoefterLinje | null {
+  for (const l of linjer) {
+    if (undgaaSti && l.sti === undgaaSti) continue;
+    return l;
+  }
+  return null;
+}
+
+/** De løftere, forside-kortets detaljer viser under «Også værd at gøre»: alle undtagen den viste (i motorens rækkefølge). */
+export function oevrigeLoeftere(linjer: readonly LoefterLinje[], vist: LoefterLinje | null): LoefterLinje[] {
+  return linjer.filter((l) => l !== vist);
 }

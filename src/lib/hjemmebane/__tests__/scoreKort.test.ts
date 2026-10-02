@@ -11,17 +11,23 @@ import {
   effektTekst,
   ikkeNokDataTekst,
   loefterLinjer,
+  loefterMest,
+  oevrigeLoeftere,
   retningTekst,
   retningVises,
   RETNING_VISES_FRA,
   RING_RADIUS,
   ringBue,
   soejleLinjer,
+  streakForsideLinje,
   streakKortLinje,
   streakLinjer,
   TAEL_OP_MS,
   taelOpVaerdi,
+  trofaeLinje,
+  type LoefterLinje,
 } from "@/lib/hjemmebane/scoreKort";
+import { TROFAEER, type TrofaeDom } from "@/lib/gamification/trofaeer";
 
 /* Ordene på Score-kortet (scoreKort.ts): ren oversættelse af motorens dom —
    ingen procent, retning i ord, handlingerne ordret fra motoren. */
@@ -307,5 +313,70 @@ describe("taelOpVaerdi — ease-out, præcis landing", () => {
   });
   it("varighed 0 → straks målet", () => {
     expect(taelOpVaerdi(0, 500, 0, 0)).toBe(500);
+  });
+});
+
+describe("forside-varianten (docs/forside-v3.md §3 «Score kompakt»)", () => {
+  const base: StreakDom = { laengde: 1, status: "aktiv", bedste: 1, aabenMaanedGodkendt: false, naesteFrist: { key: "2026-09", tidspunkt: new Date(), hverdageTil: 12 } };
+  const NU_FORSIDE = new Date("2026-10-02T18:00:00Z");
+
+  it("streakForsideLinje aktiv: «1 måned i træk · næste frist tirs. 20. okt.»", () => {
+    expect(streakForsideLinje(base, NU_FORSIDE)).toBe("1 måned i træk · næste frist tirs. 20. okt.");
+    expect(streakForsideLinje({ ...base, laengde: 7, bedste: 7 }, NU_FORSIDE)).toBe("7 måneder i træk · næste frist tirs. 20. okt.");
+  });
+  it("streakForsideLinje brudt: «Streaken er brudt. Godkend inden tirs. 20. okt. for at starte en ny»", () => {
+    expect(streakForsideLinje({ ...base, laengde: 0, status: "brudt" }, NU_FORSIDE)).toBe("Streaken er brudt. Godkend inden tirs. 20. okt. for at starte en ny");
+  });
+  it("streakForsideLinje ingen: «Ingen streak endnu · første frist tirs. 20. okt.»", () => {
+    expect(streakForsideLinje({ ...base, laengde: 0, bedste: 0, status: "ingen" }, NU_FORSIDE)).toBe("Ingen streak endnu · første frist tirs. 20. okt.");
+  });
+  it("fristen er motorens fristDato: august 2026 (20/9 er søndag) → man. 21. sep.; december → 20/1 næste år med år", () => {
+    expect(streakForsideLinje({ ...base, naesteFrist: { ...base.naesteFrist, key: "2026-08" } }, new Date("2026-09-10T10:00:00Z"))).toBe("1 måned i træk · næste frist man. 21. sep.");
+    expect(streakForsideLinje({ ...base, naesteFrist: { ...base.naesteFrist, key: "2026-12" } }, NU_FORSIDE)).toBe("1 måned i træk · næste frist 20. jan. 2027");
+  });
+  it("den åbne måned i hus: naesteFrist.key er måneden efter, og linjen siger DEN frist", () => {
+    expect(streakForsideLinje({ ...base, aabenMaanedGodkendt: true, naesteFrist: { ...base.naesteFrist, key: "2026-10" } }, NU_FORSIDE)).toBe("1 måned i træk · næste frist fre. 20. nov.");
+  });
+  it("mod motoren 30/9-2026: september-fristen", () => {
+    expect(streakForsideLinje(FULD.streak, NU)).toMatch(/næste frist tirs\. 20\. okt\.$/);
+  });
+
+  const trofaeer = (opnaaet: number): TrofaeDom[] => TROFAEER.map((t, i) => ({ ...t, opnaaetAt: i < opnaaet ? "2026-09-01T10:00:00Z" : null }));
+  it("trofaeLinje: «N af 8 trofæer» — 8 er katalogets størrelse", () => {
+    expect(TROFAEER.length).toBe(8);
+    expect(trofaeLinje(trofaeer(3), false)).toBe(`3 af ${TROFAEER.length} trofæer`);
+    expect(trofaeLinje(trofaeer(0), false)).toBe("0 af 8 trofæer");
+  });
+  it("trofaeLinje: henter, fejl eller tom liste → ingen linje", () => {
+    expect(trofaeLinje(undefined, false)).toBeNull();
+    expect(trofaeLinje(trofaeer(3), true)).toBeNull();
+    expect(trofaeLinje([], false)).toBeNull();
+  });
+
+  const l = (sti: LoefterLinje["sti"], tekst: string): LoefterLinje => ({ tekst, effekt: "+10 point", sti, soejle: "disciplin", art: sti ? "handling" : "maal" });
+  it("loefterMest: den øverste, når intet skal undgås", () => {
+    const linjer = [l("/reports", "a"), l("/budget", "b")];
+    expect(loefterMest(linjer, null)).toBe(linjer[0]);
+    expect(loefterMest(linjer, undefined)).toBe(linjer[0]);
+    expect(loefterMest(linjer, "")).toBe(linjer[0]);
+    expect(loefterMest(linjer, "/milestones")).toBe(linjer[0]);
+  });
+  it("loefterMest: peger den øverste samme sted som det primære punkt, vises den næste (motorens rækkefølge)", () => {
+    const linjer = [l("/reports", "a"), l(null, "mål"), l("/budget", "b")];
+    expect(loefterMest(linjer, "/reports")).toBe(linjer[1]);
+  });
+  it("loefterMest: ingen tilbage → null", () => {
+    expect(loefterMest([l("/reports", "a")], "/reports")).toBeNull();
+    expect(loefterMest([l("/reports", "a"), l("/reports", "b")], "/reports")).toBeNull();
+    expect(loefterMest([], null)).toBeNull();
+  });
+  it("oevrigeLoeftere: alle undtagen den viste, i rækkefølge", () => {
+    const linjer = [l("/reports", "a"), l(null, "mål"), l("/budget", "b")];
+    expect(oevrigeLoeftere(linjer, linjer[1])).toEqual([linjer[0], linjer[2]]);
+    expect(oevrigeLoeftere(linjer, null)).toEqual(linjer);
+  });
+  it("mod motoren: loefterMest uden undgaaSti = motorens loefterMest", () => {
+    const linjer = loefterLinjer(FULD);
+    expect(loefterMest(linjer, null)?.tekst).toBe(FULD.loefterMest?.tekst);
   });
 });

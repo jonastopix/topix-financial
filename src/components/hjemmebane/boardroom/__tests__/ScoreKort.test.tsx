@@ -306,3 +306,137 @@ describe("ScoreKort", () => {
     expect(container.textContent).not.toMatch(/%/);
   });
 });
+
+describe("ScoreKort variant=\"forside\" (docs/forside-v3.md §3 «Score kompakt»)", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+  const forside = (props: Partial<React.ComponentProps<typeof ScoreKort>> = {}) => {
+    // prefers-reduced-motion: tallet og buen står straks (optællingen er den fulde variants, prøvet ovenfor).
+    vi.stubGlobal("matchMedia", (q: string) => ({ matches: true, media: q, addEventListener: () => {}, removeEventListener: () => {} }));
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-02T18:00:00Z"));
+    return tegn({ variant: "forside", ...props });
+  };
+  const DOM = () => boardroomScore(grundlag(keys("2025-06", 15).map((k) => sund(k))), NU);
+  const tre: TrofaeDom[] = TROFAEER.map((t, i) => ({ ...t, opnaaetAt: i < 3 ? "2026-09-01T10:00:00Z" : null }));
+
+  it("standarden er den fulde variant (uændret): ingen forside-markør", () => {
+    const { container } = tegn({ dom: DOM() });
+    expect(container.querySelector("[data-score-variant]")).toBeNull();
+    expect(screen.getByText(SCORE_FORBEHOLD)).toBeTruthy();
+  });
+
+  it("ringen: 92 px, r = 38, buen af ringBue(score, 1000, 38), «/ 1.000» og skærmlæserteksten", () => {
+    const dom = DOM();
+    const { container } = forside({ dom });
+    const ring = container.querySelector("[data-score-ring]")!;
+    expect(ring.className).toContain("h-[92px] w-[92px]");
+    const bue = ring.querySelector("[data-score-bue]")!;
+    expect(bue.getAttribute("r")).toBe("38");
+    const forventet = ringBue(dom.score, 1000, 38);
+    expect(bue.getAttribute("stroke-dasharray")).toBe(`${forventet.laengde} ${forventet.omkreds}`);
+    expect(ring.textContent).toContain("/ 1.000");
+    expect(screen.getByText(`Din Boardroom Score er ${dom.score} ud af 1.000`)).toBeTruthy();
+  });
+
+  it("fire søjler med mockuppens kolonner: én ved xl, to fra 1500 px og på sm", () => {
+    const { container } = forside({ dom: DOM() });
+    const grid = container.querySelector("[data-score-soejler]")!;
+    expect(grid.className).toContain("grid-cols-1 gap-x-5 gap-y-2.5 sm:grid-cols-2 xl:grid-cols-1 min-[1500px]:grid-cols-2");
+    expect(grid.querySelectorAll("[data-soejle]")).toHaveLength(4);
+  });
+
+  it("listen: streaken i forsidens datoformat, «3 af 8 trofæer», certifikatet med lås", () => {
+    const { container } = forside({ dom: DOM(), trofaeer: tre, certifikat: { dageTil: 13 } });
+    expect(container.querySelector("[data-score-streak]")!.textContent).toMatch(/næste frist tirs\. 20\. okt\.$/);
+    expect(container.querySelector("[data-score-trofaeer-antal]")!.textContent).toBe(`3 af ${TROFAEER.length} trofæer`);
+    expect(container.querySelector('[data-score-certifikat="laast"]')!.textContent).toBe("Certifikatet åbner om 13 dage");
+  });
+
+  it("certifikatet klar: link til /certifikat; null eller udeladt: ingen linje; trofæfejl: ingen linje", () => {
+    const { container, unmount } = forside({ dom: DOM(), certifikat: { klar: true } });
+    const a = container.querySelector('[data-score-certifikat="klar"] a')!;
+    expect(a.getAttribute("href")).toBe("/certifikat");
+    expect(a.textContent).toBe("Dit certifikat er klar");
+    unmount();
+    const anden = forside({ dom: DOM(), certifikat: null, trofaeer: tre, trofaeerFejl: true });
+    expect(anden.container.querySelector("[data-score-certifikat]")).toBeNull();
+    expect(anden.container.querySelector("[data-score-trofaeer-antal]")).toBeNull();
+  });
+
+  it("«Løfter mest»: den øverste — men aldrig samme sti som forsidens primære handling", () => {
+    const dom = DOM();
+    const linjer = loefterMitTal(dom);
+    // Motoren 30/9: «Fem procent mere omsætning …» (mål, ingen sti), «Upload og godkend september …» (/reports), ….
+    expect(linjer.some((h) => h.sti === "/reports")).toBe(true);
+    const { container, unmount } = forside({ dom });
+    expect(container.querySelector("[data-score-loefter-mest]")!.textContent).toContain(linjer[0].tekst);
+    unmount();
+    // Forsidens primære handling peger på /reports, og /reports står ØVERST: den næste vises.
+    const rapport = { soejle: "disciplin" as const, tekst: "Upload og godkend september senest 20/10.", gevinst: 50, sti: "/reports" as const };
+    const maal = { soejle: "vaekst" as const, tekst: "Fem procent mere omsætning end sammenligningen.", gevinst: 30, sti: null };
+    const anden = forside({ dom: { ...dom, handlinger: [rapport, maal], loefterMest: rapport }, undgaaSti: "/reports" });
+    const vist = anden.container.querySelector("[data-score-loefter-mest]")!;
+    expect(vist.getAttribute("data-loefter-sti")).toBe("ingen");
+    expect(vist.textContent).toContain(maal.tekst);
+    expect(vist.textContent).not.toContain(rapport.tekst);
+    anden.unmount();
+    // Er /reports den eneste løfter, står der ingen linje.
+    const ingen = forside({ dom: { ...dom, handlinger: [rapport], loefterMest: rapport }, undgaaSti: "/reports" });
+    expect(ingen.container.querySelector("[data-score-loefter-mest]")).toBeNull();
+  });
+
+  it("bundlinjen og detaljerne: «Et helbredstal …», knappen åbner SAMME detaljer (søjler i ord, de øvrige løftere, trofæerne indlejret)", () => {
+    const dom = DOM();
+    const { container } = forside({ dom, trofaeer: tre });
+    expect(screen.getByText("Et helbredstal, ikke en kreditvurdering.")).toBeTruthy();
+    const knap = screen.getByRole("button", { name: SCORE_DETALJER_KNAP });
+    expect(knap.getAttribute("aria-expanded")).toBe("false");
+    const panel = document.getElementById(knap.getAttribute("aria-controls")!)!;
+    expect(panel.hidden).toBe(true);
+    expect(container.querySelector("[data-trofaeer-indlejret]")).toBeNull();
+    aabnDetaljer();
+    expect(knap.getAttribute("aria-expanded")).toBe("true");
+    expect(panel.hidden).toBe(false);
+    expect(panel.querySelectorAll("[data-soejle-detalje]").length).toBeGreaterThan(0);
+    expect(panel.querySelector("[data-trofaeer-indlejret]")).not.toBeNull();
+    // Den viste løfter står ikke igen i detaljerne; de øvrige gør.
+    const vist = container.querySelector("[data-score-loefter-mest]")!.textContent!;
+    const rækker = [...panel.querySelectorAll("[data-loefter-soejle]")].map((r) => r.textContent!);
+    expect(rækker).toHaveLength(loefterMitTal(dom).length - 1);
+    expect(rækker.every((r) => !vist.includes(r.split("+")[0].trim()))).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: SCORE_DETALJER_KNAP_LUK }));
+    expect(panel.hidden).toBe(true);
+  });
+
+  it("uden score: ringen står med «—», streaken står, «hvad mangler» står i detaljerne", () => {
+    const dom = boardroomScore(grundlag([], { kontraktStart: "2026-01-01" }), NU);
+    const { container } = forside({ dom });
+    expect(container.querySelector("[data-score-ring]")!.textContent).toContain("—");
+    expect(container.querySelector("[data-score-bue]")).toBeNull();
+    expect(container.querySelector("[data-score-streak]")).not.toBeNull();
+    aabnDetaljer();
+    expect(container.querySelector("[data-score-note]")!.textContent).toMatch(/Scoren kræver tal/);
+  });
+
+  it("tilstandene: henter (forside-skelet, ingen tekst), fejl, afventer", () => {
+    const henter = forside({ isLoading: true });
+    expect(henter.container.querySelector('[data-score="henter"][data-score-variant="forside"]')).not.toBeNull();
+    expect(henter.container.querySelector("[data-skelet-ring]")!.className).toContain("h-[92px]");
+    expect(henter.container.textContent).toBe("");
+    henter.unmount();
+    const fejl = forside({ isError: true });
+    expect(fejl.container.querySelector('[data-score="fejl"]')).not.toBeNull();
+    fejl.unmount();
+    forside({ afventerMigration: true });
+    expect(screen.getByText(SCORE_AFVENTER_OVERSKRIFT)).toBeTruthy();
+  });
+
+  it("ingen procent og ingen emoji i forside-kortet", () => {
+    const { container } = forside({ dom: DOM(), trofaeer: tre, certifikat: { dageTil: 3 } });
+    expect(container.textContent).not.toMatch(/%/);
+    expect(/\p{Extended_Pictographic}/u.test(container.textContent!)).toBe(false);
+  });
+});
