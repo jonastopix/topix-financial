@@ -105,7 +105,7 @@ export async function hentSvar(traadId: string): Promise<CommunitySvar[]> {
   return (rows ?? []).map(normaliserAntalReaktioner);
 }
 
-/** «Mest læst denne uge» (2/10-2026, migration 20261002300000 —
+/** «Mest læst denne uge» (2/10-2026, migration 20261002275000 —
     community_mest_laest_uge(), SECURITY DEFINER, IKKE KØRT før Jonas'
     grønne lys). FAIL-SOFT: findes funktionen ikke endnu (42883 fra
     Postgres, PGRST202 fra PostgREST's skemacache), svares [] — intet

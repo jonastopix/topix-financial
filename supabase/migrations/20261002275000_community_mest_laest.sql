@@ -1,4 +1,5 @@
 -- KØRT i prod 2/10-2026 kl. 18:05 (Claude via Lovables query_database; Jonas' grønne lys i aftenlisten a1002-mest-laest «Begge, med migrationen»). FØR: funktionen fandtes ikke. EFTER: prosecdef true · s · search_path=public, pg_temp · ejer postgres · anon false · authenticated true · service_role true · 0 som postgres · ugestart 2026-09-27 22:00Z. RLS-prøve (rullet tilbage): medlem 6 rækker, 0 andres visninger direkte; uden adgang 0.
+-- (Omdøbt fra 20261002300000 ved kørslen: metaSend.guard dom 11 — en ikke-kørt migration må ikke sortere før en kørt; 280000 og 290000 venter på mandag.)
 --
 -- Community: mærket «Mest læst denne uge» på højst én tråd i feedet (den
 -- godkendte mockup til Community-feedet, 2/10-2026).

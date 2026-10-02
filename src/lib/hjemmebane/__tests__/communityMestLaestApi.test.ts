@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// hentMestLaestUge (communityApi.ts) — fail-soft før migrationen 20261002300000.
+// hentMestLaestUge (communityApi.ts) — fail-soft før migrationen 20261002275000.
 const rpc = vi.hoisted(() => vi.fn());
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc } }));
 vi.mock("@/hooks/tjenestekonti", () => ({ hentTjenestekonti: vi.fn(async () => []) }));

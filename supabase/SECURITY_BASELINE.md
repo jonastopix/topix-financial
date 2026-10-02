@@ -215,7 +215,7 @@ to the entire access-control model.
   `20261002242000` (gate `kan_laese_community`), otherwise STOP
 - `get_community_svar` untouched
 
-### `community_mest_laest_uge() → TABLE (traad_id uuid, laesere bigint)` (Community «Mest læst denne uge» 2/10-2026, migration `20261002300000` — IKKE KØRT, KRÆVER JONAS' GRØNNE LYS)
+### `community_mest_laest_uge() → TABLE (traad_id uuid, laesere bigint)` (Community «Mest læst denne uge» 2/10-2026, migration `20261002275000` — IKKE KØRT, KRÆVER JONAS' GRØNNE LYS)
 - Why DEFINER: `community_visninger` is self-only SELECT for members (RLS), so a member
   cannot count other people's views. The function returns ONLY aggregates (a count per
   thread — the same kind of number as `antal_visninger`, which the feed already shows);

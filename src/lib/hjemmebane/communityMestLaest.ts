@@ -7,7 +7,7 @@
  * communityMestLaest.guard.test.ts låser, at fladen dømmer HER.
  *
  * DATA: RPC'en public.community_mest_laest_uge() (migration
- * 20261002300000, SECURITY DEFINER — medlemmer kan kun læse EGNE rækker i
+ * 20261002275000, SECURITY DEFINER — medlemmer kan kun læse EGNE rækker i
  * community_visninger) svarer (traad_id, laesere) for AKTIVE tråde: antal
  * FORSKELLIGE læsere i den aktuelle ISO-uge (mandag 00:00 Europe/Copenhagen),
  * trådens forfatter og tjenestekonti fraregnet. NB: community_visninger har

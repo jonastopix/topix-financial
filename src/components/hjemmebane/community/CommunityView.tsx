@@ -269,7 +269,7 @@ export const CommunityView = () => {
   const directoryQuery = useNetvaerketsRaekker();
 
   /* «Mest læst denne uge» (2/10, mockuppen): én SECURITY DEFINER-RPC
-     (migration 20261002300000). Fail-soft hele vejen — hentMestLaestUge
+     (migration 20261002275000). Fail-soft hele vejen — hentMestLaestUge
      svarer [] før migrationen, og en fejl her tegner blot intet mærke;
      feedet venter aldrig på den. Dommen (vinder, tærskel 3, uafgjort =
      intet) er vaelgMestLaest — fladen vælger aldrig selv. */

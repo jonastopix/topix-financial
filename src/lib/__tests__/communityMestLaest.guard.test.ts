@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 // det nyttigt» og mærket «Mest læst denne uge». Seks domme over kildetekst;
 // «VÆRNET VIRKER» kører dem på kopier med fejlen indsat.
 //
-//   1. MIGRATIONEN (20261002300000): første linje PRÆCIS «-- IKKE KØRT. KRÆVER
+//   1. MIGRATIONEN (20261002275000): første linje PRÆCIS «-- IKKE KØRT. KRÆVER
 //      JONAS' GRØNNE LYS (SECURITY DEFINER). DEPLOY: …» (eller, efter kørslen,
 //      «-- KØRT i prod <dato> … Jonas' grønne lys»); ÉN funktion, SECURITY
 //      DEFINER, STABLE, search_path låst til «public, pg_temp»; PORTEN
@@ -32,7 +32,7 @@ const udenKommentarer = (k: string) =>
   k.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, "")).replace(/\/\/[^\n]*/g, "");
 const udenSqlKommentarer = (k: string) => k.replace(/--[^\n]*/g, "");
 
-const MIG_NAVN = "20261002300000_community_mest_laest.sql";
+const MIG_NAVN = "20261002275000_community_mest_laest.sql";
 const MIGRATION = `supabase/migrations/${MIG_NAVN}`;
 const VIEW = "src/components/hjemmebane/community/CommunityView.tsx";
 const LIKE = "src/components/hjemmebane/community/LikeKnap.tsx";
@@ -121,7 +121,8 @@ export function ordeneErIkkeHaardkodet(filer: { sti: string; kilde: string }[]):
 export function staarEfterSidsteKoerte(filer: { navn: string; foerste: string }[], navn: string): boolean {
   const koerte = filer.filter((f) => /^--\s*KØRT i prod/.test(f.foerste)).map((f) => f.navn).sort();
   const sidste = koerte[koerte.length - 1];
-  return sidste === undefined || navn > sidste;
+  // Efter kørslen (2/10 18:05) er filen SELV den seneste kørte — lig med er derfor også i orden.
+  return sidste === undefined || navn >= sidste;
 }
 
 const komponentFiler = () =>
