@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { tjeklisteLinje } from "@/lib/hjemmebane/vigtigst";
 import { ERFAREN_EFTER_DAGE, erErfarentMedlem, erVelkomstHash, fokusCtaHref, onboardingBoksMonteres, pillenTraekkerSig, tjeklistenStyrerForsiden, VELKOMST_HASH, VELKOMST_INDLEDNING, velkomstTekst, velkomstVisesAutomatisk } from "../ankomst";
 
 // Ankomstens to løse ender (docs/indgangen-overhaling.md §10, 3/9):
@@ -59,10 +60,10 @@ describe("pillenTraekkerSig — kun på forsiden, kun når kortet viser tjeklist
 });
 
 describe("velkomstTekst — overlejringen påstår aldrig en placering der ikke er på skærmen (14/9)", () => {
-  it("forsiden (pillen trækker sig): tjeklisten er kortet under «Dit næste skridt» — ikke «nederst»", () => {
+  it("forsiden (pillen trækker sig): tjeklisten står i «Det vigtigste lige nu» (forside v3) — ikke «nederst»", () => {
     const t = velkomstTekst(true);
     expect(t.startsWith(VELKOMST_INDLEDNING)).toBe(true);
-    expect(t).toContain("under «Dit næste skridt» her på forsiden");
+    expect(t).toContain("øverst her på forsiden under «Det vigtigste lige nu»");
     expect(t).not.toMatch(/nederst/);
     expect(t).not.toMatch(/hjørne/);
   });
@@ -158,19 +159,24 @@ describe("tjeklistenStyrerForsiden — ÉN dom for kortet, hilsenen og pillen", 
 });
 
 describe("pillenTraekkerSig og erfarne medlemmer — pillen gemmer sig aldrig, mens kortet ikke viser listen", () => {
-  it("erfaren på forsiden med uafsluttet liste → pillen BLIVER (kortet viser tal, ikke listen)", () => {
-    expect(pillenTraekkerSig("boardroom", { faerdig: false }, siden(240 * DOEGN), NU)).toBe(false);
+  // FORSIDE V3 (2/10-2026): «Det vigtigste lige nu» viser listen for ALLE med en ufærdig liste — som det
+  // primære punkt (nye) eller som linjen «Kom godt i gang · N af M — næste: …» (erfarne, vigtigst.tjeklisteLinje).
+  // Princippet står: listen står altid et sted på forsiden — derfor trækker pillen sig nu også for de erfarne.
+  it("erfaren på forsiden med uafsluttet liste → pillen trækker sig (kortets linje bærer listen, forside v3)", () => {
+    expect(pillenTraekkerSig("boardroom", { faerdig: false }, siden(240 * DOEGN), NU)).toBe(true);
+    expect(tjeklisteLinje({ faerdig: false, antal_gjort: 3, antal_i_alt: 5, punkter: [{ titel: "X", gjort: false }] }, false)).not.toBeNull();
   });
 
   it("ny på forsiden med uafsluttet liste → pillen trækker sig som før", () => {
     expect(pillenTraekkerSig("boardroom", { faerdig: false }, siden(5 * DOEGN), NU)).toBe(true);
   });
 
-  it("pillen og kortet er altid enige på forsiden (samme dom)", () => {
+  it("pillen og kortet er altid enige på forsiden: pillen trækker sig ⇔ kortet viser listen (primært punkt ELLER linjen)", () => {
     for (const dage of [0, 5, 30, 31, 240]) {
       for (const faerdig of [false, true]) {
         const ms = siden(dage * DOEGN);
-        expect(pillenTraekkerSig("boardroom", { faerdig }, ms, NU)).toBe(tjeklistenStyrerForsiden({ faerdig }, ms, NU));
+        const kortetViserListen = tjeklistenStyrerForsiden({ faerdig }, ms, NU) || tjeklisteLinje({ faerdig, antal_gjort: 1, antal_i_alt: 5, punkter: [] }, false) !== null;
+        expect(pillenTraekkerSig("boardroom", { faerdig }, ms, NU)).toBe(kortetViserListen);
       }
     }
   });
@@ -207,9 +213,9 @@ describe("velkomstVisesAutomatisk — aldrig automatisk for et erfarent medlem",
     expect(velkomstVisesAutomatisk({ ...ny, erfarentMedlem: erErfarentMedlem(null, NU) })).toBe(true);
   });
 
-  it("erfaren på forsiden: ingen automatisk velkomst OG pillen trækker sig ikke (listen står stadig et sted)", () => {
+  it("erfaren på forsiden: ingen automatisk velkomst; pillen trækker sig, fordi kortets linje bærer listen (forside v3)", () => {
     const ms = siden(240 * DOEGN);
     expect(velkomstVisesAutomatisk({ ...ny, erfarentMedlem: erErfarentMedlem(ms, NU) })).toBe(false);
-    expect(pillenTraekkerSig("boardroom", { faerdig: false }, ms, NU)).toBe(false);
+    expect(pillenTraekkerSig("boardroom", { faerdig: false }, ms, NU)).toBe(true);
   });
 });
