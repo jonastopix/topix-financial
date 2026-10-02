@@ -11455,7 +11455,35 @@ En recon-agent (kun læsning) gik alle kort igennem med bevis fra `git log` og O
 - Fase 3a (legacy-nøglerne) — beslutning D1 i `docs/prod-hjem-plan.md`.
 - lh@-koblingen (manuel webinarkobling) — forslag, ikke bygget.
 
-### 2. oktober eftermiddag — designgennemsynet i drift (fund og rettelser) (gren `fix/designgennemsyn-2-10`; BYGGET, IKKE pushet, IKKE merget; ingen migration, ingen edge function — kun Update)
+### 2. oktober aften — samlet (migrationssessionen, ring-op, forsiden færdig, designgennemsyn)
+
+Klokkeslæt er dansk tid. Detaljen står i emnernes egne afsnitter herunder og i migrationernes filhoveder.
+
+| PR | Hvad | Status |
+|---|---|---|
+| #1239 | Dine mål: triggeren tæller kun bekræftede · Community: gæsten læser | Migrationer KØRT 12:00–12:20 |
+| #1236 | Community: rådgivernes «Spørgsmål» øverst, «Ubesvarede», «Hvem kan hjælpe» | Migration KØRT ca. 12:35 |
+| #1237 | Akademiet F0: rådgiverens markering skilt fra medlemmets | To migrationer KØRT ca. 12:45–12:50 |
+| #1240 | akademiF0.guard: helt ord (main var rød efter #1236 + #1237) | — |
+| #1238 | «Må vi ringe til dig?» | Migration KØRT ca. 12:55; functions udrullet 14:05; Update 14:09 |
+| #1241 | «Opkald» i rådgivermenuen | Update 14:49, målt i bundlen |
+| #1242 | Forsiden: «Dit certifikat» og «Din rådgiver» | Afventer Update |
+| #1243 | Designgennemsyn: mobiloverløb (53 grid), trofæer bag «Se hvad der tæller», tre tekster | Afventer Update |
+
+**Tilbage til migrationer:** `20261002280000_milestones_with_check` og `20261002290000_kald_edge_apikey` (3a) — kun sammen med Jonas; 3a kræver vault-posten `kald_edge_sb_secret`.
+
+**Målt i aften (medlemmets første 7 dage, recon + prod):**
+- Samtalen oprettes af `handle_new_user` ved signup — de 16 kunder uden samtale har alle 0 brugere. Fire af dem har løbende kontrakt (WESDEX, Din økonomiafdeling, Two Socks, E-skilte); de tre første fik invitationen 1/10 og har ikke accepteret.
+- `send-welcome-message` er død kode: intet cron-job, ingen trigger, ingen kode kalder den (målt i `cron.job` og `pg_proc`). Et nyt medlem får ingen besked fra rådgiverne, før hun selv skriver; rådgiverens forside viser signalet «Kom ind i går, har ikke hørt fra os». Beslutning til Jonas (aftenlisten).
+- Onboarding-crons kører: `onboarding-rytme` 08:00, `intro-session-reminder` 09:00. Dag 2–9 går der ingen mail. 2 nye medlemmer de sidste 14 dage, 1 har skrevet.
+- DB-skabelonen «Invitation til virksomhed» er `enabled=false` → kodens fallback-tekst sendes («Din adgang til The Boardroom er klar»).
+- «Levering 2026: 2 af 9 måneder godkendt» hos et medlem startet 29/9 — tæller måneder før medlemskabet. Beslutning til Jonas.
+- Lektionstitlen «Introduktion til Classroom» (Circle-ord) — indhold i databasen, ikke rettet uden Jonas.
+- «Mest læst denne uge» kræver en SECURITY DEFINER-RPC (medlemmer ser kun egne rækker i `community_visninger`) → migration, grønt lys.
+
+**Klaviyo «Deltog»-mail 1 (`TYARdA`):** knappen «Ring mig op» (bag `{% if person.ring_op_url %}`, tekst rettet efter Jonas 14:29: «Er du i tvivl, om det er noget for dig, før du søger? …») er leveret som færdig HTML + ny tekstversion (den gamle lovede optagelsen og nævnte priser). Jonas sætter dem ind. Bevistjek planlagt 13/10 kl. 15 (efter webinaret kl. 11).
+
+### 2. oktober eftermiddag — designgennemsynet i drift (fund og rettelser) (gren `fix/designgennemsyn-2-10`; MERGET #1243 `9fc93f83` 2/10 ca. 16:15; ingen migration, ingen edge function — afventer Update)
 
 Designgennemsynet blev gjort i drift 2/10 eftermiddag i en rigtig browser på 375 px og 1280 px. Fem fund, hver rettet med test eller værn:
 
@@ -11467,7 +11495,7 @@ Designgennemsynet blev gjort i drift 2/10 eftermiddag i en rigtig browser på 37
 
 Rækkefølgen: merge → Update (kun frontend). Ingen migration, ingen edge function.
 
-### 2. oktober eftermiddag — forsidens to sidste kort (gren `feat/forside-certifikat-raadgiver`; BYGGET, IKKE pushet, IKKE merget; ingen migration, ingen edge function — kun Update)
+### 2. oktober eftermiddag — forsidens to sidste kort (gren `feat/forside-certifikat-raadgiver`; MERGET #1242 `764894ef` 2/10 ca. 15:45; ingen migration, ingen edge function — afventer Update)
 
 Forsidens rækkefølge er nu: … «Din plan» → **«Dit certifikat»** → **«Din rådgiver»** → «Næste i Netværket». De andre blokke er urørt.
 
