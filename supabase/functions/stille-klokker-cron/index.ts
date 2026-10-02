@@ -29,6 +29,27 @@
 //
 // KASTER ALDRIG mod én virksomhed: fejler dommen eller skrivningen for én,
 // tælles den som fejlet med grund, og de andre får deres klokke.
+//
+// DAG-1-KLOKKEN (2/10-2026, a1002-velkomst — Jonas: «Klokke i morgenmailen,
+// vi skriver selv»): et TREDJE, ISOLERET pas i samme kørsel, koerDag1Klokke.
+// Klokken venter_paa_velkomst ringer, når et nyt medlem kom ind i går (dansk
+// kalender) og ingen rådgiver har skrevet — forsidens dom (venterPaaVelkomst,
+// spejlet), universet og vinduet i _shared/dag1Klokke.ts. Den hører hjemme
+// her, fordi dette er husets klokke om medlemmer, der er stille, og fordi
+// jobbet allerede kører FØR morgenmailen:
+//   cron «30 4 * * *» er UTC. Sommertid (CEST = UTC+2, fra sidste søndag i
+//   marts til sidste søndag i oktober): 04:30 UTC = 06:30 dansk. Vintertid
+//   (CET = UTC+1): 04:30 UTC = 05:30 dansk. Begge før kl. 07 dansk
+//   (klokkeMail.MORGEN_TIME = morgenGraense = 05:00 UTC sommer / 06:00 UTC
+//   vinter), så klokken (created_at ≈ 04:30 UTC + kørselstiden, højst 60 s)
+//   kommer med i samme morgens mail: klokke-mail-cron's første kørsel efter
+//   kl. 07 på en hverdag (:04 → 07:04 dansk). Margin: 30 min om sommeren,
+//   90 min om vinteren. En klokke fra en lørdag/søndag/helligdag venter til
+//   næste hverdags morgenmail (klokkeMail.fordel).
+// Passet skriver KUN med dry_run false OG låsen app_config.dag1_klokke_aktiv
+// (fail-closed); svaret bærer "dag1_klokke": "skive-1" + tællerne i "dag1" —
+// aldrig et navn. Fejler passet, kører de to andre klokker stadig (og
+// omvendt); `ok` er begge passes.
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateServiceRole, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
@@ -46,6 +67,20 @@ import {
   type StilleKontrakt,
   type StilleLogin,
 } from "../_shared/stilleDom.ts";
+import {
+  DAG1_LAAS_NOEGLE,
+  DAG1_SKIVE,
+  dag1Besked,
+  dag1LaasAktiv,
+  type Dag1Resultat,
+  type Dag1Virksomhed,
+  doemDag1Klokke,
+  kandidatVindueFra,
+  medlemSidenPrVirksomhed,
+  sidsteRaadgiverBeskedPrVirksomhed,
+  tomtDag1Resultat,
+  TYPE_VENTER_PAA_VELKOMST,
+} from "../_shared/dag1Klokke.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -210,6 +245,101 @@ export async function koerStilleKlokker(admin: SupabaseClient, toerKoersel: bool
   return r;
 }
 
+/** Låsen app_config.dag1_klokke_aktiv, fail-closed — kan den ikke læses, er den lukket (og fejlen står i svaret). */
+async function laesDag1Laas(admin: SupabaseClient, r: { fejl: string[] }): Promise<boolean> {
+  try {
+    const { data, error } = await admin.from("app_config").select("config_value").eq("config_key", DAG1_LAAS_NOEGLE).maybeSingle();
+    if (error) {
+      r.fejl.push(`app_config (${DAG1_LAAS_NOEGLE}): ${error.message} — låsen er lukket`);
+      return false;
+    }
+    return dag1LaasAktiv((data as { config_value?: unknown } | null)?.config_value ?? null);
+  } catch (err) {
+    r.fejl.push(`app_config (${DAG1_LAAS_NOEGLE}) kastede — låsen er lukket: ${err instanceof Error ? err.message : String(err)}`);
+    return false;
+  }
+}
+
+interface Dag1MedlemRaekke { company_id: string | null; created_at: string | null }
+interface Dag1SamtaleRaekke { company_id: string | null; last_advisor_reply_at: string | null }
+
+/**
+ * Dag-1-klokken (filhovedet «DAG-1-KLOKKEN»). KASTER ALDRIG: en læsefejl
+ * tælles som fejlet og stopper passet (intet ringes på et halvt billede);
+ * en skrivefejl for én virksomhed tælles, og de andre får deres klokke.
+ */
+export async function koerDag1Klokke(admin: SupabaseClient, toerKoersel: boolean, nu: Date): Promise<Dag1Resultat> {
+  const laasFejl: string[] = [];
+  const laas = await laesDag1Laas(admin, { fejl: laasFejl });
+  const r = tomtDag1Resultat(laas, toerKoersel);
+  if (laasFejl.length > 0) { r.fejlet += laasFejl.length; r.fejl.push(...laasFejl); }
+  try {
+    // 1. Kandidaterne: virksomheder med en medlemsrække i vinduet (KANDIDAT_VINDUE_DAGE).
+    const nye = await alleSider<Dag1MedlemRaekke>((fra, til) =>
+      admin.from("company_members").select("company_id, created_at").gte("created_at", kandidatVindueFra(nu))
+        .order("created_at").order("id").range(fra, til));
+    const ids = [...new Set(nye.map((m) => m.company_id).filter((id): id is string => !!id))];
+    r.kandidater = ids.length;
+    if (ids.length === 0) return r;
+
+    // 2. Grundlaget — ALLE medlemsrækker (første medlemskab = min), virksomheden, samtalerne og eksisterende klokker.
+    const medlemmer: Dag1MedlemRaekke[] = [];
+    const samtaler: Dag1SamtaleRaekke[] = [];
+    const virksomheder = new Map<string, Dag1Virksomhed>();
+    const harKlokke = new Set<string>();
+    for (const del of dele(ids, 200)) {
+      medlemmer.push(...await alleSider<Dag1MedlemRaekke>((fra, til) =>
+        admin.from("company_members").select("company_id, created_at").in("company_id", del).order("created_at").order("id").range(fra, til)));
+      samtaler.push(...await alleSider<Dag1SamtaleRaekke>((fra, til) =>
+        admin.from("conversations").select("company_id, last_advisor_reply_at").in("company_id", del).order("id").range(fra, til)));
+      const { data: cs, error: cFejl } = await admin.from("companies")
+        .select("id, name, status, is_legat, er_kunde, is_demo, data_slettet_at, contract_end_date, subscription_status, subscription_current_period_end")
+        .in("id", del);
+      if (cFejl) throw new Error(`companies: ${cFejl.message}`);
+      for (const c of (cs ?? []) as Dag1Virksomhed[]) virksomheder.set(c.id, c);
+      // Én klokke pr. virksomhed for altid (lag a): fejler opslaget, kaster vi — intet ringes uden at vide det.
+      const eks = await alleSider<{ company_id: string | null }>((fra, til) =>
+        admin.from("advisor_notifications").select("company_id").eq("type", TYPE_VENTER_PAA_VELKOMST).in("company_id", del).order("id").range(fra, til));
+      for (const e of eks) if (e.company_id) harKlokke.add(e.company_id);
+    }
+    const medlemSiden = medlemSidenPrVirksomhed(medlemmer);
+    const sidsteRaadgiver = sidsteRaadgiverBeskedPrVirksomhed(samtaler);
+
+    // 3. Dommen og klokken pr. virksomhed.
+    for (const id of ids) {
+      try {
+        const dom = doemDag1Klokke({
+          virksomhed: virksomheder.get(id) ?? null,
+          medlemSiden: medlemSiden.get(id) ?? null,
+          sidsteRaadgiverBeskedAt: sidsteRaadgiver.get(id) ?? null,
+          harKlokke: harKlokke.has(id),
+        }, nu);
+        if (dom.klokke === "tavs") {
+          r.tavse[dom.grund] = (r.tavse[dom.grund] ?? 0) + 1;
+          continue;
+        }
+        r.ring++;
+        if (toerKoersel) { r.ville_ringe++; continue; }
+        if (!r.skriver_rigtigt) { r.holdt_af_laas++; continue; }
+        const skrevet = await skrivRaadgiverBesked(admin, dag1Besked(id, dom));
+        if (skrevet.fejl.length > 0) {
+          r.fejlet++;
+          r.fejl.push(skrevet.fejl.join("; "));
+          continue;
+        }
+        if (skrevet.skrevet > 0) r.ringet++; else r.fandtes++;
+      } catch (err) {
+        r.fejlet++;
+        r.fejl.push(err instanceof Error ? err.message : String(err));
+      }
+    }
+  } catch (err) {
+    r.fejlet++;
+    r.fejl.push(`læsningen: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  return r;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -239,14 +369,21 @@ Deno.serve(async (req) => {
   }
 
   const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
-  let resultat: StilleResultat;
+  let resultat: StilleResultat | null = null;
+  let stilleFejl: string | null = null;
   try {
     resultat = await koerStilleKlokker(admin, toerKoersel, nu);
   } catch (err) {
-    const grund = err instanceof Error ? err.message : String(err);
-    console.error("[stille-klokker-cron] kørslen væltede:", grund);
-    return new Response(JSON.stringify({ ok: false, dry_run: toerKoersel, fejl: grund }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    stilleFejl = err instanceof Error ? err.message : String(err);
+    console.error("[stille-klokker-cron] kørslen væltede:", stilleFejl);
   }
+  // Dag-1-klokken: isoleret — kører også når de to andre væltede (koerDag1Klokke kaster aldrig).
+  const dag1 = await koerDag1Klokke(admin, toerKoersel, nu);
+  console.log("[stille-klokker-cron] dag1_klokke:", JSON.stringify(dag1));
+  if (stilleFejl !== null || resultat === null) {
+    return new Response(JSON.stringify({ ok: false, dry_run: toerKoersel, fejl: stilleFejl, dag1_klokke: DAG1_SKIVE, dag1 }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  }
+  const ok = resultat.ok && dag1.fejlet === 0;
   console.log("[stille-klokker-cron] Summary:", JSON.stringify({ ...resultat, ville_ringe: resultat.ville_ringe.length, tavse_liste: resultat.tavse_liste.length }));
-  return new Response(JSON.stringify(resultat), { status: resultat.ok ? 200 : 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  return new Response(JSON.stringify({ ...resultat, ok, dag1_klokke: DAG1_SKIVE, dag1 }), { status: ok ? 200 : 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 });
