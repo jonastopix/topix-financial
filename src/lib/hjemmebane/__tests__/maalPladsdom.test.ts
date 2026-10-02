@@ -1,0 +1,27 @@
+import { describe, expect, it } from "vitest";
+import { aktiveDerTaeller, laesPladsdom, PLADSDOM_RPC } from "@/lib/hjemmebane/maalPladsdom";
+
+describe("maalPladsdom — reglen måles, den gættes ikke (punkt 13, migration 20261002220000)", () => {
+  it("kun et bogstaveligt true giver «kun_bekraeftede»", () => {
+    expect(laesPladsdom(true, null)).toBe("kun_bekraeftede");
+    expect(laesPladsdom(false, null)).toBe("alle");
+    expect(laesPladsdom(null, null)).toBe("alle");
+    expect(laesPladsdom(undefined, undefined)).toBe("alle");
+    expect(laesPladsdom("true", null)).toBe("alle");
+    expect(laesPladsdom(1, null)).toBe("alle");
+  });
+  it("enhver fejl er «alle» — også PGRST202 (migrationen ikke kørt) og en fejl med data true", () => {
+    expect(laesPladsdom(null, { code: "PGRST202", message: "Could not find the function" })).toBe("alle");
+    expect(laesPladsdom(true, { code: "42501", message: "permission denied" })).toBe("alle");
+    expect(laesPladsdom(true, { message: "netværk" })).toBe("alle");
+  });
+  it("aktiveDerTaeller: «alle» = bekræftede + ubekræftede; «kun_bekraeftede» = kun de bekræftede", () => {
+    expect(aktiveDerTaeller(2, 1, "alle")).toBe(3);
+    expect(aktiveDerTaeller(2, 1, "kun_bekraeftede")).toBe(2);
+    expect(aktiveDerTaeller(0, 3, "kun_bekraeftede")).toBe(0);
+    expect(aktiveDerTaeller(0, 3, "alle")).toBe(3);
+  });
+  it("RPC-navnet er migrationens", () => {
+    expect(PLADSDOM_RPC).toBe("maal_pladser_kun_bekraeftede");
+  });
+});

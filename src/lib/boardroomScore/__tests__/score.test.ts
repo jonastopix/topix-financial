@@ -182,6 +182,11 @@ describe("boardroomScore — kanter", () => {
     expect(d3b.handlinger.find((h) => h.soejle === "disciplin")).toMatchObject({ tekst: "Sig ja til et af jeres mål med en frist.", gevinst: 25, sti: "/milestones" });
     const d3c = boardroomScore(grundlag([...keys("2026-03", 6).map((k) => sund(k)), sund("2026-09")], { harMaal: false, ubekraeftedeMaal: 2 }), NU);
     expect(d3c.handlinger.find((h) => h.soejle === "disciplin")?.tekst).toBe("Sæt et mål med en frist.");
+    // Punkt 13 (migration 20261002220000): tæller triggeren kun bekræftede (målt), fylder forslag ingen plads — «Sæt» er sandt igen.
+    const d3d = boardroomScore(grundlag([...keys("2026-03", 6).map((k) => sund(k)), sund("2026-09")], { harMaal: false, ubekraeftedeMaal: 3, pladserTaellerKunBekraeftede: true }), NU);
+    expect(d3d.handlinger.find((h) => h.soejle === "disciplin")?.tekst).toBe("Sæt et mål med en frist.");
+    const d3e = boardroomScore(grundlag([...keys("2026-03", 6).map((k) => sund(k)), sund("2026-09")], { harMaal: false, ubekraeftedeMaal: 3, pladserTaellerKunBekraeftede: false }), NU);
+    expect(d3e.handlinger.find((h) => h.soejle === "disciplin")?.tekst).toBe("Sig ja til et af jeres mål med en frist.");
     const d4 = boardroomScore(grundlag([...keys("2026-03", 6).map((k) => sund(k)), sund("2026-09")]), NU);
     expect(d4.handlinger.find((h) => h.soejle === "disciplin")).toBeUndefined();
   });

@@ -73,6 +73,16 @@ describe("hovedet", () => {
     expect(hovedLinje(3, 2)).toBe("3 mål for de næste 12 måneder · 2 venter på jeres ja · ingen plads ledig");
     expect(hovedLinje(1, 0)).toBe(hovedLinje(1));
   });
+  it("punkt 13 (migration 20261002220000, «kun_bekraeftede»): pladsen regnes uden de ubekræftede; «venter på jeres ja» står stadig; «Svar på …» aldrig", () => {
+    expect(hovedLinje(0, 3, "kun_bekraeftede")).toBe("Ingen bekræftede mål endnu · 3 venter på jeres ja · 3 pladser ledige");
+    expect(hovedLinje(2, 1, "kun_bekraeftede")).toBe("2 mål for de næste 12 måneder · 1 venter på jeres ja · 1 plads ledig");
+    expect(hovedLinje(2, 2, "kun_bekraeftede")).toBe("2 mål for de næste 12 måneder · 2 venter på jeres ja · 1 plads ledig");
+    expect(hovedLinje(3, 2, "kun_bekraeftede")).toBe("3 mål for de næste 12 måneder · 2 venter på jeres ja · ingen plads ledig");
+    expect(hovedLinje(4, 1, "kun_bekraeftede")).toBe("4 aktive mål · 1 venter på jeres ja — flere end de 3, der er plads til. Parkér eller markér nogle som nået, så I står med højst 3.");
+    expect(hovedLinje(4, 1, "kun_bekraeftede")).toBe(hovedLinje(4, 1, "alle"));
+    expect(hovedLinje(0, 0, "kun_bekraeftede")).toBe(hovedLinje(0));
+    expect(hovedLinje(2, 1, "alle")).toBe(hovedLinje(2, 1));
+  });
   it("chips: én pr. status blandt TAL-målene, bagud først, motorens ord med lille forbogstav", () => {
     const paaSporet = maalKort(maal(), [], TRE, NU); // 1,44 mio. af vejen 1 → 2 mio., forventet ≈ 0,5 → på sporet
     const bagud = maalKort(maal({ id: "m2", udgangspunkt: 1_400_000, target_value: 3_000_000 }), [], TRE, NU); // 0 af vejen

@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
 import { useDineMaalGrundlag, useDineMaalSkrivning } from "@/hooks/dineMaalGrundlag";
+import { useMaalPladsdom } from "@/hooks/maalPladsdom";
 import { dineMaalDom, doemMaalFristModSkridt, lokalDatoStreng, TILFOEJ_SKRIDT_FEJL_TEKST, TILFOEJ_SKRIDT_OK_TEKST, type SkridtTilDineMaal } from "@/lib/hjemmebane/dineMaal";
 import type { MaalRaekke } from "@/lib/hjemmebane/planen";
 import { maalKort, skarptForslag, type MaalKort as MaalKortDom } from "@/lib/hjemmebane/maalTal";
@@ -217,12 +218,14 @@ export const DineMaalView = () => {
   // Runde 2, fund 7: guidens frosne åbningstidspunkt bærer også dommen i skriverne.
   const guideNu = guide?.nu ?? nu;
 
+  // Pladsernes regel, MÅLT i databasen (skive 3, punkt 13; migration 20261002220000): «alle» indtil den er kørt.
+  const pladsdom = useMaalPladsdom();
   // Handlingernes dom (uændret): dineMaalDom → planen → milepaelDom.
   const skridtTilDom = useMemo<SkridtTilDineMaal[]>(
     () => (g.grundlag?.skridt ?? []).map((s) => ({ id: s.id, title: s.title, status: s.status, due_date: s.due_date, maal_id: s.maal_id, closed_at: s.closed_at ?? null, source_type: s.source_type ?? null })),
     [g.grundlag?.skridt],
   );
-  const dom = useMemo(() => dineMaalDom(milestones.map(tilMaalRaekke), skridtTilDom, nu), [milestones, skridtTilDom, nu]);
+  const dom = useMemo(() => dineMaalDom(milestones.map(tilMaalRaekke), skridtTilDom, nu, pladsdom), [milestones, skridtTilDom, nu, pladsdom]);
   const forMedlemAf = useMemo(() => new Map([...dom.aktive, ...dom.parkerede, ...dom.naaede].map((x) => [x.plan.maal.id, x])), [dom]);
   const msAf = useMemo(() => new Map(milestones.map((m) => [m.id, m])), [milestones]);
   const maalMedTalAf = useMemo(() => new Map((g.grundlag?.maal ?? []).map((m) => [m.id, m])), [g.grundlag?.maal]);
@@ -365,7 +368,7 @@ export const DineMaalView = () => {
         {/* ÉN hovedlinje (2/10): hovedLinje bærer også grænsen — dom.graenseTekst tegnes ikke her (forsiden har den). Neutral farve: status, ikke alarm. */}
         {!henter && !g.isError && (
           <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-            <p className="text-sm text-hb-ink-soft" data-hoved-linje>{hovedLinje(kort.length, dom.ubekraeftede.length)}</p>
+            <p className="text-sm text-hb-ink-soft" data-hoved-linje>{hovedLinje(kort.length, dom.ubekraeftede.length, dom.pladsdom)}</p>
             {chips.length > 0 && (
               <ul className="flex flex-wrap gap-1.5" aria-label="Status på målene">
                 {chips.map((c) => (
