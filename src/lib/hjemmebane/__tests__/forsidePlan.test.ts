@@ -35,7 +35,7 @@ describe("forsidePlanDom — grupperne", () => {
     expect(d.maal).toEqual([]);
     expect(d.udenMaal.aktive.map((x) => x.id)).toEqual(["u"]);
     expect(planHarIndhold(d)).toBe(true);
-    expect(PLAN_TOM_TEKST).toBe("Din plan starter med et mål. Sæt det første selv — eller sammen med din rådgiver.");
+    expect(PLAN_TOM_TEKST).toBe("Sæt ét mål med et tal og en frist — selv eller sammen med jeres rådgiver. Så viser vi hver måned, om I er på sporet.");
     expect(planHarIndhold(forsidePlanDom(dineMaalDom([], [], NU), [], NU))).toBe(false);
   });
   it("ét mål med to skridt: aktive (forfaldne øverst) og forslag under målet; udenSkridt falsk", () => {

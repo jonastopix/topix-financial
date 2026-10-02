@@ -80,7 +80,7 @@ export interface ForsidePlanDom {
 }
 
 // ── Teksterne (til Jonas' godkendelse — README) ──
-export const PLAN_TOM_TEKST = "Din plan starter med et mål. Sæt det første selv — eller sammen med din rådgiver.";
+export const PLAN_TOM_TEKST = "Sæt ét mål med et tal og en frist — selv eller sammen med jeres rådgiver. Så viser vi hver måned, om I er på sporet.";
 export const PLAN_TOM_SAET_MAAL = "Sæt et mål";
 export const PLAN_TOM_BOOK = "Book en session";
 export const PLAN_INGEN_AKTIVE_TEKST = "Ingen aktive mål lige nu — aktivér et parkeret, eller sæt et nyt.";
