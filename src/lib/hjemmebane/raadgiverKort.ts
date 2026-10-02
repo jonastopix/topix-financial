@@ -51,6 +51,8 @@ export const RAADGIVER_KORT = {
   udloebet: "Dit medlemskab er udløbet — beskeder kan ikke sendes.",
   forLang: `Beskeden er for lang (højst ${MAX_MESSAGE_LENGTH} tegn).`,
   feltLabel: "Besked til dine rådgivere",
+  /** Feltets pladsholder på forsiden (mockup v3 §5: «Skriv til os …» — navnene står over feltet). */
+  pladsholder: "Skriv til os …",
 } as const;
 
 const DANSK_DATO = new Intl.DateTimeFormat("en-CA", { timeZone: TIDSZONE, year: "numeric", month: "2-digit", day: "2-digit" });

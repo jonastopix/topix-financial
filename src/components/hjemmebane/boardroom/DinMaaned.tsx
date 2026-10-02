@@ -36,6 +36,8 @@ const Sparkline = ({ dom }: { dom: Extract<DinMaanedDom, { tom: false }> }) => {
   );
 };
 
+const lilleMaaned = (t: string): string => (t ? t.charAt(0).toLocaleLowerCase("da-DK") + t.slice(1) : t);
+
 export const DinMaaned = ({ dom, udenCta = false }: { dom: DinMaanedDom; udenCta?: boolean }) => {
   // strict=false: `if (dom.tom)` snævrer ikke unionen — sammenlign med true (husets regel).
   if (dom.tom === true) {
@@ -54,7 +56,8 @@ export const DinMaaned = ({ dom, udenCta = false }: { dom: DinMaanedDom; udenCta
   return (
     <HbCard className="p-6" data-din-maaned={dom.periodLabel}>
       <p className="text-sm text-hb-ink-soft">
-        {dom.estimeret ? <>Seneste tal: {dom.periodLabel} <EstimatMaerke className="align-middle" /></> : <>Senest godkendt: {dom.periodLabel}</>}
+        {/* Månedsnavnet med lille midt i sætningen («Senest godkendt: august 2026» — UX-rådet 2/10). */}
+        {dom.estimeret ? <>Seneste tal: {lilleMaaned(dom.periodLabel)} <EstimatMaerke className="align-middle" /></> : <>Senest godkendt: {lilleMaaned(dom.periodLabel)}</>}
       </p>
       <dl className="mt-3 divide-y divide-hb-line">
         {dom.tal.map((t) => (

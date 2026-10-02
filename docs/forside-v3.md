@@ -117,3 +117,28 @@ Alle punkter i §0–§6 er bygget som skrevet. Afvigelser og afgørelser, bogf�
 - **Felterne under xl** står i én kolonne i HTML-ordenen (1024 med menu er under xl).
 - **Kendt, ikke rettet:** linjerne under «Det vigtigste» er højst to — har medlemmet både tjekliste-linjen og et
   stille punkt, står forløbslinjen og «Måske relevant» ikke på forsiden (de står i Akademiet).
+
+## Designgennemsyn i drift (2/10-2026 nat, efter Jonas' Update)
+
+**Målt i drift:** bundlen på app.theboardroom.dk har v3 (`BoardroomView-DDOT0A2Y.js` bærer «gratis 1:1-session»,
+«Sådan har I det», «Løfter også»). Set som rådgiver i Topix.dk ApS' virksomhedsvisning ved 1440; medlemmets egne dele
+(rådgiverkortet, tjekliste-linjen, community-rækken, certifikatlinjen) er kun set i harnessen på den ægte komponent —
+en tjenestekonto kan ikke logge ind som medlem.
+
+UX-rådet: **RET NU** — rettet i PR «Forsiden: trofæerne og designgennemsynet»:
+- Jonas 23:39: «Man har vel reelt ikke mulighed for at se hvilke trofæer man har og hvilke man mangler nu?» — de stod
+  kun bag «Se hvad der tæller». Linjen «4 af 8 trofæer · Se dem» åbner nu folden og ruller til trofæerne.
+- «Din plan»s link hedder «Dine mål» (var «Se hele planen»), som i mockuppen.
+- Composeren siger «Skriv til os …» (kontrakten §5).
+- «Senest godkendt: august 2026» med lille månedsnavn.
+- Ét datoformat også i Score-detaljerne og løfterne: «senest tirs. 20. okt.» (var «20/10»).
+- Skridtknapperne står på linje med skridtet (basis-28).
+- Metalinjerne: «Live sparring · online · 11.00 · om 6 dage», «· i dag ·».
+- «Hvad er et mål?» er taget af forsiden (stod ikke i mockuppen) — den står på Dine mål og i guiden.
+- Streakens status «Dine tal er godkendt til tiden» (kunne læses som «alle») → «Den seneste frist blev holdt».
+
+**Til Jonas (ikke ændret — motoren er «uændret dom» i kontrakten):** står de seneste tal i juni, beder det primære
+punkt om AUGUST-tallene (fokusmotoren ser kun på de to seneste afsluttede måneder), mens juli også mangler. Mockuppen
+skrev «Upload dine juli-tal — juli, august og september mangler». Skal motoren bede om den ÆLDSTE manglende måned?
+
+**Bogført:** «Udskyd» står kun ved et forfaldent skridt (husets regel B11) — mockuppen viste den ved «frist i dag».

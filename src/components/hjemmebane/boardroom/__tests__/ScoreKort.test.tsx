@@ -297,7 +297,7 @@ describe("ScoreKort", () => {
     const linje = container.querySelector("[data-score-streak]")!;
     expect(linje.tagName).toBe("P");
     expect(linje.textContent).toContain("15 måneder i træk");
-    expect(linje.textContent).toContain("Næste frist: september senest 20/10");
+    expect(linje.textContent).toContain("Næste frist: september senest tirs. 20. okt.");
   });
 
   it("ingen procent i kortets tekst (husets «Din måned»-mønster)", () => {
@@ -351,8 +351,16 @@ describe("ScoreKort variant=\"forside\" (docs/forside-v3.md §3 «Score kompakt�
   it("listen: streaken i forsidens datoformat, «3 af 8 trofæer», certifikatet med lås", () => {
     const { container } = forside({ dom: DOM(), trofaeer: tre, certifikat: { dageTil: 13 } });
     expect(container.querySelector("[data-score-streak]")!.textContent).toMatch(/næste frist tirs\. 20\. okt\.$/);
-    expect(container.querySelector("[data-score-trofaeer-antal]")!.textContent).toBe(`3 af ${TROFAEER.length} trofæer`);
+    expect(container.querySelector("[data-score-trofaeer-antal]")!.textContent).toBe(`3 af ${TROFAEER.length} trofæer · Se dem`);
     expect(container.querySelector('[data-score-certifikat="laast"]')!.textContent).toBe("Certifikatet åbner om 13 dage");
+    // Jonas 2/10 23:39: linjen åbner detaljerne, hvor trofæerne står (hvilke man har, hvilke man mangler).
+    const knap = container.querySelector("[data-score-trofaeer-knap]") as HTMLButtonElement;
+    // Knappen kan kun ÅBNE (CTO-rådet 2/10) — derfor aria-controls uden aria-expanded.
+    expect(knap.hasAttribute("aria-expanded")).toBe(false);
+    expect(knap.getAttribute("aria-controls")).toBeTruthy();
+    expect(container.querySelector("[data-trofae]")).toBeNull();
+    fireEvent.click(knap);
+    expect(container.querySelectorAll("[data-trofae]").length).toBeGreaterThan(0);
   });
 
   it("certifikatet klar: link til /certifikat; null eller udeladt: ingen linje; trofæfejl: ingen linje", () => {
@@ -377,7 +385,7 @@ describe("ScoreKort variant=\"forside\" (docs/forside-v3.md §3 «Score kompakt�
     expect(container.querySelector("[data-score-loefter-mest]")!.textContent).toContain("Løfter mest");
     unmount();
     // Forsidens primære handling peger på /reports, og /reports står ØVERST: den næste vises.
-    const rapport = { soejle: "disciplin" as const, tekst: "Upload og godkend september senest 20/10.", gevinst: 50, sti: "/reports" as const };
+    const rapport = { soejle: "disciplin" as const, tekst: "Upload og godkend september senest tirs. 20. okt.", gevinst: 50, sti: "/reports" as const };
     const maal = { soejle: "vaekst" as const, tekst: "Fem procent mere omsætning end sammenligningen.", gevinst: 30, sti: null };
     const anden = forside({ dom: { ...dom, handlinger: [rapport, maal], loefterMest: rapport }, undgaaSti: "/reports" });
     const vist = anden.container.querySelector("[data-score-loefter-mest]")!;

@@ -129,7 +129,7 @@ describe("boardroomScore — det fulde grundlag", () => {
   it("handlinger: én pr. søjle med gevinsten i samlet score", () => {
     const pr = Object.fromEntries(d.handlinger.map((h) => [h.soejle, h])) as Record<SoejleNavn, Handling>;
     // Godkend september: uden = 225 (rytme 125 + rettidig 50 + 25 + 25) → 708; med = 250 → 733.
-    expect(pr.disciplin).toEqual({ soejle: "disciplin", tekst: "Upload og godkend september senest 20/10.", gevinst: 25, sti: "/reports" });
+    expect(pr.disciplin).toEqual({ soejle: "disciplin", tekst: "Upload og godkend september senest tirs. 20. okt.", gevinst: 25, sti: "/reports" });
     // Runway 3,33 → 4,33: 183,3 − 158,3 = +25.
     expect(pr.likviditet.gevinst).toBe(25);
     expect(pr.likviditet.tekst).toBe("Én måneds omkostninger mere i banken (60.000 kr.).");
@@ -149,7 +149,7 @@ describe("boardroomScore — kanter", () => {
     expect(d.soejler.disciplin.status === "ok" && d.soejler.disciplin.point).toBe(0);
     expect(d.streak.status).toBe("ingen");
     // Gevinsten kan ikke regnes, når scoren ikke findes på nogen side — men handlingen står.
-    expect(d.loefterMest).toMatchObject({ soejle: "disciplin", tekst: "Upload og godkend september senest 20/10.", gevinst: null });
+    expect(d.loefterMest).toMatchObject({ soejle: "disciplin", tekst: "Upload og godkend september senest tirs. 20. okt.", gevinst: null });
   });
 
   it("helt nyt medlem (kontraktstart i denne måned): alle fire søjler mangler, ingen NaN", () => {

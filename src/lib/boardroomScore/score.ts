@@ -31,6 +31,7 @@
  *   kurven). loefterMest = størst gevinst; ved lige: disciplin, likviditet,
  *   indtjening, vækst (adfærd før tal).
  */
+import { kortDato } from "@/lib/hjemmebane/forsideDato";
 import { kbhDato, kbhDele, kbhTilUtc, laegMaanederTilDato } from "@/lib/hverdage";
 import { maanedsnavn } from "@/lib/maanedsnoegle";
 import { MAX_AKTIVE_MAAL } from "@/lib/hjemmebane/maal";
@@ -71,10 +72,14 @@ export function krTekst(v: number): string {
   return Math.round(Math.abs(v)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
 
-/** «12/10» af en «YYYY-MM-DD». */
-function datoTekst(dato: string): string {
-  return `${Number(dato.slice(8, 10))}/${Number(dato.slice(5, 7))}`;
+/** Fristen i forsidens ENE datoformat (docs/forside-v3.md §0; UX-rådet 2/10: «senest 20/10» brød det):
+    «tirs. 20. okt.» — med år, når fristen ligger i et andet år end `nu` (21/12 → «20. jan. 2027»; CTO-rådet). */
+function datoTekst(dato: string, nu: Date): string {
+  return kortDato(dato, nu);
 }
+
+/** Sætningens slutpunktum — kun når datoen ikke selv slutter med et («okt.»); aldrig «okt..» (CTO-rådet 2/10). */
+const medPunktum = (t: string): string => (t.endsWith(".") ? t : `${t}.`);
 
 /** Samme klokkeslæt én måned tilbage, dansk tid. */
 export function enMaanedTilbage(nu: Date): Date {
@@ -111,7 +116,7 @@ function handlingerFor(g: ScoreGrundlag, nu: Date, soejler: Soejler): Handling[]
     const med = alleSoejler({ ...g, maaneder: [...g.maaneder, simuleret] }, efterFrist).disciplin;
     const basis = { ...soejler, disciplin: uden };
     const gevinst = uden.status === "ok" && med.status === "ok" && samlet(basis).score !== null ? gevinstVed(basis, med) : null;
-    ud.push({ soejle: "disciplin", tekst: `Upload og godkend ${maanedsnavn(aaben)} senest ${datoTekst(fd)}.`, gevinst, sti: "/reports" });
+    ud.push({ soejle: "disciplin", tekst: medPunktum(`Upload og godkend ${maanedsnavn(aaben)} senest ${datoTekst(fd, nu)}`), gevinst, sti: "/reports" });
   } else if (!erMaalt(maalte.get(passeret))) {
     const simuleret: ScoreMaaned = { key: passeret, basis: "measured", foersteGodkendtAt: nu.toISOString(), metrics: {} };
     const med = alleSoejler({ ...g, maaneder: [...g.maaneder, simuleret] }, nu);

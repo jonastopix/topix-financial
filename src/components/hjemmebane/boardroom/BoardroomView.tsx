@@ -68,8 +68,6 @@ import { HbVelkomstVideoEmbed } from "../HbVelkomstVideoEmbed";
 import { HbSection } from "../HbSection";
 import { HbStedsSaetning } from "../HbStedsSaetning";
 import { HbAvatar } from "../HbAvatar";
-import { HbMaalForklaring } from "../milestones/HbMaalForklaring";
-import { MAAL_FORKLARING_OVERSKRIFT } from "@/lib/hjemmebane/maalForklaring";
 import { hasRichTextContent } from "@/lib/hjemmebane/richtext";
 import { fokusCtaHref, tjeklistenStyrerForsiden } from "@/lib/hjemmebane/ankomst";
 import { isTrackedEntry, useAkademiData } from "../akademi/useAkademiData";
@@ -170,6 +168,9 @@ const publishedMarker = (iso: string | null): string | null => {
   if (days <= 7) return "Ny i denne uge";
   return new Date(iso).toLocaleDateString("da-DK", { day: "numeric", month: "long" });
 };
+
+/** Første bogstav med lille — midt i en metalinje («· om 6 dage», «· i dag»). */
+const smaatFoerst = (t: string): string => (t ? t.charAt(0).toLocaleLowerCase("da-DK") + t.slice(1) : t);
 
 /** Community-sektionens relative tid — LOKAL pendant til CommunityViews
     relativTid (CommunityView.tsx:22-27, ikke eksporteret), samme form
@@ -1151,7 +1152,7 @@ export const PlanSkridtRaekke = ({ skridt, slags, busy, onKald, ansigt = null, m
   return (
     <li className="border-t border-hb-line/60 first:border-t-0" data-skridt-id={skridt.id} data-skridt-status={skridt.status} data-skridt-maal={skridt.maal_id ?? ""}>
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-2.5">
-        <div className="min-w-0 flex-1 basis-48">
+        <div className="min-w-0 flex-1 basis-28">
           {overlinje && (
             <p className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.14em] text-hb-evergreen" data-forslag-kilde={ansigt ? ansigt.userId : "uden-ansigt"}>
               {ansigt && <HbAvatar navn={ansigt.navn} avatarUrl={ansigt.avatarUrl} stoerrelse="sm" />}
@@ -2086,7 +2087,7 @@ export const BoardroomView = () => {
                 </p>
               </HbSection>
             ) : plan ? (
-              <HbSection id="din-plan" eyebrow="Din plan" hairline linkLabel={SE_HELE_PLANEN} linkTo="/milestones" data-din-plan={plan.maal.length} data-din-plan-tom={plan.tom ? "1" : "0"} data-din-plan-tilstand={maalTilstand}>
+              <HbSection id="din-plan" eyebrow="Din plan" hairline linkLabel={FORSIDE_MAAL_ORD.dineMaalLink} linkTo="/milestones" data-din-plan={plan.maal.length} data-din-plan-tom={plan.tom ? "1" : "0"} data-din-plan-tilstand={maalTilstand}>
                 <span id="dine-skridt" data-anker /><span id="dine-maal" data-anker />
                 {/* FEJRINGEN øverst i sektionen — ét sted, uanset om målet stadig er blandt de aktive. */}
                 {fejring && (
@@ -2206,11 +2207,8 @@ export const BoardroomView = () => {
                     ))}
                   </HbCard>
                 )}
-                {/* «Hvad er et mål?» (tillæg 17/9) — foldet nederst, kun når der ikke er bekræftede mål. */}
-                {maalTilstand !== "maal" && <details className="mt-5" data-maal-forklaring-fold>
-                  <summary className="inline-block cursor-pointer list-none text-sm text-hb-evergreen underline-offset-4 hover:underline [&::-webkit-details-marker]:hidden">{MAAL_FORKLARING_OVERSKRIFT}</summary>
-                  <HbMaalForklaring udenOverskrift className="mt-3" />
-                </details>}
+                {/* «Hvad er et mål?» er TAGET AF FORSIDEN (UX-rådet 2/10: den stod ikke i den godkendte mockup v3) — den står
+                    på Dine mål (tom-tilstanden) og i guiden «Sæt et mål». */}
               </HbSection>
             ) : null}
           </Felt>
@@ -2248,11 +2246,13 @@ export const BoardroomView = () => {
                           <p className="mt-0.5 text-xs text-hb-ink-soft">
                             {[
                               event.kind === "live_sparring" ? "Live sparring" : event.kind === "workshop" ? "Workshop" : "Event",
-                              event.meet_url ? "Online" : null,
+                              event.meet_url ? "online" : null,
                               new Date(event.starts_at).toLocaleTimeString("da-DK", { hour: "2-digit", minute: "2-digit" }),
                               eventNedtaelling(event),
                             ]
                               .filter(Boolean)
+                              // Mockup v3: kun linjens første ord med stort («Live sparring · online · 11.00 · om 6 dage»).
+                              .map((d, i) => (i === 0 ? d : smaatFoerst(d as string)))
                               .join(" · ")}
                           </p>
                           <HbVaerter kompakt className="mt-1.5" vaerter={vaerterForEvent(vaerterQuery.data ?? [], event.id, raadgivere)} />
@@ -2285,7 +2285,7 @@ export const BoardroomView = () => {
                             <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{NAESTE_I_NETVAERKET.opslagEyebrow}</p>
                             <p className="mt-1 truncate text-[15px] font-medium leading-snug text-hb-ink">{naesteNetvaerk.opslag.titel}</p>
                             <p className="mt-0.5 text-xs text-hb-ink-soft">
-                              {naesteNetvaerk.opslag.forfatter_navn ?? "Medlem"} · {traadRelativTid(naesteNetvaerk.opslag.created_at)} · {naesteNetvaerk.opslag.antal_svar} svar
+                              {naesteNetvaerk.opslag.forfatter_navn ?? "Medlem"} · {smaatFoerst(traadRelativTid(naesteNetvaerk.opslag.created_at))} · {naesteNetvaerk.opslag.antal_svar} svar
                             </p>
                           </div>
                         </Link>

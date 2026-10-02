@@ -151,7 +151,7 @@ describe("streakLinjer", () => {
     const s = streakLinjer(base);
     expect(s.laengde).toBe(7);
     expect(s.enhed).toBe("måneder i træk");
-    expect(s.frist).toBe("Næste frist: september senest 20/10 (14 hverdage)");
+    expect(s.frist).toBe("Næste frist: september senest tirs. 20. okt. (14 hverdage)");
     expect(s.bedste).toBeNull();
   });
   it("én måned, én hverdag, fristen i dag", () => {
@@ -170,25 +170,25 @@ describe("streakLinjer", () => {
     expect(s.frist).toMatch(/September er allerede i hus\.$/);
   });
   it("mod motoren 30/9-2026: fristen for september er 20/10 om 14 hverdage", () => {
-    expect(streakLinjer(FULD.streak).frist).toBe("Næste frist: september senest 20/10 (14 hverdage)");
+    expect(streakLinjer(FULD.streak).frist).toBe("Næste frist: september senest tirs. 20. okt. (14 hverdage)");
   });
   it("en weekend-frist står som den rykkede hverdag: august 2026 (20/9 er søndag) → 21/9", () => {
-    expect(streakLinjer({ ...base, naesteFrist: { ...base.naesteFrist, key: "2026-08", hverdageTil: 3 } }).frist).toBe("Næste frist: august senest 21/9 (3 hverdage)");
+    expect(streakLinjer({ ...base, naesteFrist: { ...base.naesteFrist, key: "2026-08", hverdageTil: 3 } }).frist).toBe("Næste frist: august senest man. 21. sep. (3 hverdage)");
   });
   it("status uden streak er rolig — fristen (den 20.) står i fristlinjen, handlingen i løfteren (designgennemsynet 1/10)", () => {
     const l = streakLinjer({ ...base, laengde: 0, status: "ingen" });
     expect(l.status).toBe("Ingen streak endnu");
-    expect(l.frist).toMatch(/senest 20\/10/);
+    expect(l.frist).toMatch(/senest tirs\. 20\. okt\./);
   });
   it("streakKortLinje: tallet med enhed og fristen på én linje", () => {
-    expect(streakKortLinje(base)).toEqual({ tal: "7 måneder i træk", frist: "Næste frist: september senest 20/10 (14 hverdage)", erStatus: false });
+    expect(streakKortLinje(base)).toEqual({ tal: "7 måneder i træk", frist: "Næste frist: september senest tirs. 20. okt. (14 hverdage)", erStatus: false });
     expect(streakKortLinje({ ...base, laengde: 1 }).tal).toBe("1 måned i træk");
   });
   it("streakKortLinje uden streak (status «ingen»): statussen er linjen — aldrig «0 måneder i træk» — og fristen står stadig", () => {
     const l = streakKortLinje({ ...base, laengde: 0, bedste: 0, status: "ingen" });
     expect(l).toEqual({
       tal: "Ingen streak endnu",
-      frist: "Næste frist: september senest 20/10 (14 hverdage)",
+      frist: "Næste frist: september senest tirs. 20. okt. (14 hverdage)",
       erStatus: true,
     });
     expect(l.tal).not.toMatch(/0 måneder/);
@@ -197,7 +197,7 @@ describe("streakLinjer", () => {
     const l = streakKortLinje({ ...base, laengde: 0, status: "brudt" });
     expect(l).toEqual({
       tal: "Streaken er brudt — næste frist starter en ny",
-      frist: "Næste frist: september senest 20/10 (14 hverdage)",
+      frist: "Næste frist: september senest tirs. 20. okt. (14 hverdage)",
       erStatus: true,
     });
   });
@@ -378,5 +378,14 @@ describe("forside-varianten (docs/forside-v3.md §3 «Score kompakt»)", () => {
   it("mod motoren: loefterMest uden undgaaSti = motorens loefterMest", () => {
     const linjer = loefterLinjer(FULD);
     expect(loefterMest(linjer, null)?.tekst).toBe(FULD.loefterMest?.tekst);
+  });
+});
+
+
+describe("streakLinjer — fristen ved årsskiftet (CTO-rådet 2/10)", () => {
+  it("decembers frist i januar året efter står med år", () => {
+    const s = { laengde: 2, status: "aktiv" as const, bedste: 2, aabenMaanedGodkendt: false, naesteFrist: { key: "2026-12", tidspunkt: new Date("2027-01-20T22:59:59.999Z"), hverdageTil: 18 } };
+    expect(streakLinjer(s, new Date("2026-12-22T10:00:00Z")).frist).toBe("Næste frist: december senest 20. jan. 2027 (18 hverdage)");
+    expect(streakLinjer(s, new Date("2027-01-05T10:00:00Z")).frist).toBe("Næste frist: december senest ons. 20. jan. (18 hverdage)");
   });
 });

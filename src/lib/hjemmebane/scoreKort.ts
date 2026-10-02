@@ -53,9 +53,10 @@ function enDecimal(v: number): string {
   return (Math.round(v * 10) / 10).toFixed(1).replace(".", ",").replace(/,0$/, "");
 }
 
-/** «12/10» af en «YYYY-MM-DD». */
-function datoKort(dato: string): string {
-  return `${Number(dato.slice(8, 10))}/${Number(dato.slice(5, 7))}`;
+/** «tirs. 20. okt.» af en «YYYY-MM-DD» — forsidens ene datoformat (UX-rådet 2/10; før «20/10»); år med, når
+    datoen ligger i et andet år end `nu`. */
+function datoKort(dato: string, nu: Date): string {
+  return kortDato(dato, nu);
 }
 
 const maaned = (key: string): string => maanedsnavn(key) ?? key;
@@ -151,17 +152,17 @@ export interface StreakLinjer {
   bedste: string | null;
 }
 
-export function streakLinjer(streak: StreakDom): StreakLinjer {
+export function streakLinjer(streak: StreakDom, nu: Date = new Date()): StreakLinjer {
   const enhed = streak.laengde === 1 ? "måned i træk" : "måneder i træk";
   const status =
     streak.status === "aktiv"
-      ? "Dine tal er godkendt til tiden"
+      ? "Streaken lever"
       : streak.status === "brudt"
         ? "Streaken er brudt — næste frist starter en ny"
         : STREAK_INGEN_TEKST;
   const n = streak.naesteFrist;
   const hverdage = n.hverdageTil === 0 ? "i dag" : n.hverdageTil === 1 ? "1 hverdag" : `${n.hverdageTil} hverdage`;
-  const fristLinje = `Næste frist: ${maaned(n.key)} senest ${datoKort(fristDato(n.key))} (${hverdage})`;
+  const fristLinje = `Næste frist: ${maaned(n.key)} senest ${datoKort(fristDato(n.key), nu)} (${hverdage})`;
   // Den åbne måned er allerede i hus: sig det, og peg på den følgende frist.
   // (naesteFrist.key er da måneden EFTER den åbne — streak.ts:streakDom.)
   const frist = streak.aabenMaanedGodkendt ? `${fristLinje}. ${storForbogstav(maaned(flytMaaned(n.key, -1)))} er allerede i hus.` : fristLinje;
@@ -301,6 +302,9 @@ export function streakForsideLinje(streak: StreakDom, nu: Date): string {
   if (streak.status === "brudt") return `Streaken er brudt. Godkend inden ${dato} for at starte en ny`;
   return `${STREAK_INGEN_TEKST} · første frist ${dato}`;
 }
+
+/** Knappens anden halvdel på forsiden: «4 af 8 trofæer · Se dem» åbner detaljerne og ruller til trofæerne. */
+export const TROFAE_SE_DEM = "Se dem";
 
 /**
  * «N af 8 trofæer» — N = antalOpnaaet (samme tal som TrofaeAntal), 8 = katalogets
