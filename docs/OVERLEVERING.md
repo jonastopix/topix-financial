@@ -11455,6 +11455,20 @@ En recon-agent (kun læsning) gik alle kort igennem med bevis fra `git log` og O
 - Fase 3a (legacy-nøglerne) — beslutning D1 i `docs/prod-hjem-plan.md`.
 - lh@-koblingen (manuel webinarkobling) — forslag, ikke bygget.
 
+### 2. oktober morgen — triggeren tæller kun bekræftede, og gæsten læser Community (gren `feat/trigger-og-gaest`; to migrationer, begge IKKE KØRT, begge KRÆVER GRØNT LYS)
+
+Svar på morgenlisten 2/10 på to af nattens åbne punkter (pkt. 8 ovenfor).
+
+**Del A — punkt 13 (Jonas: «Ja, kun bekræftede»):** `20261002241000_maal_pladser_kun_bekraeftede.sql`. `haandhaev_hoejst_tre_aktive_maal` tæller kun `status = 'active' AND bekraeftet_at IS NOT NULL` og dømmer også, når `bekraeftet_at` sættes på et aktivt forslag; sandhedstabellen og FØR-sammenligningen med `20260917150000` står i filhovedet. Klienten måler den kørende regel (`maal_pladser_kun_bekraeftede()`, SECURITY INVOKER; `src/lib/hjemmebane/maalPladsdom.ts` + `src/hooks/maalPladsdom.ts`, «alle» ved fejl/PGRST202), så fladen er rigtig før og efter kørslen. `maal-skriv` tæller stadig alle aktive (konservativt; ændring kræver udrulning — åbent). Kort `a02-trigger-ubekraeftede`.
+
+**Del B — gæsten (Jonas: «Gæsten læser, skriver ikke (ny læse-dom)»; 14/9: «En gæst ser Community, men skriver ikke»):** `20261002242000_community_gaest_laeser.sql`. Ny SECURITY DEFINER-dom `kan_laese_community` = `har_aktivt_medlemskab` ELLER gæst (`vis_i_netvaerk = false AND is_legat = false AND contract_end_date IS NULL` — det snævre snit; en udløbet virksomhed med flaget er ikke gæst). Bruges KUN i de to SELECT-politikker og de fem læse-RPC'er; skrivning, visningstælleren og `get_community_medlemmer` (opslagsmailens modtagere — ellers mailes gæster) står på `har_aktivt_medlemskab`. Sandhedstabel, FØR/EFTER-SQL og RLS-prøve: migrationens filhoved og `docs/adgangsdomme.md` §7. Klienten (virker også før kørslen): «Som gæst kan du læse med — opslag, svar og reaktioner er for medlemmer.» i stedet for composeren på feedet og trådsiden, like slået fra, «Præsentér dig» udgår (`src/lib/hjemmebane/communityAdgang.ts`, `src/hooks/communityAdgang.ts`). Værn: `communityGaest.guard` (otte domme), `communityAdgang.test.ts`, `CommunityView.test.tsx`. Kort `w13`.
+
+**Omdøbt (før merge, intet kørt):** `20261002220000_maal_pladser_kun_bekraeftede` → `20261002241000_…` og `20261002230000_community_gaest_laeser` → `20261002242000_…`. Grunden: samme numre bruges i dag af andre grene (`20261002220000_opkaldsanmodninger`, `20261002220000_community_spoergsmaal`, `20261002230000_member_progress_markering` + `20261002231000`). Alle henvisninger i kode og tests er rettet.
+
+**Rækkefølgen i drift:** Jonas' grønne lys PR MIGRATION → FØR-SQL (kroppene med `pg_get_functiondef`, politikkerne med `pg_policy`; afviger én, STOP) → kør → EFTER-SQL → Update. Ingen edge function er ændret.
+
+---
+
 ### 2. oktober nat — samlet (hvad der skete, hvad der venter)
 
 Samleoversigten for natten 1.–2. oktober. Detaljen står i emnernes egne sektioner og dokumenter, som der henvises til; den gentages ikke her. Klokkeslæt er dansk tid.

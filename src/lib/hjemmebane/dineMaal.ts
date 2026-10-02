@@ -98,7 +98,7 @@ export interface DineMaalDom {
   tom: boolean;
   /** Under tre aktive — DATABASENS tælling efter den MÅLTE regel (maalPladsdom.ts): «alle» = triggeren
       fra 20260917150000 tæller alle status = 'active', også ubekræftede; «kun_bekraeftede» = triggeren
-      fra 20261002220000 tæller kun bekræftede. Fladen lover aldrig en plads, databasen afviser. */
+      fra 20261002241000 tæller kun bekræftede. Fladen lover aldrig en plads, databasen afviser. */
   kanOprette: boolean;
   /** Pladserne er ledige blandt de bekræftede, men de ubekræftede fylder databasens tre (KUN under reglen
       «alle»): fladen siger «Plads, når I har taget stilling» (BEKRAEFT_ORD.pladsOptaget) i stedet for
@@ -155,7 +155,7 @@ export const GRAENSE_TAG_STILLING_TEKST = "Svar på de mål, der venter på jere
  * (maalPladsdom.ts): under «alle» bekræftede + ubekræftede (triggeren fra
  * 20260917150000 tæller begge, rådets fund 3) — de ubekræftede nævnes som «N
  * venter på jeres ja», og fylder de pladserne, siger teksten «Svar på …» i
- * stedet for «plads til N mere». Under «kun_bekraeftede» (20261002220000)
+ * stedet for «plads til N mere». Under «kun_bekraeftede» (20261002241000)
  * tæller kun de bekræftede; «N venter på jeres ja» nævnes stadig, men tager
  * aldrig en plads, og «Svar på …» siges aldrig. Flere BEKRÆFTEDE end tre (mål
  * fra før grænsen) siger det FØRST — under begge regler, aldrig «5 af 3 aktive

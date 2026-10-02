@@ -24,7 +24,7 @@ import { join, resolve } from "node:path";
 //   5. Agenten har hverken create_milestone eller update_milestone_progress —
 //      hverken i poolen, i executeTool, i SKRIVE_TOOLS eller i onboarding-prompten.
 //   6. Triggeren «højst tre» (ikke DEFINER, kun når rækken bliver aktiv, ingen politik).
-//   7. Punkt 13 (2/10-2026, Jonas «Ja, kun bekræftede»; migration 20261002220000, IKKE KØRT,
+//   7. Punkt 13 (2/10-2026, Jonas «Ja, kun bekræftede»; migration 20261002241000, IKKE KØRT,
 //      KRÆVER GRØNT LYS): den NYE krop tæller kun bekræftede aktive (bekraeftet_at is not null),
 //      dømmer også når bekraeftet_at sættes på en aktiv (old.bekraeftet_at is null), bærer
 //      markøren «PLADSDOM: kun_bekraeftede», som RPC'en maal_pladser_kun_bekraeftede læser i
@@ -42,7 +42,7 @@ const MAAL_SKRIV = "supabase/functions/maal-skriv/index.ts";
 const AGENT = "supabase/functions/run-company-agent/index.ts";
 const TOER = "supabase/functions/_shared/agentToerkoersel.ts";
 const TRE = "supabase/migrations/20260917150000_maal_hoejst_tre_aktive.sql";
-const TRE_BEKRAEFTEDE = "supabase/migrations/20261002220000_maal_pladser_kun_bekraeftede.sql";
+const TRE_BEKRAEFTEDE = "supabase/migrations/20261002241000_maal_pladser_kun_bekraeftede.sql";
 const PLADSDOM = "src/lib/hjemmebane/maalPladsdom.ts";
 const PLADSDOM_HOOK = "src/hooks/maalPladsdom.ts";
 const HANDOUT = "src/lib/handoutEngine.ts";

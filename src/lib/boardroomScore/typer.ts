@@ -40,7 +40,7 @@ export interface ScoreGrundlag {
    */
   ubekraeftedeMaal?: number;
   /**
-   * Skive 3, punkt 13 (2/10-2026, migration 20261002220000): tæller databasens trigger KUN bekræftede
+   * Skive 3, punkt 13 (2/10-2026, migration 20261002241000): tæller databasens trigger KUN bekræftede
    * (målt gennem maal_pladser_kun_bekraeftede, lib/hjemmebane/maalPladsdom.ts)? Da fylder de
    * ubekræftede ingen plads, og løfteren siger «Sæt et mål …» igen. Udeladt/false = «alle» (som før).
    */

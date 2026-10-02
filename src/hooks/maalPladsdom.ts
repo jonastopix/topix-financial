@@ -1,6 +1,6 @@
 /**
  * src/hooks/maalPladsdom.ts — måler, hvilken regel databasen tæller pladserne
- * på Dine mål efter (lib/hjemmebane/maalPladsdom.ts; migration 20261002220000).
+ * på Dine mål efter (lib/hjemmebane/maalPladsdom.ts; migration 20261002241000).
  *
  * Ét RPC-kald, maal_pladser_kun_bekraeftede(), cachet i fem minutter: svaret
  * ændrer sig kun, når en migration køres. PGRST202 («Could not find the

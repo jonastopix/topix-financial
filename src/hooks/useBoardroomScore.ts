@@ -136,7 +136,7 @@ export async function hentScoreGrundlag(companyId: string, nu: Date): Promise<Sc
   if (budget.error) throw new HentningsFejl("budget_targets", budget.error.message);
 
   const { harMaal, ubekraeftede } = await hentHarMaal(companyId);
-  // Punkt 13 (2/10): pladsernes regel måles — «alle» før migration 20261002220000 (hentMaalPladsdom kaster aldrig).
+  // Punkt 13 (2/10): pladsernes regel måles — «alle» før migration 20261002241000 (hentMaalPladsdom kaster aldrig).
   const pladsdom = await hentMaalPladsdom();
 
   const maaneder: ScoreMaaned[] = facts.map((f) => ({

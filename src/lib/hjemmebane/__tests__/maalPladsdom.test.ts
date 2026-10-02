@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { aktiveDerTaeller, laesPladsdom, PLADSDOM_RPC } from "@/lib/hjemmebane/maalPladsdom";
 
-describe("maalPladsdom — reglen måles, den gættes ikke (punkt 13, migration 20261002220000)", () => {
+describe("maalPladsdom — reglen måles, den gættes ikke (punkt 13, migration 20261002241000)", () => {
   it("kun et bogstaveligt true giver «kun_bekraeftede»", () => {
     expect(laesPladsdom(true, null)).toBe("kun_bekraeftede");
     expect(laesPladsdom(false, null)).toBe("alle");

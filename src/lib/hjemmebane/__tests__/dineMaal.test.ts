@@ -164,7 +164,7 @@ describe("dineMaalDom — grænsen på tre i klart sprog", () => {
     expect(graenseTekst(3, 2)).toBe("Du har 3 aktive mål · 2 venter på jeres ja — det er det højeste. Parkér eller markér et som nået for at få plads til et nyt.");
     for (const [b, u] of [[5, 6], [4, 0], [3, 2]] as const) expect(graenseTekst(b, u)).not.toMatch(/[4-9]\d* af 3/);
   });
-  it("punkt 13 (migration 20261002220000, «kun_bekraeftede»): kun bekræftede tæller — «venter på jeres ja» nævnes, tager ingen plads, «Svar på …» siges aldrig", () => {
+  it("punkt 13 (migration 20261002241000, «kun_bekraeftede»): kun bekræftede tæller — «venter på jeres ja» nævnes, tager ingen plads, «Svar på …» siges aldrig", () => {
     expect(graenseTekst(1, 1, "kun_bekraeftede")).toBe("1 af 3 aktive mål · 1 venter på jeres ja — plads til 2 mere.");
     expect(graenseTekst(0, 3, "kun_bekraeftede")).toBe("0 af 3 aktive mål · 3 venter på jeres ja — plads til 3 mere.");
     expect(graenseTekst(2, 2, "kun_bekraeftede")).toBe("2 af 3 aktive mål · 2 venter på jeres ja — plads til 1 mere.");

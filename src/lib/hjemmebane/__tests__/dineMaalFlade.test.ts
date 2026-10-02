@@ -73,7 +73,7 @@ describe("hovedet", () => {
     expect(hovedLinje(3, 2)).toBe("3 mål for de næste 12 måneder · 2 venter på jeres ja · ingen plads ledig");
     expect(hovedLinje(1, 0)).toBe(hovedLinje(1));
   });
-  it("punkt 13 (migration 20261002220000, «kun_bekraeftede»): pladsen regnes uden de ubekræftede; «venter på jeres ja» står stadig; «Svar på …» aldrig", () => {
+  it("punkt 13 (migration 20261002241000, «kun_bekraeftede»): pladsen regnes uden de ubekræftede; «venter på jeres ja» står stadig; «Svar på …» aldrig", () => {
     expect(hovedLinje(0, 3, "kun_bekraeftede")).toBe("Ingen bekræftede mål endnu · 3 venter på jeres ja · 3 pladser ledige");
     expect(hovedLinje(2, 1, "kun_bekraeftede")).toBe("2 mål for de næste 12 måneder · 1 venter på jeres ja · 1 plads ledig");
     expect(hovedLinje(2, 2, "kun_bekraeftede")).toBe("2 mål for de næste 12 måneder · 2 venter på jeres ja · 1 plads ledig");

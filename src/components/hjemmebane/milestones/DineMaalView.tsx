@@ -218,7 +218,7 @@ export const DineMaalView = () => {
   // Runde 2, fund 7: guidens frosne åbningstidspunkt bærer også dommen i skriverne.
   const guideNu = guide?.nu ?? nu;
 
-  // Pladsernes regel, MÅLT i databasen (skive 3, punkt 13; migration 20261002220000): «alle» indtil den er kørt.
+  // Pladsernes regel, MÅLT i databasen (skive 3, punkt 13; migration 20261002241000): «alle» indtil den er kørt.
   const pladsdom = useMaalPladsdom();
   // Handlingernes dom (uændret): dineMaalDom → planen → milepaelDom.
   const skridtTilDom = useMemo<SkridtTilDineMaal[]>(

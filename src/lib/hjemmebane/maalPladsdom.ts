@@ -1,12 +1,12 @@
 /**
  * src/lib/hjemmebane/maalPladsdom.ts — HVILKEN regel databasen tæller
  * pladserne på Dine mål efter (skive 3, åbent punkt 13; Jonas 2/10-2026
- * «Ja, kun bekræftede»; migration 20261002220000).
+ * «Ja, kun bekræftede»; migration 20261002241000).
  *
  * To regler har eksisteret:
  *   «alle»            — triggeren milestones_hoejst_tre_aktive (20260917150000)
  *                       tæller ALLE status = 'active', også ubekræftede forslag.
- *   «kun_bekraeftede» — triggeren (20261002220000) tæller kun aktive med
+ *   «kun_bekraeftede» — triggeren (20261002241000) tæller kun aktive med
  *                       bekraeftet_at IS NOT NULL; et forslag tager ingen plads,
  *                       og bekræftelsen af et aktivt forslag dømmes som «bliver aktiv».
  *

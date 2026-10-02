@@ -4,6 +4,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { useCommunityGaest } from "@/hooks/communityAdgang";
+import { GAEST_LAESER_TEKST, visComposer, visGaestGraense } from "@/lib/hjemmebane/communityAdgang";
 import { cn } from "@/lib/utils";
 import {
   hentSvar,
@@ -163,6 +165,8 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { user, isAdvisor, laeseMarkeringTilladt } = useAuth();
+  /* Gæsten (2/10, Jonas 14/9: læser, skriver ikke): ingen svar-composer, ingen like; grænsen under svarene. */
+  const gaest = useCommunityGaest();
 
   const [redigererTraad, setRedigererTraad] = useState(false);
   const [traadTitel, setTraadTitel] = useState("");
@@ -402,7 +406,7 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
               <LikeKnap
                 antal={traad.antal_reaktioner}
                 harReageret={traad.jeg_har_reageret}
-                disabled={reaktionMutation.isPending}
+                disabled={reaktionMutation.isPending || !visComposer(gaest)}
                 onClick={() => reaktionMutation.mutate({ traadId })}
               />
               {erTraadForfatter && (
@@ -477,7 +481,7 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
               <SvarRaekke
                 key={s.id}
                 svar={s}
-                reagerer={reaktionMutation.isPending}
+                reagerer={reaktionMutation.isPending || !visComposer(gaest)}
                 onLike={() => reaktionMutation.mutate({ svarId: s.id })}
                 erForfatter={user !== null && user.id === s.forfatter_id}
                 redigerer={redigererSvarId === s.id}
@@ -501,7 +505,7 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
         {/* Composeren vises først når brugeren er indlæst — den må ikke
             montere med et tomt brugerId, for så ville en billed-upload
             lande på en ulovlig sti, som motoren bagefter kasserer. */}
-        {user && (
+        {user && visComposer(gaest) && (
           <div className="mt-8">
             <CommunityComposer
               visTitel={false}
@@ -513,6 +517,10 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
               }
             />
           </div>
+        )}
+        {/* Gæstens grænse — i stedet for svar-composeren, aldrig som en fejl (w13). */}
+        {visGaestGraense(gaest) && (
+          <p className="mt-8 text-sm text-hb-ink-soft" data-gaest-graense>{GAEST_LAESER_TEKST}</p>
         )}
       </section>
     </div>

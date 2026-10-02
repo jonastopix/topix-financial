@@ -33,6 +33,10 @@ vi.mock("@/lib/hjemmebane/memberProfile", () => ({
   listMemberDirectory: vi.fn(async () => []),
 }));
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: null, profile: null, companyId: null, companyName: null }) }));
+/* Gæstedommen (2/10): false = som i dag; sættes til true i gæste-testen. Hooken selv er ren
+   React Query over companies og prøves ikke her — dens dom er communityAdgang.test.ts. */
+const gaestMock = vi.hoisted(() => ({ gaest: false as boolean | null }));
+vi.mock("@/hooks/communityAdgang", () => ({ useCommunityGaest: () => gaestMock.gaest }));
 const toastMock = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }));
 vi.mock("sonner", () => ({ toast: toastMock }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: () => ({ select: () => ({}) }) } }));
@@ -80,6 +84,7 @@ const raekke = async () => {
 };
 
 beforeEach(() => {
+  gaestMock.gaest = false;
   api.hentFeed.mockReset();
   api.saetReaktion.mockReset();
   toastMock.error.mockReset();
@@ -141,6 +146,28 @@ describe("Community-feedet — like fra feedet", () => {
     });
     expect(toastMock.error).toHaveBeenCalledWith("Reaktionen blev ikke gemt", { description: "Ingen adgang til community" });
     expect(screen.getByText("Hej, jeg er Mette")).toBeInTheDocument();
+    expect(within(li).getByRole("button", { name: "3" })).not.toBeDisabled();
+  });
+});
+
+describe("Gæsten i feedet (2/10; Jonas 14/9: læser, skriver ikke)", () => {
+  it("gæst: feedet vises, like-knappen er slået fra, grænsen står — ingen fejl, ingen toast", async () => {
+    gaestMock.gaest = true;
+    const li = await raekke();
+    expect(within(li).getByRole("button", { name: "3" })).toBeDisabled();
+    expect(screen.getByText("Som gæst kan du læse med — opslag, svar og reaktioner er for medlemmer.")).toBeInTheDocument();
+    expect(api.saetReaktion).not.toHaveBeenCalled();
+    expect(toastMock.error).not.toHaveBeenCalled();
+  });
+  it("dommen ukendt (null): hverken grænse eller aktiv like — intet blinker frem, før virksomheden er kendt", async () => {
+    gaestMock.gaest = null;
+    const li = await raekke();
+    expect(within(li).getByRole("button", { name: "3" })).toBeDisabled();
+    expect(screen.queryByText(/Som gæst kan du læse med/)).toBeNull();
+  });
+  it("ikke gæst: ingen grænse, like virker som før", async () => {
+    const li = await raekke();
+    expect(screen.queryByText(/Som gæst kan du læse med/)).toBeNull();
     expect(within(li).getByRole("button", { name: "3" })).not.toBeDisabled();
   });
 });

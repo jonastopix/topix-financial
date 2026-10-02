@@ -52,7 +52,7 @@ export const venterPaaJaTekst = (antal: number): string => (antal === 1 ? "1 ven
  * fordi triggeren fra 20260917150000 tæller alle aktive (rådets fund 3) — med
  * ubekræftede står «· M venter på jeres ja», og er pladserne fyldt af dem,
  * siger linjen «Svar på de mål, der venter på jeres ja …» — aldrig «3 pladser
- * ledige», som databasen ville afvise. Under «kun_bekraeftede» (20261002220000,
+ * ledige», som databasen ville afvise. Under «kun_bekraeftede» (20261002241000,
  * Jonas 2/10 «Ja, kun bekræftede») tæller kun de bekræftede: «· M venter på
  * jeres ja» står stadig, men pladsen regnes uden dem, og «Svar på …» siges
  * aldrig. Uden bekræftede, men med ubekræftede: «Ingen bekræftede mål endnu»
