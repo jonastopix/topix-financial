@@ -133,7 +133,9 @@ export const enKildeTreSteder = (filer: Record<string, string>): boolean => {
   const eksempel = "Positiv bundlinje hver måned inden jul";
   const kunKilden = Object.entries(filer).every(([sti, k]) => sti === KILDE || (!k.includes(tekst) && !k.includes(eksempel) && !k.includes("Hvad er et mål?")));
   // 2/10 aften (efter Jonas' skærm 19:29): foldet KUN i tilstand B og C — med mål er forklaringen en løs rest.
-  const fold = forside.slice(forside.indexOf('{maalTilstand !== "maal" && <details className="mt-5" data-maal-forklaring-fold>'), forside.indexOf("</details>"));
+  // Slutningen søges FRA foldens start: forsiden v3 har en anden <details> tidligere (ugens fokus i «Det vigtigste»).
+  const foldStart = forside.indexOf('{maalTilstand !== "maal" && <details className="mt-5" data-maal-forklaring-fold>');
+  const fold = foldStart === -1 ? "" : forside.slice(foldStart, forside.indexOf("</details>", foldStart));
   // Fladen 1/10-2026: den tomme tilstand er blokken data-dine-maal="tom" FØR gitteret med den stiplede plads «Sæt et mål».
   const viewTom = view.slice(view.indexOf('data-dine-maal="tom"'), view.indexOf("<TomPladsKort", view.indexOf('data-dine-maal="tom"')));
   return kilde.includes('export const MAAL_FORKLARING_OVERSKRIFT = "Hvad er et mål?";') &&
