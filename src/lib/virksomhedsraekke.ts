@@ -12,8 +12,10 @@
  * Insert-rækken til `companies` som ren funktion. Ingen IO, ingen
  * Supabase, ingen datoer ud over "nu" til cvr_fetched_at.
  *
- * HVORFOR DEN FINDES: import-application og monday-webhook skal begge
- * oprette virksomheder, og de må ikke drive fra hinanden. Målt 2/9
+ * HVORFOR DEN FINDES: import-application og monday-webhook skulle begge
+ * oprette virksomheder, og de måtte ikke drive fra hinanden (historie:
+ * monday-webhook er nedlagt 2/10-2026 og svarer 410; i dag bygger
+ * import-application og ansøgningsmotoren rækken herfra). Målt 2/9
  * (recon-delt-oprettelse.md §4): der er NUL tests på begge funktioner,
  * intet CI-værn ville fange en regression, og eneste bevis ville være en
  * manuel import fra /members. Ved at udskille rækkebygningen som en ren

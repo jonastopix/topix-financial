@@ -28,8 +28,9 @@ import {
 } from "../../../supabase/functions/_shared/brancher.ts";
 
 // Parity gate — the Deno copy at supabase/functions/_shared/branchekode.ts
-// is what byggVirksomhedsRaekke actually runs with inside monday-webhook
-// and import-application (via _shared/virksomhedsOprettelse.ts). The
+// is what byggVirksomhedsRaekke actually runs with inside import-application
+// and ansøgningsmotoren (historisk også monday-webhook, nedlagt 2/10-2026)
+// (via _shared/virksomhedsOprettelse.ts). The
 // frontend copy is the one branchekode.test.ts locks, row by row. Testdata
 // is the same DB25 fixture that test reads — HELE registret (738
 // underklasser) går gennem begge kopier, plus normaliseringens kanter. If

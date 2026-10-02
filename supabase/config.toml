@@ -39,6 +39,10 @@ project_id = "loiavmastgeieqyiwyyr"
     verify_jwt = false
   [functions.manage-advisor]
     verify_jwt = false
+  # NEDLAGT 2/10-2026 (Jonas 1/10: «Vi bruger ikke Monday mere. Det er opsagt.»):
+  # svarer 410 Gone på alt — ingen parsing, ingen env, ingen service-role, ingen
+  # database. Står på false, fordi der intet er at beskytte, og fordi 410-beviset
+  # (ét kald → 410) ellers ville drukne i gatewayens 401. Værn: mondayVaek.guard.
   [functions.monday-webhook]
     verify_jwt = false
   [functions.process-pending-invitation]
@@ -205,8 +209,8 @@ project_id = "loiavmastgeieqyiwyyr"
     verify_jwt = true
   # Bucket B: authenticateServiceRole læser role-claimet, gatewayen bærer
   # signaturtjekket — samme begrundelse som intro-reminder-cron. Kun til
-  # manuelle kald med service-role-JWT'en; Monday-grenen og prissætningen
-  # kalder logikken i samme proces (_shared/indgangsBetalingsmail.ts).
+  # manuelle kald med service-role-JWT'en; prissætningen kalder logikken i
+  # samme proces (_shared/indgangsBetalingsmail.ts). Monday-grenen er nedlagt 2/10.
   [functions.send-indgangs-betalingsmail]
     verify_jwt = true
   # Samme begrundelse som intro-reminder-cron: pg_cron-job med vault-nøglen

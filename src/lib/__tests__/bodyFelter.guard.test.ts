@@ -15,7 +15,7 @@ import { resolve } from "node:path";
 // REGLEN: læser en function felter af en body, skal den afvise felter, den ikke
 // kender (_shared/kendteFelter.ts).
 //
-// DEN ENE UNDTAGELSE er eksterne webhooks: Stripe, Monday, Slack og Supabases
+// DEN ENE UNDTAGELSE er eksterne webhooks: Stripe, Slack og Supabases
 // auth-hook bestemmer selv formen på deres payloads og tilføjer felter uden at
 // spørge. En afvisning ville lukke integrationen ved deres næste opdatering.
 //
@@ -126,7 +126,6 @@ const STRIKS: readonly string[] = [
  */
 const EKSTERNE: readonly string[] = [
   "auth-email-hook",               // Supabases auth-hook — payloadens form er deres
-  "monday-webhook",                // Monday sender challenge/event/sent + hvad de finder på
   "send-slack-report-notification", // tager imod en Slack-event-payload
 ];
 
