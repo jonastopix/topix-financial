@@ -109,7 +109,9 @@ export function ulovligeMarkeretFiler(filer: { sti: string; kilde: string }[]): 
   return filer
     .filter((f) => !/(^|\/)__tests__\//.test(f.sti) && !/\.test\.tsx?$/.test(f.sti))
     .filter((f) => !MAA_NAEVNE_MARKERET_AT.includes(f.sti))
-    .filter((f) => /markeret_at/.test(udenKommentarer(f.kilde)))
+    // Helt ord (2/10): `spoergsmaal_markeret_at` (Community, #1236) er en anden kolonne på en anden tabel —
+    // `_` er et ordtegn, så \b skiller den fra member_progress' markeret_at.
+    .filter((f) => /\bmarkeret_at\b/.test(udenKommentarer(f.kilde)))
     .map((f) => f.sti);
 }
 
@@ -284,6 +286,10 @@ describe("akademiF0.guard — kilden", () => {
     expect(vaern.indexOf(forud)).toBeLessThan(vaern.indexOf("CREATE OR REPLACE FUNCTION public.member_progress_markering_vaern()"));
   });
 
+  it("dom 7 skelner kolonnerne: community-filens spoergsmaal_markeret_at er ikke member_progress' markeret_at", () => {
+    expect(ulovligeMarkeretFiler([{ sti: "src/lib/hjemmebane/x.ts", kilde: "const a = row.spoergsmaal_markeret_at;" }])).toEqual([]);
+    expect(ulovligeMarkeretFiler([{ sti: "src/lib/hjemmebane/x.ts", kilde: "const a = row.markeret_at;" }])).toEqual(["src/lib/hjemmebane/x.ts"]);
+  });
   it("VÆRNET VIRKER: kopier med fejlen indsat fanges (filerne er ikke rørt)", () => {
     // 4: batchMarker der også skriver acknowledged_at, eller falder tilbage.
     const kopi4 = admin.replace("markeret_af: raadgiverId,", "markeret_af: raadgiverId,\n    acknowledged_at: now,");
