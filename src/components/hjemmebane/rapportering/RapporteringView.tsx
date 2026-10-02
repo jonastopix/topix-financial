@@ -16,7 +16,6 @@ import { useReportCommitStates } from "@/hooks/useReportCommitStates";
 import { useScrollToHash } from "@/hooks/useScrollToHash";
 import { propagateReportCommit, clearReportReviewNotification } from "@/lib/reportCommit";
 import {
-  DANISH_MONTHS,
   SHORT_MONTHS,
   formatDKK,
   getEffectiveKeyFigures,
@@ -50,6 +49,9 @@ import { deriveReportCardView, type CardAction, erForTidligt, godkendSpaerret, r
 import { HbReportUploadZone } from "./HbReportUploadZone";
 import { RefleksionerSektion } from "./RefleksionerSektion";
 import { historikFoerst, tomListeTekst } from "@/lib/hjemmebane/rapporteringTekst";
+import { useBoardroomScore } from "@/hooks/useBoardroomScore";
+import { foersteTaellendeMaaned } from "@/lib/boardroomScore/streak";
+import { leveringsbaandDom } from "@/lib/hjemmebane/leveringsbaand";
 
 /** Rapportering (/rapportering → /reports ved GO) — LEVERANCEN rendyrket
     (klik-valg B): upload, status/nudges, godkendelse, historik (inkl.
@@ -68,15 +70,6 @@ const SLOT_DOT: Record<SlotState, string> = {
   error: "border-hb-rust bg-hb-rust/20",
   missing: "border-hb-line bg-hb-line/40",
   upcoming: "border-hb-line",
-};
-
-const SLOT_LABEL: Record<SlotState, string> = {
-  delivered: "Godkendt",
-  pending: "Afventer godkendelse",
-  processing: "Behandles",
-  error: "Fejl",
-  missing: "Mangler",
-  upcoming: "Kommende",
 };
 
 const toneClasses = { quiet: "text-hb-ink-soft", attention: "text-hb-rust", alert: "text-hb-rust font-medium" };
@@ -347,6 +340,27 @@ export const RapporteringView = () => {
   );
   const currentYearGroup = yearGroups.find((g) => g.year === String(new Date().getFullYear()));
 
+  // Leveringsbåndet tæller KUN fra første tællende måned (2/10-2026, «2 af 9»
+  // for et medlem startet 29/9): Score's egen dom foersteTaellendeMaaned over
+  // Score's eget grundlag (samme query-cache som forsidens ScoreKort) — ingen
+  // ny regel. Grundlaget ukendt (hentes/fejler/afventer migration) → undefined
+  // → ingen tæller (lib/hjemmebane/leveringsbaand.ts).
+  const scoreGrundlag = useBoardroomScore().grundlag;
+  const foersteTaellende = scoreGrundlag ? foersteTaellendeMaaned(scoreGrundlag.kontraktStart, scoreGrundlag.maaneder) : undefined;
+  const levering = useMemo(
+    () =>
+      currentYearGroup
+        ? leveringsbaandDom({
+            aar: currentYearGroup.year,
+            pladser: currentYearGroup.months.map((slot) => ({ key: slot.key, state: deriveSlotState(slot, committedReportIds) })),
+            foerste: foersteTaellende,
+            nu: new Date(),
+            raadgiver: isAdvisor,
+          })
+        : null,
+    [currentYearGroup, committedReportIds, foersteTaellende, isAdvisor],
+  );
+
   // Nudge-kortet «N rapporter afventer din godkendelse» må ikke tælle en
   // rapport for indeværende måned med (7/9): den kan ikke godkendes endnu,
   // og knappen «Gennemgå og godkend» ville åbne en dialog der siger «ikke
@@ -575,27 +589,36 @@ export const RapporteringView = () => {
 
       {/* ── Leveringsbånd (indeværende år) — udelades når godkendelsen er
           ukendt: «0 af 9 måneder godkendt» ville være en løgn. ── */}
-      {currentYearGroup && !godkendelseUkendt && (
-        <HbCard className="mt-8 p-5">
+      {currentYearGroup && levering && !godkendelseUkendt && (
+        <HbCard className="mt-8 p-5" data-rapportering-levering>
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
               Levering {currentYearGroup.year}
             </p>
-            <p className="text-sm text-hb-ink-soft">
-              {currentYearGroup.delivered} af {currentYearGroup.total} måneder godkendt
-            </p>
+            {levering.linje && <p className="text-sm text-hb-ink-soft">{levering.linje}</p>}
           </div>
+          {/* Måneder før første tællende måned: DÆMPET, ikke udeladt — historikken
+              er ægte (Jonas 9/9: rapportér gerne fra før medlemsstart), og en
+              tooltip virker ikke på touch, så forklaringen står som synlig note. */}
           <div className="mt-3 flex flex-wrap gap-2.5">
-            {currentYearGroup.months.map((slot) => {
-              const state = deriveSlotState(slot, committedReportIds);
+            {levering.pladser.map((plads) => {
+              const md = Number(plads.key.slice(5, 7)) - 1;
               return (
-                <span key={slot.key} className="flex flex-col items-center gap-1" title={`${DANISH_MONTHS[slot.month]} — ${SLOT_LABEL[state]}`}>
-                  <span className={cn("h-4 w-4 rounded-full border", SLOT_DOT[state])} />
-                  <span className="text-[10px] text-hb-ink-soft">{SHORT_MONTHS[slot.month]}</span>
+                <span
+                  key={plads.key}
+                  role="img"
+                  aria-label={plads.etiket}
+                  title={plads.etiket}
+                  className={cn("flex flex-col items-center gap-1", plads.foerMedlemskab && "opacity-40")}
+                  data-foer-medlemskab={plads.foerMedlemskab || undefined}
+                >
+                  <span className={cn("h-4 w-4 rounded-full border", SLOT_DOT[plads.state])} />
+                  <span className="text-[10px] text-hb-ink-soft">{SHORT_MONTHS[md]}</span>
                 </span>
               );
             })}
           </div>
+          {levering.note && <p className="mt-3 text-xs text-hb-ink-soft">{levering.note}</p>}
         </HbCard>
       )}
 
