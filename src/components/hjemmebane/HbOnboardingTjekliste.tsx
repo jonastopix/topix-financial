@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { erVelkomstHash, velkomstTekst, velkomstVisesAutomatisk } from "@/lib/hjemmebane/ankomst";
 import { Check, ChevronDown, ChevronRight, ChevronUp, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Tjekliste, TjeklistePunkt } from "@/lib/onboardingTjekliste";
+import { TJEKLISTE_STED_LABEL, manglerLinje, type Tjekliste, type TjeklistePunkt } from "@/lib/onboardingTjekliste";
 import { HbButton } from "./HbButton";
 import { HbProgressBar } from "./akademi/HbProgressBar";
 import { HbVelkomstVideoEmbed } from "./HbVelkomstVideoEmbed";
@@ -50,6 +50,9 @@ import {
 
 // Lager-nøglerne og lukket-hooken bor i src/hooks/useTjeklisteLukket.ts,
 // så denne fil kun eksporterer komponenten (react-refresh).
+
+/** Linjen under bjælken (seks steder, 2/10): ét punkt pr. sted, og listen krydser selv af. */
+const TJEKLISTE_INTRO = "Ét punkt pr. sted i menuen — så lærer du stederne at kende, mens du bruger dem. Alt krydses af, når du har gjort det.";
 
 // ── Velkomst-overlejringen ────────────────────────────────────────────
 
@@ -120,14 +123,25 @@ const VelkomstOverlejring = ({
 
 // ── Boksen ───────────────────────────────────────────────────────────
 
+/**
+ * Ét punkt — med STEDET som mærke over titlen (seks steder, 2/10): ordet
+ * er menuens (TJEKLISTE_STED_LABEL), så listen også er en rundvisning —
+ * medlemmet ser, hvilket område punktet hører til, før det klikker.
+ */
 const PunktRaekke = ({ punkt, onClick }: { punkt: TjeklistePunkt; onClick: () => void }) => {
+  // Intet mærke, når stedet ikke findes i medlemmets menu (abonnent/legat, rådets fund 2/10).
+  const sted = punkt.sted ? TJEKLISTE_STED_LABEL[punkt.sted] : null;
+  const linje = manglerLinje(punkt);
   if (punkt.gjort) {
     return (
       <li className="flex items-start gap-3 px-1 py-2">
         <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-hb-evergreen text-white">
           <Check className="h-3 w-3" strokeWidth={3} />
         </span>
-        <span className="text-sm text-hb-ink-soft line-through decoration-hb-line">{punkt.titel}</span>
+        <span className="min-w-0">
+          {sted && <span className="block text-[11px] font-medium uppercase tracking-[0.12em] text-hb-ink-soft/70" data-tjekliste-sted>{sted}</span>}
+          <span className="block text-sm text-hb-ink-soft line-through decoration-hb-line">{punkt.titel}</span>
+        </span>
       </li>
     );
   }
@@ -140,12 +154,12 @@ const PunktRaekke = ({ punkt, onClick }: { punkt: TjeklistePunkt; onClick: () =>
       >
         <span className="mt-0.5 h-5 w-5 shrink-0 rounded-full border border-hb-ink/25" />
         <span className="min-w-0">
+          {sted && <span className="block text-[11px] font-medium uppercase tracking-[0.12em] text-hb-rust" data-tjekliste-sted>{sted}</span>}
           <span className="block text-sm font-medium text-hb-ink">{punkt.titel}</span>
           <span className="block text-xs leading-relaxed text-hb-ink-soft">{punkt.beskrivelse}</span>
-          {/* En oplysning, ikke en fejl: ink-soft. Rust er forbeholdt eyebrows og accenter. */}
-          {punkt.mangler && punkt.mangler.length > 0 && (
-            <span className="mt-0.5 block text-xs text-hb-ink-soft">Mangler: {punkt.mangler.join(", ")}</span>
-          )}
+          {/* En oplysning, ikke en fejl: ink-soft. Rust er forbeholdt eyebrows og accenter.
+              Det gjorte står først i et sammenlagt punkt (manglerLinje, rådets fund 2/10). */}
+          {linje && <span className="mt-0.5 block text-xs text-hb-ink-soft">{linje}</span>}
         </span>
         {/* Punkter der fører til en side får en dæmpet chevron (Betal.tsx-
             mønstret); velkomsten (sti "") åbner overlejringen og får ingen. */}
@@ -289,9 +303,10 @@ export const HbOnboardingTjekliste = ({
   };
 
   const gaaTil = (punkt: TjeklistePunkt) => {
-    if (punkt.id === "velkomst" || punkt.sti === "") {
-      // Punktet findes kun i listen når der er en video (motoren filtrerer),
-      // men gaten holdes her også, så overlejringen aldrig åbner tom.
+    if (punkt.sti === "") {
+      // Sti "" = velkomsten (punkt 1, så længe videoen ikke er set — motoren
+      // giver kun den sti, når der er en video), men gaten holdes her også,
+      // så overlejringen aldrig åbner tom.
       if (harVelkomstvideo) setVideoAaben(true);
       return;
     }
@@ -415,6 +430,8 @@ export const HbOnboardingTjekliste = ({
         </div>
         <div className="px-5 pt-2">
           <HbProgressBar done={tjekliste.antal_gjort} total={tjekliste.antal_i_alt} />
+          {/* Seks steder (2/10): listen følger menuen, så den også er en rundvisning. */}
+          <p className="mt-2 text-xs leading-relaxed text-hb-ink-soft">{TJEKLISTE_INTRO}</p>
         </div>
         <ul className="mt-2 divide-y divide-hb-line/60 px-4 pb-4">
           {tjekliste.punkter.map((p) => (

@@ -533,6 +533,9 @@ const tjeklisteAltGjort = (overrides: Partial<TjeklisteInput> = {}): TjeklisteIn
   antal_godkendte: 1,
   antal_udfyldte_handouts: 1,
   last_member_message_at: "2026-08-02T10:00:00Z",
+  // Seks steder (2/10): et nyt medlem (efter MAAL_PUNKT_FRA) med et bekræftet mål — «alt gjort» er seks af seks.
+  medlem_siden: "2026-10-05T09:00:00.000Z",
+  maal: [{ status: "active", bekraeftet_at: "2026-10-06T10:00:00.000Z" }],
   ...overrides,
 });
 
@@ -628,18 +631,23 @@ describe("slot (0) — tjeklisten som fokuskortets kilde", () => {
     const tjekliste = byggTjekliste(tjeklisteAltGjort({ ask_me_about: null, antal_rapporter: 0, antal_godkendte: 0, last_member_message_at: null }));
     const items = deriveFocus(nulData({ tjekliste, contractStartDate: "2025-01-01" }));
     expect(items.map((i) => i.kind)).toEqual(["tjekliste", "tjekliste", "tjekliste"]);
-    expect(items.map((i) => i.sourceId)).toEqual(["profil", "rapport", "besked"]);
+    // Seks steder (2/10): rådgiveren som nr. 2 (mennesket før tallene), profilen under Netværket (nr. 5).
+    expect(items.map((i) => i.sourceId)).toEqual(["raadgiver", "tal", "netvaerk"]);
     expect(items.every((i) => i.priority === 0)).toBe(true);
     expect(items[0]).toMatchObject({
-      key: "tjekliste:profil",
-      title: "Din profil",
-      // RETTET MED VILJE 17/9 (Jonas «C»): før "Hvad de andre kan spørge dig om." — fotoet er nu en del af punktet.
-      description: "Et foto, og hvad de andre kan spørge dig om.",
-      ctaHref: "/settings?fane=profil",
+      key: "tjekliste:raadgiver",
+      title: "Skriv din første besked",
+      ctaHref: "/chat",
       ctaLabel: "Gør det nu",
     });
-    expect(items[1].ctaHref).toBe("/rapportering");
-    expect(items[2].ctaHref).toBe("/chat");
+    expect(items[1].ctaHref).toBe("/reports");
+    expect(items[2]).toMatchObject({
+      key: "tjekliste:netvaerk",
+      title: "Fortæl, hvad man kan spørge dig om — og sig hej",
+      // RETTET MED VILJE 17/9 (Jonas «C»): fotoet er en del af punktet — og fra 2/10 også opslaget.
+      description: "Et foto, hvad de andre kan spørge dig om — og et opslag om hvem du er.",
+      ctaHref: "/settings?fane=profil",
+    });
   });
 
   it("nul-data-medlem med helt tom tjekliste → alle punkter, første ikke-gjorte er #1, INTET 'Upload dine juli-tal'", () => {
@@ -659,28 +667,33 @@ describe("slot (0) — tjeklisten som fokuskortets kilde", () => {
       antal_godkendte: 0,
       antal_udfyldte_handouts: 0,
       last_member_message_at: null,
-      // Delingen (14/9): et nyt medlem er efter DELING_PUNKT_FRA — alle otte.
-      medlem_siden: "2026-09-22T09:00:00.000Z",
+      // Mål-punktet (2/10): et nyt medlem er efter MAAL_PUNKT_FRA — alle seks.
+      medlem_siden: "2026-10-05T09:00:00.000Z",
+      maal: [],
     });
     const items = deriveFocus(nulData({ tjekliste, contractStartDate: "2025-01-01" }));
     expect(items.map((i) => i.sourceId)).toEqual([...TJEKLISTE_RAEKKEFOELGE]);
-    expect(items[items.length - 1]).toMatchObject({ sourceId: "deling", ctaHref: "/deling", title: "Fortæl det videre" });
-    expect(items[0].title).toBe("Se velkomsten");
+    expect(items[items.length - 1]).toMatchObject({ sourceId: "akademi", ctaHref: "/akademiet", title: "Lav din første øvelse i Akademiet" });
+    expect(items[0].title).toBe("Se velkomsten og udfyld din virksomhed");
+    expect(items.map((i) => i.title)).not.toContain("Fortæl det videre");
     expect(items.map((i) => i.kind)).not.toContain("missing-report");
     expect(items.map((i) => i.kind)).not.toContain("empty-profile");
   });
 
-  it("velkomst-punktets sti '' bæres uændret som ctaHref (åbnes i boksen, ikke en side)", () => {
+  it("velkomst-stien '' bæres uændret som ctaHref (åbnes i boksen, ikke en side) — punkt 1, så længe videoen ikke er set", () => {
     const tjekliste = byggTjekliste(tjeklisteAltGjort({ velkomstvideo_set_at: null }));
     const items = deriveFocus(base({ tjekliste }));
     expect(items).toHaveLength(1);
-    expect(items[0]).toMatchObject({ sourceId: "velkomst", ctaHref: "" });
+    expect(items[0]).toMatchObject({ sourceId: "boardroom", ctaHref: "" });
+    // Videoen set, virksomheden tom: samme punkt, nu med stien til /settings.
+    const virksomhed = byggTjekliste(tjeklisteAltGjort({ website: null }));
+    expect(deriveFocus(base({ tjekliste: virksomhed }))[0]).toMatchObject({ sourceId: "boardroom", ctaHref: "/settings" });
   });
 
-  it("uden velkomstvideo findes velkomst-punktet ikke — fem punkter, samme indbyrdes orden", () => {
+  it("uden velkomstvideo er velkomsten ikke en del af punkt 1 — kun øvelsen står tilbage, samme indbyrdes orden", () => {
     const tjekliste = byggTjekliste(tjeklisteAltGjort({ har_velkomstvideo: false, velkomstvideo_set_at: null, antal_udfyldte_handouts: 0 }));
     const items = deriveFocus(base({ tjekliste }));
-    expect(items.map((i) => i.sourceId)).toEqual(["handout"]);
+    expect(items.map((i) => i.sourceId)).toEqual(["akademi"]);
   });
 
   it("tjeklisten vinder over ALT andet mens den er uafsluttet — også beskeder, deadlines og ugens fokus", () => {
@@ -697,14 +710,14 @@ describe("slot (0) — tjeklisten som fokuskortets kilde", () => {
       }),
     );
     expect(items.map((i) => i.kind)).toEqual(["tjekliste"]);
-    expect(items[0].sourceId).toBe("besked");
+    expect(items[0].sourceId).toBe("raadgiver");
   });
 
   it("stabile, unikke keys på tværs af tjekliste-punkter", () => {
     const tjekliste = byggTjekliste(tjeklisteAltGjort({ ask_me_about: null, website: null, antal_rapporter: 0, antal_godkendte: 0 }));
     const keys = deriveFocus(base({ tjekliste })).map((i) => i.key);
     expect(new Set(keys).size).toBe(keys.length);
-    expect(keys).toEqual(["tjekliste:profil", "tjekliste:virksomhed", "tjekliste:rapport"]);
+    expect(keys).toEqual(["tjekliste:boardroom", "tjekliste:tal", "tjekliste:netvaerk"]);
   });
 });
 
@@ -779,7 +792,8 @@ describe("erfarne medlemmer (30/9) — tjeklisten slipper kortet efter 30 døgn"
     const uden = deriveFocus(nulData({ tjekliste, unreadUserMessages: 2, contractStartDate: "2025-01-01" }));
     expect(med).toEqual(uden);
     expect(med.every((i) => i.kind === "tjekliste")).toBe(true);
-    expect(med.map((i) => i.sourceId)).toEqual(["profil", "rapport", "besked"]);
+    // Seks steder (2/10): rådgiveren nr. 2, tallene nr. 3, profilen under Netværket nr. 5.
+    expect(med.map((i) => i.sourceId)).toEqual(["raadgiver", "tal", "netvaerk"]);
   });
 
   it("ukendt medlemSiden (null/udeladt) → som før 30/9: tjeklisten styrer", () => {

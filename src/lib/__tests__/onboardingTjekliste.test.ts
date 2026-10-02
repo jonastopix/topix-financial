@@ -1,14 +1,36 @@
 import { describe, it, expect } from "vitest";
 import {
   byggTjekliste,
-  DELING_PUNKT_FRA,
-  delingPunktGaelder,
+  MAAL_PUNKT_FRA,
+  maalPunktGaelder,
   MANGLER_TEKST,
+  GJORT_TEKST,
+  manglerLinje,
+  AKADEMI_TITEL,
+  HANDOUT_TITEL,
+  MAAL_GJORT_STATUS,
   TJEKLISTE_RAEKKEFOELGE,
+  TJEKLISTE_STED,
+  TJEKLISTE_STED_LABEL,
   TJEKLISTE_STIER,
   type TjeklisteInput,
   type TjeklistePunktId,
 } from "../onboardingTjekliste";
+import { HANDOUTS_PUNKT, SEKS_STEDER } from "@/lib/hjemmebane/hbNav";
+import { STEDS_SAETNINGER, type Sted } from "@/lib/hjemmebane/stedsSaetninger";
+
+// SEKS PUNKTER, SEKS STEDER (2/10-2026): de otte gamle punkter (velkomst,
+// profil, praesentation, virksomhed, rapport, handout, besked, deling) blev
+// seks i menuens rækkefølge med rådgiveren som nr. 2. Dommene for «gjort» er
+// de gamle; to punkter er sammenlagt (boardroom = velkomst + virksomhed,
+// netvaerk = profil + praesentation), «deling» er ude, og «maal» er nyt — og
+// findes kun for medlemmer fra MAAL_PUNKT_FRA (filhovedet). Testene
+// nedenfor er de gamle, flyttet til de nye punkter — ingen dom er slækket.
+
+/** Nyt medlem (efter MAAL_PUNKT_FRA): seks punkter. */
+const NYT_SIDEN = "2026-10-05T09:00:00.000Z";
+/** Medlem fra før grænsen: fem punkter (maal udgår). */
+const GAMMELT_SIDEN = "2026-09-22T09:00:00.000Z";
 
 const TOM: TjeklisteInput = {
   har_velkomstvideo: true,
@@ -24,6 +46,8 @@ const TOM: TjeklisteInput = {
   antal_godkendte: 0,
   antal_udfyldte_handouts: 0,
   last_member_message_at: null,
+  medlem_siden: NYT_SIDEN,
+  maal: [],
 };
 
 const FULD: TjeklisteInput = {
@@ -40,49 +64,54 @@ const FULD: TjeklisteInput = {
   antal_godkendte: 1,
   antal_udfyldte_handouts: 1,
   last_member_message_at: "2026-09-02T11:00:00.000Z",
+  medlem_siden: NYT_SIDEN,
+  maal: [{ status: "active", bekraeftet_at: "2026-10-06T10:00:00.000Z" }],
 };
 
-const ALLE_ID: TjeklistePunktId[] = ["velkomst", "profil", "praesentation", "virksomhed", "rapport", "handout", "besked"];
+const ALLE_ID: TjeklistePunktId[] = ["boardroom", "raadgiver", "tal", "maal", "netvaerk", "akademi"];
 
 function gjortAf(input: TjeklisteInput): Record<TjeklistePunktId, boolean> {
   const ud = byggTjekliste(input);
   return Object.fromEntries(ud.punkter.map((p) => [p.id, p.gjort])) as Record<TjeklistePunktId, boolean>;
 }
 
+const punkt = (input: TjeklisteInput, id: TjeklistePunktId, nu?: Date) => byggTjekliste(input, nu).punkter.find((p) => p.id === id)!;
+
 describe("byggTjekliste — yderpunkterne", () => {
-  it("alt tomt → syv punkter, alle gjort=false, antal_gjort 0, faerdig false", () => {
+  it("alt tomt → seks punkter, alle gjort=false, antal_gjort 0, faerdig false", () => {
     const ud = byggTjekliste(TOM);
-    expect(ud.punkter).toHaveLength(7);
+    expect(ud.punkter).toHaveLength(6);
     expect(ud.punkter.every((p) => p.gjort === false)).toBe(true);
     expect(ud.antal_gjort).toBe(0);
-    expect(ud.antal_i_alt).toBe(7);
+    expect(ud.antal_i_alt).toBe(6);
     expect(ud.faerdig).toBe(false);
   });
 
-  it("alt udfyldt → alle true, antal_gjort 7, faerdig true", () => {
+  it("alt udfyldt → alle true, antal_gjort 6, faerdig true", () => {
     const ud = byggTjekliste(FULD);
     expect(ud.punkter.every((p) => p.gjort === true)).toBe(true);
-    expect(ud.antal_gjort).toBe(7);
+    expect(ud.antal_gjort).toBe(6);
     expect(ud.faerdig).toBe(true);
   });
 
   it("gjorte punkter med mangler-liste har en tom liste", () => {
     const ud = byggTjekliste(FULD);
-    expect(ud.punkter.find((p) => p.id === "profil")?.mangler).toEqual([]);
-    expect(ud.punkter.find((p) => p.id === "virksomhed")?.mangler).toEqual([]);
+    for (const id of ["boardroom", "tal", "maal", "netvaerk"] as TjeklistePunktId[]) {
+      expect(ud.punkter.find((p) => p.id === id)?.mangler).toEqual([]);
+    }
   });
 });
 
-describe("byggTjekliste — hvert punkt for sig: kun det ene felt sat, kun det punkt bliver true", () => {
+describe("byggTjekliste — hvert punkt for sig: kun det punkts felter sat, kun det punkt bliver true", () => {
   const kunEt: { id: TjeklistePunktId; input: Partial<TjeklisteInput> }[] = [
-    { id: "velkomst", input: { velkomstvideo_set_at: FULD.velkomstvideo_set_at } },
-    // 17/9 (Jonas «C»): profil kræver tekst OG foto — før: { ask_me_about: FULD.ask_me_about }.
-    { id: "profil", input: { ask_me_about: FULD.ask_me_about, avatar_url: FULD.avatar_url } },
-    { id: "praesentation", input: { har_praesentation: true } },
-    { id: "virksomhed", input: { website: FULD.website, industry_label: FULD.industry_label, cvr_number: FULD.cvr_number } },
-    { id: "rapport", input: { antal_rapporter: 1, antal_godkendte: 1 } },
-    { id: "handout", input: { antal_udfyldte_handouts: 1 } },
-    { id: "besked", input: { last_member_message_at: FULD.last_member_message_at } },
+    // boardroom = velkomst + virksomhed — BEGGE halvdele.
+    { id: "boardroom", input: { velkomstvideo_set_at: FULD.velkomstvideo_set_at, website: FULD.website, industry_label: FULD.industry_label, cvr_number: FULD.cvr_number } },
+    { id: "raadgiver", input: { last_member_message_at: FULD.last_member_message_at } },
+    { id: "tal", input: { antal_rapporter: 1, antal_godkendte: 1 } },
+    { id: "maal", input: { maal: FULD.maal } },
+    // netvaerk = profil (tekst OG foto, 17/9 Jonas «C») + præsentation — BEGGE halvdele.
+    { id: "netvaerk", input: { ask_me_about: FULD.ask_me_about, avatar_url: FULD.avatar_url, har_praesentation: true } },
+    { id: "akademi", input: { antal_udfyldte_handouts: 1 } },
   ];
 
   for (const c of kunEt) {
@@ -96,112 +125,147 @@ describe("byggTjekliste — hvert punkt for sig: kun det ene felt sat, kun det p
   }
 });
 
-describe("byggTjekliste — delvist gjort", () => {
-  // OMSKREVET MED VILJE 17/9-2026 (forside PR 4b, Jonas ordret «C»): fotoet er et krav.
-  // Før (9/9) lød de to tests:
-  //   it("profil: ask_me_about mangler → gjort=false, mangler er præcis det ene — intet om billedet (9/9)")
-  //     expect(profil.mangler).toEqual([MANGLER_TEKST.ask_me_about]);
-  //     expect(profil.mangler!.join(" ")).not.toMatch(/billede/);
-  //     expect(profil.beskrivelse).toBe("Hvad de andre kan spørge dig om.");
-  //   it("profil: ask_me_about alene er nok — billedet indgår ikke (bor på /konto)")
-  //     byggTjekliste({ ...TOM, ask_me_about: FULD.ask_me_about }) → profil.gjort === true, mangler []
-  it("profil: tekst og foto mangler → gjort=false, mangler nævner begge (teksten først) (17/9)", () => {
-    const ud = byggTjekliste(TOM);
-    const profil = ud.punkter.find((p) => p.id === "profil")!;
-    expect(profil.gjort).toBe(false);
-    expect(profil.mangler).toEqual([MANGLER_TEKST.ask_me_about, MANGLER_TEKST.foto]);
-    expect(MANGLER_TEKST.foto).toBe("et foto");
-    expect(profil.beskrivelse).toBe("Et foto, og hvad de andre kan spørge dig om.");
+describe("byggTjekliste — punkt 1 «Dit Boardroom» = velkomsten + virksomheden (sammenlagt 2/10)", () => {
+  it("intet gjort: mangler er velkomsten først, så website, branche, CVR — og stien er velkomsten (sti '', åbnes i boksen)", () => {
+    const p = punkt(TOM, "boardroom");
+    expect(p.gjort).toBe(false);
+    expect(p.mangler).toEqual([MANGLER_TEKST.velkomst, MANGLER_TEKST.website, MANGLER_TEKST.branche, MANGLER_TEKST.cvr]);
+    expect(MANGLER_TEKST.velkomst).toBe("at se velkomsten");
+    expect(p.sti).toBe("");
+    expect(p.titel).toBe("Se velkomsten og udfyld din virksomhed");
   });
 
-  it("profil: ask_me_about alene er IKKE nok længere — fotoet mangler (17/9, Jonas «C»)", () => {
-    const ud = byggTjekliste({ ...TOM, ask_me_about: FULD.ask_me_about });
-    const profil = ud.punkter.find((p) => p.id === "profil")!;
-    expect(profil.gjort).toBe(false);
-    expect(profil.mangler).toEqual([MANGLER_TEKST.foto]);
+  it("velkomsten set, virksomheden tom: IKKE gjort, mangler de tre felter, og stien er nu /settings", () => {
+    const p = punkt({ ...TOM, velkomstvideo_set_at: FULD.velkomstvideo_set_at }, "boardroom");
+    expect(p.gjort).toBe(false);
+    expect(p.mangler).toEqual([MANGLER_TEKST.website, MANGLER_TEKST.branche, MANGLER_TEKST.cvr]);
+    expect(p.sti).toBe("/settings");
   });
 
-  it("profil: fotoet alene er heller ikke nok — teksten mangler; begge sat → gjort", () => {
-    const kunFoto = byggTjekliste({ ...TOM, avatar_url: FULD.avatar_url }).punkter.find((p) => p.id === "profil")!;
-    expect(kunFoto.gjort).toBe(false);
-    expect(kunFoto.mangler).toEqual([MANGLER_TEKST.ask_me_about]);
-    const begge = byggTjekliste({ ...TOM, ask_me_about: FULD.ask_me_about, avatar_url: FULD.avatar_url }).punkter.find((p) => p.id === "profil")!;
-    expect(begge.gjort).toBe(true);
-    expect(begge.mangler).toEqual([]);
+  it("virksomheden udfyldt, velkomsten ikke set: IKKE gjort — mangler kun velkomsten, stien er videoen", () => {
+    const p = punkt({ ...TOM, website: FULD.website, industry_label: FULD.industry_label, cvr_number: FULD.cvr_number }, "boardroom");
+    expect(p.gjort).toBe(false);
+    expect(p.mangler).toEqual([MANGLER_TEKST.velkomst]);
+    expect(p.sti).toBe("");
   });
 
-  it("virksomhed: website og CVR men ikke branche → mangler er præcis branchen", () => {
-    const ud = byggTjekliste({ ...TOM, website: FULD.website, cvr_number: FULD.cvr_number });
-    const v = ud.punkter.find((p) => p.id === "virksomhed")!;
-    expect(v.gjort).toBe(false);
-    expect(v.mangler).toEqual([MANGLER_TEKST.branche]);
+  it("virksomhed: website og CVR men ikke branche → mangler er præcis branchen (velkomsten set)", () => {
+    const p = punkt({ ...TOM, velkomstvideo_set_at: FULD.velkomstvideo_set_at, website: FULD.website, cvr_number: FULD.cvr_number }, "boardroom");
+    expect(p.gjort).toBe(false);
+    expect(p.mangler).toEqual([MANGLER_TEKST.branche]);
   });
 
-  it("virksomhed: intet sat → alle tre mangler, i fast rækkefølge website, branche, CVR", () => {
-    const v = byggTjekliste(TOM).punkter.find((p) => p.id === "virksomhed")!;
-    expect(v.mangler).toEqual([MANGLER_TEKST.website, MANGLER_TEKST.branche, MANGLER_TEKST.cvr]);
-  });
-
-  it("punkter uden delvis tilstand har ingen mangler-liste (rapport har en siden 9/9 — tom når intet er uploadet)", () => {
-    const ud = byggTjekliste(TOM);
-    for (const id of ["velkomst", "praesentation", "handout", "besked"] as TjeklistePunktId[]) {
-      expect(ud.punkter.find((p) => p.id === id)?.mangler).toBeUndefined();
-    }
-    expect(ud.punkter.find((p) => p.id === "rapport")?.mangler).toEqual([]);
-  });
-});
-
-describe("byggTjekliste — tomme strenge og mellemrum tæller ikke som udfyldt", () => {
-  it("profil: ask_me_about som tom streng / mellemrum (fotoet sat, så kun teksten mangler — før 17/9 uden avatar_url)", () => {
-    const gjort = gjortAf({ ...TOM, ask_me_about: "   ", avatar_url: FULD.avatar_url });
-    expect(gjort.profil).toBe(false);
-    const profil = byggTjekliste({ ...TOM, ask_me_about: "   ", avatar_url: FULD.avatar_url }).punkter.find((p) => p.id === "profil")!;
-    expect(profil.mangler).toEqual([MANGLER_TEKST.ask_me_about]);
-    // et foto på kun mellemrum tæller heller ikke
-    expect(byggTjekliste({ ...FULD, avatar_url: "  " }).punkter.find((p) => p.id === "profil")!.mangler).toEqual([MANGLER_TEKST.foto]);
-  });
-
-  it("virksomhed: et website på « » er ikke et website", () => {
-    const v = byggTjekliste({ ...TOM, website: " ", industry_label: "\t", cvr_number: "" }).punkter.find((p) => p.id === "virksomhed")!;
-    expect(v.gjort).toBe(false);
-    expect(v.mangler).toEqual([MANGLER_TEKST.website, MANGLER_TEKST.branche, MANGLER_TEKST.cvr]);
+  it("virksomhed: et website på « » er ikke et website — alle tre mangler i fast rækkefølge", () => {
+    const p = punkt({ ...TOM, velkomstvideo_set_at: FULD.velkomstvideo_set_at, website: " ", industry_label: "\t", cvr_number: "" }, "boardroom");
+    expect(p.gjort).toBe(false);
+    expect(p.mangler).toEqual([MANGLER_TEKST.website, MANGLER_TEKST.branche, MANGLER_TEKST.cvr]);
   });
 
   it("men en værdi med mellemrum omkring tæller", () => {
-    const gjort = gjortAf({ ...FULD, website: "  https://firma.dk  ", ask_me_about: " Likviditet. " });
-    expect(gjort.virksomhed).toBe(true);
-    expect(gjort.profil).toBe(true);
+    expect(gjortAf({ ...FULD, website: "  https://firma.dk  " }).boardroom).toBe(true);
   });
 
-  it("tællinger: 0 er ikke gjort, negative tal er heller ikke gjort", () => {
-    expect(gjortAf({ ...TOM, antal_rapporter: 0 }).rapport).toBe(false);
-    expect(gjortAf({ ...TOM, antal_udfyldte_handouts: -1 }).handout).toBe(false);
+  // UDEN VIDEO INGEN VELKOMST (Jonas 2/9: «Vi viser ikke tomt indhold»).
+  it("uden video: velkomsten er ikke en del af punktet — titlen er «Udfyld din virksomhed», stien /settings, og stemplet tæller ikke", () => {
+    const p = punkt({ ...TOM, har_velkomstvideo: false }, "boardroom");
+    expect(p.titel).toBe("Udfyld din virksomhed");
+    expect(p.sti).toBe("/settings");
+    expect(p.mangler).toEqual([MANGLER_TEKST.website, MANGLER_TEKST.branche, MANGLER_TEKST.cvr]);
+    // Virksomheden alene gør punktet — med eller uden stempel.
+    const kunVirksomhed = { ...TOM, har_velkomstvideo: false, website: FULD.website, industry_label: FULD.industry_label, cvr_number: FULD.cvr_number };
+    expect(punkt(kunVirksomhed, "boardroom").gjort).toBe(true);
+    expect(punkt({ ...kunVirksomhed, velkomstvideo_set_at: FULD.velkomstvideo_set_at }, "boardroom").gjort).toBe(true);
+    // Antallet er stadig seks — ingen punkter udgår uden video.
+    expect(byggTjekliste({ ...TOM, har_velkomstvideo: false }).antal_i_alt).toBe(6);
+    expect(byggTjekliste({ ...FULD, har_velkomstvideo: false, velkomstvideo_set_at: null }).faerdig).toBe(true);
   });
 });
 
-describe("byggTjekliste — «Dine tal» er gjort ved GODKENDELSE, ikke ved upload (rettet 9/9)", () => {
+describe("byggTjekliste — punkt 5 «Netværket» = profilen (tekst OG foto) + præsentationen (sammenlagt 2/10)", () => {
+  // OMSKREVET MED VILJE 17/9-2026 (forside PR 4b, Jonas ordret «C»): fotoet er et krav —
+  // flyttet 2/10 fra punktet «profil» til «netvaerk»; dommen (profilUdfyldt) er den samme.
+  it("tekst, foto og præsentation mangler → gjort=false, mangler nævner alle tre (teksten først), stien er profilen", () => {
+    const p = punkt(TOM, "netvaerk");
+    expect(p.gjort).toBe(false);
+    expect(p.mangler).toEqual([MANGLER_TEKST.ask_me_about, MANGLER_TEKST.foto, MANGLER_TEKST.praesentation]);
+    expect(MANGLER_TEKST.foto).toBe("et foto");
+    expect(MANGLER_TEKST.praesentation).toBe("et opslag om hvem du er");
+    expect(p.titel).toBe("Fortæl, hvad man kan spørge dig om — og sig hej");
+    expect(p.beskrivelse).toBe("Et foto, hvad de andre kan spørge dig om — og et opslag om hvem du er.");
+    expect(p.sti).toBe("/settings?fane=profil");
+  });
+
+  it("ask_me_about alene er IKKE nok — fotoet mangler (17/9, Jonas «C»); fotoet alene heller ikke", () => {
+    expect(punkt({ ...TOM, ask_me_about: FULD.ask_me_about, har_praesentation: true }, "netvaerk").mangler).toEqual([MANGLER_TEKST.foto]);
+    expect(punkt({ ...TOM, avatar_url: FULD.avatar_url, har_praesentation: true }, "netvaerk").mangler).toEqual([MANGLER_TEKST.ask_me_about]);
+  });
+
+  it("profilen udfyldt, præsentationen mangler: IKKE gjort — mangler er opslaget, og stien er nu composeren", () => {
+    const p = punkt({ ...TOM, ask_me_about: FULD.ask_me_about, avatar_url: FULD.avatar_url }, "netvaerk");
+    expect(p.gjort).toBe(false);
+    expect(p.mangler).toEqual([MANGLER_TEKST.praesentation]);
+    expect(p.sti).toBe("/community?praesentation=1");
+  });
+
+  it("præsenteret, profilen tom: IKKE gjort — stien er profilen", () => {
+    const p = punkt({ ...TOM, har_praesentation: true }, "netvaerk");
+    expect(p.gjort).toBe(false);
+    expect(p.mangler).toEqual([MANGLER_TEKST.ask_me_about, MANGLER_TEKST.foto]);
+    expect(p.sti).toBe("/settings?fane=profil");
+  });
+
+  it("tomme strenge og mellemrum tæller ikke som udfyldt — men en værdi med mellemrum omkring tæller", () => {
+    expect(punkt({ ...FULD, ask_me_about: "   " }, "netvaerk").mangler).toEqual([MANGLER_TEKST.ask_me_about]);
+    expect(punkt({ ...FULD, avatar_url: "  " }, "netvaerk").mangler).toEqual([MANGLER_TEKST.foto]);
+    expect(gjortAf({ ...FULD, ask_me_about: " Likviditet. " }).netvaerk).toBe(true);
+  });
+
+  // Præsentationen findes kun for dem der kan oprette en tråd (11/9, kort 60).
+  it("uden trådret er præsentationen ikke en del af punktet: titel og beskrivelse er profilens, har_praesentation tæller ikke", () => {
+    const p = punkt({ ...TOM, kan_oprette_traad: false }, "netvaerk");
+    expect(p.titel).toBe("Fortæl, hvad man kan spørge dig om");
+    expect(p.beskrivelse).toBe("Et foto, og hvad de andre kan spørge dig om.");
+    expect(p.mangler).toEqual([MANGLER_TEKST.ask_me_about, MANGLER_TEKST.foto]);
+    const kunProfil = { ...TOM, kan_oprette_traad: false, ask_me_about: FULD.ask_me_about, avatar_url: FULD.avatar_url };
+    expect(punkt(kunProfil, "netvaerk").gjort).toBe(true);
+    expect(punkt({ ...kunProfil, har_praesentation: true }, "netvaerk").gjort).toBe(true);
+    expect(byggTjekliste({ ...TOM, kan_oprette_traad: false }).antal_i_alt).toBe(6);
+    expect(byggTjekliste({ ...FULD, kan_oprette_traad: false, har_praesentation: false }).faerdig).toBe(true);
+  });
+
+  it("beskrivelsen lover intet udkast (praesentationPladsholder.guard, 16/9)", () => {
+    for (const traad of [true, false]) {
+      const p = punkt({ ...TOM, kan_oprette_traad: traad }, "netvaerk");
+      expect(p.beskrivelse).not.toMatch(/udkast/i);
+      expect(p.beskrivelse).not.toContain("vi har skrevet");
+    }
+  });
+});
+
+describe("byggTjekliste — punkt 3 «Dine tal» er gjort ved GODKENDELSE, ikke ved upload (rettet 9/9)", () => {
   // Instruks F (16/9): 22/9-2026 — de tre seneste afsluttede måneder er juni, juli og august; september er ikke omme.
   const NU = new Date("2026-09-22T10:00:00Z");
-  const rapport = (input: TjeklisteInput) => byggTjekliste(input, NU).punkter.find((p) => p.id === "rapport")!;
+  const rapport = (input: TjeklisteInput) => punkt(input, "tal", NU);
 
   it("nul rapporter: ikke gjort, ingen mangler-linje — månederne ved navn, én fil pr. måned, også fra før medlemskabet", () => {
     const p = rapport({ ...TOM, antal_rapporter: 0, antal_godkendte: 0 });
     expect(p.gjort).toBe(false);
     expect(p.mangler).toEqual([]);
+    expect(p.titel).toBe("Upload og godkend din første rapport");
     expect(p.beskrivelse).toBe("Upload juni, juli og august — én fil pr. måned, også fra før du blev medlem.");
     // Månederne følger «nu»: 1/10 er september omme; 5/1 er det oktober–december.
-    const punkt = (nu: Date) => byggTjekliste({ ...TOM }, nu).punkter.find((p) => p.id === "rapport")!.beskrivelse;
-    expect(punkt(new Date("2026-10-01T07:00:00Z"))).toBe("Upload juli, august og september — én fil pr. måned, også fra før du blev medlem.");
-    expect(punkt(new Date("2027-01-05T07:00:00Z"))).toBe("Upload oktober, november og december — én fil pr. måned, også fra før du blev medlem.");
+    const beskrivelse = (nu: Date) => punkt({ ...TOM }, "tal", nu).beskrivelse;
+    expect(beskrivelse(new Date("2026-10-01T07:00:00Z"))).toBe("Upload juli, august og september — én fil pr. måned, også fra før du blev medlem.");
+    expect(beskrivelse(new Date("2027-01-05T07:00:00Z"))).toBe("Upload oktober, november og december — én fil pr. måned, også fra før du blev medlem.");
   });
 
-  it("uploadet en AFSLUTTET måned, ikke godkendt: IKKE gjort — «Mangler: at godkende tallene», stien er rapporteringen", () => {
+  it("uploadet en AFSLUTTET måned, ikke godkendt: IKKE gjort — «Mangler: at godkende tallene», stien er rapporteringen (/reports)", () => {
     const p = rapport({ ...TOM, antal_rapporter: 3, antal_godkendte: 0, upload_perioder: ["2026-08", "2026-07", "2026-06"] });
     expect(p.gjort).toBe(false);
     expect(p.mangler).toEqual([MANGLER_TEKST.godkendelse]);
     expect(MANGLER_TEKST.godkendelse).toBe("at godkende tallene");
     expect(p.beskrivelse).toBe("Rapporten er uploadet — godkend tallene, så de kommer i spil.");
-    expect(p.sti).toBe("/rapportering");
+    expect(p.sti).toBe("/reports");
   });
 
   it("uden upload_perioder (ældre kalder): som før — enhver upload er «godkend tallene»", () => {
@@ -217,8 +281,7 @@ describe("byggTjekliste — «Dine tal» er gjort ved GODKENDELSE, ikke ved uplo
     expect(p.beskrivelse).toBe("Den måned du har uploadet, kan først godkendes når den er omme. Upload juni, juli og august imens.");
     expect(p.mangler).toEqual([MANGLER_TEKST.afsluttet_maaned]);
     expect(MANGLER_TEKST.afsluttet_maaned).toBe("en afsluttet måned");
-    expect(p.sti).toBe("/rapportering");
-    // To for-tidlige (september og oktober) er stadig kun for-tidlige.
+    expect(p.sti).toBe("/reports");
     expect(rapport({ ...TOM, antal_rapporter: 2, antal_godkendte: 0, upload_perioder: ["2026-09", "2026-10"] }).mangler).toEqual([MANGLER_TEKST.afsluttet_maaned]);
   });
 
@@ -230,26 +293,19 @@ describe("byggTjekliste — «Dine tal» er gjort ved GODKENDELSE, ikke ved uplo
 
   it("grænsen er dansk tid: september-uploaden bliver «godkend tallene» kl. 00:00 den 1/10, ikke før", () => {
     const input = { ...TOM, antal_rapporter: 1, antal_godkendte: 0, upload_perioder: ["2026-09"] };
-    const foer = byggTjekliste(input, new Date("2026-09-30T21:59:59Z")).punkter.find((p) => p.id === "rapport")!;
-    const efter = byggTjekliste(input, new Date("2026-09-30T22:00:00Z")).punkter.find((p) => p.id === "rapport")!;
-    expect(foer.mangler).toEqual([MANGLER_TEKST.afsluttet_maaned]);
-    expect(efter.mangler).toEqual([MANGLER_TEKST.godkendelse]);
+    expect(punkt(input, "tal", new Date("2026-09-30T21:59:59Z")).mangler).toEqual([MANGLER_TEKST.afsluttet_maaned]);
+    expect(punkt(input, "tal", new Date("2026-09-30T22:00:00Z")).mangler).toEqual([MANGLER_TEKST.godkendelse]);
   });
 
-  it("godkendt, selv om der også ligger en for-tidlig upload: gjort, ingen mangler", () => {
-    const p = rapport({ ...TOM, antal_rapporter: 2, antal_godkendte: 1, upload_perioder: ["2026-09", "2026-08"] });
-    expect(p.gjort).toBe(true);
-    expect(p.mangler).toEqual([]);
-  });
-
-  it("godkendt: gjort, ingen mangler", () => {
-    const p = rapport({ ...TOM, antal_rapporter: 1, antal_godkendte: 1 });
-    expect(p.gjort).toBe(true);
-    expect(p.mangler).toEqual([]);
-  });
-
-  it("godkendt uden upload-tælling (rapporten slettet efter godkendelse): stadig gjort — facts-rækken er handlingen", () => {
+  it("godkendt: gjort, ingen mangler — også med en for-tidlig upload ved siden af, og også uden upload-tælling (rapporten slettet efter godkendelse)", () => {
+    expect(rapport({ ...TOM, antal_rapporter: 2, antal_godkendte: 1, upload_perioder: ["2026-09", "2026-08"] })).toMatchObject({ gjort: true, mangler: [] });
+    expect(rapport({ ...TOM, antal_rapporter: 1, antal_godkendte: 1 })).toMatchObject({ gjort: true, mangler: [] });
     expect(rapport({ ...TOM, antal_rapporter: 0, antal_godkendte: 1 }).gjort).toBe(true);
+  });
+
+  it("tællinger: 0 er ikke gjort, negative tal er heller ikke gjort", () => {
+    expect(gjortAf({ ...TOM, antal_rapporter: 0 }).tal).toBe(false);
+    expect(gjortAf({ ...TOM, antal_udfyldte_handouts: -1 }).akademi).toBe(false);
   });
 
   it("uploadet-ikke-godkendt holder tjeklisten åben — fokuskortet går ikke videre", () => {
@@ -259,196 +315,297 @@ describe("byggTjekliste — «Dine tal» er gjort ved GODKENDELSE, ikke ved uplo
   });
 });
 
-describe("byggTjekliste — rækkefølge og stier er LÅST", () => {
-  // Ændres rækkefølgen, ændres oplevelsen: først det platformen har brug
-  // for (profil, præsentation, virksomhed), så det de får noget ud af
-  // (rapport, handout), så mennesket (besked). Videoen først, fordi den
-  // forklarer resten.
-  //
-  // ÆNDRET BEVIDST 11/9 (kort 60): «praesentation» står lige efter «profil»
-  // — skabelonen bygges af profilens tre felter, så profilen kommer først
-  // og præsentationen lige efter. Stien er composeren forudfyldt
-  // (/community?praesentation=1). Seks blev syv; de seks gamle beholder
-  // deres indbyrdes orden og deres stier.
-  it("punkternes id'er i den faste rækkefølge — deling sidst (14/9), og kun for nye medlemmer", () => {
+describe("byggTjekliste — punkt 4 «Dine mål»: et BEKRÆFTET mål — aktivt, nået eller parkeret (Dine måls egen dom, maalBekraeft.erBekraeftet; rådets fund 2/10)", () => {
+  it("ingen mål: ikke gjort, ingen mangler, stien er Dine mål", () => {
+    const p = punkt(TOM, "maal");
+    expect(p).toMatchObject({ gjort: false, mangler: [], sti: "/milestones", titel: "Sæt dit første mål" });
+    expect(p.beskrivelse).toBe("Ét mål med en frist — så ved vi begge, hvad vi arbejder hen imod.");
+  });
+
+  it("et bekræftet mål med status active, completed ELLER parked → gjort; et ubekræftet eller en ukendt status tæller ikke", () => {
+    expect(MAAL_GJORT_STATUS).toEqual(["active", "completed", "parked"]);
+    expect(punkt({ ...TOM, maal: [{ status: "active", bekraeftet_at: "2026-10-06T10:00:00.000Z" }] }, "maal").gjort).toBe(true);
+    expect(punkt({ ...TOM, maal: [{ status: "active", bekraeftet_at: null }] }, "maal").gjort).toBe(false);
+    expect(punkt({ ...TOM, maal: [{ status: "active", bekraeftet_at: "  " }] }, "maal").gjort).toBe(false);
+    expect(punkt({ ...TOM, maal: [{ status: "cancelled", bekraeftet_at: "2026-10-06T10:00:00.000Z" }] }, "maal").gjort).toBe(false);
+  });
+
+  // Rådets fund 2/10: et mål, der er nået eller parkeret, er stadig SAT — kun «active» ville åbne listen igen.
+  it("NÅET: et bekræftet mål, der er completed, holder punktet gjort — listen åbner ikke igen, den dag målet nås", () => {
+    const naaet = punkt({ ...TOM, maal: [{ status: "completed", bekraeftet_at: "2026-10-06T10:00:00.000Z" }] }, "maal");
+    expect(naaet).toMatchObject({ gjort: true, mangler: [] });
+    // Det færdige medlem forbliver færdigt, når eneste mål går fra active til completed.
+    const aktiv = byggTjekliste({ ...FULD, maal: [{ status: "active", bekraeftet_at: "2026-10-06T10:00:00.000Z" }] });
+    const efter = byggTjekliste({ ...FULD, maal: [{ status: "completed", bekraeftet_at: "2026-10-06T10:00:00.000Z" }] });
+    expect(aktiv.faerdig).toBe(true);
+    expect(efter.faerdig).toBe(true);
+    // Ubekræftet + completed tæller ikke (forslaget blev aldrig medlemmets).
+    expect(punkt({ ...TOM, maal: [{ status: "completed", bekraeftet_at: null }] }, "maal").gjort).toBe(false);
+  });
+
+  it("PARKERET: et bekræftet mål, der er parked, holder punktet gjort — og «venter på dit ja» vises ikke for et parkeret forslag", () => {
+    const parkeret = punkt({ ...TOM, maal: [{ status: "parked", bekraeftet_at: "2026-10-06T10:00:00.000Z" }] }, "maal");
+    expect(parkeret).toMatchObject({ gjort: true, mangler: [] });
+    expect(byggTjekliste({ ...FULD, maal: [{ status: "parked", bekraeftet_at: "2026-10-06T10:00:00.000Z" }] }).faerdig).toBe(true);
+    // Et SLUPPET forslag (ubekræftet, parked) er hverken gjort eller «venter» — kun et AKTIVT forslag venter.
+    const sluppet = punkt({ ...TOM, maal: [{ status: "parked", bekraeftet_at: null }] }, "maal");
+    expect(sluppet).toMatchObject({ gjort: false, mangler: [] });
+    expect(sluppet.beskrivelse).toBe("Ét mål med en frist — så ved vi begge, hvad vi arbejder hen imod.");
+  });
+
+  it("kolonnen ulæst (bekraeftet_at undefined — migration 20261002100000 ikke kørt): et aktivt, nået eller parkeret mål tæller, som i Dine mål", () => {
+    expect(punkt({ ...TOM, maal: [{ status: "active" }] }, "maal").gjort).toBe(true);
+    expect(punkt({ ...TOM, maal: [{ status: "completed" }] }, "maal").gjort).toBe(true);
+    expect(punkt({ ...TOM, maal: [{ status: "parked" }] }, "maal").gjort).toBe(true);
+  });
+
+  it("et aktivt mål venter på medlemmets ja (en rådgivers forslag): ikke gjort, mangler siger det, og beskrivelsen peger på det", () => {
+    const p = punkt({ ...TOM, maal: [{ status: "active", bekraeftet_at: null }] }, "maal");
+    expect(p.gjort).toBe(false);
+    expect(p.mangler).toEqual([MANGLER_TEKST.bekraeftelse]);
+    expect(p.beskrivelse).toBe("Et mål venter på dit ja — sig ja til det, eller sæt dit eget.");
+    // Er ét mål bekræftet, er punktet gjort, selv om et andet venter.
+    const begge = punkt({ ...TOM, maal: [{ status: "active", bekraeftet_at: null }, { status: "active", bekraeftet_at: "2026-10-06T10:00:00.000Z" }] }, "maal");
+    expect(begge).toMatchObject({ gjort: true, mangler: [] });
+  });
+
+  it("udeladt maal (ældre kalder) = ingen mål = ikke gjort", () => {
+    const { maal: _maal, ...uden } = TOM;
+    void _maal;
+    expect(punkt(uden, "maal").gjort).toBe(false);
+  });
+});
+
+// ── Mål-punktet findes for nye medlemmer, og kun for dem (MAAL_PUNKT_FRA, 2/10) ──
+// Samme regel som delingspunktet fik 14/9: et medlem, der var færdig,
+// FORBLIVER færdig — listen åbner ikke igen for de eksisterende.
+describe("byggTjekliste — «Sæt dit første mål» findes for nye medlemmer, og kun for dem", () => {
+  const GAMMELT: TjeklisteInput = { ...TOM, medlem_siden: GAMMELT_SIDEN };
+
+  it("grænsen er Update-klikket 2/10-2026 kl. 11:00 dansk (CEST = UTC+2 → 09:00Z), og dommen er ren: fra og med → ja, før → nej, null/ugyldig → nej", () => {
+    expect(MAAL_PUNKT_FRA).toBe("2026-10-02T09:00:00.000Z");
+    // Regnestykket: 11:00 dansk sommertid − 2 t = 09:00 UTC.
+    expect(new Date(MAAL_PUNKT_FRA).toLocaleString("da-DK", { timeZone: "Europe/Copenhagen", hour: "2-digit", minute: "2-digit", hour12: false })).toBe("11.00");
+    expect(maalPunktGaelder("2026-10-02T09:00:00.000Z")).toBe(true);
+    expect(maalPunktGaelder("2026-10-02T09:00:00.001Z")).toBe(true);
+    expect(maalPunktGaelder(NYT_SIDEN)).toBe(true);
+    expect(maalPunktGaelder("2026-10-02T08:59:59.999Z")).toBe(false);
+    expect(maalPunktGaelder(GAMMELT_SIDEN)).toBe(false);
+    expect(maalPunktGaelder(null)).toBe(false);
+    expect(maalPunktGaelder(undefined)).toBe(false);
+    expect(maalPunktGaelder("")).toBe(false);
+    expect(maalPunktGaelder("ikke en dato")).toBe(false);
+  });
+
+  it("eksisterende medlem (før grænsen) eller uden dato: fem punkter, maal er ikke iblandt — også selv om et mål skulle findes", () => {
+    const { medlem_siden: _siden, ...udenDato } = TOM;
+    void _siden;
+    for (const input of [GAMMELT, udenDato, { ...GAMMELT, maal: FULD.maal }]) {
+      const ud = byggTjekliste(input);
+      expect(ud.punkter.map((p) => p.id)).toEqual(["boardroom", "raadgiver", "tal", "netvaerk", "akademi"]);
+      expect(ud.antal_i_alt).toBe(5);
+    }
+  });
+
+  it("et medlem oprettet 2/10 EFTER Update (kl. 11:30 dansk = 09:30Z) får seks punkter; et oprettet kl. 10:30 dansk (08:30Z) fem", () => {
+    expect(byggTjekliste({ ...TOM, medlem_siden: "2026-10-02T09:30:00.000Z" }).antal_i_alt).toBe(6);
+    expect(byggTjekliste({ ...TOM, medlem_siden: "2026-10-02T08:30:00.000Z" }).antal_i_alt).toBe(5);
+  });
+
+  it("et medlem der var færdig før 2/10 (alle de gamle domme opfyldt), FORBLIVER færdig — uden et mål", () => {
+    const foer = byggTjekliste({ ...FULD, medlem_siden: GAMMELT_SIDEN, maal: [] });
+    expect(foer.faerdig).toBe(true);
+    expect(foer.antal_gjort).toBe(5);
+    expect(foer.antal_i_alt).toBe(5);
+  });
+
+  it("nyt medlem der har gjort alt det gamle er IKKE færdig før målet er sat — og så er hun", () => {
+    const altGammelt = byggTjekliste({ ...FULD, maal: [] });
+    expect(altGammelt.antal_gjort).toBe(5);
+    expect(altGammelt.antal_i_alt).toBe(6);
+    expect(altGammelt.faerdig).toBe(false);
+    expect(byggTjekliste(FULD).faerdig).toBe(true);
+  });
+
+  it("de øvrige punkter er uændrede med og uden mål-punktet: samme id'er, titler, stier, gjort og beskrivelser", () => {
+    const uden = byggTjekliste(GAMMELT).punkter;
+    const med = byggTjekliste(TOM).punkter.filter((p) => p.id !== "maal");
+    expect(med.map((p) => [p.id, p.titel, p.sti, p.gjort, p.beskrivelse, p.sted])).toEqual(uden.map((p) => [p.id, p.titel, p.sti, p.gjort, p.beskrivelse, p.sted]));
+  });
+});
+
+describe("byggTjekliste — rækkefølge, steder og stier er LÅST (seks steder, 2/10)", () => {
+  it("rækkefølgen er menuens seks steder (hbNav.SEKS_STEDER) med ÉN flytning: rådgiveren som nr. 2 — mennesket før tallene", () => {
+    const menu = [...SEKS_STEDER];
+    const forventet = [menu[0], menu[5], ...menu.slice(1, 5)];
+    expect(forventet).toEqual(["Dit Boardroom", "Din rådgiver", "Dine tal", "Dine mål", "Netværket", "Akademiet"]);
     const ud = byggTjekliste(TOM);
-    expect(ud.punkter.map((p) => p.id)).toEqual(["velkomst", "profil", "praesentation", "virksomhed", "rapport", "handout", "besked"]);
-    expect([...TJEKLISTE_RAEKKEFOELGE]).toEqual(["velkomst", "profil", "praesentation", "virksomhed", "rapport", "handout", "besked", "deling"]);
-    expect(byggTjekliste({ ...TOM, medlem_siden: "2026-09-22T09:00:00.000Z" }).punkter.map((p) => p.id)).toEqual([...TJEKLISTE_RAEKKEFOELGE]);
+    expect(ud.punkter.map((p) => (p.sted ? TJEKLISTE_STED_LABEL[p.sted] : null))).toEqual(forventet);
+    expect([...TJEKLISTE_RAEKKEFOELGE]).toEqual(["boardroom", "raadgiver", "tal", "maal", "netvaerk", "akademi"]);
+    expect(ud.punkter.map((p) => p.id)).toEqual([...TJEKLISTE_RAEKKEFOELGE]);
+  });
+
+  it("hvert punkt har sit eget sted, og stedets ord er menuens — ét punkt pr. sted, alle seks steder dækket", () => {
+    const steder = byggTjekliste(TOM).punkter.map((p) => p.sted);
+    expect(new Set(steder).size).toBe(6);
+    expect(new Set(steder)).toEqual(new Set(Object.keys(STEDS_SAETNINGER) as Sted[]));
+    expect(new Set(Object.values(TJEKLISTE_STED_LABEL))).toEqual(new Set(SEKS_STEDER));
+    for (const p of byggTjekliste(TOM).punkter) expect(TJEKLISTE_STED[p.id]).toBe(p.sted);
   });
 
   it("rækkefølgen er den samme uanset input", () => {
     expect(byggTjekliste(FULD).punkter.map((p) => p.id)).toEqual(byggTjekliste(TOM).punkter.map((p) => p.id));
   });
 
-  it("stierne: profil → /settings?fane=profil (fanen, ikke siden — 9/9), praesentation → /community?praesentation=1 (11/9), virksomhed → /settings, rapport → /rapportering, handout → /akademiet (1/10: øvelsen bor i Akademiet, aldrig /handouts), besked → /chat, deling → /deling (14/9), velkomst → tom", () => {
-    const stier = Object.fromEntries(byggTjekliste({ ...TOM, medlem_siden: "2026-09-22T09:00:00.000Z" }).punkter.map((p) => [p.id, p.sti]));
+  it("stierne (alt gjort): boardroom → /settings, raadgiver → /chat, tal → /reports, maal → /milestones, netvaerk → /community?praesentation=1, akademi → /akademiet (1/10: øvelsen bor i Akademiet, aldrig /handouts)", () => {
+    const stier = Object.fromEntries(byggTjekliste(FULD).punkter.map((p) => [p.id, p.sti]));
     expect(stier).toEqual({
+      boardroom: "/settings",
+      raadgiver: "/chat",
+      tal: "/reports",
+      maal: "/milestones",
+      netvaerk: "/community?praesentation=1",
+      akademi: "/akademiet",
+    });
+    expect(TJEKLISTE_STIER).toEqual({
       velkomst: "",
+      virksomhed: "/settings",
+      raadgiver: "/chat",
+      tal: "/reports",
+      maal: "/milestones",
       profil: "/settings?fane=profil",
       praesentation: "/community?praesentation=1",
-      virksomhed: "/settings",
-      rapport: "/rapportering",
-      handout: "/akademiet",
-      besked: "/chat",
-      deling: "/deling",
+      akademi: "/akademiet",
+      handouts: "/handouts",
     });
-    expect(TJEKLISTE_STIER).toEqual(stier);
+    // Det FULDE medlem føres aldrig til /handouts (1/10) — kun abonnent/legat, hvis menu HAR «Handouts»
+    // (rådets fund 2/10, se «abonnent og legat» nedenfor). Én sti, og den er menuens.
+    expect(Object.entries(TJEKLISTE_STIER).filter(([, s]) => s.startsWith("/handout"))).toEqual([["handouts", HANDOUTS_PUNKT.to]]);
+    for (const input of [TOM, FULD]) expect(byggTjekliste(input).punkter.some((p) => p.sti.startsWith("/handout"))).toBe(false);
   });
 
-  it("hvert punkt har titel og beskrivelse", () => {
+  it("hvert punkt har titel og beskrivelse, og teksten er kort, varm og i «du» — aldrig et «De» eller et udråbstegn", () => {
     for (const p of byggTjekliste(TOM).punkter) {
       expect(p.titel.length).toBeGreaterThan(0);
       expect(p.beskrivelse.length).toBeGreaterThan(0);
-    }
-  });
-});
-
-describe("byggTjekliste — uden velkomstvideo udgår velkomsten (vi viser ikke tomt indhold)", () => {
-  it("uden video: seks punkter, velkomst er ikke iblandt, antal_i_alt 6", () => {
-    const ud = byggTjekliste({ ...TOM, har_velkomstvideo: false });
-    expect(ud.punkter).toHaveLength(6);
-    expect(ud.punkter.map((p) => p.id)).toEqual(["profil", "praesentation", "virksomhed", "rapport", "handout", "besked"]);
-    expect(ud.punkter.some((p) => p.id === "velkomst")).toBe(false);
-    expect(ud.antal_i_alt).toBe(6);
-  });
-
-  it("uden video tæller velkomstvideo_set_at ikke med — hverken som gjort eller ikke gjort", () => {
-    const ud = byggTjekliste({ ...TOM, har_velkomstvideo: false, velkomstvideo_set_at: FULD.velkomstvideo_set_at });
-    expect(ud.antal_gjort).toBe(0);
-    expect(ud.antal_i_alt).toBe(6);
-  });
-
-  it("uden video er listen færdig når de seks er gjort", () => {
-    const ud = byggTjekliste({ ...FULD, har_velkomstvideo: false, velkomstvideo_set_at: null });
-    expect(ud.antal_gjort).toBe(6);
-    expect(ud.faerdig).toBe(true);
-  });
-
-  it("med video: syv, i den kendte rækkefølge", () => {
-    const ud = byggTjekliste({ ...TOM, har_velkomstvideo: true });
-    expect(ud.punkter.map((p) => p.id)).toEqual(["velkomst", "profil", "praesentation", "virksomhed", "rapport", "handout", "besked"]);
-    expect(ud.antal_i_alt).toBe(7);
-  });
-});
-
-describe("byggTjekliste — præsentationen findes kun for dem der kan oprette en tråd (11/9, kort 60)", () => {
-  it("uden trådret: seks punkter, praesentation er ikke iblandt, resten i kendt orden", () => {
-    const ud = byggTjekliste({ ...TOM, kan_oprette_traad: false });
-    expect(ud.punkter).toHaveLength(6);
-    expect(ud.punkter.map((p) => p.id)).toEqual(["velkomst", "profil", "virksomhed", "rapport", "handout", "besked"]);
-    expect(ud.antal_i_alt).toBe(6);
-  });
-
-  it("uden trådret tæller har_praesentation ikke med — hverken som gjort eller ikke gjort", () => {
-    const ud = byggTjekliste({ ...TOM, kan_oprette_traad: false, har_praesentation: true });
-    expect(ud.antal_gjort).toBe(0);
-    expect(ud.antal_i_alt).toBe(6);
-  });
-
-  it("uden trådret er listen færdig når de seks er gjort", () => {
-    const ud = byggTjekliste({ ...FULD, kan_oprette_traad: false, har_praesentation: false });
-    expect(ud.antal_gjort).toBe(6);
-    expect(ud.faerdig).toBe(true);
-  });
-
-  it("uden video OG uden trådret: fem — de fem oprindelige", () => {
-    const ud = byggTjekliste({ ...TOM, har_velkomstvideo: false, kan_oprette_traad: false });
-    expect(ud.punkter.map((p) => p.id)).toEqual(["profil", "virksomhed", "rapport", "handout", "besked"]);
-    expect(ud.antal_i_alt).toBe(5);
-  });
-
-  it("med trådret: gjort = har_praesentation, ingen mangler-liste, titel og sti", () => {
-    const p = byggTjekliste({ ...TOM, har_praesentation: true }).punkter.find((x) => x.id === "praesentation")!;
-    expect(p.gjort).toBe(true);
-    expect(p.mangler).toBeUndefined();
-    expect(p.titel).toBe("Præsentér dig i fællesskabet");
-    expect(p.sti).toBe("/community?praesentation=1");
-    expect(byggTjekliste(TOM).punkter.find((x) => x.id === "praesentation")!.gjort).toBe(false);
-  });
-});
-
-// ── «Fortæl det videre» (14/9 aften, delingens del 2) ──
-// Punktet findes KUN for medlemmer oprettet fra DELING_PUNKT_FRA. De 30
-// eksisterende har intet nyt punkt: en der var færdig, forbliver færdig, og
-// listen åbner ikke igen. Gjort = profiles.deling_hentet_at (en hentet PNG),
-// ikke et besøg på /deling. TOM og FULD ovenfor har ingen medlem_siden og
-// er derfor «eksisterende medlem» — alle deres tal (7, 6, 5) er uændrede.
-describe("byggTjekliste — «Fortæl det videre» findes for nye medlemmer, og kun for dem", () => {
-  const NYT: TjeklisteInput = { ...TOM, medlem_siden: "2026-09-22T09:00:00.000Z" };
-  const GAMMELT: TjeklisteInput = { ...TOM, medlem_siden: "2026-08-01T09:00:00.000Z" };
-
-  it("grænsen er 15/9-2026 UTC-midnat, og dommen er ren: fra og med → ja, før → nej, null/ugyldig → nej", () => {
-    expect(DELING_PUNKT_FRA).toBe("2026-09-15T00:00:00.000Z");
-    expect(delingPunktGaelder("2026-09-15T00:00:00.000Z")).toBe(true);
-    expect(delingPunktGaelder("2026-09-22T09:00:00.000Z")).toBe(true);
-    expect(delingPunktGaelder("2026-09-14T23:59:59.999Z")).toBe(false);
-    expect(delingPunktGaelder("2026-08-01T09:00:00.000Z")).toBe(false);
-    expect(delingPunktGaelder(null)).toBe(false);
-    expect(delingPunktGaelder(undefined)).toBe(false);
-    expect(delingPunktGaelder("")).toBe(false);
-    expect(delingPunktGaelder("ikke en dato")).toBe(false);
-  });
-
-  it("nyt medlem: otte punkter, deling sidst, ikke gjort, titel/beskrivelse/sti", () => {
-    const ud = byggTjekliste(NYT);
-    expect(ud.antal_i_alt).toBe(8);
-    const p = ud.punkter[ud.punkter.length - 1];
-    expect(p.id).toBe("deling");
-    expect(p.gjort).toBe(false);
-    expect(p.titel).toBe("Fortæl det videre");
-    expect(p.beskrivelse).toBe("Dit medlemskab som billede til LinkedIn — så dit netværk ved, hvor du får sparring.");
-    expect(p.sti).toBe("/deling");
-    expect(p.mangler).toBeUndefined();
-    expect(ud.faerdig).toBe(false);
-  });
-
-  it("nyt medlem der har gjort alt det gamle er IKKE færdig før PNG'en er hentet — og så er hun", () => {
-    const altGammelt = byggTjekliste({ ...FULD, medlem_siden: NYT.medlem_siden });
-    expect(altGammelt.antal_gjort).toBe(7);
-    expect(altGammelt.antal_i_alt).toBe(8);
-    expect(altGammelt.faerdig).toBe(false);
-    const hentet = byggTjekliste({ ...FULD, medlem_siden: NYT.medlem_siden, deling_hentet_at: "2026-09-23T10:00:00.000Z" });
-    expect(hentet.punkter.find((p) => p.id === "deling")!.gjort).toBe(true);
-    expect(hentet.antal_gjort).toBe(8);
-    expect(hentet.faerdig).toBe(true);
-  });
-
-  it("gjort sættes af deling_hentet_at alene — kun det punkt, og kun for et nyt medlem", () => {
-    const gjort = gjortAf({ ...NYT, deling_hentet_at: "2026-09-23T10:00:00.000Z" });
-    for (const id of ALLE_ID) expect(gjort[id]).toBe(false);
-    expect(gjort.deling).toBe(true);
-    expect(byggTjekliste({ ...NYT, deling_hentet_at: "2026-09-23T10:00:00.000Z" }).antal_gjort).toBe(1);
-  });
-
-  it("eksisterende medlem (før grænsen): punktet findes ikke — også selv om stemplet skulle være sat", () => {
-    for (const input of [GAMMELT, TOM, { ...GAMMELT, deling_hentet_at: "2026-09-23T10:00:00.000Z" }]) {
-      const ud = byggTjekliste(input);
-      expect(ud.punkter.map((p) => p.id)).not.toContain("deling");
-      expect(ud.antal_i_alt).toBe(7);
+      expect(p.titel.length).toBeLessThanOrEqual(60);
+      expect(`${p.titel} ${p.beskrivelse}`).not.toMatch(/!/);
+      expect(`${p.titel} ${p.beskrivelse}`).not.toMatch(/\bDe\b|\bDem\b|\bDeres\b/);
     }
   });
 
-  it("et medlem der var færdig før grænsen, FORBLIVER færdig — listen åbner ikke igen", () => {
-    const foer = byggTjekliste({ ...FULD, medlem_siden: "2026-08-01T09:00:00.000Z" });
-    expect(foer.faerdig).toBe(true);
-    expect(foer.antal_gjort).toBe(7);
-    expect(foer.antal_i_alt).toBe(7);
-    // Og uden dato overhovedet (ældre kaldere/tests): samme svar.
-    expect(byggTjekliste(FULD).faerdig).toBe(true);
+  it("punkter uden delvis tilstand har ingen mangler-liste (raadgiver, akademi)", () => {
+    const ud = byggTjekliste(TOM);
+    for (const id of ["raadgiver", "akademi"] as TjeklistePunktId[]) {
+      expect(ud.punkter.find((p) => p.id === id)?.mangler).toBeUndefined();
+    }
   });
 
-  it("de øvrige punkter er uændrede: samme id'er, titler, stier og gjort-domme med og uden delingspunktet", () => {
-    const uden = byggTjekliste(TOM).punkter;
-    const med = byggTjekliste(NYT).punkter.filter((p) => p.id !== "deling");
-    expect(med.map((p) => [p.id, p.titel, p.sti, p.gjort, p.beskrivelse])).toEqual(uden.map((p) => [p.id, p.titel, p.sti, p.gjort, p.beskrivelse]));
-    const udenFuld = byggTjekliste(FULD).punkter;
-    const medFuld = byggTjekliste({ ...FULD, medlem_siden: NYT.medlem_siden }).punkter.filter((p) => p.id !== "deling");
-    expect(medFuld.map((p) => [p.id, p.gjort])).toEqual(udenFuld.map((p) => [p.id, p.gjort]));
+  it("«Fortæl det videre» er ude (Jonas 2/10): intet punkt hedder det, og intet peger på /deling", () => {
+    const ud = byggTjekliste({ ...FULD, antal_godkendte: 0 });
+    expect(ud.punkter.map((p) => p.titel)).not.toContain("Fortæl det videre");
+    expect(ud.punkter.map((p) => p.sti)).not.toContain("/deling");
+    expect(Object.values(TJEKLISTE_STIER)).not.toContain("/deling");
+  });
+});
+
+describe("byggTjekliste — punkt 2 «Din rådgiver» og punkt 6 «Akademiet» (uændrede domme)", () => {
+  it("raadgiver: gjort = last_member_message_at (triggeren sætter det kun for ikke-rådgivere), titel og sti", () => {
+    const p = punkt(TOM, "raadgiver");
+    expect(p).toMatchObject({ gjort: false, titel: "Skriv din første besked", sti: "/chat" });
+    expect(p.titel).toMatch(/^Skriv/);
+    expect(punkt({ ...TOM, last_member_message_at: FULD.last_member_message_at }, "raadgiver").gjort).toBe(true);
   });
 
-  it("udgår sammen med video og trådret som de andre: nyt medlem uden video og trådret har seks", () => {
-    const ud = byggTjekliste({ ...NYT, har_velkomstvideo: false, kan_oprette_traad: false });
-    expect(ud.punkter.map((p) => p.id)).toEqual(["profil", "virksomhed", "rapport", "handout", "besked", "deling"]);
+  it("akademi: gjort = et udfyldt handout (antal_udfyldte_handouts > 0), titel og sti", () => {
+    const p = punkt(TOM, "akademi");
+    // «Lav din første øvelse» (rådets fund 2/10): dommen måler en udfyldt øvelse, ikke en gennemført lektion.
+    expect(p).toMatchObject({ gjort: false, titel: "Lav din første øvelse i Akademiet", sti: "/akademiet", sted: "akademiet" });
+    expect(AKADEMI_TITEL).toBe("Lav din første øvelse i Akademiet");
+    expect(p.titel).not.toMatch(/lektion/i);
+    expect(punkt({ ...TOM, antal_udfyldte_handouts: 1 }, "akademi").gjort).toBe(true);
+  });
+});
+
+// ── Rådets fund 2/10: det gjorte står i et sammenlagt punkt, så ingen mister et flueben ──
+describe("byggTjekliste — sammenlægningerne viser det gjorte («Velkomsten er set ✓ — mangler: …»)", () => {
+  it("boardroom: velkomsten set, virksomheden ikke → «Velkomsten er set ✓ — mangler: …»", () => {
+    const p = punkt({ ...TOM, velkomstvideo_set_at: FULD.velkomstvideo_set_at, website: FULD.website }, "boardroom");
+    expect(p.gjort_dele).toEqual([GJORT_TEKST.velkomst]);
+    expect(GJORT_TEKST.velkomst).toBe("Velkomsten er set");
+    expect(manglerLinje(p)).toBe("Velkomsten er set ✓ — mangler: branchen, CVR-nummeret");
+  });
+
+  it("boardroom: virksomheden udfyldt, velkomsten ikke → «Virksomheden er udfyldt ✓ — mangler: at se velkomsten»", () => {
+    const p = punkt({ ...TOM, website: FULD.website, industry_label: FULD.industry_label, cvr_number: FULD.cvr_number }, "boardroom");
+    expect(manglerLinje(p)).toBe("Virksomheden er udfyldt ✓ — mangler: at se velkomsten");
+  });
+
+  it("boardroom uden video: velkomsten er aldrig «set» (den er ikke en del af punktet)", () => {
+    const p = punkt({ ...TOM, har_velkomstvideo: false, velkomstvideo_set_at: FULD.velkomstvideo_set_at }, "boardroom");
+    expect(p.gjort_dele).toEqual([]);
+    expect(manglerLinje(p)).toBe("Mangler: virksomhedens website, branchen, CVR-nummeret");
+  });
+
+  it("netvaerk: profilen udfyldt, præsentationen mangler → «Profilen er udfyldt ✓ — mangler: et opslag om hvem du er»", () => {
+    const p = punkt({ ...TOM, ask_me_about: FULD.ask_me_about, avatar_url: FULD.avatar_url }, "netvaerk");
+    expect(manglerLinje(p)).toBe("Profilen er udfyldt ✓ — mangler: et opslag om hvem du er");
+  });
+
+  it("netvaerk: præsenteret, profilen tom → «Du har sagt hej i Community ✓ — mangler: …»; uden trådret tæller præsentationen ikke som gjort", () => {
+    const p = punkt({ ...TOM, har_praesentation: true }, "netvaerk");
+    expect(manglerLinje(p)).toBe(`Du har sagt hej i Community ✓ — mangler: ${MANGLER_TEKST.ask_me_about}, ${MANGLER_TEKST.foto}`);
+    expect(punkt({ ...TOM, kan_oprette_traad: false, har_praesentation: true }, "netvaerk").gjort_dele).toEqual([]);
+  });
+
+  it("intet gjort: «Mangler: …» som før; gjort punkt eller intet der mangler: ingen linje", () => {
+    expect(manglerLinje(punkt(TOM, "boardroom"))).toBe("Mangler: at se velkomsten, virksomhedens website, branchen, CVR-nummeret");
+    expect(manglerLinje(punkt(FULD, "boardroom"))).toBeNull();
+    expect(manglerLinje(punkt(FULD, "netvaerk"))).toBeNull();
+    expect(manglerLinje(punkt(TOM, "raadgiver"))).toBeNull();
+    expect(manglerLinje(punkt({ ...TOM, antal_rapporter: 1 }, "tal"))).toBe("Mangler: at godkende tallene");
+  });
+
+  it("gjort_dele påvirker ALDRIG dommen — et punkt er stadig kun gjort, når begge halvdele er", () => {
+    const halvt = punkt({ ...TOM, velkomstvideo_set_at: FULD.velkomstvideo_set_at }, "boardroom");
+    expect(halvt.gjort).toBe(false);
+    expect(halvt.gjort_dele!.length).toBeGreaterThan(0);
+  });
+});
+
+// ── Rådets fund 2/10: abonnent og legat har hverken Netværket eller Akademiet ──
+// Valget: punkterne bliver (de gjaldt dem før 2/10), mærkerne går; Akademi-punktet
+// fører til handout-listen (abonnentens menu: «Handouts» under Dine tal).
+describe("byggTjekliste — abonnent og legat (kan_oprette_traad false = !isLegat && tier full er falsk)", () => {
+  const IKKE_FULD: TjeklisteInput = { ...TOM, kan_oprette_traad: false };
+
+  it("Netværket- og Akademiet-mærket udelades; de fire andre steder står", () => {
+    const ud = byggTjekliste(IKKE_FULD);
+    expect(Object.fromEntries(ud.punkter.map((p) => [p.id, p.sted]))).toEqual({
+      boardroom: "boardroom",
+      raadgiver: "din_raadgiver",
+      tal: "dine_tal",
+      maal: "dine_maal",
+      netvaerk: null,
+      akademi: null,
+    });
+  });
+
+  it("punkterne bliver — samme antal og samme domme for «gjort» som for det fulde medlem", () => {
+    expect(byggTjekliste(IKKE_FULD).antal_i_alt).toBe(6);
+    expect(punkt({ ...IKKE_FULD, antal_udfyldte_handouts: 1 }, "akademi").gjort).toBe(true);
+    expect(byggTjekliste({ ...FULD, kan_oprette_traad: false, har_praesentation: false }).faerdig).toBe(true);
+  });
+
+  it("Akademi-punktet fører til handout-listen og hedder det, menuen kalder det — aldrig «Akademiet» eller «lektion»", () => {
+    const p = punkt(IKKE_FULD, "akademi");
+    expect(p).toMatchObject({ titel: HANDOUT_TITEL, sti: HANDOUTS_PUNKT.to, sted: null });
+    expect(HANDOUT_TITEL).toBe("Udfyld dit første handout");
+    expect(`${p.titel} ${p.beskrivelse}`).not.toMatch(/akademi|lektion/i);
+  });
+
+  it("det fulde medlem har alle seks mærker og Akademi-titlen (uændret)", () => {
+    expect(byggTjekliste(TOM).punkter.every((p) => p.sted !== null)).toBe(true);
+    expect(punkt(TOM, "akademi").titel).toBe(AKADEMI_TITEL);
   });
 });

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { bygHbNav, medlemmetsNav, raadgiverensNav } from "@/lib/hjemmebane/hbNav";
+import { HANDOUTS_PUNKT, bygHbNav, medlemmetsNav, raadgiverensNav } from "@/lib/hjemmebane/hbNav";
 import { RETNING_MODUL, RETNING_STI, erOevelse, oevelseTilbage, oevelserForSamling } from "@/lib/hjemmebane/oevelse";
-import { TJEKLISTE_STIER, byggTjekliste } from "@/lib/onboardingTjekliste";
+import { TJEKLISTE_STIER, byggTjekliste, type TjeklisteInput } from "@/lib/onboardingTjekliste";
 import { deriveFocus } from "@/components/hjemmebane/boardroom/nextStep";
 import { moduleOrder } from "@/lib/handoutConfig";
 
@@ -31,8 +31,10 @@ import { moduleOrder } from "@/lib/handoutConfig";
         og 10, 2/10).
      5. Lektionen og samlingen tegner øvelsen gennem den delte motor
         (OevelseKort, oevelserForSamling) — ikke en egen handout-sektion.
-     6. Tjeklistens punkt hedder «Din første øvelse», og kom-i-gang-mailen
-        (begge spejle) begynder med samme ord. */
+     6. Tjeklistens punkt hedder «Lav din første øvelse i Akademiet»
+        (rådets fund 2/10 — dommen måler en udfyldt øvelse, ikke en lektion;
+        før «Gennemfør din første lektion med øvelse», og før det «Din første
+        øvelse»), og kom-i-gang-mailen (begge spejle) begynder med samme ord. */
 
 const ROD = resolve(__dirname, "../../../../");
 const laes = (sti: string) => readFileSync(resolve(ROD, sti), "utf8");
@@ -102,9 +104,23 @@ describe("handouts i Akademiet — dom 3: ruterne lever", () => {
 });
 
 describe("handouts i Akademiet — dom 4: ingen medlemsflade linker til /handouts fra menu eller forside", () => {
-  it("tjeklisten: handout-punktets sti er Akademiet", () => {
-    expect(TJEKLISTE_STIER.handout).toBe("/akademiet");
-    expect(Object.values(TJEKLISTE_STIER).some((s) => s.startsWith("/handout"))).toBe(false);
+  it("tjeklisten: øvelsespunktets sti er Akademiet (2/10: punktet hedder «akademi»; før «handout»)", () => {
+    expect(TJEKLISTE_STIER.akademi).toBe("/akademiet");
+    // Rådets fund 2/10: ÉN /handouts-sti findes — abonnentens og legatens (deres menu HAR «Handouts»,
+    // HANDOUTS_PUNKT i hbNav; de har ingen lektioner). Det FULDE medlem når den aldrig: punktet vælger
+    // den KUN uden fuld adgang (kan_oprette_traad = !isLegat && tier full).
+    expect(Object.entries(TJEKLISTE_STIER).filter(([, s]) => s.startsWith("/handout"))).toEqual([["handouts", HANDOUTS_PUNKT.to]]);
+    const fuldt: TjeklisteInput = {
+      har_velkomstvideo: true, velkomstvideo_set_at: null, kan_oprette_traad: true, har_praesentation: false,
+      ask_me_about: null, avatar_url: null, website: null, industry_label: null, cvr_number: null,
+      antal_rapporter: 0, antal_godkendte: 0, antal_udfyldte_handouts: 0, last_member_message_at: null,
+    };
+    for (const handouts of [0, 1]) {
+      expect(byggTjekliste({ ...fuldt, antal_udfyldte_handouts: handouts }).punkter.some((p) => p.sti.startsWith("/handout"))).toBe(false);
+    }
+    const kilde = udenKommentarer(laes("src/lib/onboardingTjekliste.ts"));
+    expect(kilde).toContain("sti: fuldtMedlem ? TJEKLISTE_STIER.akademi : TJEKLISTE_STIER.handouts,");
+    expect(kilde.match(/TJEKLISTE_STIER\.handouts/g)).toHaveLength(1);
   });
 
   it("fokuskortet (h): uden sti → Akademiet, med sti → lektionen; aldrig /handouts", () => {
@@ -179,17 +195,21 @@ describe("handouts i Akademiet — dom 5: lektion og samling tegner øvelsen gen
 });
 
 describe("handouts i Akademiet — dom 6: tjeklistens ord og mailen", () => {
-  it("punktet hedder «Din første øvelse», og begge spejle af kom-i-gang-mailen begynder med det", () => {
+  it("punktet hedder «Lav din første øvelse i Akademiet» (rådets fund 2/10; før «Gennemfør din første lektion med øvelse»), og begge spejle af kom-i-gang-mailen begynder med det — aldrig «handout» for det fulde medlem", () => {
     const punkt = byggTjekliste({
       har_velkomstvideo: true, velkomstvideo_set_at: null, kan_oprette_traad: true, har_praesentation: false,
       ask_me_about: null, avatar_url: null, website: null, industry_label: null, cvr_number: null,
       antal_rapporter: 0, antal_godkendte: 0, antal_udfyldte_handouts: 0, last_member_message_at: null,
-    }).punkter.find((p) => p.id === "handout");
-    expect(punkt?.titel).toBe("Din første øvelse");
+    }).punkter.find((p) => p.id === "akademi");
+    expect(punkt?.titel).toBe("Lav din første øvelse i Akademiet");
+    expect(punkt?.sted).toBe("akademiet");
+    expect(`${punkt?.titel} ${punkt?.beskrivelse}`).not.toMatch(/handout/i);
     for (const sti of ["src/lib/onboardingRytme.ts", "supabase/functions/_shared/onboardingRytme.ts"]) {
       const kilde = laes(sti);
-      expect(kilde).toContain('"Din første øvelse — øvelserne ligger under lektionerne i Akademiet.",');
+      expect(kilde).toContain('"Lav din første øvelse i Akademiet — øvelsen ligger under lektionen; udfyld den, og tag den med til din rådgiver.",');
+      expect(kilde).not.toContain("Gennemfør din første lektion");
       expect(kilde).not.toContain("Dit første handout");
+      expect(kilde).not.toContain("Din første øvelse —");
     }
   });
 
