@@ -30,7 +30,9 @@ import {
   taelOpVaerdi,
   type LoefterLinje,
 } from "@/lib/hjemmebane/scoreKort";
+import type { TrofaeDom } from "@/lib/gamification/trofaeer";
 import { HbCard } from "../HbCard";
+import { TrofaeAntal, TrofaeKort } from "./TrofaeKort";
 
 /** Boardroom Score-kortet på medlemmets forside (30/9-2026 — Jonas D3
     «Boardroom Score (0–1000) plus tal-streak først»; designet i
@@ -51,8 +53,9 @@ import { HbCard } from "../HbCard";
     Regnet højde på desktop i hvile ≈ 260 px:
       p-6 (24 + 24) + ringkolonnen (ring 128 + to linjer à 16 + mellemrum 8 ≈ 168)
       + bunden (mt-4 16 + pt-3 12 + knaplinje 20 ≈ 48) ≈ 264 px.
-    Højre kolonne (barer ≈ 26 + streak 20 + løfter ≈ 52 + 2 × 16 mellemrum ≈ 130)
-    er lavere end ringen og bestemmer ikke højden.
+    Højre kolonne (barer ≈ 26 + streak 20 + løfter ≈ 52 + 2 × 16 mellemrum ≈ 130;
+    med trofælinjen (2/10) + 4 + 16 ≈ 150) er lavere end ringen og bestemmer
+    ikke højden.
 
     FIRE TILSTANDE: henter (skelet i samme højde) · fejl (rust linje +
     «Prøv igen» — en fejl er ikke «ingen tal») · afventer migration (roligt
@@ -69,7 +72,14 @@ import { HbCard } from "../HbCard";
     `relative`-boks, så den aldrig positioneres mod en fjern forfader.
 
     Overskriften er sektionens eyebrow «Boardroom Score» (BoardroomView) —
-    kortet har ingen egen «Din score» over tallet (rådets fund 7). */
+    kortet har ingen egen «Din score» over tallet (rådets fund 7).
+
+    TROFÆERNE (2/10-2026 eftermiddag, designgennemsynet i drift: den separate
+    sektion fyldte en hel mobilskærm over «Din plan»; mockuppen: «ind bag ‹Se
+    hvad der tæller›»): «Dine trofæer» tegnes INDE i detaljerne (TrofaeKort
+    `indlejret`, uden egen ramme), og det lukkede kort bærer kun én linje
+    under streaken, «3 af 8 trofæer» (TrofaeAntal). Dommen og hentningen er
+    urørte — de kommer færdige ind som props fra BoardroomView. */
 
 type Props = {
   dom: ScoreDom | null;
@@ -77,6 +87,9 @@ type Props = {
   isLoading: boolean;
   isError: boolean;
   onProevIgen: () => void;
+  /** Medlemmets trofæer (hooks/trofaeer, kaldt i BoardroomViews topblok). Udeladt/undefined = henter → intet. */
+  trofaeer?: TrofaeDom[] | undefined;
+  trofaeerFejl?: boolean;
 };
 
 /** prefers-reduced-motion — læst ved mount og fulgt, hvis brugeren skifter. Uden matchMedia (test/SSR): ingen bevægelse. */
@@ -154,7 +167,7 @@ function LoefterRaekke({ h }: { h: LoefterLinje }) {
   );
 }
 
-export const ScoreKort = ({ dom, afventerMigration, isLoading, isError, onProevIgen }: Props) => {
+export const ScoreKort = ({ dom, afventerMigration, isLoading, isError, onProevIgen, trofaeer, trofaeerFejl = false }: Props) => {
   // Hooks i TOPBLOKKEN, før enhver betinget return (React #310).
   const bevaegelse = useFaarBevaegelse();
   const vist = useTaelOp(dom?.score ?? null, bevaegelse);
@@ -317,12 +330,16 @@ export const ScoreKort = ({ dom, afventerMigration, isLoading, isError, onProevI
             ))}
           </dl>
 
-          <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm" data-score-streak={dom.streak.status}>
-            <Flame className={cn("h-4 w-4 shrink-0 self-center", dom.streak.status === "aktiv" ? "text-hb-evergreen" : "text-hb-ink-soft/60")} aria-hidden />
-            {/* Uden streak (længde 0) er linjen statussen selv — aldrig «0 måneder i træk» (streakKortLinje). */}
-            <span className="font-medium tabular-nums text-hb-ink" data-score-streak-tal={streakKort.erStatus ? "status" : "laengde"}>{streakKort.tal}</span>
-            <span className="text-hb-ink-soft" data-score-frist>{streakKort.frist}</span>
-          </p>
+          {/* Streaken + højst én trofælinje tæt under (2/10: trofæerne selv står bag «Se hvad der tæller»). */}
+          <div className="space-y-1">
+            <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm" data-score-streak={dom.streak.status}>
+              <Flame className={cn("h-4 w-4 shrink-0 self-center", dom.streak.status === "aktiv" ? "text-hb-evergreen" : "text-hb-ink-soft/60")} aria-hidden />
+              {/* Uden streak (længde 0) er linjen statussen selv — aldrig «0 måneder i træk» (streakKortLinje). */}
+              <span className="font-medium tabular-nums text-hb-ink" data-score-streak-tal={streakKort.erStatus ? "status" : "laengde"}>{streakKort.tal}</span>
+              <span className="text-hb-ink-soft" data-score-frist>{streakKort.frist}</span>
+            </p>
+            <TrofaeAntal trofaeer={trofaeer} isError={trofaeerFejl} />
+          </div>
 
           {mangler && <p className="text-sm leading-relaxed text-hb-ink-soft" data-score-mangler>{mangler}</p>}
 
@@ -355,7 +372,7 @@ export const ScoreKort = ({ dom, afventerMigration, isLoading, isError, onProevI
 
       <div id={detaljerId} hidden={!aaben} data-score-detaljer>
         {aaben && (
-          <div className="mt-4 grid gap-6 md:grid-cols-2">
+          <div className="mt-4 grid grid-cols-1 gap-6 md:grid-cols-2">
             <div className="min-w-0 space-y-3">
               <p className={mikro}>{SCORE_SOEJLER_OVERSKRIFT}</p>
               <ul className="space-y-2">
@@ -381,6 +398,7 @@ export const ScoreKort = ({ dom, afventerMigration, isLoading, isError, onProevI
             )}
           </div>
         )}
+        {aaben && <TrofaeKort trofaeer={trofaeer} isError={trofaeerFejl} indlejret />}
       </div>
     </HbCard>
   );

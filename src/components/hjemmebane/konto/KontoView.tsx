@@ -145,7 +145,7 @@ export const KontoView = () => {
       </section>
 
       <HbSection eyebrow="Dig" hairline className="mt-10 max-w-3xl">
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Kort titel="Navn og billede">
             <ProfilFotoFelt variant="konto" />
             <div className="mt-5">
@@ -168,7 +168,7 @@ export const KontoView = () => {
       </HbSection>
 
       <HbSection eyebrow="Login" hairline className="mt-12 max-w-3xl">
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Kort titel="Adgangskode">
             <div className="space-y-3">
               <HbField label="Nuværende adgangskode" htmlFor="konto-nu">

@@ -134,7 +134,7 @@ export const ForsideView = () => {
         <p className="mb-5 text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">
           Dine forløb
         </p>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {/* Kun forløbsområder — push (akademi: false) bor på forsiden. */}
           {AREAS.filter((area) => area.akademi).map((area) => (
             <AreaCard
@@ -149,7 +149,7 @@ export const ForsideView = () => {
 
       {data.isAdvisor && (
         <p className="mt-10 text-xs text-hb-ink-soft">
-          Advisor-visning: du ser alt indhold uden dryp-låse.
+          Rådgiver-visning: du ser alt indhold uden dryp-låse.
         </p>
       )}
     </div>

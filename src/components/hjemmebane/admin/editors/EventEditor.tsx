@@ -280,7 +280,7 @@ export const EventEditor = forwardRef<EditorHandle, EventEditorProps>(
           />
         </HbField>
 
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <HbField label="Art" htmlFor="event-kind">
             <HbSelect
               id="event-kind"

@@ -307,7 +307,7 @@ export const SaetMaalGuide = ({ open, onClose, tilstand, maaneder, nu, onOpret, 
     <HbDialog open={open} onClose={onClose} titel={titelNode} beskrivelse={trin === 1 ? MAAL_FORKLARING_TEKST : undefined} bred fod={fod}>
       <div data-guide-trin={trin} data-guide-valg={valg ?? ""} data-guide-laast={laast ? "1" : "0"}>
         {trin === 1 && (
-          <ul className="grid gap-2 sm:grid-cols-2" role="list">
+          <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2" role="list">
             {kort.map((k) => {
               const valgt = valg === k.valg;
               return (
@@ -356,7 +356,7 @@ export const SaetMaalGuide = ({ open, onClose, tilstand, maaneder, nu, onOpret, 
             {noegle && (
               <>
                 {noegle === "andet_tal" && (
-                  <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <HbField label={O.udgangspunkt} htmlFor={`${idRod}-udg`} help="Tallet som det er i dag.">
                       <HbInput id={`${idRod}-udg`} inputMode="decimal" value={udgangspunkt} onChange={(e) => setUdgangspunkt(e.target.value)} autoFocus />
                     </HbField>
@@ -365,7 +365,7 @@ export const SaetMaalGuide = ({ open, onClose, tilstand, maaneder, nu, onOpret, 
                     </HbField>
                   </div>
                 )}
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <HbField
                     label={O.maaltal}
                     htmlFor={`${idRod}-maaltal`}

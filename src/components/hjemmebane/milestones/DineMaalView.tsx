@@ -423,7 +423,7 @@ export const DineMaalView = () => {
             </p>
           </HbCard>
         ) : henter ? (
-          <div className="grid gap-4 md:grid-cols-3" aria-busy="true" data-dine-maal="henter">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3" aria-busy="true" data-dine-maal="henter">
             {[0, 1, 2].map((i) => (
               <HbCard key={i} className="min-h-[18rem] p-5 md:p-6">
                 <div className="animate-pulse">
@@ -445,7 +445,7 @@ export const DineMaalView = () => {
                 <HbMaalForklaring />
               </div>
             )}
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3" data-maal-gitter>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3" data-maal-gitter>
               {kort.map((k) => {
                 const x = forMedlemAf.get(k.id);
                 const handlinger = x?.handlinger ?? INGEN_HANDLINGER;

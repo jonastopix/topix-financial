@@ -354,7 +354,7 @@ const Kundevaerdi = ({ dom }: { dom: Extract<DashboardDom, { tom: false }> }) =>
 const Udestaaende = ({ dom }: { dom: Extract<DashboardDom, { tom: false }> }) => {
   const u = dom.udestaaende;
   return (
-    <div className="grid gap-8 md:grid-cols-2" data-oekonomi-udestaaende={u.raekker.length}>
+    <div className="grid grid-cols-1 gap-8 md:grid-cols-2" data-oekonomi-udestaaende={u.raekker.length}>
       <div>
         {/* Ø3b: forfaldne betalinger der ikke er kommet — ikke «anerkendt, men ikke betalt» (timing på rater med fast trækdato). */}
         <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">Forfaldent, ikke betalt · {kr(u.i_alt_oere)}</p>

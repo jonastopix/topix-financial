@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { STREAK_FRIST_DAG } from "@/lib/boardroomScore/streak";
 
-// Kildeværn for Boardroom Score-fladen (30/9-2026, Jonas D3). Ni domme:
+// Kildeværn for Boardroom Score-fladen (30/9-2026, Jonas D3). Ti domme:
 //   1. HOOKS I TOPBLOKKEN (React #310): BoardroomView kalder useBoardroomScore()
 //      FØR sin første betingede return; ScoreKort kalder sine hooks før sin første.
 //   2. PLACERINGEN (docs/boardroom-score.md §7 «mellem Din måned og planen"):
@@ -22,6 +22,13 @@ import { STREAK_FRIST_DAG } from "@/lib/boardroomScore/streak";
 //   9. ÉN FRIST (rådets gennemsyn af #1189): det SIDSTE element i
 //      send-report-reminders REMINDER_DAYS er lig STREAK_FRIST_DAG (streak.ts) —
 //      ændres den ene uden den anden, fælder dommen.
+//  10. TROFÆERNE BAG «SE HVAD DER TÆLLER» (2/10-2026 eftermiddag, designgennemsynet
+//      i drift: den separate sektion fyldte en hel 375 px-skærm over «Din plan»;
+//      mockuppen «Dine trofæer som egen sektion → ind bag ‹Se hvad der tæller›»):
+//      ScoreKort tegner <TrofaeKort … indlejret /> ÉN gang, inde i detaljeboksen
+//      (id={detaljerId} hidden={!aaben}) og kun når den er åben; i hvile står
+//      højst <TrofaeAntal> (én linje) EFTER streaken; forsiden tegner ingen
+//      <TrofaeKort> selv. Dommen og hentningen er urørte (trofaeer.guard).
 // Hver dom prøves også på en ødelagt kopi (selvbevis — forsideTop.guard-mønstret).
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -139,6 +146,21 @@ export const enFrist = (paamindelse: string, streak: string): boolean => {
   return dage !== null && frist !== null && dage[dage.length - 1] === frist;
 };
 
+/** Dom 10: trofæerne inde i «Se hvad der tæller», én linje i hvile, ingen sektion på forsiden. */
+export const trofaeerBagDetaljer = (kort: string, forside: string): boolean => {
+  const k = udenKommentarer(kort);
+  const f = udenKommentarer(forside);
+  const detaljer = k.indexOf("id={detaljerId} hidden={!aaben}");
+  const kortet = k.indexOf("<TrofaeKort ");
+  const antal = k.indexOf("<TrofaeAntal ");
+  const streak = k.indexOf("data-score-streak={");
+  return (k.match(/<TrofaeKort\b/g) ?? []).length === 1 &&
+    detaljer > -1 && kortet > detaljer &&
+    /\{aaben && <TrofaeKort trofaeer=\{trofaeer\} isError=\{trofaeerFejl\} indlejret \/>\}/.test(k) &&
+    (k.match(/<TrofaeAntal\b/g) ?? []).length <= 1 && (antal === -1 || (antal > streak && antal < detaljer)) &&
+    !/<TrofaeKort\b/.test(f) && /trofaeer=\{trofaeer\.data\}/.test(f);
+};
+
 /** Dom 6. */
 export const ingenEmoji = (...filer: string[]): boolean => filer.every((f) => !/\p{Extended_Pictographic}/u.test(f));
 
@@ -211,6 +233,17 @@ describe("Boardroom Score-fladen — kildeværn", () => {
     expect(enFrist(nyPaamindelse, streak.replace("export const STREAK_FRIST_DAG = 20;", "export const STREAK_FRIST_DAG = 25;"))).toBe(true);
     // Kan en af dem ikke læses, fælder dommen (fail-closed).
     expect(enFrist(paamindelse.replace("REMINDER_DAYS = [", "PAAMINDELSESDAGE = ["), streak)).toBe(false);
+  });
+
+  it("dom 10: trofæerne bag «Se hvad der tæller» — ikke en egen sektion på forsiden", () => {
+    expect(trofaeerBagDetaljer(kort, forside)).toBe(true);
+    // Selvbevis: åben i hvile (uden aaben-porten), uden for detaljeboksen, som egen sektion på forsiden, eller ikke givet ind, falder.
+    expect(trofaeerBagDetaljer(kort.replace("{aaben && <TrofaeKort trofaeer={trofaeer} isError={trofaeerFejl} indlejret />}", "<TrofaeKort trofaeer={trofaeer} isError={trofaeerFejl} indlejret />"), forside)).toBe(false);
+    const flyttet = kort.replace("{aaben && <TrofaeKort trofaeer={trofaeer} isError={trofaeerFejl} indlejret />}", "").replace("<TrofaeAntal trofaeer={trofaeer} isError={trofaeerFejl} />", "{aaben && <TrofaeKort trofaeer={trofaeer} isError={trofaeerFejl} indlejret />}");
+    expect(flyttet).not.toBe(kort);
+    expect(trofaeerBagDetaljer(flyttet, forside)).toBe(false);
+    expect(trofaeerBagDetaljer(kort, forside.replace("<FornyelsesBaand />", "<FornyelsesBaand /><TrofaeKort trofaeer={trofaeer.data} isError={trofaeer.isError} />"))).toBe(false);
+    expect(trofaeerBagDetaljer(kort, forside.replace("trofaeer={trofaeer.data}", ""))).toBe(false);
   });
 
   it("dom 6: ingen emojis i fladen eller ordene", () => {

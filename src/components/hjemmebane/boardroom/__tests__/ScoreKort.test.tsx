@@ -6,6 +6,7 @@ import { boardroomScore } from "@/lib/boardroomScore/score";
 import { naesteMaaned } from "@/lib/boardroomScore/streak";
 import { loefterMitTal } from "@/lib/boardroomScore/loefter";
 import type { ScoreGrundlag, ScoreMaaned } from "@/lib/boardroomScore/typer";
+import { TROFAEER, TROFAE_FORKLARING, type TrofaeDom } from "@/lib/gamification/trofaeer";
 import {
   EFFEKT_FOERSTE_SCORE,
   EFFEKT_LAASER_OP,
@@ -244,6 +245,35 @@ describe("ScoreKort", () => {
     fireEvent.click(knap);
     expect(knap.getAttribute("aria-expanded")).toBe("false");
     expect(container.querySelectorAll("[data-soejle-detalje]")).toHaveLength(0);
+  });
+
+  it("trofæerne (2/10 eftermiddag): i hvile kun «N af M trofæer» under streaken; «Dine trofæer» først bag «Se hvad der tæller», uden egen ramme", () => {
+    const dom = boardroomScore(grundlag(keys("2025-06", 15).map((k) => sund(k))), NU);
+    const trofaeer: TrofaeDom[] = TROFAEER.map((t, i) => ({ ...t, opnaaetAt: i < 3 ? "2026-09-01T10:00:00Z" : null }));
+    const { container } = tegn({ dom, trofaeer });
+    const antal = container.querySelector("[data-score-trofaeer-antal]");
+    expect(antal?.textContent).toBe(`3 af ${TROFAEER.length} trofæer`);
+    expect(screen.queryByText("Dine trofæer")).toBeNull();
+    expect(container.querySelectorAll("[data-trofae]")).toHaveLength(0);
+    aabnDetaljer();
+    const indlejret = container.querySelector("[data-score-detaljer] [data-trofaeer-indlejret]");
+    expect(indlejret).not.toBeNull();
+    expect(screen.getByText("Dine trofæer")).toBeTruthy();
+    expect(screen.getByText(TROFAE_FORKLARING)).toBeTruthy();
+    expect(container.querySelectorAll("[data-trofae]")).toHaveLength(TROFAEER.length);
+    expect(container.querySelectorAll('[data-opnaaet="ja"]')).toHaveLength(3);
+  });
+
+  it("trofæerne fail-soft: henter eller fejl → ingen linje og intet i detaljerne", () => {
+    const dom = boardroomScore(grundlag(keys("2025-06", 15).map((k) => sund(k))), NU);
+    const trofaeer: TrofaeDom[] = TROFAEER.map((t) => ({ ...t, opnaaetAt: null }));
+    for (const props of [{ trofaeer: undefined }, { trofaeer, trofaeerFejl: true }]) {
+      const { container, unmount } = tegn({ dom, ...props });
+      expect(container.querySelector("[data-score-trofaeer-antal]")).toBeNull();
+      aabnDetaljer();
+      expect(container.querySelector("[data-trofaeer]")).toBeNull();
+      unmount();
+    }
   });
 
   it("ringen: buen er i skala (samme længde som ringBue for scoren), og skærmlæserteksten står inde i ringens relative boks", () => {

@@ -660,7 +660,7 @@ export const NoegletalView = () => {
               {withTargets.length === 0 ? (
                 <p className="mt-3 text-sm text-hb-ink-soft">{PEJLEMAERKE_ORD.ingen} {PEJLEMAERKE_ORD.dineMaalHenvisning}</p>
               ) : (
-                <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {heroEntries.map(({ def, actual, target, tone }) => (
                     <div key={def.key} className="flex items-center gap-3">
                       <ToneDot view={tone} />
@@ -1223,7 +1223,7 @@ export const NoegletalView = () => {
                 const standardHelp = erStandardMaal(getTarget(def.key)) ? PEJLEMAERKE_ORD.standardHelp : undefined;
                 const benchHelp = [standardHelp, brancheHelp].filter(Boolean).join(" · ") || undefined;
                 return (
-                <div key={def.key} className="grid gap-3 sm:grid-cols-2">
+                <div key={def.key} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <HbField label={`${def.label} ${PEJLEMAERKE_ORD.feltSuffiks}`} htmlFor={`target-${def.key}`} help={benchHelp}>
                     <div className="flex gap-2">
                       <HbInput

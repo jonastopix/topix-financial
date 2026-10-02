@@ -179,7 +179,7 @@ const TilmeldtKurve = ({ prDag }: { prDag: TilmeldtPrDag[] }) => {
 const EfterNaeste = ({ sessioner }: { sessioner: readonly KommendeSession[] }) => {
   if (sessioner.length === 0) return null;
   return (
-    <div className="mt-3 grid gap-3 md:mt-4 md:grid-cols-3 md:gap-4" data-webinar-efter-naeste={sessioner.length}>
+    <div className="mt-3 grid grid-cols-1 gap-3 md:mt-4 md:grid-cols-3 md:gap-4" data-webinar-efter-naeste={sessioner.length}>
       {sessioner.map((s) => (
         <HbCard key={s.sessionTid} className="p-4 md:p-5" data-webinar-kommende-session={s.personer}>
           <p className="font-editorial text-3xl font-medium leading-none text-hb-ink md:text-4xl">{s.personer}</p>
