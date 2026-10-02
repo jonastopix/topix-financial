@@ -3548,6 +3548,51 @@ export type Database = {
           },
         ]
       }
+      maal_kvartalstjek: {
+        Row: {
+          company_id: string
+          id: string
+          kvartal: number
+          milestone_id: string
+          valg: string
+          valgt_af: string
+          valgt_at: string
+        }
+        Insert: {
+          company_id: string
+          id?: string
+          kvartal: number
+          milestone_id: string
+          valg: string
+          valgt_af?: string
+          valgt_at?: string
+        }
+        Update: {
+          company_id?: string
+          id?: string
+          kvartal?: number
+          milestone_id?: string
+          valg?: string
+          valgt_af?: string
+          valgt_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maal_kvartalstjek_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maal_kvartalstjek_milestone_id_fkey"
+            columns: ["milestone_id"]
+            isOneToOne: false
+            referencedRelation: "milestones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       maaned_foerste_godkendelse: {
         Row: {
           company_id: string
@@ -3947,6 +3992,8 @@ export type Database = {
         Row: {
           art: string | null
           baseline: string | null
+          bekraeftet_af: string | null
+          bekraeftet_at: string | null
           category: string
           company_id: string
           completed_at: string | null
@@ -3972,6 +4019,8 @@ export type Database = {
         Insert: {
           art?: string | null
           baseline?: string | null
+          bekraeftet_af?: string | null
+          bekraeftet_at?: string | null
           category?: string
           company_id: string
           completed_at?: string | null
@@ -3997,6 +4046,8 @@ export type Database = {
         Update: {
           art?: string | null
           baseline?: string | null
+          bekraeftet_af?: string | null
+          bekraeftet_at?: string | null
           category?: string
           company_id?: string
           completed_at?: string | null
