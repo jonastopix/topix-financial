@@ -34,6 +34,10 @@
  */
 import { erAfholdt } from "@/lib/introSession";
 import { erKunde } from "@/lib/raadgiverensKunder";
+// Tilbuddet overtrumfer en ældre «brugt» (Jonas 1/10 13:46) — reglen bor siden 2/10 ÉT sted, lib/sessionRet
+// (spejlet i _shared; backenden booker efter den). Re-eksporteret her for de gamle kaldere.
+import { jonasRetEfterTilbud } from "@/lib/sessionRet";
+export { jonasRetEfterTilbud };
 
 // ── Sessioner ────────────────────────────────────────────────────────────────
 
@@ -137,24 +141,6 @@ export function erNytMedlem(medlemSiden: string | null | undefined): boolean {
  * afkrydsning i EditCompanyDialog; et medlem kan ikke sætte det
  * (companies_medlem_kolonnevaern — kolonnen står ikke på hvidlisten).
  */
-/**
- * Et tilbud overtrumfer en ældre «brugt» (Jonas 1/10-2026 13:46: «Jeg har været inde at tilbyde flere
- * ældre medlemmer en session med Jonas nu. Men de tæller stadig ikke med»). Målt i prod 13:50: de fem
- * tilbudte havde ALLE jonas_session_used_at sat — fire fra 13/9 (den gamle markering «ikke omfattet»
- * for medlemmer fra før 14/9) og ANLA i samme øjeblik som tilbuddet (begge flueben krydset).
- * Regnestykket: tilbudt_at sat OG brugt_at ≤ tilbudt_at → brugt-markeringen er fra FØR tilbuddet og
- * tæller ikke (retAt = null → «ikke_brugt» → mangler at booke). Kun en brug EFTER tilbuddet (brugt_at >
- * tilbudt_at — Calendly-webhooken eller et senere flueben) gør sessionen brugt. Uden tilbud: uændret.
- */
-export function jonasRetEfterTilbud(brugtAt: string | null | undefined, tilbudtAt: string | null | undefined): string | null {
-  const brugt = brugtAt ?? null;
-  if (!tilbudtAt || brugt === null) return brugt;
-  const b = Date.parse(brugt);
-  const t = Date.parse(tilbudtAt);
-  if (!Number.isFinite(b) || !Number.isFinite(t)) return brugt;
-  return b > t ? brugt : null;
-}
-
 export function omfattetAfJonas(raekke: { medlemSiden: string | null | undefined; jonasTilbudtAt?: string | null }): boolean {
   return erNytMedlem(raekke.medlemSiden) || !!raekke.jonasTilbudtAt;
 }
