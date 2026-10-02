@@ -59,8 +59,11 @@ export const sendefejlVises = (kilde: string): boolean => {
     kilde.includes("visSendefejl(fejletBesked, activeConvId) &&") &&
     kilde.includes("onProevIgen={() => void proevFejletIgen()}") &&
     kilde.includes("<ChatSendefejlLinje") &&
-    // «Prøv igen» indsætter den SAMME række — ingen ny upload.
-    kilde.includes('supabase.from("messages").insert(fejletBesked.raekke as any)')
+    // «Prøv igen» indsætter den SAMME række — ingen ny upload. Medlemmets panel
+    // går siden 2/10 gennem den delte skrivevej (chatSkrivevej.ts, samme insert —
+    // forsidens «Din rådgiver»-kort sender gennem den); rådgiverens panel inline.
+    (kilde.includes('supabase.from("messages").insert(fejletBesked.raekke as any)') ||
+      kilde.includes("indsaetChatBesked(fejletBesked.raekke as ChatBeskedRaekke)"))
   );
 };
 

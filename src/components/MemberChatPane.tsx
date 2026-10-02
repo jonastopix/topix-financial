@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
 import { notifyChatMessage } from "@/lib/chatNotify";
+import { indsaetChatBesked, type ChatBeskedRaekke } from "@/lib/chatSkrivevej";
 import { uploadChatAttachments } from "@/lib/chatAttachments";
 import { MessageAttachments, type ChatAttachment } from "@/components/ChatAttachments";
 import { useMessageReactions } from "@/hooks/useMessageReactions";
@@ -441,8 +442,9 @@ const MemberChatPane = () => {
       // Editoren er allerede tømt (ChatRichInput rydder ved onSubmit), så en
       // fejlet indsættelse må ALDRIG være tavs: rækken gemmes til «Prøv igen»
       // (chatSendefejl.ts).
-      const svar = await supabase.from("messages").insert(insertData).select().single()
-        .then((r) => r, (e: unknown) => ({ data: null, error: e }));
+      // Skrivevejen er ÉT sted (chatSkrivevej.ts, 2/10) — forsidens «Din
+      // rådgiver»-kort sender gennem den samme.
+      const svar = await indsaetChatBesked(insertData);
 
       if (sendeUdfald(svar) === "sendt") {
         setNewMessage("");
@@ -467,8 +469,7 @@ const MemberChatPane = () => {
   const proevFejletIgen = useCallback(async () => {
     if (!fejletBesked || sending) return;
     setSending(true);
-    const svar = await supabase.from("messages").insert(fejletBesked.raekke as any).select().single()
-      .then((r) => r, (e: unknown) => ({ data: null, error: e }));
+    const svar = await indsaetChatBesked(fejletBesked.raekke as ChatBeskedRaekke);
     if (sendeUdfald(svar) === "sendt") {
       setFejletBesked(null);
       notifyChatMessage((svar.data as any).id);

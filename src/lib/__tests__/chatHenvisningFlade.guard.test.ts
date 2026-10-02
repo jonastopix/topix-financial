@@ -72,7 +72,11 @@ export const afsendelsenGaarGennemMotoren = (k: { input: string; paner: readonly
       send.includes("const henvist = dokument ? byggChatBesked(dokument) : null;") &&
       send.includes('...(henvist ?? { content: trimmed || "📎" }),') &&
       !/^\s*content:/m.test(send) &&
-      foer(send, "const henvist = dokument ? byggChatBesked(dokument) : null;", 'supabase.from("messages").insert(insertData)')
+      // Medlemmets panel indsætter siden 2/10 gennem den delte skrivevej
+      // (chatSkrivevej.ts: samme insert, nu ÉT sted — forsidens «Din rådgiver»
+      // sender gennem den; forsideKort.guard dom 5 låser filen).
+      (foer(send, "const henvist = dokument ? byggChatBesked(dokument) : null;", 'supabase.from("messages").insert(insertData)') ||
+        foer(send, "const henvist = dokument ? byggChatBesked(dokument) : null;", "indsaetChatBesked(insertData)"))
     );
   });
   const video = krop(udenKommentarer(k.company), "const handleSendVideo = useCallback(", "}, [");
