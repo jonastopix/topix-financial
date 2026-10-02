@@ -1,4 +1,16 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod 2/10-2026 kl. ~05:05 dansk af Claude (Lovable query_database), FØR merge og FØR Update.
+-- FØR (målt samme minut): kolonner findes ikke · tabel 0 · 100 milestones · backfill rammer 13 · manual uden medlemskab 0 ·
+--   10 policies på milestones (som 20261001190000) · 4 triggere (milestone_completed_at · milestone_progress_updated_at ·
+--   milestones_hoejst_tre_aktive · update_milestones_updated_at).
+-- EFTER: bekraeftet_af:uuid:YES · bekraeftet_at:timestamptz:YES · 13 bekræftede (= created_at) · ubekræftede aktive
+--   agent 15 · ai 5 · handout 9 · RLS true · 3 policies (alle PERMISSIVE) · 0 rækker · authenticated:INSERT+SELECT, anon intet ·
+--   10 policies på milestones (uændret).
+-- REST med anon-nøglen fra index-fZ1jOV1y.js (via pg_net, kald 28888/28889): milestones?select=bekraeftet_at,bekraeftet_af → 200;
+--   maal_kvartalstjek?select=id → 401 42501 «permission denied» (anon har BEVIDST ingen GRANT — svaret beviser, at tabellen
+--   er i schema-cachen; en manglende tabel ville give PGRST205).
+-- RLS-PRØVE før kørslen (DO-blok rullet tilbage): et medlem (SET LOCAL ROLE authenticated + jwt-claims) ser 0 rækker, og en
+--   INSERT af kvartal 1 i dag afvises med 42501 (ikke forfaldent før 2/1-2027) — ikke rekursion, ikke 42703.
+-- (Oprindelig første linje: «IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).»)
 --
 -- «DINE MÅL», SKIVE 3 — bekræftelsen og kvartalstjekket (Jonas' svar på
 -- aftenlisten 1/10-2026 kl. 22:04–22:09; docs/dine-maal-design.md «Skive 3»).

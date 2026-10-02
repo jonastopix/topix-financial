@@ -108,7 +108,7 @@ export const ingenRlsAendring = (migrationer: readonly { sti: string; sql: strin
  * STRAMMER: hver WITH CHECK indeholder company_id = public.user_company_id(auth.uid()).
  * Køres den, flippes linjen — og værnet skal ajourføres i samme PR.
  */
-export const FORBEREDTE_RLS_STRAMNINGER = ["supabase/migrations/20261002090000_milestones_with_check.sql"] as const;
+export const FORBEREDTE_RLS_STRAMNINGER = ["supabase/migrations/20261002210000_milestones_with_check.sql"] as const;
 export const forberedtStramning = (sql: string): boolean => {
   const krop = udenSqlKommentarer(sql);
   const checks = [...krop.matchAll(/WITH CHECK \(([^;]*)\);/gi)].map((m) => m[1]);

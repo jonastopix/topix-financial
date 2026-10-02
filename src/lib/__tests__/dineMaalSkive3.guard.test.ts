@@ -155,7 +155,7 @@ export const failSoftHolder = (motor: string, hook: string, forside: string): bo
 export const migrationenTilfoejer = (migration: string): boolean => {
   const sql = udenSqlKommentarer(migration);
   return (
-    migration.startsWith("-- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).") &&
+    /^-- (IKKE KØRT\. DEPLOY: manuelt i Lovable → SQL editor efter merge \(FØR Update-klik\)\.|KØRT i prod \d)/.test(migration) &&
     /ADD COLUMN IF NOT EXISTS bekraeftet_at timestamptz NULL/.test(sql) &&
     /ADD COLUMN IF NOT EXISTS bekraeftet_af uuid NULL/.test(sql) &&
     /CREATE TABLE IF NOT EXISTS public\.maal_kvartalstjek/.test(sql) &&
@@ -289,12 +289,12 @@ describe("dineMaalSkive3.guard", () => {
     expect(failSoftHolder(motor, hook.replace("if (res?.error && erManglendeTabel(res.error)) return [];", ""), forside)).toBe(false);
   });
 
-  it("dom 6: migrationen er kun tilføjende, backfillen guardet, første linje «IKKE KØRT»", () => {
+  it("dom 6: migrationen er kun tilføjende, backfillen guardet, første linje «IKKE KØRT» eller «KØRT i prod <dato>» (lærestreg dd)", () => {
     const migration = laes(MIGRATION);
     expect(migrationenTilfoejer(migration)).toBe(true);
     expect(migrationenTilfoejer(migration.replace("WHERE m.bekraeftet_at IS NULL\n", "WHERE true\n"))).toBe(false);
     expect(migrationenTilfoejer(migration + "\nALTER POLICY \"x\" ON public.milestones USING (true);")).toBe(false);
-    expect(migrationenTilfoejer(migration.replace("-- IKKE KØRT.", "-- KØRT."))).toBe(false);
+    expect(migrationenTilfoejer(migration.replace(/^-- [^\n]*/, "-- KØRT."))).toBe(false);
   });
 
   it("dom 7: KVARTALSTJEK_FRA står ét sted og ordret i INSERT-policyen; policyens dom = klientens maaRegistrereKvartalstjek", () => {

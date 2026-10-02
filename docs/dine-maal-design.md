@@ -186,7 +186,7 @@ bedst som `andet_tal` eller med en frist på et helt år.
    current/target — som i dag, men uden udgangspunktet. En rettelse kræver eksplicit udrulning af
    begge functions og er ikke en del af motoren.
 7. **SECURITY_BASELINE fund 6 (milestones WITH CHECK):** forberedt SEPARAT i
-   `20261002090000_milestones_with_check.sql` — KRÆVER Jonas' grønne lys (RLS-stramning).
+   `20261002210000_milestones_with_check.sql` — KRÆVER Jonas' grønne lys (RLS-stramning).
    Politiknavnene er kodelæste og SKAL måles i `pg_policy` før kørsel (filens FØR-SQL).
 8. **Sæson** — se §3 («Kendt begrænsning»).
 

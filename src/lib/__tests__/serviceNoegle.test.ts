@@ -201,7 +201,7 @@ describe("domServiceRole — role-claim-vejen er UÆNDRET", () => {
 
 describe("kildeværn — edgeFunctionAuth.ts og migrationen", () => {
   const auth = laes("supabase/functions/_shared/edgeFunctionAuth.ts");
-  const migration = laes("supabase/migrations/20261001200000_kald_edge_apikey.sql");
+  const migration = laes("supabase/migrations/20261002200000_kald_edge_apikey.sql");
 
   it("authenticateServiceRole dømmer med domServiceRole mod runtimens SUPABASE_SERVICE_ROLE_KEY", () => {
     const krop = auth.split("export function authenticateServiceRole")[1].split("\n}\n")[0];

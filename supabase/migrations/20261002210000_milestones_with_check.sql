@@ -1,4 +1,5 @@
 -- IKKE KØRT. KRÆVER JONAS' GRØNNE LYS (RLS-stramning, SECURITY_BASELINE fund 6).
+-- OMDØBT 2/10-2026 ~05:15 (før kørsel): tidsstemplet flyttet efter 20261002100000_maal_bekraeft_kvartal.sql, som ER kørt — en ukørt migration må aldrig sortere før en kørt (metaSend.guard dom 11; forsiden nede 12 timer 19/9). Indholdet er uændret.
 --
 -- FORBEREDT 1/10-2026 aften (det tekniske råds fund 9 på «Dine mål»-motoren).
 -- KØRES IKKE uden Jonas' udtrykkelige ja: den ændrer eksisterende RLS-politikker
