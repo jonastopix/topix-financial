@@ -18,7 +18,9 @@ import { normaliserTelefon, OPBEVARING_DAGE, SAMTYKKE_ORDLYD } from "@/lib/opkal
     tilmeldingen deltog. Én skærm, mobil først: navn (forudfyldt), telefon,
     ÉT TOMT kryds med ordlyden fra opkaldDom.SAMTYKKE_ORDLYD, knappen «Ring
     mig op», kvittering PÅ SIDEN — ingen kvitteringsmail (overmailing).
-    Ukendt token og «deltog ikke» er ét og samme svar (403). */
+    Ukendt token, udløbet link (sessionen + 30 dage) og «deltog ikke» er ét og
+    samme svar (403). En ÅBEN anmodning vises som «Du har allerede bedt om et
+    opkald» uden formular — den kan ikke ændres via linket. */
 
 type Tilstand =
   | { art: "henter" }
@@ -33,7 +35,14 @@ async function kald(body: Record<string, unknown>): Promise<{ data: Record<strin
   const { data, error } = await supabase.functions.invoke("ring-mig-op", { body });
   if (error) {
     const ctx = (error as { context?: Response } | null)?.context;
-    return { data: null, status: ctx?.status ?? null };
+    // Svarets krop bærer «grund» (fx for_snart) — læst fail-soft; uden den falder teksten tilbage på status.
+    let krop: Record<string, unknown> | null = null;
+    try {
+      krop = ctx ? ((await ctx.clone().json()) as Record<string, unknown>) : null;
+    } catch {
+      krop = null;
+    }
+    return { data: krop, status: ctx?.status ?? null };
   }
   return { data: (data as Record<string, unknown>) ?? null, status: 200 };
 }
@@ -121,6 +130,11 @@ export default function RingMigOp() {
         setTilstand({ art: "sendt" });
         return;
       }
+      if (status === 409 && tilstand.art === "klar") {
+        // En åben anmodning fandtes — siden viser det i stedet for formularen.
+        setTilstand({ art: "klar", opslag: { ...tilstand.opslag, har_anmodet: true } });
+        return;
+      }
       setFejl(tolkRingFejl(status, data));
     } finally {
       setArbejder(false);
@@ -165,12 +179,21 @@ export default function RingMigOp() {
     );
   }
 
+  if (tilstand.opslag.har_anmodet) {
+    // En ÅBEN anmodning kan ikke ændres herfra (rådets fund 2/10, punkt 3) — ingen formular.
+    return (
+      <Ramme>
+        <Overskrift titel={RING_TEKST.harAnmodetTitel} tekst={RING_TEKST.harAnmodet} />
+        <SkrivTilOs />
+      </Ramme>
+    );
+  }
+
   const knap = afgoerRingKnap({ navn, telefonOk: normaliserTelefon(telefon) !== null, kryds, arbejder });
   return (
     <Ramme>
       <Overskrift titel={RING_TEKST.titel} tekst={RING_TEKST.indledning} />
       <HbCard className="space-y-5 p-6">
-        {tilstand.opslag.har_anmodet && <p className="text-sm text-hb-ink-soft">{RING_TEKST.harAnmodet}</p>}
         <HbField label="Dit navn" htmlFor="ring-navn">
           <HbInput id="ring-navn" value={navn} onChange={(e) => setNavn(e.target.value)} autoComplete="name" maxLength={80} disabled={arbejder} />
         </HbField>

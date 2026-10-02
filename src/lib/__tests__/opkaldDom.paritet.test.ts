@@ -56,5 +56,11 @@ describe("opkaldDom.paritet — dommen svarer ens", () => {
     for (const g of ["set", "delvist", "moedte_ikke", "tilmeldt", "ukendt", null]) expect(deno.harDeltaget(g)).toBe(src.harDeltaget(g));
     for (const [a, b] of [[0, 0], [10, 0], [0, 200], [null, 0], [3, null]] as const) expect(deno.loftetNaaet(a, b)).toBe(src.loftetNaaet(a, b));
     expect(deno.klokkeTitel("Mette Hansen", "2026-09-22T07:00:00.000Z")).toBe(src.klokkeTitel("Mette Hansen", "2026-09-22T07:00:00.000Z"));
+    const nu = new Date("2026-10-22T09:00:00.000Z");
+    for (const st of ["2026-09-22T09:00:00.000Z", "2026-09-22T08:59:59.999Z", null, "x"]) expect(deno.tokenUdloebet(st, nu)).toBe(src.tokenUdloebet(st, nu));
+    for (const st of ["2026-10-22T08:50:00.000Z", "2026-10-22T08:55:00.000Z", null, "x"]) expect(deno.forSnartIgen(st, nu)).toBe(src.forSnartIgen(st, nu));
+    for (const f of [null, { ringet_at: null, sidst_indsendt_at: "2026-10-22T08:00:00.000Z" }, { ringet_at: "2026-10-21T08:00:00.000Z", sidst_indsendt_at: "2026-10-22T08:00:00.000Z" }, { ringet_at: null, sidst_indsendt_at: "2026-10-22T08:59:00.000Z" }]) {
+      expect(deno.indsendVej(f, nu)).toBe(src.indsendVej(f, nu));
+    }
   });
 });

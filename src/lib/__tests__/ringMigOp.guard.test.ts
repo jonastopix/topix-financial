@@ -36,6 +36,16 @@ import { readdirSync } from "node:fs";
  *      SAMTYKKE_ORDLYD (ikke en tekst skrevet i fladen).
  *   6. ORDLYDEN GEMMES ORDRET: doemAnmodning afviser en anden ordlyd; functionen skriver
  *      samtykke_ordlyd: anm.ordlyd; CHECK'en på kolonnen findes.
+ *   8. RÅDETS FUND 2/10 — INDSEND (punkt 1 og 3): indsendVej dømmes FØR loftet og enhver
+ *      skrivning; «for_snart» (10 min, sidst_indsendt_at i rækken) og «aaben» returnerer FØR
+ *      skrivRaadgiverBesked/sendHvisMail; en åben række overskrives aldrig (kun stemplet);
+ *      genåbningen er guardet på ringet_at IS NOT NULL og det læste stempel og skifter
+ *      runde_id; klokkens reference_id og Klaviyos unikke id er runde_id.
+ *   9. RÅDETS FUND 2/10 — RLS (punkt 4 og 5): SELECT- og UPDATE-politikken udelukker
+ *      tjenestekonti; fortrydelsen er bevidst åben for enhver rådgiver og bogført i
+ *      migrationen (triggeren kræver ikke OLD.ringet_af = auth.uid()).
+ *  10. RÅDETS FUND 2/10 — IP-HASH (punkt 6): ring-mig-op's ipDagshash er ordret
+ *      ansoegning-gem's (husets ene måde), og svagheden står i filhovedet.
  *   7. HUSETS REGLER: config.toml verify_jwt = false med begrundelse; laesRingToken er
  *      registreret som prædikat i CI-værnet; STRIKS body (ukendteFelter); migrationens
  *      første linje er «IKKE KØRT»; anon har intet, authenticated kun SELECT/UPDATE, og
@@ -94,9 +104,9 @@ export const kunDeltagere = (fn: string, haendelser: string, webhook: string, im
   return (
     foer(k, "await laesRingToken(", "createClient(") &&
     foer(k, "createClient(", 'from("webinar_tilmeldinger")') &&
-    foer(k, "harDeltaget(grad)", ".upsert(") &&
-    k.includes('.from("opkaldsanmodninger")\n    .upsert(') &&
-    k.includes("if (!tilmelding || !harDeltaget(grad)) {") &&
+    foer(k, "harDeltaget(grad)", ".insert(") &&
+    !k.includes(".upsert(") &&
+    k.includes("if (!tilmelding || !harDeltaget(grad) || tokenUdloebet(tilmelding.session_tid, nu)) {") &&
     (k.match(/json\(403, \{ error: "ukendt" \}\)/g) ?? []).length === 2 &&
     h.includes('ring_op_url: o === "deltog" ? (i.ringOpUrl ?? null) : null,') &&
     // Profilegenskaben (Jonas 08:17) bag SAMME dom — aldrig for «mødte ikke op».
@@ -198,11 +208,64 @@ export const husetsRegler = (fn: string, config: string, ci: string, mig: string
   );
 };
 
+// ── 8 ──
+export const indsendDom = (fn: string): boolean => {
+  const k = udenKommentarer(fn);
+  const aaben = k.slice(k.indexOf('if (vej === "aaben" && findes) {'), k.indexOf("const ipHash = await ipDagshash(req);"));
+  return (
+    foer(k, "const vej = indsendVej(findes, nu);", 'if (vej === "for_snart") {') &&
+    foer(k, 'if (vej === "for_snart") {', 'if (vej === "aaben" && findes) {') &&
+    foer(k, 'if (vej === "aaben" && findes) {', "loftetNaaet(") &&
+    foer(k, "loftetNaaet(", ".insert(") &&
+    foer(k, ".insert(", "await skrivRaadgiverBesked(") &&
+    // Den åbne: KUN stemplet, aldrig navn/telefon/samtykke, og 409 — intet sendes.
+    aaben.includes(".update({ sidst_indsendt_at: nu.toISOString() })") &&
+    aaben.includes('.is("ringet_at", null)') &&
+    aaben.includes('return json(409, { error: "allerede_anmodet", grund: "allerede_anmodet" });') &&
+    !/telefon|samtykke_ordlyd|navn:/.test(aaben) &&
+    // Genåbningen: kun en lukket, compare-and-swap på stemplet, ny runde.
+    k.includes('.update({ ...felter, ringet_at: null, ringet_af: null, runde_id: crypto.randomUUID() })') &&
+    k.includes('.not("ringet_at", "is", null)') &&
+    (k.match(/\.eq\("sidst_indsendt_at", findes\.sidst_indsendt_at\)/g) ?? []).length === 2 &&
+    k.includes("reference_id: rundeId,") &&
+    k.includes("uniktId: rundeId,") &&
+    !k.includes("reference_id: anmodningId")
+  );
+};
+
+// ── 9 ──
+export const rlsFund = (mig: string): boolean => {
+  const m = udenSql(mig);
+  const select = m.slice(m.indexOf('create policy "Advisors can view opkaldsanmodninger"'), m.indexOf('drop policy if exists "Advisors can mark'));
+  const update = m.slice(m.indexOf('create policy "Advisors can mark opkaldsanmodninger ringet"'), m.indexOf('drop policy if exists "Service role'));
+  const tk = "not exists (select 1 from public.tjenestekonti tk where tk.user_id = auth.uid())";
+  return (
+    select.includes(tk) &&
+    (update.match(/not exists \(select 1 from public\.tjenestekonti tk where tk\.user_id = auth\.uid\(\)\)/g) ?? []).length === 2 &&
+    mig.includes("FORTRYD «RINGET» — BEVIDST: enhver rådgiver kan fortryde") &&
+    !/old\.ringet_af/i.test(m) &&
+    m.includes("sidst_indsendt_at timestamptz not null default now(),") &&
+    m.includes("runde_id         uuid not null default gen_random_uuid(),")
+  );
+};
+
+// ── 10 ──
+export const ipHashSomHuset = (fn: string, gem: string): boolean => {
+  const krop = (k: string) => {
+    const i = k.indexOf("async function ipDagshash(req: Request): Promise<string> {");
+    return i === -1 ? "" : k.slice(i, k.indexOf("\n}\n", i) + 3).replace(/\s+/g, " ");
+  };
+  const a = krop(udenKommentarer(fn)), b = krop(udenKommentarer(gem));
+  return a !== "" && a === b && fn.includes("SVAGHEDEN, BOGFØRT") && fn.includes("2^32");
+};
+
 describe("ringMigOp.guard — «Må vi ringe til dig?»", () => {
   const fn = laes(FUNKTION);
   it("1. kun deltagere: token før service role, harDeltaget før skrivning, ét svar, token kun for «deltog»", () => {
     expect(kunDeltagere(fn, laes(HAENDELSER), laes(WEBHOOK))).toBe(true);
-    expect(kunDeltagere(fn.replace("if (!tilmelding || !harDeltaget(grad)) {", "if (!tilmelding) {"), laes(HAENDELSER), laes(WEBHOOK))).toBe(false);
+    expect(kunDeltagere(fn.replace("if (!tilmelding || !harDeltaget(grad) || tokenUdloebet(tilmelding.session_tid, nu)) {", "if (!tilmelding || tokenUdloebet(tilmelding.session_tid, nu)) {"), laes(HAENDELSER), laes(WEBHOOK))).toBe(false);
+    // Rådets fund 2: et udløbet link får samme 403 — fjernes udløbet, fælder dommen.
+    expect(kunDeltagere(fn.replace("if (!tilmelding || !harDeltaget(grad) || tokenUdloebet(tilmelding.session_tid, nu)) {", "if (!tilmelding || !harDeltaget(grad)) {"), laes(HAENDELSER), laes(WEBHOOK))).toBe(false);
     expect(kunDeltagere(fn, laes(HAENDELSER).replace('o === "deltog" ? (i.ringOpUrl ?? null) : null', "i.ringOpUrl ?? null"), laes(WEBHOOK))).toBe(false);
     expect(kunDeltagere(fn, laes(HAENDELSER).replace('profilEgenskaber: { ring_op_url: o === "deltog" ? (i.ringOpUrl ?? null) : null },', "profilEgenskaber: { ring_op_url: i.ringOpUrl ?? null },"), laes(WEBHOOK))).toBe(false);
     expect(kunDeltagere(fn, laes(HAENDELSER), laes(WEBHOOK), laes(IMPORT).replace("doemFremmoedeForImport(foer, flettet, nu, ringOpUrl)", "doemFremmoedeForImport(foer, flettet, nu)"))).toBe(false);
@@ -237,6 +300,22 @@ describe("ringMigOp.guard — «Må vi ringe til dig?»", () => {
   it("6. ordlyden gemmes ordret, nummeret i E.164 med CHECK", () => {
     expect(ordlydenGemmes(fn, laes(DOM), laes(MIGRATION))).toBe(true);
     expect(ordlydenGemmes(fn.replace("samtykke_ordlyd: anm.ordlyd,", "samtykke_ordlyd: SAMTYKKE_ORDLYD,"), laes(DOM), laes(MIGRATION))).toBe(false);
+  });
+  it("8. indsend: for_snart og den åbne anmodning før enhver skrivning; genåbning kun af en lukket, ny runde", () => {
+    expect(indsendDom(fn)).toBe(true);
+    expect(indsendDom(fn.replace('.update({ sidst_indsendt_at: nu.toISOString() })', '.update({ sidst_indsendt_at: nu.toISOString(), telefon: anm.telefon })'))).toBe(false);
+    expect(indsendDom(fn.replace('.not("ringet_at", "is", null)', '.is("ringet_at", null)'))).toBe(false);
+    expect(indsendDom(fn.replace("reference_id: rundeId,", "reference_id: raekke.id,"))).toBe(false);
+    expect(indsendDom(fn.replace("uniktId: rundeId,", "uniktId: raekke.id,"))).toBe(false);
+  });
+  it("9. RLS: tjenestekonti ude af SELECT og UPDATE; fortrydelsen bevidst åben og bogført", () => {
+    expect(rlsFund(laes(MIGRATION))).toBe(true);
+    expect(rlsFund(laes(MIGRATION).replace("    and not exists (select 1 from public.tjenestekonti tk where tk.user_id = auth.uid())\n  );\n\n-- UPDATE", "  );\n\n-- UPDATE"))).toBe(false);
+  });
+  it("10. IP-hashen er husets (ansoegning-gem) og svagheden står i filhovedet", () => {
+    const gem = laes("supabase/functions/ansoegning-gem/index.ts");
+    expect(ipHashSomHuset(fn, gem)).toBe(true);
+    expect(ipHashSomHuset(fn.replace("const dag = new Date().toISOString().slice(0, 10);", "const dag = 'x';"), gem)).toBe(false);
   });
   it("7. husets regler: verify_jwt = false med begrundelse, CI-prædikat, STRIKS body, IKKE KØRT, RLS og kolonneværn", () => {
     expect(husetsRegler(fn, laes(CONFIG), laes(CI), laes(MIGRATION))).toBe(true);

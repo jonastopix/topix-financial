@@ -4,7 +4,10 @@ import {
   ANMODNINGER_PR_TIME_I_ALT,
   doemAnmodning,
   erAaben,
+  forSnartIgen,
   harDeltaget,
+  INDSEND_PAUSE_MIN,
+  indsendVej,
   KLOKKE_BODY,
   klokkeTitel,
   loftetNaaet,
@@ -13,6 +16,8 @@ import {
   SAMTYKKE_ORDLYD,
   slettesAt,
   sorterAnmodninger,
+  TOKEN_GYLDIG_DAGE,
+  tokenUdloebet,
   visTelefon,
 } from "@/lib/opkald/dom";
 import { afgoerRingKnap, RING_TEKST, tolkRingFejl } from "@/lib/opkald/side";
@@ -203,5 +208,42 @@ describe("fladen — knappen og ordene", () => {
     expect(tolkRingFejl(403, null)).toBe(RING_TEKST.ukendtTekst);
     expect(tolkRingFejl(429, null)).toMatch(/om en time/);
     expect(tolkRingFejl(null, null)).toMatch(/Noget gik galt/);
+    expect(tolkRingFejl(409, { grund: "allerede_anmodet" })).toBe(RING_TEKST.harAnmodet);
+    expect(tolkRingFejl(429, { grund: "for_snart" })).toMatch(/10 minutter/);
+    expect(RING_TEKST.ukendtTekst).toMatch(/udløbet/);
+  });
+});
+
+describe("rådets fund 2/10 — linkets levetid (punkt 2)", () => {
+  it("30 dage efter sessionens start: præcis grænsen er gyldig, ét ms efter ikke", () => {
+    expect(TOKEN_GYLDIG_DAGE).toBe(30);
+    const session = "2026-09-22T09:00:00.000Z";
+    // 22/9 09:00Z + 30 × 86 400 000 ms = 22/10 09:00Z.
+    expect(tokenUdloebet(session, new Date("2026-10-22T09:00:00.000Z"))).toBe(false);
+    expect(tokenUdloebet(session, new Date("2026-10-22T09:00:00.001Z"))).toBe(true);
+    expect(tokenUdloebet(session, new Date("2026-09-22T10:00:00.000Z"))).toBe(false);
+  });
+  it("ukendt eller ulæselig sessionstid er udløbet (fail-closed)", () => {
+    expect(tokenUdloebet(null, new Date())).toBe(true);
+    expect(tokenUdloebet(undefined, new Date())).toBe(true);
+    expect(tokenUdloebet("ikke en dato", new Date())).toBe(true);
+  });
+});
+
+describe("rådets fund 2/10 — gentaget indsend og den åbne anmodning (punkt 1 og 3)", () => {
+  const nu = new Date("2026-10-02T10:00:00.000Z");
+  it("10 minutter: 599 999 ms er for snart, 600 000 ms er ikke", () => {
+    expect(INDSEND_PAUSE_MIN).toBe(10);
+    expect(forSnartIgen("2026-10-02T09:50:00.001Z", nu)).toBe(true);
+    expect(forSnartIgen("2026-10-02T09:50:00.000Z", nu)).toBe(false);
+    expect(forSnartIgen(null, nu)).toBe(false);
+    expect(forSnartIgen("vrøvl", nu)).toBe(true);
+  });
+  it("indsendVej: ny · for_snart (FØR alt andet) · aaben (overskrives aldrig) · genaabn (kun lukket)", () => {
+    expect(indsendVej(null, nu)).toBe("ny");
+    expect(indsendVej({ ringet_at: null, sidst_indsendt_at: "2026-10-02T09:55:00.000Z" }, nu)).toBe("for_snart");
+    expect(indsendVej({ ringet_at: "2026-10-01T12:00:00.000Z", sidst_indsendt_at: "2026-10-02T09:55:00.000Z" }, nu)).toBe("for_snart");
+    expect(indsendVej({ ringet_at: null, sidst_indsendt_at: "2026-10-01T09:00:00.000Z" }, nu)).toBe("aaben");
+    expect(indsendVej({ ringet_at: "2026-10-01T12:00:00.000Z", sidst_indsendt_at: "2026-10-01T09:00:00.000Z" }, nu)).toBe("genaabn");
   });
 });

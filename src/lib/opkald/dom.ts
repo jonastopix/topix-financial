@@ -110,6 +110,72 @@ export function loftetNaaet(antalIp: number | null, antalIAlt: number | null): b
   return antalIp >= ANMODNINGER_PR_IP_PR_TIME || antalIAlt >= ANMODNINGER_PR_TIME_I_ALT;
 }
 
+// ── Linkets levetid (rådets fund 2/10, punkt 2) ─────────────────────────────
+
+/** Linket i «Deltog»-mailen virker til 30 dage efter sessionens start. */
+export const TOKEN_GYLDIG_DAGE = 30;
+const DAG_MS = 86_400_000;
+
+/**
+ * Er linket udløbet? Tokenet bærer ingen tid (HMAC over ewebinar_id); tiden er
+ * TILMELDINGENS session_tid, læst på serveren.
+ * REGNESTYKKET: udløb = Date.parse(session_tid) + TOKEN_GYLDIG_DAGE × 86 400 000 ms
+ *   = session_tid + 30 × 86 400 000 = session_tid + 2 592 000 000 ms (absolut UTC-tid,
+ *   ingen sommertid i regnestykket); udløbet ⇔ nu > udløb.
+ *   Eksempel: session 2026-09-22T09:00:00.000Z → udløb 2026-10-22T09:00:00.000Z;
+ *   præcis dét millisekund er stadig gyldigt, ét millisekund senere ikke.
+ * Ukendt eller ulæselig session_tid = UDLØBET (fail-closed): uden en tid kan vi ikke
+ * sige, at linket stadig gælder. Functionen svarer 403 «ukendt» — samme svar som et
+ * forkert token, så et udløbet link ikke afslører, at tilmeldingen findes.
+ */
+export function tokenUdloebet(sessionTid: string | null | undefined, nu: Date): boolean {
+  if (!sessionTid) return true;
+  const start = Date.parse(sessionTid);
+  if (Number.isNaN(start)) return true;
+  return nu.getTime() > start + TOKEN_GYLDIG_DAGE * DAG_MS;
+}
+
+// ── Gentaget «indsend» og den åbne anmodning (rådets fund 2/10, punkt 1 og 3) ─
+
+/** Et nyt «indsend» på SAMME tilmelding afvises inden for 10 minutter. */
+export const INDSEND_PAUSE_MIN = 10;
+
+/**
+ * For snart igen? Tællingen bor i RÆKKEN (opkaldsanmodninger.sidst_indsendt_at, sat
+ * ved HVERT indsend, der når rækken — også et afvist på en åben anmodning).
+ * REGNESTYKKET: for snart ⇔ nu − sidst_indsendt_at < INDSEND_PAUSE_MIN × 60 000 ms
+ *   = 10 × 60 000 = 600 000 ms. Præcis 600 000 ms efter er IKKE for snart.
+ * null = ingen række endnu = ikke for snart. En ulæselig tid = for snart (fail-closed).
+ */
+export function forSnartIgen(sidstIndsendtAt: string | null | undefined, nu: Date): boolean {
+  if (sidstIndsendtAt === null || sidstIndsendtAt === undefined) return false;
+  const sidst = Date.parse(sidstIndsendtAt);
+  if (Number.isNaN(sidst)) return true;
+  return nu.getTime() - sidst < INDSEND_PAUSE_MIN * 60_000;
+}
+
+/**
+ * Hvad et «indsend» gør med rækken (dommen før enhver skrivning):
+ *   ny        — ingen række: INSERT, klokke og Klaviyo (én gang).
+ *   for_snart — en række, indsendt for under 10 min siden: 429, intet skrives, intet sendes.
+ *   aaben     — en ÅBEN anmodning (ringet_at null): OVERSKRIVES ALDRIG — et videresendt
+ *               link må ikke kunne skifte nummeret. Kun sidst_indsendt_at røres; 409,
+ *               ingen klokke, ingen Klaviyo.
+ *   genaabn   — en LUKKET (ringet) anmodning: personen beder igen. Nyt navn/nummer/samtykke,
+ *               ringet nulstilles, og runde_id skiftes, så klokken (reference_id) og
+ *               Klaviyo («Bad om opkald», unikt id) er NYE — ikke en dublet af den gamle.
+ */
+export type IndsendVej = "ny" | "for_snart" | "aaben" | "genaabn";
+
+export function indsendVej(
+  findes: { ringet_at: string | null; sidst_indsendt_at: string | null } | null,
+  nu: Date,
+): IndsendVej {
+  if (!findes) return "ny";
+  if (forSnartIgen(findes.sidst_indsendt_at, nu)) return "for_snart";
+  return findes.ringet_at === null ? "aaben" : "genaabn";
+}
+
 // ── Klokken ──────────────────────────────────────────────────────────────────
 
 /** «22/9» i dansk tid — uden Intl-ugedag (isoUge-værnet). */
