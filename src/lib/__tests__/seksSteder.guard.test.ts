@@ -121,8 +121,9 @@ const ABONNENT_FOER = [
   { label: "Dine tal", to: null, children: [{ label: "Rapportering", to: "/reports" }, { label: "KPI'er", to: "/kpis" }, { label: "Budget", to: "/budget" }, { label: "Dine mål", to: "/milestones" }, { label: "Handouts", to: "/handouts" }] },
   { label: "Rabataftaler", to: "/rabataftaler", children: null },
 ];
+// 2/10 14:22 (Jonas «Jeg kan ikke se /opkald»): «Opkald» under Webinar — en bevidst tilføjelse, ikke en glidning.
 const RAADGIVER_FOER = [
-  ["Forside", "/"], ["Virksomheder", "/virksomheder"], ["Ansøgninger", "/ansoegninger"], ["Webinar", "/webinar"], ["Engagement", "/engagement"], ["Indbakke", "/chat"], ["Community", "/community"], ["Indhold", "/admin/indhold"],
+  ["Forside", "/"], ["Virksomheder", "/virksomheder"], ["Ansøgninger", "/ansoegninger"], ["Webinar", "/webinar"], ["Opkald", "/opkald"], ["Engagement", "/engagement"], ["Indbakke", "/chat"], ["Community", "/community"], ["Indhold", "/admin/indhold"],
   ["Dine tal", null], ["Akademiet", "/akademiet"], ["Rabataftaler", "/rabataftaler"], ["Events", "/events"], ["Netværket", "/medlemmer"], ["Dit certifikat", "/certifikat/forhaandsvisning"], ["Platform", null],
 ];
 export const abonnentOgRaadgiverUroerte = (abonnent: ReturnType<typeof bygHbNav>, raadgiver: ReturnType<typeof bygHbNav>): boolean =>
