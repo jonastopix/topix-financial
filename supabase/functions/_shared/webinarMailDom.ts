@@ -16,7 +16,7 @@
 
 // ── Arterne ────────────────────────────────────────────────────────────────
 
-export type MailArt = "bekraeftelse" | "fjorten_dage" | "syv_dage" | "tre_dage" | "en_dag" | "dagen" | "en_time";
+export type MailArt = "bekraeftelse" | "fjorten_dage" | "syv_dage" | "tre_dage" | "en_dag" | "dagen" | "en_time" | "ti_minutter";
 
 /**
  * ALLE arter, databasen kender — ordret webinar_mails_art_check (webinarMail.guard
@@ -24,8 +24,12 @@ export type MailArt = "bekraeftelse" | "fjorten_dage" | "syv_dage" | "tre_dage" 
  * sendes: «tre_dage» og «dagen» står her, fordi sporet har rækker med dem
  * (historik), og CHECK'en beholder dem. Det, der SENDES, er AKTIVE_ARTER (læst af
  * PLANEN) — se UDGAAEDE_ARTER.
+ *
+ * «ti_minutter» (3/10-2026) står SIDST: den er ny og gælder KUN webinarmotorens
+ * rækker (Plan.kunMotor). Migrationen 20261003040000 lægger ordet i CHECK'en og
+ * SKAL være kørt, før functionen udrulles (23514-fælden, webinarMail.guard dom 10).
  */
-export const ARTER: readonly MailArt[] = ["bekraeftelse", "fjorten_dage", "syv_dage", "tre_dage", "en_dag", "dagen", "en_time"];
+export const ARTER: readonly MailArt[] = ["bekraeftelse", "fjorten_dage", "syv_dage", "tre_dage", "en_dag", "dagen", "en_time", "ti_minutter"];
 
 /**
  * DE ARTER, DER BÆRER EWEBINARS invite.ics — inline og vedhæftet, gennem
@@ -89,6 +93,24 @@ export interface Plan {
    * Regnestykket pr. art står ved PLANEN; se indhentningSlut.
    */
   indhentesSenestDageFoer?: number;
+  /**
+   * TIDLIGST (3/10-2026, kun «ti_minutter»): mailen må gå op til så mange ms FØR
+   * sit planlagte tidspunkt. Udeladt = 0 — som alle arter før: endnu_ikke indtil
+   * tidspunktet. Regnestykket står ved «ti_minutter» i PLANEN.
+   */
+  tidligstFoerMs?: number;
+  /**
+   * NÅDEN for netop denne art (3/10-2026, kun «ti_minutter»). Udeladt =
+   * SEN_TILMELDING_NAADE_MS (2 timer) — som alle arter før. Se naadeFor.
+   */
+  naadeMs?: number;
+  /**
+   * KUN WEBINARMOTORENS RÆKKER (3/10-2026, kun «ti_minutter»): ewebinar_id
+   * «P-<uuid>» (erMotorRaekke). eWebinar sender selv sin 10-minutters-mail til
+   * sine tilmeldte, så en eWebinar-række må ALDRIG få vores — doemMail svarer
+   * «ikke_motor» FØRST, før alt andet. Udeladt = alle rækker, som før.
+   */
+  kunMotor?: true;
   /** Må mailen først sendes, når sessionen IKKE er begyndt? */
   kraeverIkkeBegyndt: boolean;
 }
@@ -123,7 +145,54 @@ export const PLANEN: readonly Plan[] = [
   { art: "en_dag", dageFoer: 1, time: 8, minut: 0, indhentesSenestDageFoer: 1, kraeverIkkeBegyndt: false },
   // «Om en time» — det er DEN, der bærer join-linket til en, der er på vej.
   { art: "en_time", minutterFoer: 60, kraeverIkkeBegyndt: true },
+  // «Vi begynder om 10 minutter» (3/10-2026, docs/webinarmotor.md §8.4 punkt 3) —
+  // KUN motorens rækker (kunMotor): eWebinar sender selv sin 10-minutters-mail.
+  //
+  // VINDUET OG NÅDEN — regnestykket. Cronen kører i minutterne
+  //   9, 14, 24, 27, 29, 37, 39, 44, 47, 57, 59 (job 573, migration 20260922172000)
+  // — hullerne er 5, 10, 3, 2, 8, 2, 5, 3, 10, 2, 10 min; det STØRSTE er 10 min.
+  // Med det almindelige vindue [T−10, T−10 + 2 t] ville mailen gå på det første
+  // slot EFTER T−10, dvs. op til 10 min senere — for en session kl. hh:10 kl. hh:09,
+  // ét minut før start. «Om 10 minutter» ville være forkert, og mailen kunne nå
+  // frem EFTER starten. Derfor et eget vindue omkring T−10:
+  //   tidligst  T − 10 − 5 = T − 15 min  (tidligstFoerMs 5 min; = lobbyens
+  //             standard, lobby_min 15 — rummet er åbent, når linket kommer)
+  //   senest    T − 10 + 5 = T − 5 min   (naadeMs 5 min; derefter for_sent)
+  // Vinduet er 10 min LANGT og LUKKET i begge ender, og intet hul er længere end
+  // 10 min — så ét slot falder altid i det for en session på et helt minut (slottet
+  // fyrer et par sekunder efter sit minut; i et 10-min-hul ligger det forrige slot
+  // på T−15 eller senere, eller det næste på T−5 eller før — prøvet for alle 60
+  // minutter i webinarMailDom.test.ts). For en session kl. hh:00: vinduet
+  // hh−1:45 … hh−1:55 → slot :47, altså 13 min før.
+  // ALDRIG EFTER STARTEN: dommens `nu` er kørslens start. Seneste ja = T − 5 min.
+  // Budgettet (webinarMailBudget.ts) starter et forsøg uden invitation senest
+  // 40 s inde i kørslen, og Mailgun-kaldet har en timeout på 10 s:
+  //   T − 5 min + 40 s + 10 s = T − 4 min 10 s — Mailgun har mailen senest dér.
+  // Leveringen fra Mailgun til indbakken er UMÅLT (normalt sekunder). Og uanset
+  // vinduet svarer kraeverIkkeBegyndt «sessionen_begyndt» fra T. En mail, der
+  // ikke nås i vinduet (pause, loft, budget), går ALDRIG — hellere ingen end en
+  // sen; der er ingen indhentning (ingen næste art). Sorteringen i planlaegKoersel
+  // lægger den lige efter bekræftelserne (kort nåde først).
+  { art: "ti_minutter", minutterFoer: 10, tidligstFoerMs: 5 * 60_000, naadeMs: 5 * 60_000, kunMotor: true, kraeverIkkeBegyndt: true },
 ];
+
+/**
+ * ER RÆKKEN WEBINARMOTORENS? ewebinar_id = «P-» + en uuid. ORDRET samme form som
+ * webinarMotor/mail.ts' MOTOR_ID_FORM (webinarMail.guard dom 20 sammenligner
+ * dem) — gentaget her, fordi dommen har nul imports. Det er kun FILTERET:
+ * mailVejDom kræver bagefter, at opslaget siger kilde_system = 'platform', og
+ * uden det forsøges mailen ikke.
+ */
+export const MOTOR_ID_FORM_DOM = /^P-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+export function erMotorRaekke(ewebinarId: string | null | undefined): boolean {
+  return typeof ewebinarId === "string" && MOTOR_ID_FORM_DOM.test(ewebinarId);
+}
+
+/** Gælder arten KUN motorens rækker? Læst af PLANEN, aldrig af artens navn. */
+export function kunMotor(art: MailArt): boolean {
+  return PLANEN.find((p) => p.art === art)?.kunMotor === true;
+}
 
 /**
  * FÆRRE PÅMINDELSER (besluttet af Jonas 30/9 kl. 06:06 (morgenlistens D1: "Ja det skal de. Drop de to"),
@@ -156,6 +225,11 @@ export const AKTIVE_ARTER: readonly MailArt[] = PLANEN.map((p) => p.art);
  * forsinket, er stadig rigtig. En mail, der er en dag forsinket, er ikke.
  */
 export const SEN_TILMELDING_NAADE_MS = 2 * 3_600_000;
+
+/** Nåden for en art: dens egen (Plan.naadeMs) eller SEN_TILMELDING_NAADE_MS. Alarmens fristFor læser den. */
+export function naadeFor(art: MailArt): number {
+  return PLANEN.find((p) => p.art === art)?.naadeMs ?? SEN_TILMELDING_NAADE_MS;
+}
 
 /**
  * BEKRÆFTELSEN SENDES ALDRIG BAGUD (Jonas 22/9-2026 ca. kl. 19:05).
@@ -274,7 +348,11 @@ export type Springgrund =
   | "senere_session"
   // Et tidligere forsøg, hvor vi IKKE ved, om Mailgun tog imod (29/9 — se
   // afsendelseUkendt). Sendes aldrig igen automatisk. Skrives aldrig i sporet.
-  | "levering_ukendt";
+  | "levering_ukendt"
+  // «ti_minutter» til en række, der IKKE er webinarmotorens (Plan.kunMotor, 3/10).
+  // Én pr. eWebinar-person og kørsel — beviset for, at eWebinars tilmeldte aldrig
+  // får vores 10-minutters-mail. Skrives aldrig i sporet.
+  | "ikke_motor";
 
 export type MailDom =
   // `indhentning: true` KUN når mailen sendes, fordi et tidligere forsøg fejlede, og
@@ -315,9 +393,18 @@ export function doemMail(i: {
    * bekræftelsen. Udeladt = false.
    */
   senereSession?: boolean;
+  /**
+   * Er rækken webinarmotorens (erMotorRaekke)? KUN en art med kunMotor læser den,
+   * og den er fail-closed: udeladt = ikke motorens. Arterne uden kunMotor er
+   * ordret som før.
+   */
+  motorRaekke?: boolean;
   nu: Date;
 }): MailDom {
   const { art } = i;
+  // KUN MOTORENS RÆKKER (3/10) — FØRST, før alt andet: en eWebinar-række får
+  // aldrig «ti_minutter», uanset afmelding, spor eller tid.
+  if (kunMotor(art) && i.motorRaekke !== true) return { send: false, art, grund: "ikke_motor" };
   if (i.afmeldt) return { send: false, art, grund: "afmeldt" };
   if (i.alleredeSendt) return { send: false, art, grund: "allerede_sendt" };
   const mail = (i.email ?? "").trim().toLowerCase();
@@ -370,8 +457,10 @@ export function doemMail(i: {
   // epoken, så rækken kan læses bagud.
   if (plan.straks === true) return { send: true, art, planlagt: i.nu };
   const forsinkelse = i.nu.getTime() - tid.getTime();
-  if (forsinkelse < 0) return { send: false, art, grund: "endnu_ikke" };
-  if (forsinkelse > SEN_TILMELDING_NAADE_MS) {
+  // tidligstFoerMs og naadeMs er udeladt på alle arter undtagen «ti_minutter»:
+  // så er det 0 og SEN_TILMELDING_NAADE_MS — ordret som før.
+  if (forsinkelse < -(plan.tidligstFoerMs ?? 0)) return { send: false, art, grund: "endnu_ikke" };
+  if (forsinkelse > naadeFor(art)) {
     // INDHENTNING (Jonas 29/9-2026). En mail, der er mere end nåden forsinket, kan
     // være forsinket af to grunde, og de to er ikke det samme:
     //   1. PERSONEN KOM FOR SENT — tilmeldte sig fire dage før, og «om en uge ses
@@ -392,8 +481,9 @@ export function doemMail(i: {
       return { send: false, art, grund: "for_sent" };
     }
     const naeste = naesteTidssatteArt(art);
-    // Ingen næste art (en_time): uændret. «Om en time» mere end to timer forsinket
-    // er efter starten, og sessionen_begyndt har allerede svaret ovenfor.
+    // Ingen næste art (en_time, ti_minutter): uændret. «Om en time» mere end to
+    // timer forsinket er efter starten, og sessionen_begyndt har allerede svaret
+    // ovenfor; «ti_minutter» efter sin nåde (T−5) går aldrig — for_sent.
     if (naeste === null) return { send: false, art, grund: "for_sent" };
     const slut = indhentningSlut(i.sessionTid, art);
     if (slut === null) return { send: false, art, grund: "for_sent_efter_fejl" };
@@ -463,11 +553,15 @@ export function afsendelseUkendt(forsoeg: { udfald: string; status: number | nul
 /**
  * Den næste art i PLANEN med et tidspunkt (ikke «straks») — eller null for den sidste.
  * Bruges af indhentningSlut som den ene af to grænser.
+ *
+ * En kunMotor-art («ti_minutter», 3/10) er ALDRIG «den næste»: den gælder kun
+ * motorens rækker og er ingen grænse for nogen anden arts indhentning — så kæden
+ * for eWebinars rækker er ordret som før (en_time har stadig ingen næste art).
  */
 export function naesteTidssatteArt(art: MailArt): MailArt | null {
   const i = PLANEN.findIndex((p) => p.art === art);
   if (i === -1) return null;
-  const naeste = PLANEN.slice(i + 1).find((p) => p.straks !== true);
+  const naeste = PLANEN.slice(i + 1).find((p) => p.straks !== true && p.kunMotor !== true);
   return naeste ? naeste.art : null;
 }
 
@@ -611,7 +705,7 @@ export function planlaegKoersel(i: {
   const sprunget: Record<Springgrund, number> = {
     afmeldt: 0, ingen_session: 0, ingen_mail: 0, for_sent: 0,
     endnu_ikke: 0, sessionen_begyndt: 0, allerede_sendt: 0, for_tidlig_tilmelding: 0,
-    for_sent_efter_fejl: 0, senere_session: 0, levering_ukendt: 0,
+    for_sent_efter_fejl: 0, senere_session: 0, levering_ukendt: 0, ikke_motor: 0,
   };
 
   // 1. Én person pr. (mail, session).
@@ -649,6 +743,10 @@ export function planlaegKoersel(i: {
     const afmeldt = i.afmeldte.has(mail) || afmeldtIEwebinar.has(mail);
     const foersteKommende = naermeste.get(mail);
     const senereSession = foersteKommende !== undefined && Date.parse(r.session_tid as string) > foersteKommende;
+    // Den række, der vandt for (mail, session) — er samme mail tilmeldt samme
+    // tidspunkt i BEGGE systemer, vinder eWebinars (den har join_link), og så
+    // sender eWebinar selv sin 10-minutters-mail.
+    const motorRaekke = erMotorRaekke(r.ewebinar_id);
     for (const art of AKTIVE_ARTER) {
       const dom = doemMail({
         art,
@@ -660,6 +758,7 @@ export function planlaegKoersel(i: {
         fejlede: i.fejlede,
         ukendte: i.ukendte,
         senereSession,
+        motorRaekke,
         nu: i.nu,
       });
       // `=== false`, ikke `!dom.send`: repoets tsconfig har strict slået fra, og
@@ -688,9 +787,14 @@ export function planlaegKoersel(i: {
   // ville en ny tilmeldts bekræftelse vente to-tre timer. En bekræftelse er svaret
   // på noget, personen lige har gjort; en indhentet påmindelse kan vente en kørsel.
   // «Straks» læses af PLANEN, ikke af artens navn.
+  // KORT NÅDE NÆST (3/10): en art med egen nåde (naadeMs — i dag kun «ti_minutter»,
+  // 5 min) står lige efter bekræftelserne; bag 211 indhentede mails ville den tabes.
+  // Uden en sådan art i listen er rækkefølgen ordret som før.
   const erStraks = (art: MailArt) => PLANEN.find((p) => p.art === art)?.straks === true;
+  const kortNaade = (art: MailArt) => PLANEN.find((p) => p.art === art)?.naadeMs !== undefined;
   sendinger.sort((a, b) =>
     Number(erStraks(b.art)) - Number(erStraks(a.art)) ||
+    Number(kortNaade(b.art)) - Number(kortNaade(a.art)) ||
     a.planlagt.localeCompare(b.planlagt) ||
     a.email.localeCompare(b.email));
   return { sendinger, sprunget };

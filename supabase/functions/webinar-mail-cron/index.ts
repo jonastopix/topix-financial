@@ -113,6 +113,14 @@
 // Sporets `invitation` = «hentet» for motorens .ics betyder «filen var i hånden»
 // (CHECK'en webinar_mails_invitation_check er urørt); rækken kendes på «P-».
 //
+// «TI_MINUTTER» (3/10-2026, docs/webinarmotor.md §4 og §7.1): «Vi begynder om 10
+// minutter» — KUN motorens rækker (dommens Plan.kunMotor; eWebinar sender selv
+// sin 10-minutters-mail til sine). Dommen afgør det FØR alt andet («ikke_motor»),
+// og mailVejDom kræver bagefter kilde_system = 'platform'. Vinduet er T−15 … T−5
+// min (regnestykket ved PLANEN) — aldrig efter starten. Ingen kalenderfil.
+// Migrationen 20261003040000 (CHECK'en) SKAL være kørt, FØR den her udrulles.
+// Beviset i svaret: `ti_minutter` (ikke_motor · skal_sendes).
+//
 // BODY (STRIKS, bodyFelter.guard): dry_run · email · art · nu.
 //
 // KASTER ALDRIG mod én mail: fejler én, tælles den, og de andre sendes.
@@ -182,6 +190,13 @@ export interface MailResultat {
   sprunget_senere_session: number;
   /** = sprunget.levering_ukendt: mails, der IKKE gensendes, fordi et tidligere forsøg har ukendt udfald. */
   ukendt_ikke_indhentet: number;
+  /**
+   * «ti_minutter» (3/10-2026) — KUN motorens rækker. `ikke_motor` = eWebinar-personer,
+   * dommen nægtede arten (= sprunget.ikke_motor); `skal_sendes` = motorens
+   * ti_minutter-mails, der skal sendes nu (efter mailVejDom). Feltet findes kun
+   * i den nye kode — beviset for udrulningen.
+   */
+  ti_minutter: { ikke_motor: number; skal_sendes: number };
   /** Af skal_sendes: mails, der indhentes efter et fejlet forsøg (dommens `indhentning`). */
   indhentet: number;
   sendt: number;
@@ -268,7 +283,8 @@ const tomt = (a: { toer: boolean; laas: boolean; email: string | null; art: stri
   ok: true, dry_run: a.toer, laas_aktiv: a.laas, sender_rigtigt: a.senderRigtigt,
   nu: a.nu.toISOString(), email: a.email, art: a.art,
   tilmeldinger_laest: 0, afmeldte_laest: 0, sendte_foer: 0, fejlede_foer: 0, ukendte_foer: 0, skal_sendes: 0,
-  sprunget: { afmeldt: 0, ingen_session: 0, ingen_mail: 0, for_sent: 0, endnu_ikke: 0, sessionen_begyndt: 0, allerede_sendt: 0, for_tidlig_tilmelding: 0, for_sent_efter_fejl: 0, senere_session: 0, levering_ukendt: 0 },
+  sprunget: { afmeldt: 0, ingen_session: 0, ingen_mail: 0, for_sent: 0, endnu_ikke: 0, sessionen_begyndt: 0, allerede_sendt: 0, for_tidlig_tilmelding: 0, for_sent_efter_fejl: 0, senere_session: 0, levering_ukendt: 0, ikke_motor: 0 },
+  ti_minutter: { ikke_motor: 0, skal_sendes: 0 },
   sprunget_senere_session: 0, ukendt_ikke_indhentet: 0,
   indhentet: 0, sendt: 0, fejlede: 0, udsat: 0, budget: tomtBudgetBevis(), dublet: 0, med_invitation: 0, uden_invitation: 0,
   loft: { forsoeg_60_min: 0, ok_60_min: 0, maks: MAILGUN_LOFT_PR_TIME, pause: null, stoppet_ved: null }, over_loft: 0, ventende: [],
@@ -345,6 +361,7 @@ async function koer(a: { admin: SupabaseClient; toerKoersel: boolean; laas: bool
     sendinger.push(s);
   }
   r.skal_sendes = sendinger.length;
+  r.ti_minutter = { ikke_motor: plan.sprunget.ikke_motor, skal_sendes: sendinger.filter((s) => s.art === "ti_minutter").length };
   r.indhentet = sendinger.filter((s) => s.indhentning === true).length;
   for (const s of sendinger.slice(0, EKSEMPLER_MAKS)) {
     r.eksempler.push({ email: s.email, art: s.art, session_tid: s.sessionTid, ...(s.indhentning === true ? { indhentning: true as const } : {}) });

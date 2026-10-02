@@ -20,7 +20,8 @@ const ARGS = {
 
 describe("bygWebinarMail — alle syv mails er hele (fem sendes; tre_dage og dagen er udgået 30/9, men teksterne står)", () => {
   it("de fem, der SENDES, er en delmængde af de syv, der har en tekst — og de udgåede er stadig byggelige", () => {
-    expect([...AKTIVE_ARTER]).toEqual(["bekraeftelse", "fjorten_dage", "syv_dage", "en_dag", "en_time"]);
+    // + ti_minutter (3/10), kun til webinarmotorens tilmeldte (dommens kunMotor).
+    expect([...AKTIVE_ARTER]).toEqual(["bekraeftelse", "fjorten_dage", "syv_dage", "en_dag", "en_time", "ti_minutter"]);
     for (const art of AKTIVE_ARTER) expect(Object.keys(EMNER), art).toContain(art);
     for (const art of UDGAAEDE_ARTER) {
       expect(Object.keys(EMNER), art).toContain(art);
@@ -170,6 +171,41 @@ describe("INGEN LØFTER OM ET LINK, DER KOMMER (Jonas 22/9 ca. 19:35)", () => {
       const m = bygWebinarMail({ ...ARGS, art });
       expect(m.html, art).not.toContain("Du får det igen");
       expect(m.text, art).not.toContain("Du får det igen");
+    }
+  });
+});
+
+describe("ti_minutter — «Vi begynder om 10 minutter» (3/10-2026, kun motorens tilmeldte)", () => {
+  const MOTOR = { ...ARGS, joinLink: "https://app.theboardroom.dk/w/webinar?t=abc.def", kalenderLink: "https://app.theboardroom.dk/w/webinar/kalender?t=abc.def", invitationVedhaeftet: false };
+  const m = bygWebinarMail({ ...MOTOR, art: "ti_minutter" });
+
+  it("emnet, overskriften og knappen til rummet", () => {
+    expect(m.subject).toBe("Vi begynder om 10 minutter — her er dit link");
+    expect(m.html).toContain("Vi begynder<br/>om 10 minutter");
+    expect(m.html).toContain(`href="${MOTOR.joinLink}"`);
+    expect(m.text).toContain(`Gå til webinaret: ${MOTOR.joinLink}`);
+    expect(m.text).toContain("Vi begynder tirsdag 13. oktober kl. 11.00.");
+  });
+
+  it("INGEN kalenderrække og ingen kalenderfil — hverken i HTML eller tekst", () => {
+    expect(m.html).not.toContain("Læg i kalender");
+    expect(m.text).not.toContain("Læg i kalender");
+    expect(m.html).not.toContain(MOTOR.kalenderLink);
+    expect(m.text).not.toContain(MOTOR.kalenderLink);
+    expect(MED_INVITATION).not.toContain("ti_minutter");
+    expect(m.html.toLowerCase()).not.toContain("vedhæftet");
+  });
+
+  it("intet «optag…» og intet «live» (D2.1) — emne, HTML og tekst", () => {
+    for (const tekst of [m.subject, m.html, m.text]) {
+      expect(tekst.toLowerCase()).not.toMatch(/optag/);
+      expect(tekst).not.toMatch(/(?<![\p{L}\p{N}_-])live(?![\p{L}\p{N}_-])/iu);
+    }
+  });
+
+  it("de andre arter har stadig kalenderrækken", () => {
+    for (const art of ARTER.filter((a) => a !== "ti_minutter")) {
+      expect(bygWebinarMail({ ...ARGS, art }).html, art).toContain("Læg i kalender:");
     }
   });
 });

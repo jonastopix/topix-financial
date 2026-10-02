@@ -215,7 +215,7 @@ describe("bygWebinarMail med video — KUN en_dag, på alle arter", () => {
       expect(med.html, art).not.toContain("Mortens hilsen");
     }
     // Og de aktive er en delmængde — sagt højt, fordi kravet er «prøvet på alle aktive arter».
-    expect(AKTIVE_ARTER.filter((a) => a !== VIDEO_ART)).toEqual(["bekraeftelse", "fjorten_dage", "syv_dage", "en_time"]);
+    expect(AKTIVE_ARTER.filter((a) => a !== VIDEO_ART)).toEqual(["bekraeftelse", "fjorten_dage", "syv_dage", "en_time", "ti_minutter"]);
   });
 
   it("en_dag uden video er ren indsættelse væk: med = uden + én sammenhængende blok (HTML og tekst)", () => {

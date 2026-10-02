@@ -151,6 +151,12 @@ describe("webinarMailAlarm — fristen (dommens INDHENTNING) og prognosen", () =
     expect(fristFor("en_dag", "ikke en tid")).toBeNull();
   });
 
+  it("fristFor «ti_minutter» (3/10) = planlagt + dens EGEN nåde (5 min) = T − 5 min — ikke starten og ikke 2 t", () => {
+    // Session 09:00Z: planlagt 08:50Z + 5 min = 08:55Z. Dommen sender den aldrig senere.
+    const ms = Date.parse(SESSION);
+    expect(fristFor("ti_minutter", SESSION)?.getTime()).toBe(ms - 5 * 60_000);
+  });
+
   it("beregnPrognose: 112 ÷ 26 ≈ 4,3 t; 0 igennem → kan ikke regnes; 0 venter → færdig nu", () => {
     const p = beregnPrognose(112, 26, NU);
     expect(p.timer).toBeCloseTo(4.3077, 3);

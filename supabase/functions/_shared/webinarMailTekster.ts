@@ -33,6 +33,11 @@
  * områder og de fem spørgsmål — ordret fra «tre_dage» og «dagen»); de to er de
  * eneste tekster i filen, der ikke er Mortens egne, og begge er markeret.
  *
+ * Den ottende, `ti_minutter` (3/10-2026), er også husets: «Vi begynder om 10
+ * minutter» — KUN til webinarmotorens tilmeldte (dommens kunMotor; eWebinar
+ * sender selv sin 10-minutters-mail til sine). Ingen kalenderrække (UDEN_KALENDER)
+ * og ingen kalenderfil.
+ *
  * ÆNDRET I FORHOLD TIL KLAVIYO, og kun det:
  *   1. `{% unsubscribe %}` → vores eget afmeldingslink (token, ingen login).
  *   2. Tidsteksten sættes ind, hvor mailen omtaler tidspunktet — fra
@@ -243,7 +248,16 @@ export const EMNER: Record<MailArt, string> = {
   en_dag: "Vi ses i morgen — tag én beslutning med",
   dagen: "Det er i dag",
   en_time: "Vi starter om en time — her er dit link",
+  ti_minutter: "Vi begynder om 10 minutter — her er dit link",
 };
+
+/**
+ * MAILS UDEN KALENDERRÆKKE (3/10-2026): «ti_minutter» går 5–15 minutter før
+ * starten (dommens vindue) — at lægge sessionen i kalenderen er da ingen hjælp,
+ * og en kalenderfil følger den heller ikke (den står ikke i MED_INVITATION).
+ * Knappen til rummet er hele ærindet. Alle andre arter: uændret.
+ */
+export const UDEN_KALENDER: readonly MailArt[] = ["ti_minutter"];
 
 function indhold(art: MailArt, tid: string, medInvitation: boolean, video: MailVideo | null): MailIndhold {
   const inv = invitationsTekst(medInvitation);
@@ -379,6 +393,24 @@ function indhold(art: MailArt, tid: string, medInvitation: boolean, video: MailV
           "Linket herunder er dit personlige link. Du behøver ikke installere noget; det åbner i browseren.\n\n" +
           "Kan du ikke alligevel? Så meld dig til en anden dag — jeg holder webinaret igen.",
       };
+    case "ti_minutter":
+      // NY MAIL (3/10-2026) — husets tekst, ikke Mortens; KUN til webinarmotorens
+      // tilmeldte (dommens kunMotor — eWebinar sender selv sin til sine). Den
+      // korteste af alle: knappen til rummet er hele ærindet. Intet løfte om noget
+      // bagefter og ingen påstand om sendingen (D2.1, docs/webinarmotor.md §7).
+      return {
+        eyebrow: "OM 10 MINUTTER",
+        overskrift: "Vi begynder<br/>om 10 minutter",
+        laesetid: "10 sekunders læsning",
+        krop:
+          FOERSTE(`Vi begynder ${esc(tid)}.`) +
+          BOKS("Knappen herunder er dit personlige link til rummet. Det åbner i browseren — du behøver ikke installere noget.") +
+          P("Find noget at skrive på, og sæt telefonen på lydløs. Vi ses om lidt."),
+        kropTekst:
+          `Vi begynder ${tid}.\n\n` +
+          "Linket herunder er dit personlige link til rummet. Det åbner i browseren — du behøver ikke installere noget.\n\n" +
+          "Find noget at skrive på, og sæt telefonen på lydløs. Vi ses om lidt.",
+      };
   }
 }
 
@@ -394,8 +426,11 @@ export function bygWebinarMail(a: MailArgs): Mail {
   // Kun VIDEO_ART kan bære videoen — også hvis en kalder giver den til en anden art.
   const video = a.art === VIDEO_ART ? a.video : null;
   const i = indhold(a.art, tid, a.invitationVedhaeftet, video);
-  const google = googleKalenderUrl({ titel, sessionTid: a.sessionTid, joinLink: a.joinLink });
-  const outlook = outlookKalenderUrl({ titel, sessionTid: a.sessionTid, joinLink: a.joinLink });
+  // UDEN_KALENDER («ti_minutter»): ingen kalenderrække — hverken i HTML eller tekst.
+  const medKalender = !UDEN_KALENDER.includes(a.art);
+  const google = medKalender ? googleKalenderUrl({ titel, sessionTid: a.sessionTid, joinLink: a.joinLink }) : null;
+  const outlook = medKalender ? outlookKalenderUrl({ titel, sessionTid: a.sessionTid, joinLink: a.joinLink }) : null;
+  const kalenderLink = medKalender ? a.kalenderLink : null;
 
   const html = `${HOVED.replace("TITEL", esc(EMNER[a.art]))}
 <body style="margin:0;padding:0;background-color:#FAF8F5;">
@@ -413,7 +448,7 @@ export function bygWebinarMail(a: MailArgs): Mail {
 ${LINJE}
 ${i.krop}
 ${a.joinLink ? KNAP(a.joinLink, "Gå til webinaret") : ""}
-${KALENDER(google, a.kalenderLink, outlook)}
+${KALENDER(google, kalenderLink, outlook)}
 ${P("Venlig hilsen<br/>Morten")}
 ${BUND(a.afmeldUrl)}
 </table><!--[if mso]></td></tr></table><![endif]--></td></tr></table></body></html>`;
@@ -422,7 +457,7 @@ ${BUND(a.afmeldUrl)}
     i.kropTekst,
     a.joinLink ? `Gå til webinaret: ${a.joinLink}` : "",
     google ? `Læg i kalender — Google: ${google}` : "",
-    a.kalenderLink ? `Læg i kalender — Apple/Outlook: ${a.kalenderLink}` : "",
+    kalenderLink ? `Læg i kalender — Apple/Outlook: ${kalenderLink}` : "",
     outlook ? `Læg i kalender — Outlook på nettet: ${outlook}` : "",
     "Venlig hilsen\nMorten",
     "---",

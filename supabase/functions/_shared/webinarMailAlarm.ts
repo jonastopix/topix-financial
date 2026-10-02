@@ -43,7 +43,8 @@
  * indhentesSenestDageFoer — 30/9). Så fristen er
  *   max(planlagt + nåde, indhentningSlut), dog aldrig efter
  *   sessionens start for arter, der kræver «ikke begyndt»; «straks» og «en_time»
- *   (ingen næste art): sessionens start. Se fristFor.
+ *   (ingen indhentning): sessionens start; «ti_minutter» (egen nåde 5 min, 3/10):
+ *   planlagt + 5 min = T − 5 min. Se fristFor.
  *
  * PROGNOSEN: timer = ventende ÷ ok-mails de sidste 60 min; færdig = nu + timer.
  * Går 0 igennem, kan den ikke regnes — og det siges ærligt. Tider vises i dansk
@@ -54,7 +55,7 @@
  * (spejlet i src/lib/webinar/mailDom.ts). Tiden gives ind som `nu`.
  */
 import { kbhDele } from "./hverdage.ts";
-import { indhentningSlut, type MailArt, PLANEN, planlagtTid, SEN_TILMELDING_NAADE_MS } from "./webinarMailDom.ts";
+import { indhentningSlut, type MailArt, naadeFor, PLANEN, planlagtTid } from "./webinarMailDom.ts";
 
 // ── Konstanterne ─────────────────────────────────────────────────────────────
 
@@ -178,9 +179,14 @@ export function fristFor(art: MailArt, sessionTid: string): Date | null {
   if (plan.straks === true) return session;
   const planlagt = planlagtTid(sessionTid, art);
   if (planlagt === null) return session;
-  const efterNaade = new Date(planlagt.getTime() + SEN_TILMELDING_NAADE_MS);
+  // Artens EGEN nåde (naadeFor): 2 t for alle — undtagen «ti_minutter» (5 min, 3/10).
+  const efterNaade = new Date(planlagt.getTime() + naadeFor(art));
   const slut = indhentningSlut(sessionTid, art);
-  // en_time (ingen næste art → ingen indhentning): sessionens start, som før.
+  // «ti_minutter» (egen nåde, ingen indhentning): planlagt + 5 min = T − 5 min —
+  // dommen sender den ALDRIG senere. Står før en_time-reglen, som ellers ville
+  // sige sessionens start (3/10).
+  if (slut === null && plan.naadeMs !== undefined) return new Date(Math.min(efterNaade.getTime(), sessionMs));
+  // en_time (ingen indhentning): sessionens start, som før.
   if (slut === null && plan.minutterFoer !== undefined) return session;
   const frist = slut === null ? efterNaade : new Date(Math.max(efterNaade.getTime(), slut.getTime()));
   if (plan.kraeverIkkeBegyndt && frist.getTime() > sessionMs) return session;
@@ -282,7 +288,7 @@ const UDFALD_ORD: Record<string, string> = {
 };
 
 const ART_ORD: Record<MailArt, string> = {
-  bekraeftelse: "bekræftelsen", fjorten_dage: "om to uger", syv_dage: "om en uge", tre_dage: "om tre dage", en_dag: "i morgen", dagen: "i dag", en_time: "om en time",
+  bekraeftelse: "bekræftelsen", fjorten_dage: "om to uger", syv_dage: "om en uge", tre_dage: "om tre dage", en_dag: "i morgen", dagen: "i dag", en_time: "om en time", ti_minutter: "om 10 minutter",
 };
 
 /** «kl. 10:00» dansk for et ISO-tidspunkt — eller teksten selv, hvis den ikke kan læses. */

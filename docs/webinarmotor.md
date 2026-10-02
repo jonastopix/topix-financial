@@ -69,7 +69,7 @@ seerens side ──POST {t}──▶ webinar-rum  ──▶ rum, position, signe
 | Chat/spørgsmål + svar pr. mail | `webinar_spoergsmaal` + svar i pulsens svar | **Spørgsmål ind og svar ud live (skive 1), panelet i rummet (skive 2)**. Konsol og mailsvar = spec'ens skive 5 |
 | Fremmøde-hændelser til Klaviyo (Deltog/Mødte ikke op) | `webinar-motor-cron` via `afgoerOvergang/byggFremmoede` | **Bygget (skive 3, §7.2)** — efter sessionen, ikke ved indgangen |
 | `interactionsSummary` i `raa` (stjerner på /webinar) | `raaAdapter` | **Ikke bygget** (skive 2). `raa` = `{kilde: "platform", motor}` |
-| Påmindelse 10 min før | Mailart `ti_minutter` (CHECK-migration først) | **Ikke bygget** (skive 2) |
+| Påmindelse 10 min før | Mailart `ti_minutter` (CHECK-migration først) | **Bygget 3/10-2026 (gren `feat/webinar-ti-minutter`), IKKE udrullet**: kun motorens rækker, vinduet T−15 … T−5 min (§4). Migration `20261003040000` KØRT før deploy |
 | Opsætning af webinar/tidslinje/sessioner | `webinar-admin` + editor | **Bygget, enkel (skive 3, §7.4)**: `/webinar/motor` gennem RLS. Bunny-upload, gentagelser, flyt og preview mangler |
 | Analytics (faldkurve, tragt) | `faldkurve` (ren, bygget) + flade | **Dom bygget (skive 1)**, flade = skive 7 |
 | Meta-pixel «Fuldfør registrering» | Pixel på topix.dk + evt. CAPI (beslutning G3) | **Ikke bygget.** D2.3 (30/9): koden bag låsen `webinarmotor_meta_aktiv`, men først efter privatlivsteksten — se §7.5 |
@@ -93,7 +93,14 @@ seerens side ──POST {t}──▶ webinar-rum  ──▶ rum, position, signe
 `webinar-mail-cron`:
 - udledte join-links (token)
 - `bygIcs` i processen for platformens rækker
-- mailarten `ti_minutter` (CHECK-migration KØRT før udrulning)
+- mailarten `ti_minutter` (CHECK-migration KØRT før udrulning) — **bygget 3/10-2026** (gren `feat/webinar-ti-minutter`, IKKE udrullet):
+  - **Kun motorens rækker.** PLANENs linje bærer `kunMotor: true`; `doemMail` svarer `ikke_motor` som det FØRSTE (fail-closed: `motorRaekke !== true`), og `planlaegKoersel` udleder `motorRaekke` af `ewebinar_id` (`erMotorRaekke`, ORDRET samme form som `webinarMotor/mail.ts` `MOTOR_ID_FORM` — dommen har nul imports, så formen er gentaget og holdt i takt af `webinarMail.guard` dom 20). Bagefter kræver `mailVejDom` stadig `kilde_system = 'platform'`. eWebinars rækker får aldrig arten — eWebinar sender selv sin 10-minutters-mail. Kaldet `planlaegKoersel({ raekker, afmeldte, sendte, fejlede, ukendte, nu: a.nu })` er ordret som før (`webinarMotorSkive3.guard` dom 2). Er samme mail tilmeldt samme tidspunkt i BEGGE systemer, vinder eWebinars række (`bedsteRaekke`: den har join_link), og vi sender ikke.
+  - **Vinduet, regnestykket** (står også ved PLANEN i `_shared/webinarMailDom.ts`): cronen kører i minutterne 9, 14, 24, 27, 29, 37, 39, 44, 47, 57, 59 — største hul 10 min. Med den almindelige regel (fra T−10, nåde 2 t) ville en session kl. hh:10 få mailen kl. hh:09. Derfor eget vindue: `tidligstFoerMs` 5 min og `naadeMs` 5 min → **T−15 … T−5 min**, 10 min langt og lukket i begge ender, så ét slot altid rammer for en session på et helt minut (prøvet for alle 60 minutter i `webinarMailDom.test.ts`). Seneste ja T−5 min + budgettets seneste start 40 s + Mailguns timeout 10 s = **T−4 min 10 s** — Mailgun har mailen senest dér (leveringen derfra er UMÅLT). `kraeverIkkeBegyndt` lukker fra T. Ingen indhentning (ingen næste art), og arten er ingen grænse i de andre arters kæde (`naesteTidssatteArt` springer `kunMotor` over). For en session kl. hh:00 går den kl. hh−1:47 (13 min før).
+  - **Rækkefølgen** i en kørsel: bekræftelser → `ti_minutter` (kort nåde) → resten efter planlagt. Uden arten i listen er sorteringen ordret som før.
+  - **Teksten** (`webinarMailTekster.ts`, husets): emne «Vi begynder om 10 minutter — her er dit link», knappen til rummet, ingen kalenderrække (`UDEN_KALENDER`) og ingen kalenderfil (ikke i `MED_INVITATION`), intet «optag…» og intet «live» (D2.1).
+  - **Alarmen:** `fristFor("ti_minutter")` = planlagt + egen nåde = T−5 min (`naadeFor`).
+  - **Svaret** bærer `ti_minutter: { ikke_motor, skal_sendes }` og `sprunget.ikke_motor` — beviset for udrulningen (kun den nye kode har feltet).
+  - **Rækkefølgen ved udrulning:** merge → migration `20261003040000_webinar_mails_ti_minutter.sql` KØRT i SQL editor (FØR/EFTER i filhovedet: `webinar_mails_art_check` med otte arter) → eksplicit deploy af `webinar-mail-cron` fra build-chatten → beviset: en tørkørsel (`SELECT public.kald_edge('webinar-mail-cron');`) svarer med `ti_minutter` (med eWebinars hold kommende: `ikke_motor` > 0, `skal_sendes` 0) → prøven til én motor-tilmelding på en intern session (`{"dry_run": false, "email": …, "art": "ti_minutter"}` inden for vinduet). Kører migrationen IKKE først: mailen sendes, rækken afvises (23514), og næste slot i vinduet sender IGEN.
 
 `klokkeMail.ts`: typerne `webinar_spoergsmaal`/`webinar_haand`/`webinar_drift`, før nogen klokke ringes.
 
@@ -176,7 +183,7 @@ Bygget efter Jonas' beslutninger 30/9 (D2):
 
 Grundene til «uden link»: `ikke_fundet` · `ikke_platform` · `ingen_session` · `ingen_secret` (WEBINAR_JOIN_SECRET mangler) · `aflyst`. Opslaget (`_shared/webinarMotorMail.ts`) laves KUN for «P-»-rækker; fejler det, skrives grunden i `fejl`, og eWebinars mails går som før. Sporets `invitation` er «hentet» for husets fil («filen var i hånden») — CHECK'en er urørt, og rækken kendes på «P-». **Beviset i drift:** svaret bærer `motor_mail: { vej_motor, uden_link }`.
 
-**Ikke med:** mailarten `ti_minutter` (eWebinars 10-minutters-mail har motorens tilmeldte ikke). Den kræver en CHECK-migration på `webinar_mails` og er spec'ens skive 2.
+**~~Ikke med:~~ mailarten `ti_minutter`** (eWebinars 10-minutters-mail har motorens tilmeldte ikke) — **BYGGET 3/10-2026** (gren `feat/webinar-ti-minutter`, IKKE udrullet; §4): kun motorens rækker, vinduet T−15 … T−5 min, CHECK-migration `20261003040000` KØRT før deploy. `mailVejDom` er urørt og afgør linket som for de andre arter; en motor-række uden link forsøges ikke og tabes, når vinduet lukker.
 
 ### 7.2 `webinar-motor-cron` — fremmøde og opbevaring
 
@@ -337,7 +344,7 @@ Jonas 2/10: første rigtige session på egen platform i starten af november, til
 
 1. PR'er for v2-grenene (skive 1 → 2 → 3).
 2. Denne runbook (§8).
-3. `ti_minutter` — CHECK-migration efter `20261003031000` (KØRT før deploy), kun for motorens rækker (eWebinar sender selv sin 10-minutters-mail).
+3. ~~`ti_minutter` — CHECK-migration efter `20261003031000` (KØRT før deploy), kun for motorens rækker (eWebinar sender selv sin 10-minutters-mail).~~ **BYGGET 3/10-2026** (gren `feat/webinar-ti-minutter`, IKKE udrullet) — se §4. Rækkefølgen: migration `20261003040000` KØRT og EFTER-SELECT'en gemt (otte arter i `webinar_mails_art_check`) → eksplicit deploy af `webinar-mail-cron` → beviset: feltet `ti_minutter` (`ikke_motor` · `skal_sendes`) i en tørkørsels svar — kun den nye kode har det.
 4. Minimal værtskonsol `/webinar/motor/session/:id` — FØRST måles, om RLS giver rådgivere UPDATE på `webinar_spoergsmaal`.
 5. Server-side CAPI bag låsen `webinarmotor_meta_aktiv` (CHECK-migration på `meta_haendelser`, ikke kørt; værn `webinarTilmeldMeta.guard`).
 6. Lastprøve (k6), P0-sammenligningens SQL og E3-tjeklisten som ét resultatsæt.
