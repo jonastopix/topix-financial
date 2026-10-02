@@ -87,3 +87,12 @@ Warburg VVS) — ALLE fem har `jonas_session_used_at` ≤ tilbuddet. Rådgiveren
 men medlemmets /book-session viser det KØBTE kort, og backenden ville svare 409. Tilbuddet kunne ikke bookes.
 Rettelsen (PR «Én regel for gratis 1:1»): én ren dom spejlet i `_shared`, brugt af backenden (compare-and-set på
 den læste værdi i stedet for `IS NULL`), /book-session og forsidens «Til gode».
+
+**Rettet** (PR «Én regel for den gratis 1:1»): `lib/sessionRet` ⇄ `_shared/sessionRet` er reglen; backenden,
+/book-session, virksomhedssiden, `intro-reminder-cron`, EditCompanyDialog og forsidens «Til gode» dømmer med den.
+CTO-rådets fund rettet i samme PR: tilbuddet låses i gaten (fund 2), dialogen skriver kun ved ændring (fund 3–4),
+/book-session dømmer kontrakten som backenden — slutdagen er sidste dag med adgang (fund 5), preflight bærer
+beviset (fund 6), de rå læsere er flyttet (fund 8). **Åbent:** «Mangler at booke» kræver `omfattetAfJonas`; tre
+ældre medlemmer (Brick Works, E-skilte, TuaMea Jewelry) har Jonas-kolonnen NULL uden tilbud — de kan booke og står
+i «Til gode», men tæller ikke hos rådgiveren. Jonas afgør, om de skal have sessionen (så: tilbyd) eller ej (så:
+markér brugt).
