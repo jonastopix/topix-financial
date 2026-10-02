@@ -118,7 +118,7 @@ export const ingenRlsAendring = (migrationer: readonly { sti: string; sql: strin
  * STRAMMER: hver WITH CHECK indeholder company_id = public.user_company_id(auth.uid()).
  * Køres den, flippes linjen — og værnet skal ajourføres i samme PR.
  */
-export const FORBEREDTE_RLS_STRAMNINGER = ["supabase/migrations/20261002210000_milestones_with_check.sql"] as const;
+export const FORBEREDTE_RLS_STRAMNINGER = ["supabase/migrations/20261002280000_milestones_with_check.sql"] as const;
 export const forberedtStramning = (sql: string): boolean => {
   const krop = udenSqlKommentarer(sql);
   const checks = [...krop.matchAll(/WITH CHECK \(([^;]*)\);/gi)].map((m) => m[1]);
@@ -178,7 +178,11 @@ export const treHolder = (sql: string): boolean =>
 export const treBekraeftedeHolder = (raa: string): boolean => {
   const sql = udenSqlKommentarer(raa);
   return (
-    raa.split("\n")[0] === "-- IKKE KØRT. KRÆVER JONAS' GRØNNE LYS (SECURITY DEFINER/trigger). DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik)." &&
+    (
+      raa.split("\n")[0] === "-- IKKE KØRT. KRÆVER JONAS' GRØNNE LYS (SECURITY DEFINER/trigger). DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik)." ||
+      // Efter kørslen (2/10-2026): første linje bærer KØRT og Jonas' grønne lys — aldrig et lys, der ikke blev givet.
+      /^-- KØRT i prod \d{1,2}\/\d{1,2}-\d{4} .*Jonas' grønne lys/.test(raa.split("\n")[0])
+    ) &&
     /create or replace function public\.haandhaev_hoejst_tre_aktive_maal\(\)/.test(sql) &&
     /set search_path to 'public'/.test(sql) && !/security definer/i.test(sql) &&
     /if new\.status = 'active'\s+and new\.bekraeftet_at is not null\s+and \(tg_op = 'INSERT' or old\.status is distinct from 'active' or old\.bekraeftet_at is null\) then/.test(sql) &&

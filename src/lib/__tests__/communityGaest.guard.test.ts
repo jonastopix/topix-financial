@@ -55,7 +55,11 @@ export const dommenHolder = (raa: string): boolean => {
   const sql = udenSqlKommentarer(raa);
   const krop = sql.match(/CREATE OR REPLACE FUNCTION public\.kan_laese_community\(_user_id uuid\)([\s\S]*?)\$function\$;/)?.[1] ?? "";
   return (
-    raa.split("\n")[0] === "-- IKKE KØRT. KRÆVER JONAS' GRØNNE LYS (SECURITY DEFINER/trigger). DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik)." &&
+    (
+      raa.split("\n")[0] === "-- IKKE KØRT. KRÆVER JONAS' GRØNNE LYS (SECURITY DEFINER/trigger). DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik)." ||
+      // Efter kørslen (2/10-2026): første linje bærer KØRT og Jonas' grønne lys — aldrig et lys, der ikke blev givet.
+      /^-- KØRT i prod \d{1,2}\/\d{1,2}-\d{4} .*Jonas' grønne lys/.test(raa.split("\n")[0])
+    ) &&
     /RETURNS boolean\s+LANGUAGE sql\s+STABLE SECURITY DEFINER\s+SET search_path TO 'public'/.test(krop) &&
     /SELECT public\.har_aktivt_medlemskab\(_user_id\)\s+OR EXISTS \(/.test(krop) &&
     /WHERE cm\.user_id = _user_id\s+AND c\.vis_i_netvaerk = false\s+AND c\.is_legat = false\s+AND c\.contract_end_date IS NULL\s+AND c\.is_demo IS DISTINCT FROM true\s+AND c\.data_slettet_at IS NULL\s*\)/.test(krop) &&

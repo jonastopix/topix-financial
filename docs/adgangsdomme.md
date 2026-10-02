@@ -248,7 +248,7 @@ DEL 4 (fælden om de fem domme).
 
 ---
 
-## 7. Den sjette dom — `kan_laese_community` (2/10-2026; IKKE KØRT, kræver Jonas' grønne lys)
+## 7. Den sjette dom — `kan_laese_community` (2/10-2026; KØRT i prod 2/10 ca. 12:20 efter Jonas' grønne lys — FØR/EFTER i `docs/OVERLEVERING.md` «2. oktober morgen»)
 
 **Beslutningen:** Jonas 14/9: «En gæst ser Community, men skriver ikke».
 Morgenlisten 2/10: «Gæsten læser, skriver ikke (ny læse-dom)» — mulighed 2
