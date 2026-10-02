@@ -91,6 +91,7 @@ export const MORGEN_TYPER = [
   "ansoegning_samtale_aflyst",  // samtaleBesked
   "nyhed_udkast_klar",          // nyhed-agent-cron (30/9): ugens nyhedsudkast venter på en rådgiver — mandag før kl. 07
   "opkald_anmodet",             // ring-mig-op (2/10): en webinardeltager bad om et opkald — Jonas 2/10: «Besked i morgenmailen, ikke straks — ja»; nummeret står KUN på /opkald
+  "venter_paa_velkomst",        // stille-klokker-cron (2/10, a1002-velkomst): et nyt medlem kom ind i går og har ikke hørt fra os — Jonas: «Klokke i morgenmailen, vi skriver selv» (_shared/dag1Klokke.ts); skrevet kl. 04:30 UTC, før kl. 07 dansk
 ] as const;
 
 /** ALDRIG mailet — med grunden. */

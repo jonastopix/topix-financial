@@ -11952,6 +11952,24 @@ Værn: `ringMigOp.guard` dom 8 (indsend), 9 (RLS), 10 (IP-hash); `opkaldDom.test
 
 **Tracking (Meta, LinkedIn, GA4, TikTok, Stape, eWebinar, Klaviyo — hvad der sendes til hvem, principperne fra 21/9, det åbne):** `docs/tracking.md` er husets ENE dokument om det fra 21/9; recon-/rapportfilerne i `~/Downloads` er kilder.
 
+### Dag-1-klokken — rækkefølgen i drift (2/10 aften, gren `feat/dag1-klokke`; aftenlisten a1002-velkomst)
+
+Jonas 2/10: «Klokke i morgenmailen, vi skriver selv». Forsidens «Kom ind i går, har ikke hørt fra os» ringer klokken `venter_paa_velkomst` (MORGEN) hos hver rådgiver kl. 04:30 UTC (06:30 dansk sommertid / 05:30 vintertid), så den står i samme morgens mail (klokke-mail-cron, første kørsel efter kl. 07 på en hverdag). Ét tredje pas i `stille-klokker-cron` — **intet nyt cron-job**: job 566 («30 4 * * *», `{"dry_run": false}`) kører det allerede; **låsen `app_config.dag1_klokke_aktiv` er kontakten**. Begrundelserne: CLAUDE.md «Dag-1-klokken» og `supabase/functions/_shared/dag1Klokke.ts`' filhoved. **Ingen Update**: `src/lib/venterPaaVelkomst.ts` er kun omskrevet (`doemVenterPaaVelkomst` trukket ud, adfærden uændret — paritetstesten beviser det), og klokkens link (`/chat?companyId=…`) findes allerede i `raadgiverSti`.
+
+**Status 2/10 aften:** bygget og pushet på grenen; IKKE merget, IKKE kørt, IKKE udrullet.
+
+| # | hvad | kanal | beviset før næste trin |
+|---|---|---|---|
+| 1 | merge | GitHub | CI grøn (`gh run list --branch feat/dag1-klokke`) |
+| 2 | `20261002330000_dag1_klokke.sql` — låsen (false) + det delvise unikke indeks | Lovable SQL editor (FØR-SQL i hovedet → kørsel → EFTER-SQL) | FØR: lås «ikke sat», indeks «findes ikke», 0 rækker af typen, job 566 `stille-klokker · 30 4 * * * · active=true` (andet: STOP). EFTER: lås `false`, indeksets definition |
+| 3 | **eksplicit deploy** af `stille-klokker-cron` (den nye delte fil `_shared/dag1Klokke.ts` + `_shared/venterPaaVelkomst.ts` ruller ikke med merge) | Lovable build-chat (bed den KØRE deploy-værktøjet og vise resultatet) | «Successfully deployed … stille-klokker-cron» |
+| 4 | tørkørsel i hånden: `SELECT public.kald_edge('stille-klokker-cron');` og svaret: `SELECT id, status_code, left(content, 3000) FROM net._http_response ORDER BY id DESC LIMIT 1;` | Lovable SQL editor (to kørsler, én ad gangen) | `"dag1_klokke":"skive-1"` (kun den nye kode har feltet), `dag1.laas_aktiv` false, `dag1.fejlet` 0, `dag1.ville_ringe` = antal nye medlemmer dag 1–7 uden rådgiverbesked; de to gamle klokkers tal som før |
+| 5 | næste morgen (låsen stadig lukket): job 566's svar | Lovable SQL editor (`net._http_response` efter 04:30 UTC) | `dag1.holdt_af_laas` = `dag1.ring`, ingen række af typen i `advisor_notifications` |
+| 6 | Jonas åbner låsen: `UPDATE public.app_config SET config_value = 'true'::jsonb, updated_at = now() WHERE config_key = 'dag1_klokke_aktiv' AND config_value = 'false'::jsonb;` (FØR: `false`) | Lovable SQL editor | én række opdateret |
+| 7 | beviset i drift: første morgen med et nyt medlem på dag 1 | Lovable SQL editor: `SELECT type, title, company_id, count(*), min(created_at), max(mailet_at) FROM public.advisor_notifications WHERE type = 'venter_paa_velkomst' GROUP BY 1, 2, 3;` | én række pr. rådgiver (også tjenestekontoen — den ser alle klokker), `created_at` før kl. 07 dansk, `mailet_at` sat efter 07:04 på en hverdag for alle UNDTAGEN tjenestekontoen (den får aldrig mail) |
+
+UMÅLT ved bygningen: at job 566 stadig står active i prod (FØR-SQL'en i trin 2 måler det), og functionen er ikke typetjekket med Deno (ingen `deno` i miljøet — vitest dækker de rene filer, tsc dækker ikke `supabase/functions`). Kendt og bevidst: en klokke skrevet 04:30 mailes kl. 07:04, også hvis en rådgiver har skrevet til medlemmet i mellemtiden (klokke-mail-cron læser ikke chatten) — vinduet er 2½ time på en hverdag, længere over en weekend.
+
 ### Driftsagenten, skive 1 — rækkefølgen i drift (30/9, gren `feat/driftsagent-2`)
 
 Tre migrationer og én function. **Hver fil for sig, aldrig i en samlet kørsel** — to af dem har med vilje en anden første linje end husets «IKKE KØRT», så en scanning efter den linje kun finder den første (teknisk råd 30/9 fund 9). Ét trin ad gangen; hvert trins bevis før det næste.
