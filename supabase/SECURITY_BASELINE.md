@@ -571,9 +571,29 @@ update progress" (UPDATE, USING + WITH CHECK same predicate), migration
 `20260805200000_member_progress_advisor_write.sql`. Purpose: manual
 Circle-migration + ongoing advisor marking via `/admin/indhold/fremdrift`.
 Policies stack permissively; the self-only policy is untouched. **Accepted
-condition (approved 2026-08-05)**: `acknowledged_at` is SOURCE-LESS — no
-audit trail distinguishes member-set from advisor-set completion (only
-`updated_at` changes). Members see advisor-set marks as their own.
+condition (approved 2026-08-05) — CLOSED 2026-10-02 (Akademiet F0)**: until
+F0, `acknowledged_at` was SOURCE-LESS — no audit trail distinguished
+member-set from advisor-set completion, and members saw advisor-set marks as
+their own. Since migration `20261002260000_member_progress_markering.sql`
+(NOT YET RUN at the time of writing) the advisor's mark lives in its own
+columns `markeret_at`/`markeret_af`; the client (`adminContentApi.batchMarker`)
+writes ONLY those, and `itemProgressState` (progressState.ts) treats a member
+timestamp EQUAL to `markeret_at` as the advisor's stamp (the backfilled batch
+rows from 5/8 and 12/8). Enforcement in the database: migration
+`20261002261000_member_progress_markering_vaern.sql` adds the BEFORE INSERT OR
+UPDATE trigger `member_progress_markering_vaern` (same shape as
+`protect_weekly_focus_seen_only`): an authenticated user other than the row's
+owner may not write `seen_at`, `acknowledged_at`, `skipped_at`,
+`last_position_seconds`, `brugbar`, `brugbar_at` — except clearing
+`acknowledged_at`/`seen_at` to NULL when they equal `OLD.markeret_at` (undoing
+the advisor's own backfilled stamp). The owner may not set or change
+`markeret_at`/`markeret_af`, and an advisor may not re-stamp a backfilled
+batch row (stamp equal to `OLD.markeret_at`) without clearing that stamp in
+the same write. `auth.uid() IS NULL` (service role, SQL
+editor) passes. No policy changed, no SECURITY DEFINER. Source guard:
+`src/lib/hjemmebane/__tests__/akademiF0.guard.test.ts`. Rows written by
+advisors before 2/10 as single-row acknowledgements remain indistinguishable
+from the member's own (documented ceiling, `docs/akademi-grundlag.md` §7–§8).
 
 ### Platform-global content (authenticated read published)
 ```sql

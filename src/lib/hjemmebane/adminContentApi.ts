@@ -7,6 +7,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { planlaegGem, type FlytSvar, type Tidspatch } from "@/lib/hjemmebane/flytEvent";
 import type { Database } from "@/integrations/supabase/types";
 import { erKunde } from "@/lib/raadgiverensKunder";
+import { erManglendeKolonne } from "@/lib/manglendeTabel";
+import { fortrydMarkeringPatch } from "@/lib/hjemmebane/progressState";
 
 type Tables = Database["public"]["Tables"];
 
@@ -436,6 +438,11 @@ export async function persistOrder(
 // Læsning bæres af advisor-SELECT-policyen; skrivning af advisor-INSERT/
 // UPDATE-policies (migration 20260805200000). Medlemmer skriver fortsat kun
 // egne rækker via akademiApi.upsertProgress.
+// F0 (2/10-2026, akademi-grundlag §4): rådgiverens markering er SKILT fra
+// medlemmets. Rådgiveren skriver KUN markeret_at/markeret_af («gennemgået
+// med rådgiver», migration 20261002260000) — aldrig acknowledged_at/seen_at,
+// som er medlemmets egne. Databasen håndhæver det (værnet 20261002261000);
+// kildeværnet akademiF0.guard låser det her.
 
 /** Rå fremdriftsrækker for en mængde items (typisk alle published) — én
     samlet SELECT. Sparse: kun rækker der findes. */
@@ -448,14 +455,29 @@ export type AdminProgressRow = {
   /** «Kunne du bruge den?» (16/9) — null = ikke besvaret; valgfrit, så
       ProgressViews optimistiske rækker uden feltet stadig er rækker. */
   brugbar?: boolean | null;
+  /** F0: rådgiverens markering. Fraværende FØR migrationen (fail-soft
+      hentning) = som i dag: ingen markering kendes. */
+  markeret_at?: string | null;
+  markeret_af?: string | null;
 };
+
+const PROGRESS_KOLONNER = "user_id, content_item_id, seen_at, acknowledged_at, skipped_at, brugbar";
+/** F0's kolonner (migration 20261002260000) — hentes med, og udelades igen,
+    hvis databasen svarer «kolonnen findes ikke» (42703/PGRST204), så fanen
+    virker som før migrationen. En anden fejl kastes som før. */
+export const MARKERING_KOLONNER = "markeret_at, markeret_af";
 
 export async function listAllMemberProgress(itemIds: string[]): Promise<AdminProgressRow[]> {
   if (itemIds.length === 0) return [];
+  const med = await supabase
+    .from("member_progress")
+    .select(`${PROGRESS_KOLONNER}, ${MARKERING_KOLONNER}`)
+    .in("content_item_id", itemIds);
+  if (!(med.error && erManglendeKolonne(med.error))) return throwIfError(med as unknown as { data: AdminProgressRow[] | null; error: { message: string } | null });
   return throwIfError(
     await supabase
       .from("member_progress")
-      .select("user_id, content_item_id, seen_at, acknowledged_at, skipped_at, brugbar")
+      .select(PROGRESS_KOLONNER)
       .in("content_item_id", itemIds),
   );
 }
@@ -516,35 +538,55 @@ export async function listMembers(): Promise<AdminMember[]> {
     .sort((a, b) => a.name.localeCompare(b.name, "da"));
 }
 
-/** Batch-markering: manglende TRACKED videoer i ét array-upsert (én
-    request, atomisk). Kalderen leverer eksisterende seen_at pr. item, så
-    "startet"-tidsstempler bevares; nye rækker får seen_at = nu. KUN sæt —
-    fortryd sker celle-for-celle (clearAcknowledge). */
-export async function batchAcknowledge(
+/** Rådgiverens markering «gennemgået med rådgiver» (F0, 2/10-2026 — før:
+    batchAcknowledge, som skrev acknowledged_at/seen_at SOM MEDLEMMET, så
+    hendes fremdrift viste «Gennemført» på lektioner, hun aldrig havde set):
+    ét array-upsert (én request, atomisk) med KUN markeret_at = nu og
+    markeret_af = rådgiveren. Medlemmets felter (seen_at, acknowledged_at,
+    skipped_at, last_position_seconds, brugbar*) sendes ALDRIG — PostgREST's
+    upsert sætter kun de kolonner, payloaden bærer, så en eksisterende rækkes
+    egne stempler står urørt, og en ny række har dem tomme. KUN sæt — fortryd
+    sker celle-for-celle (fortrydMarkering). FØR migrationen 20261002260000
+    svarer databasen PGRST204 («Could not find the 'markeret_at' column») —
+    det siges HØJT i stedet for at falde tilbage til at skrive som medlemmet:
+    faldet tilbage ville være selve fejlen, F0 retter. Kolonnerne står ikke i
+    types.ts, før Lovable genererer dem — derfor casten. */
+export async function batchMarker(
   userId: string,
-  entries: { itemId: string; seenAt: string | null }[],
+  itemIds: string[],
+  raadgiverId: string,
 ): Promise<void> {
-  if (entries.length === 0) return;
+  if (itemIds.length === 0) return;
+  if (!raadgiverId) throw new Error("Markeringen kræver en rådgiver (markeret_af) — ingen bruger fundet.");
   const now = new Date().toISOString();
-  const { error } = await supabase.from("member_progress").upsert(
-    entries.map((entry) => ({
-      user_id: userId,
-      content_item_id: entry.itemId,
-      seen_at: entry.seenAt ?? now,
-      acknowledged_at: now,
-    })),
-    { onConflict: "user_id,content_item_id" },
-  );
-  if (error) throw new Error(error.message);
-}
-
-/** Fortryd én markering (advisor): acknowledged_at → null. Rækkens øvrige
-    tidsstempler (seen_at m.v.) bevares — samme fortryd-semantik som
-    medlemmets egen unacknowledge i ElementView. */
-export async function clearAcknowledge(userId: string, itemId: string): Promise<void> {
+  const raekker = itemIds.map((itemId) => ({
+    user_id: userId,
+    content_item_id: itemId,
+    markeret_at: now,
+    markeret_af: raadgiverId,
+  }));
   const { error } = await supabase
     .from("member_progress")
-    .update({ acknowledged_at: null })
+    .upsert(raekker as unknown as Tables["member_progress"]["Insert"][], { onConflict: "user_id,content_item_id" });
+  if (error) throw new Error(erManglendeKolonne(error) ? MARKERING_AFVENTER_MIGRATION : error.message);
+}
+
+export const MARKERING_AFVENTER_MIGRATION =
+  "Markeringen kan ikke gemmes endnu: migrationen 20261002260000 (markeret_at/markeret_af) er ikke kørt i databasen.";
+
+/** Fortryd én markering (advisor): patchen er den rene dom
+    fortrydMarkeringPatch (progressState.ts) — markeret_* → null, og på en
+    backfillet batch-række også medlemmets felter, der ER rådgiverens stempel
+    (ellers blev rækken hendes egen «gennemført» i samme sekund). Medlemmets
+    egne stempler røres aldrig; databasens værn (20261002261000) nægter mere. */
+export async function fortrydMarkering(
+  userId: string,
+  itemId: string,
+  raekke: Pick<AdminProgressRow, "seen_at" | "acknowledged_at" | "markeret_at">,
+): Promise<void> {
+  const { error } = await supabase
+    .from("member_progress")
+    .update(fortrydMarkeringPatch(raekke) as Tables["member_progress"]["Update"])
     .eq("user_id", userId)
     .eq("content_item_id", itemId);
   if (error) throw new Error(error.message);

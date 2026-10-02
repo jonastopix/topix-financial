@@ -8,8 +8,9 @@ import { join, relative, resolve } from "node:path";
 //   1. ProgressPatch (akademiApi.ts) nævner ikke brugbar — medlemmets
 //      almindelige upsert (kvittér/fortryd/spring/position) må ikke kunne
 //      bære svaret; det har sin egen skrivevej.
-//   2. batchAcknowledge og clearAcknowledge (adminContentApi.ts) nævner
-//      ikke brugbar — rådgiverens markering og fortryd rører aldrig svaret.
+//   2. batchMarker og fortrydMarkering (adminContentApi.ts; F0 2/10-2026 —
+//      før batchAcknowledge/clearAcknowledge) nævner ikke brugbar —
+//      rådgiverens markering og fortryd rører aldrig svaret.
 //   3. Ingen fil under src/ nævner brugbar_at ud over types.ts, lektionBrugbar.ts,
 //      progressState.ts (typen, flyttet 16/9) og testfiler — ingen læser af de nye kolonner ved navn
 //      i denne omgang (mangellistens (4): UI og tal kommer senere, bevidst).
@@ -83,10 +84,10 @@ describe("lektionBrugbar.guard — svaret siver ikke ind i de eksisterende skriv
     expect(naevnerBrugbar(blok)).toBe(false);
   });
 
-  it("2. batchAcknowledge og clearAcknowledge nævner ikke brugbar (rådgiverens markering rører aldrig svaret)", () => {
-    for (const navn of ["batchAcknowledge", "clearAcknowledge"]) {
+  it("2. batchMarker og fortrydMarkering nævner ikke brugbar (rådgiverens markering rører aldrig svaret)", () => {
+    for (const navn of ["batchMarker", "fortrydMarkering"]) {
       const blok = funktionsBlok(admin, navn);
-      expect(blok, navn).toContain("acknowledged_at"); // blokken er den rigtige
+      expect(blok, navn).toContain("markeret_at"); // blokken er den rigtige (F0: markeringens kolonne)
       expect(naevnerBrugbar(blok), navn).toBe(false);
     }
   });
@@ -110,14 +111,14 @@ describe("lektionBrugbar.guard — svaret siver ikke ind i de eksisterende skriv
     expect(kopiPatch).not.toBe(akademi);
     expect(naevnerBrugbar(progressPatchBlok(kopiPatch))).toBe(true);
 
-    // 2: batchAcknowledge der også sender brugbar_at; clearAcknowledge der nulstiller brugbar.
-    const kopiBatch = admin.replace("acknowledged_at: now,", "acknowledged_at: now,\n      brugbar_at: now,");
+    // 2: batchMarker der også sender brugbar_at; fortrydMarkering der nulstiller brugbar.
+    const kopiBatch = admin.replace("markeret_at: now,", "markeret_at: now,\n      brugbar_at: now,");
     expect(kopiBatch).not.toBe(admin);
-    expect(naevnerBrugbar(funktionsBlok(kopiBatch, "batchAcknowledge"))).toBe(true);
-    expect(naevnerBrugbar(funktionsBlok(kopiBatch, "clearAcknowledge"))).toBe(false); // kun den ene blok ramt
-    const kopiClear = admin.replace(".update({ acknowledged_at: null })", ".update({ acknowledged_at: null, brugbar: null })");
+    expect(naevnerBrugbar(funktionsBlok(kopiBatch, "batchMarker"))).toBe(true);
+    expect(naevnerBrugbar(funktionsBlok(kopiBatch, "fortrydMarkering"))).toBe(false); // kun den ene blok ramt
+    const kopiClear = admin.replace(".update(fortrydMarkeringPatch(raekke) as", ".update({ ...fortrydMarkeringPatch(raekke), brugbar: null } as");
     expect(kopiClear).not.toBe(admin);
-    expect(naevnerBrugbar(funktionsBlok(kopiClear, "clearAcknowledge"))).toBe(true);
+    expect(naevnerBrugbar(funktionsBlok(kopiClear, "fortrydMarkering"))).toBe(true);
 
     // 3: en kildefil uden lov der nævner brugbar_at — og en testfil/tilladt fil der må.
     const smuglet = [

@@ -422,3 +422,81 @@ ORDER BY 1, 2;
 - **Handouts:** 8 har udfyldt «overordnet» (nu «Jeres retning» i Dine mål — det er den mest brugte); 3–4 pr. øvelse ellers.
 - **Dryp er ikke i brug på elementerne** (0) — kun eventuelt arvet fra samlingen (ikke målt her).
 - **Konsekvens for rækkefølgen:** F0 er stadig først — uden den kan ingen af forslagenes målinger læses ærligt.
+
+---
+
+## 8. F0 — BYGGET (gren `feat/akademi-f0`, 2/10-2026; Jonas 07:28 «Ja, byg F0»)
+
+**Formen (valgt, og hvorfor):** to kolonner til rådgiveren — `member_progress.markeret_at` (hvornår)
+og `markeret_af` (hvilken rådgiver) — og medlemmets egne felter er **urørte**. Backfillen sætter
+`markeret_at = acknowledged_at` på de rækker, fingeraftrykket (§6: ≥ 2 rækker med samme
+`(user_id, acknowledged_at)`) kender som batch, og intet andet: ingen rename, ingen `NULL`-sætning.
+Det er reversibelt (`SET markeret_at = NULL` + `DROP COLUMN`), og `updated_at` bevares (triggeren slås
+fra under backfillen, fordi forløbslinjen sorterede «fortsæt hvor du slap» på den — efter rådets fund
+2/10 sorterer den på medlemmets egne stempler; `updated_at` bevares stadig, fordi `run-company-agent`
+sorterer sin liste på den).
+
+**Dommen (`src/lib/hjemmebane/progressState.ts`, ren):** et tidsstempel, der er **lig** `markeret_at`,
+er rådgiverens stempel (`erRaadgiverensStempel`) — `acknowledged_at` og `seen_at` tæller kun som
+medlemmets egne, når de ikke er det. **Regnestykket bag «≠» frem for «markeret_at IS NULL»** (det
+sidste var forslaget i opgaven): fremover skriver rådgiveren KUN `markeret_*`; sætter medlemmet senere
+selv `acknowledged_at` (sit eget klik, sin egen tid), er de to forskellige, og lektionen er hendes.
+Med «IS NULL» kunne en lektion, rådgiveren har gennemgået, aldrig blive medlemmets egen bagefter.
+`itemProgressState` læser gennem den, så **alle** medlemmets flader (Akademiets fremdrift, «Næste for
+dig», forsidens forløbslinje, «Måske relevant», «Kunne du bruge den?», BoardroomViews tælling) ser kun
+egen aktivitet uden at kende feltet. Trofæerne læser ikke `member_progress` (målt i koden 2/10:
+`src/lib/gamification/trofaeer.ts` og `hooks/trofaeer.ts` har 0 forekomster) — intet at ændre dér.
+
+**To ting mere, som grundlaget pegede på:**
+- `forloeb.ts`: «Fortsæt hvor du slap» kræver nu `state !== "untouched"` — en række med kun
+  rådgiverens markering (eller en backfillet batch-række) er ikke noget, hun har begyndt. Før F0 var
+  batch-rækker «done» og derfor aldrig continue; efter F0 ville de have været det.
+- `ElementView` skriver `seen_at` ud fra `egetSeenAt` — et besøg på en batch-række efterlader nu et
+  spor (§6, grænse 3 er lukket for nye besøg).
+
+**Rådgiverens flade (`ProgressView`):** to tydelige tilstande pr. lektion — chippen «Set af medlemmet»
+(hendes egen, kan kun fortrydes af hende) og knappen «Gennemgået med rådgiver» (markeringen, fortryd
+med klik). «Markér hele modulet som gennemgået (N)» tæller det, rådgiveren ikke har gennemgået, uanset
+medlemmets egen tilstand. Prikken til venstre er medlemmets egen. Hovedlinjen: «N af M videoer set af
+medlemmet · K gennemgået med rådgiver». Skrivevejene: `batchMarker` (kun `markeret_*`; FØR migrationen
+fejler den højt — den falder bevidst ikke tilbage til at skrive som medlemmet) og `fortrydMarkering`
+(`fortrydMarkeringPatch`: `markeret_*` → null, og på en backfillet batch-række også
+`acknowledged_at`/`seen_at`, når de ER rådgiverens stempel — ellers blev rækken hendes egen
+«gennemført» i samme sekund). Hentningen falder tilbage uden kolonnerne ved 42703/PGRST204.
+
+**Databasen (to migrationer, IKKE KØRT):** `20261002260000_member_progress_markering.sql` (kolonner +
+backfill, FØR/EFTER-SQL i filhovedet) og `20261002261000_member_progress_markering_vaern.sql` (en
+BEFORE-trigger som `protect_weekly_focus_seen_only`: en anden autentificeret bruger end ejeren må
+ikke skrive medlemmets seks felter — med den ene undtagelse, fortryd af rådgiverens eget stempel;
+service role og SQL editoren går forbi; ingen SECURITY DEFINER, ingen policy rørt). Medlemmet kan ikke selv sætte/ændre `markeret_*`, og en backfillet batch-række kan ikke få en ny markering, før rådgiverens gamle stempel er ryddet (ellers blev det «hendes eget» under ≠-reglen). Vurderet mod FORBIDDEN-listen: kræver IKKE grønt lys (ingen SECURITY DEFINER, ingen policy rørt — kun indsnævring; risikoen er driftsmæssig, derfor prøven som medlem efter kørslen). Migrationsnumrene er 260000/261000 (230000 er taget af grenen for community-gæsten). RLS er uændret:
+advisor-INSERT/UPDATE (20260805200000) dækker de nye kolonner.
+
+**Rækkefølgen:** merge → FØR-SQL (sektion 3 skal give 199) → kør `20261002260000` → EFTER-SQL → mål
+`GET /rest/v1/member_progress?select=markeret_at,markeret_af&limit=0` → 200 → kør `20261002261000` →
+EFTER-SQL → Update. Beviset i drift: et medlem med batch-rækker ser færre «Gennemført» i Akademiet, og
+på `/admin/indhold/fremdrift` står de samme lektioner som «Gennemgået med rådgiver» uden «Set af
+medlemmet». Kontrollen (§4, F0): §6-forespørgslen senere — 0 nye batch-grupper efter 2/10.
+
+**Værn:** `akademiF0.guard.test.ts` (10 domme + selvbevis). Flyttede, ikke svækkede:
+`lektionBrugbar.guard` dom 2 (nu `batchMarker`/`fortrydMarkering`, positiv kontrol på `markeret_at`),
+`fremdriftDetalje.guard` (literalen «videoer set af medlemmet»), `forloeb.test` (ny tilstand).
+
+**Åbne punkter efter F0:**
+- `run-company-agent` (edge function) læser stadig `acknowledged_at` som «gennemført» til agentens
+  kontekst — den ser batch-rækker som medlemmets. Ikke rørt (kræver udrulning); ændringen er at læse
+  `markeret_at` med og dømme som `progressState`.
+- De ~131 «egne» rækker er et LOFT (§7): enkelt-rækkes rådgiverkvitteringer fra før 2/10 kan ikke
+  skelnes og står som medlemmets. Fremover findes den klasse ikke.
+- `markeret_af` er null på de backfillede rækker — hvem der trykkede 5/8 og 12/8 er umålt.
+- (Præciseret efter rådets fund 2/10) `run-company-agent/index.ts:454` (`get_member_progress`) dømmer
+  `state` af det rå `acknowledged_at` og henter ikke `markeret_at`. Rettes med samme regel som
+  `progressState` ved functionens næste eksplicitte udrulning — IKKE i dag.
+
+**Bevidste valg efter rådets fund 2/10:**
+- Enhver rådgiver kan fortryde en anden rådgivers markering: `fortrydMarkering` læser ikke
+  `markeret_af`, og værnet dømmer kun ejer mod anden bruger. Rådgiverne er sammen om alle medlemmer
+  (Jonas 1/10), og de backfillede rækker har ingen `markeret_af` at sammenligne med.
+- «Fortsæt hvor du slap» (`forloeb.ts`) sorterer på medlemmets egne stempler
+  (`progressState.medlemmetsSenesteStempel`), ikke `updated_at` — rådgiverens markering må ikke flytte
+  medlemmets sted. En gemt afspilningsposition (intet eget stempel) flytter det heller ikke.
+- `20261002261000` stopper med «Kør 20261002260000 først», hvis kolonnen `markeret_at` mangler.
