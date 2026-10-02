@@ -1,4 +1,4 @@
--- KØRT i prod 2/10-2026 kl. 19:05 (Claude via Lovables query_database, efter merge af #1248). FØR: låsen ikke sat · indekset findes ikke · 0 rækker af typen · job 566 «30 4 * * *» active. EFTER: låsen false · indekset som forventet · 0 rækker · job uændret. stille-klokker-cron udrullet 19:07 («Successfully deployed edge functions: stille-klokker-cron»); tørkørsel kald 29849: 200, «dag1_klokke»: «skive-1», kandidater 2, tavse hilst_paa 2.
+-- KØRT i prod 2/10-2026 kl. 18:43 (Claude via Lovables query_database, efter merge af #1248). FØR: låsen ikke sat · indekset findes ikke · 0 rækker af typen · job 566 «30 4 * * *» active. EFTER: låsen false · indekset som forventet · 0 rækker · job uændret. stille-klokker-cron udrullet 18:44 («Successfully deployed edge functions: stille-klokker-cron»); tørkørsel kald 29849: 200, «dag1_klokke»: «skive-1», kandidater 2, tavse hilst_paa 2.
 -- (Omdøbt fra 20261002276000 ved kørslen: metaSend.guard dom 11 — en ikke-kørt migration må ikke sortere før en kørt; 280000 og 290000 venter på mandag.)
 --
 -- DAG-1-KLOKKEN (2/10-2026, aftenlisten a1002-velkomst; Jonas: «Klokke i

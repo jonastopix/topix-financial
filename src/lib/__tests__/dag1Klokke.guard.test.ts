@@ -174,7 +174,7 @@ describe("dag1Klokke.guard — dommene holder i koden", () => {
     expect(migrationenHolder(laes(MIG))).toBe(true);
     expect(ukoerteFoerKoerte(migrationsfiler(), "20261002")).toEqual([]);
     const navne = migrationsfiler().map((f) => f.navn);
-    // KØRT 2/10 kl. 19:05 og omdøbt fra 330000 til 276000 (efter den seneste kørte, før de ventende 280000/290000).
+    // KØRT 2/10 kl. 18:43 og omdøbt fra 330000 til 276000 (efter den seneste kørte, før de ventende 280000/290000).
     expect(navne.indexOf("20261002276000_dag1_klokke.sql")).toBeGreaterThan(navne.indexOf("20261002275000_community_mest_laest.sql"));
     expect(navne.indexOf("20261002276000_dag1_klokke.sql")).toBeLessThan(navne.indexOf("20261002280000_milestones_with_check.sql"));
   });
