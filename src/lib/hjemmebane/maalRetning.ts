@@ -130,3 +130,99 @@ export function retningStatus(gammel: string | null | undefined, harIndhold: boo
   if (gammel === "in_progress") return "in_progress";
   return harIndhold ? "in_progress" : "not_started";
 }
+
+// ── Fladens afledninger (2/10-2026, Jonas: «gør det øverste afsnit med Jeres retning … lidt mere lækkert visuelt») ──
+//
+// Feltet tegner svar 1 («Om 12 måneder er vi lykkedes, hvis …») som en LISTE og
+// de to andre som to kort. Alt, der afgør HVAD der står, ligger her — rent og
+// prøvet (maalRetning.test.ts); JeresRetning.tsx tegner kun.
+
+/** Ordene på feltet — ét sted. Kortenes overskrifter er husets omskrivning af spørgsmålene (mockup 2/10). */
+export const RETNING_FELT_ORD = {
+  /** Kortet for `anderledes_hverdag`. */
+  hverdagen: "Hverdagen, vi bygger",
+  /** Kortet for `konsekvenser_ingen_aendring` — eyebrow i amber: prisen er advarslen. */
+  prisen: "Prisen, hvis intet ændrer sig",
+  laesAlt: "Læs alt",
+  visMindre: "Vis mindre",
+  fod: "Jeres mål herunder er vejen derhen.",
+  ikkeSvaret: "Ikke svaret endnu",
+  skrevet: "Skrevet",
+  skrevetAf: "Skrevet af",
+} as const;
+
+/** Flere linjer end dette, eller flere tegn i alt, klippes med «Læs alt» (listen). */
+export const RETNING_MAKS_LINJER = 5;
+export const RETNING_MAKS_TEGN = 420;
+/** Et korts svar klippes ved dette antal tegn. */
+export const RETNING_KORT_MAKS_TEGN = 280;
+
+/**
+ * Et svar som linjer: split på linjeskift, hver linje trimmet, tomme linjer væk,
+ * og et indledende punkttegn («- », «• », «– », «* », «1. ») fjernet — folk
+ * skriver lister i et tekstfelt på alle måder. Ét afsnit uden linjeskift er én
+ * linje. Tomt svar → [].
+ */
+export function retningLinjer(svar: string): string[] {
+  return svar
+    .split(/\r?\n/)
+    .map((l) => l.trim().replace(/^(?:[-–—•*·]|\d{1,2}[.)])\s+/, "").trim())
+    .filter((l) => l !== "");
+}
+
+export interface RetningKlip {
+  /** De viste linjer (den sidste kan ende på «…»). */
+  linjer: string[];
+  /** Noget er skjult — fladen viser «Læs alt». */
+  klippet: boolean;
+}
+
+/** Klip én tekst ved sidste mellemrum før `maksTegn` (mindst halvvejs) + «…». */
+const klipVedMellemrum = (t: string, maksTegn: number): string => {
+  const snit = t.lastIndexOf(" ", maksTegn);
+  return `${t.slice(0, snit > maksTegn / 2 ? snit : maksTegn).trimEnd()}…`;
+};
+
+/**
+ * Klipper en liste til højst `maksLinjer` linjer og ca. `maksTegn` tegn i alt —
+ * ved LINJEGRÆNSEN, aldrig midt i en sætning, undtagen når den FØRSTE linje
+ * alene er for lang (så klippes den ved sidste mellemrum før grænsen + «…»).
+ * Mindst én linje vises altid. Regnestykket: linjer tages ind, så længe
+ * antal < maksLinjer og summen af tegn (med linjen) ≤ maksTegn.
+ */
+export function klipRetning(linjer: readonly string[], maksLinjer = RETNING_MAKS_LINJER, maksTegn = RETNING_MAKS_TEGN): RetningKlip {
+  if (linjer.length === 0) return { linjer: [], klippet: false };
+  const ud: string[] = [];
+  let tegn = 0;
+  for (const l of linjer) {
+    if (ud.length >= maksLinjer || tegn + l.length > maksTegn) break;
+    ud.push(l);
+    tegn += l.length;
+  }
+  if (ud.length === 0) return { linjer: [klipVedMellemrum(linjer[0], maksTegn)], klippet: true };
+  return { linjer: ud, klippet: ud.length < linjer.length };
+}
+
+/** Ét korts tekst klippet ved `maksTegn` (ved sidste mellemrum før grænsen + «…»). Tomt → tomt, ikke klippet. */
+export function klipKortTekst(tekst: string, maksTegn = RETNING_KORT_MAKS_TEGN): { tekst: string; klippet: boolean } {
+  const t = tekst.trim();
+  if (t.length <= maksTegn) return { tekst: t, klippet: false };
+  return { tekst: klipVedMellemrum(t, maksTegn), klippet: true };
+}
+
+/**
+ * Meta-linjen i feltets top: «Skrevet af Mette · 12. sep. 2026» — fornavnet KUN
+ * når fladen har det uden et nyt opslag (den indloggedes egen profil, når rækken
+ * er dennes; ingen ny RLS); ellers «Skrevet 12. sep. 2026». Uden dato: «Skrevet
+ * af Mette» / null. `opdateret` er handouts.updated_at (ISO); `formatterDato`
+ * gives ind (fladen giver skridtForslag.danskDato — ingen Date her).
+ */
+export function retningMeta(fornavn: string | null, opdateret: string | null, formatterDato: (iso: string) => string): string | null {
+  const dato = opdateret ? formatterDato(opdateret) : null;
+  const navn = fornavn?.trim() || null;
+  const af = navn ? `${RETNING_FELT_ORD.skrevetAf} ${navn}` : null;
+  if (af && dato) return `${af} · ${dato}`;
+  if (af) return af;
+  if (dato) return `${RETNING_FELT_ORD.skrevet} ${dato}`;
+  return null;
+}
