@@ -83,6 +83,14 @@ export const FORSIDE_MAAL_ORD = {
   markerNaaet: "Er I i mål? Markér det på Dine mål",
   foersteSkridt: "Hvad er det første, I gør?",
   jeresSkridt: "Jeres skridt",
+  /** Forside v3 (mockup v3): mikro-overskriften over et måls skridt, og spørgsmålet, når alle er gjort. */
+  skridt: "Skridt",
+  erIMaal: "Er I i mål?",
+  alleGjortKort: "Alle skridt er gjort",
+  tilfoejPaaDineMaal: "Tilføj det på Dine mål",
+  /** Forslagskortet på forsiden (mockup v3): «2 forslag til mål» + «Et mål tæller først, når I har sagt ja.» */
+  forslagKort: (n: number) => (n === 1 ? "1 forslag til et mål" : `${n} forslag til mål`),
+  forslagTaeller: "Et mål tæller først, når I har sagt ja.",
 } as const;
 
 /**

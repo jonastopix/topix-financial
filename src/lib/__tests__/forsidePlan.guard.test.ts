@@ -94,8 +94,11 @@ export const sammeFunctions = (forside: string): boolean => {
   const kald = [...forside.matchAll(/functions\.invoke\(\s*(?:fn|"([a-z-]+)")/g)].map((m) => m[1] ?? "fn");
   const fnNavne = [...forside.matchAll(/fn: "([a-z-]+)"/g)].map((m) => m[1]);
   const alle = new Set([...kald.filter((k) => k !== "fn"), ...fnNavne]);
-  const tilladt = new Set(["opgave-accepter", "opgave-udskyd", "opgave-luk", "skridt-tilfoej"]);
-  return [...alle].every((n) => tilladt.has(n)) && alle.has("skridt-tilfoej") && alle.has("opgave-luk") &&
+  // FORSIDE V3 (2/10-2026, Jonas: «+ Tilføj skridt» væk fra forsiden — «Ja»): forsiden SVARER kun på skridt
+  // (accepter/udskyd/luk); at tilføje et skridt (skridt-tilfoej) bor på Dine mål og må ikke stå her.
+  const tilladt = new Set(["opgave-accepter", "opgave-udskyd", "opgave-luk"]);
+  return [...alle].every((n) => tilladt.has(n)) && !alle.has("skridt-tilfoej") && alle.has("opgave-luk") &&
+    !forside.includes("TilfoejSkridtForm") && !forside.includes('data-handling="tilfoej-skridt"') &&
     !/from\("company_actions"\)\s*\.(insert|update|delete)\(/.test(forside) &&
     !/from\("milestones"\)\s*\.(insert|update|delete)\(/.test(forside);
 };
@@ -163,7 +166,7 @@ describe("forsidePlan.guard — PR 3: én sektion, skridt under mål, samme func
   it("dom 2: målet er motorens kort; næste aktive og forslagene inde i kortet; «Uden mål» efter målene; dommen er forsidePlanDom", () => {
     expect(skridtUnderMaal(forside)).toBe(true);
   });
-  it("dom 3: kun opgave-accepter/-udskyd/-luk og skridt-tilfoej — ingen direkte skrivning fra forsiden", () => {
+  it("dom 3 (v3): kun opgave-accepter/-udskyd/-luk — intet «+ Tilføj skridt» og ingen direkte skrivning fra forsiden", () => {
     expect(sammeFunctions(forside)).toBe(true);
   });
   it("dom 4: det tomme er det mørke kort med «Sæt jeres første mål» og «Book en session»; tilstanden er forsideMaalTilstand", () => {
@@ -180,14 +183,15 @@ describe("forsidePlan.guard — PR 3: én sektion, skridt under mål, samme func
 
   it("selvbevis 1: en «Dine mål»-sektion tilbage, eller ankrene væk, falder", () => {
     expect(enSektion(forside + '\n<HbSection id="dine-maal" eyebrow="Dine mål" hairline />')).toBe(false);
-    expect(enSektion(forside.replace('<span id="dine-skridt" data-anker /><span id="dine-maal" data-anker />\n          {', "{"))).toBe(false);
+    expect(enSektion(forside.split('<span id="dine-skridt" data-anker /><span id="dine-maal" data-anker />').join(""))).toBe(false);
   });
   it("selvbevis 2: skridtene renderet uden for målets <li>, eller en egen dom, falder", () => {
     expect(skridtUnderMaal(forside.replace("forsidePlanDom(dineMaal, aftaleRaekker, new Date())", "egenPlan(dineMaal)"))).toBe(false);
     expect(skridtUnderMaal(forside.replace("{x.aktive.slice(0, 1).map((a) => (", "{[].map((a) => ("))).toBe(false);
     expect(skridtUnderMaal(forside.replace("kort={maalKortFor(x.plan.plan.maal.id)}", "kort={null}"))).toBe(false);
   });
-  it("selvbevis 3: en ny function eller en direkte insert falder", () => {
+  it("selvbevis 3: en ny function, en direkte insert eller «+ Tilføj skridt» tilbage falder", () => {
+    expect(sammeFunctions(forside + '\nawait supabase.functions.invoke("skridt-tilfoej", {});')).toBe(false);
     expect(sammeFunctions(forside + '\nawait supabase.functions.invoke("skridt-opret-direkte", {});')).toBe(false);
     expect(sammeFunctions(forside + '\nawait supabase.from("company_actions").insert({});')).toBe(false);
   });

@@ -32,3 +32,29 @@ describe("kortDato — «tirs. 20. okt.», år kun når det ikke er i år", () =
     expect(() => kortDato("", NU)).toThrow();
   });
 });
+
+import { fristKort } from "../forsideDato";
+describe("fristKort", () => {
+  const nu = new Date("2026-10-02T18:00:00Z");
+  it("i dag / i morgen / passeret / senere / andet år", () => {
+    expect(fristKort("2026-10-02", nu)).toEqual({ tekst: "frist i dag", forfalden: false, iDag: true });
+    expect(fristKort("2026-10-03", nu).tekst).toBe("frist i morgen");
+    expect(fristKort("2026-09-29", nu)).toEqual({ tekst: "fristen var tirs. 29. sep.", forfalden: true, iDag: false });
+    expect(fristKort("2026-10-12", nu).tekst).toBe("frist man. 12. okt.");
+    expect(fristKort("2027-03-30", nu).tekst).toBe("frist 30. mar. 2027");
+  });
+  it("dansk midnat: 2/10 kl. 23.30 dansk er stadig 2/10", () => {
+    expect(fristKort("2026-10-02", new Date("2026-10-02T21:30:00Z")).iDag).toBe(true);
+  });
+});
+
+import { foreslaaetKort } from "../forsideDato";
+describe("foreslaaetKort", () => {
+  const nu = new Date("2026-10-02T18:00:00Z");
+  it("i dag / i går / dato", () => {
+    expect(foreslaaetKort("2026-10-02T06:00:00Z", nu)).toBe("foreslået i dag");
+    expect(foreslaaetKort("2026-10-01T06:00:00Z", nu)).toBe("foreslået i går");
+    expect(foreslaaetKort("2026-09-23T09:00:00Z", nu)).toBe("foreslået ons. 23. sep.");
+    expect(foreslaaetKort(null, nu)).toBeNull();
+  });
+});

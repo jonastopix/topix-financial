@@ -89,5 +89,7 @@ export interface StilleKilde {
  */
 export function stilleLinjer<T extends StilleKilde>(efterPrimaer: readonly T[], harTjeklisteLinje: boolean): T[] {
   const plads = Math.max(0, VIGTIGST_LINJER_MAKS - (harTjeklisteLinje ? 1 : 0));
-  return efterPrimaer.filter((i) => !erPlanPunkt(i) && i.kind !== "tjekliste").slice(0, plads);
+  // Med tjekliste-linjen står profilen («Fortæl de andre hvad du er god til») allerede i listen (Netværket-
+  // punktet) — set på Topix' rigtige data 2/10: samme opgave to gange i kortet.
+  return efterPrimaer.filter((i) => !erPlanPunkt(i) && i.kind !== "tjekliste" && !(harTjeklisteLinje && i.kind === "empty-profile")).slice(0, plads);
 }

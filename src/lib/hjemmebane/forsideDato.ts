@@ -38,3 +38,29 @@ export function kortDato(dato: string, nu: Date): string {
   const iAar = Number(kbhDato(nu).slice(0, 4));
   return aar === iAar ? MED_UGEDAG.format(d) : MED_AAR.format(d);
 }
+
+/**
+ * En frist i forsidens ene format (forside v3 §0), set fra dansk «i dag»:
+ *   i dag → «frist i dag»; i morgen → «frist i morgen»; passeret → «fristen var tirs. 29. sep.» (forfalden);
+ *   ellers «frist man. 12. okt.» / «frist 30. mar. 2027».
+ * Kalenderdatoer sammenlignes som «YYYY-MM-DD»-strenge (kbhDato), aldrig som tidspunkter.
+ */
+export function fristKort(dato: string, nu: Date): { tekst: string; forfalden: boolean; iDag: boolean } {
+  const idag = kbhDato(nu);
+  const imorgen = kbhDato(new Date(nu.getTime() + 86_400_000));
+  if (dato === idag) return { tekst: "frist i dag", forfalden: false, iDag: true };
+  if (dato < idag) return { tekst: `fristen var ${kortDato(dato, nu)}`, forfalden: true, iDag: false };
+  if (dato === imorgen) return { tekst: "frist i morgen", forfalden: false, iDag: false };
+  return { tekst: `frist ${kortDato(dato, nu)}`, forfalden: false, iDag: false };
+}
+
+/** Hvornår et forslag kom, i forsidens format: «foreslået i dag» / «foreslået i går» / «foreslået tirs. 23. sep.». */
+export function foreslaaetKort(iso: string | null | undefined, nu: Date): string | null {
+  if (!iso) return null;
+  const t = new Date(iso);
+  if (Number.isNaN(t.getTime())) return null;
+  const dag = kbhDato(t);
+  if (dag >= kbhDato(nu)) return "foreslået i dag";
+  if (dag === kbhDato(new Date(nu.getTime() - 86_400_000))) return "foreslået i går";
+  return `foreslået ${kortDato(dag, nu)}`;
+}

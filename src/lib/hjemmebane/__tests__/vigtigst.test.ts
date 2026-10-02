@@ -53,6 +53,10 @@ describe("stilleLinjer", () => {
     const ud = stilleLinjer([i("company-action"), i("maal"), i("tjekliste"), i("unread-messages"), i("pulse"), i("weekly-focus")], false);
     expect(ud.map((x) => x.kind)).toEqual(["unread-messages", "pulse"]);
   });
+  it("med tjekliste-linjen står profil-punktet ikke igen (det er et punkt i listen)", () => {
+    expect(stilleLinjer([i("empty-profile"), i("pulse")], true).map((x) => x.kind)).toEqual(["pulse"]);
+    expect(stilleLinjer([i("empty-profile"), i("pulse")], false).map((x) => x.kind)).toEqual(["empty-profile", "pulse"]);
+  });
   it("tjekliste-linjen tager én af pladserne", () => {
     expect(stilleLinjer([i("unread-messages"), i("pulse")], true).map((x) => x.kind)).toEqual(["unread-messages"]);
   });

@@ -575,7 +575,8 @@ function ScoreKortForside({ dom, loefter: linjer, vist, bevaegelse, aaben, onSki
       {valgt && (
         <p className="mt-3 border-t border-hb-line pt-3 text-sm text-hb-ink" data-score-loefter-mest={valgt.soejle} data-loefter-sti={valgt.sti ?? "ingen"}>
           <span className={cn(mikro, "mr-2")}>{LOEFTER_MEST_MAERKE}</span>
-          {valgt.tekst} <span className="text-hb-ink-soft">· {valgt.effekt}</span>
+          {/* Motorens sætning slutter med punktum — før «· +50 point» læses det som to sætninger (set på Topix' data). */}
+          {valgt.tekst.replace(/\.$/, "")} <span className="text-hb-ink-soft">· {valgt.effekt}</span>
         </p>
       )}
 

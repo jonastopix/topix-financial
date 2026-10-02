@@ -32,7 +32,8 @@
  * rapport». Testet i __tests__/dinMaaned.test.ts; kildeværn
  * src/lib/__tests__/forsideTop.guard.test.ts.
  */
-import { maanedsnavn } from "@/lib/maanedsnoegle";
+import { maanedsNoegleKbh, maanedsnavn } from "@/lib/maanedsnoegle";
+import { flytMaaned, fristPasseret, naesteMaaned } from "@/lib/boardroomScore/streak";
 
 export interface MaanedsRaekke {
   /** «YYYY-MM» (financial_report_facts.period_key). */
@@ -163,4 +164,31 @@ export function sparklineKoordinater(punkter: readonly SparklinePunkt[]): { x: n
     x: punkter.length === 1 ? 0.5 : i / (punkter.length - 1),
     y: span === 0 ? 0.5 : 1 - (p.value - min) / span,
   }));
+}
+
+// ── Forside v3 (2/10-2026 aften, docs/forside-v3.md §3) ─────────────────────
+/**
+ * Hvor gamle er tallene? «N måneder gamle» står på forsidens kort, KUN når den seneste måned med tal
+ * er bagud efter husets ENE frist (streak.ts: den 20. i måneden efter, rykket til hverdag):
+ *   bagud ⇔ fristen for måneden EFTER den seneste er passeret.
+ *   N = antal måneder fra den seneste til den seneste AFSLUTTEDE måned (maanedFoer(nu)), i dansk tid.
+ * Eksempler (nu = 2/10-2026): seneste august → septembers frist 20/10 ikke passeret → null (frisk, Topix).
+ *   seneste juni → julis frist 20/8 passeret → N = sep − jun = 3 → «3 måneder gamle».
+ *   seneste juli → augusts frist 21/9 passeret → N = 2 → «2 måneder gamle».
+ * Ingen rækker eller en ugyldig nøgle → null.
+ */
+export function talAlderTekst(senesteKey: string | null | undefined, nu: Date): string | null {
+  if (!senesteKey || !/^\d{4}-\d{2}$/.test(senesteKey)) return null;
+  if (!fristPasseret(naesteMaaned(senesteKey), nu)) return null;
+  const afsluttet = flytMaaned(maanedsNoegleKbh(nu), -1);
+  const [a1, m1] = senesteKey.split("-").map(Number);
+  const [a2, m2] = afsluttet.split("-").map(Number);
+  const n = (a2! - a1!) * 12 + (m2! - m1!);
+  if (n < 1) return null;
+  return n === 1 ? "1 måned gammel" : `${n} måneder gamle`;
+}
+
+/** Den seneste periode blandt rækkerne (nyeste nøgle) — null uden rækker. */
+export function senesteNoegle(rows: readonly Pick<MaanedsRaekke, "key">[]): string | null {
+  return rows.reduce<string | null>((s, r) => (s === null || r.key > s ? r.key : s), null);
 }
