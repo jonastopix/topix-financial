@@ -74,8 +74,10 @@ to the entire access-control model.
 ### `kan_laese_community(_user_id uuid) → boolean` (2/10-2026, migration `20261002242000_community_gaest_laeser.sql`, IKKE KØRT — KRÆVER GRØNT LYS)
 - **READ-only community verdict** (Jonas 14/9: «En gæst ser Community, men skriver
   ikke»): `har_aktivt_medlemskab(uid) OR EXISTS` membership in a company with
-  `vis_i_netvaerk = false AND is_legat = false AND contract_end_date IS NULL` (the
-  guest). Narrow by design: an EXPIRED company with the flag is not a guest; a
+  `vis_i_netvaerk = false AND is_legat = false AND contract_end_date IS NULL AND
+  is_demo IS DISTINCT FROM true AND data_slettet_at IS NULL` (the guest; demo and
+  deleted companies excluded — council finding 2/10; `er_kunde` deliberately not read,
+  it is a counting marker, never an access verdict). Narrow by design: an EXPIRED company with the flag is not a guest; a
   company without end date and without the flag is not a guest.
 - STABLE, SECURITY DEFINER, `search_path = public`; `REVOKE ALL FROM PUBLIC, anon`;
   `GRANT EXECUTE TO authenticated, service_role`.

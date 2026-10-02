@@ -3,9 +3,15 @@
  * (lib/hjemmebane/communityAdgang.ts; migration 20261002242000; Jonas 14/9:
  * «En gæst ser Community, men skriver ikke»).
  *
- * Læser egen virksomheds tre felter (vis_i_netvaerk, is_legat,
- * contract_end_date) gennem medlemmets eksisterende SELECT på companies —
- * samme række, useAuth allerede henter tier af. Rådgiveren er aldrig gæst
+ * Læser egen virksomheds fem felter (vis_i_netvaerk, is_legat,
+ * contract_end_date, is_demo, data_slettet_at) gennem medlemmets eksisterende
+ * SELECT på companies — samme række, useAuth allerede henter tier af.
+ *
+ * KUN DEN AKTIVE VIRKSOMHED (bevidst, docs/adgangsdomme.md §7): SQL-dommen ser
+ * ALLE brugerens medlemskaber, men medlemmets SELECT på companies er
+ * «Members can view own company» (id = user_company_id(auth.uid()), LIMIT 1) —
+ * klienten kan ikke læse de andre rækker. En bruger i BÅDE en gæste- og en
+ * medlemsvirksomhed dømmes derfor efter den aktive. Rådgiveren er aldrig gæst
  * (ingen virksomhed, eller has_role bærer alt); uden companyId er svaret
  * false (som i dag).
  *
@@ -21,7 +27,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { erCommunityGaest, type GaestDom, type VirksomhedTilCommunity } from "@/lib/hjemmebane/communityAdgang";
 
 export const COMMUNITY_GAEST_KEY = (companyId: string | null) => ["community", "gaest", companyId] as const;
-export const COMMUNITY_GAEST_FELTER = "vis_i_netvaerk, is_legat, contract_end_date";
+export const COMMUNITY_GAEST_FELTER = "vis_i_netvaerk, is_legat, contract_end_date, is_demo, data_slettet_at";
 
 /** Egen virksomheds gæstedom — kaster aldrig (fejl → false, se filhovedet). */
 export async function hentCommunityGaest(companyId: string): Promise<boolean> {
@@ -32,7 +38,13 @@ export async function hentCommunityGaest(companyId: string): Promise<boolean> {
   }
   if (!data) return false;
   const v = data as unknown as VirksomhedTilCommunity;
-  return erCommunityGaest({ vis_i_netvaerk: v.vis_i_netvaerk ?? null, is_legat: v.is_legat === true, contract_end_date: v.contract_end_date ?? null });
+  return erCommunityGaest({
+    vis_i_netvaerk: v.vis_i_netvaerk ?? null,
+    is_legat: v.is_legat === true,
+    contract_end_date: v.contract_end_date ?? null,
+    is_demo: v.is_demo ?? null,
+    data_slettet_at: v.data_slettet_at ?? null,
+  });
 }
 
 export function useCommunityGaest(): GaestDom {

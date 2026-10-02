@@ -269,11 +269,21 @@ virksomheder med flaget «GÆSTER». Der findes ingen anden markør.
 
 **Dommen:** `kan_laese_community(uid) = har_aktivt_medlemskab(uid) OR
 EXISTS (medlemskab i en virksomhed med vis_i_netvaerk = false AND
-is_legat = false AND contract_end_date IS NULL)`. Det SNÆVRE snit er valgt:
+is_legat = false AND contract_end_date IS NULL AND is_demo IS DISTINCT FROM
+true AND data_slettet_at IS NULL)`. Det SNÆVRE snit er valgt:
 flaget alene ville give en udløbet virksomhed, der er skjult fra Netværket,
 læseadgang; «ingen slutdato» alene var (b). SQL-funktion, STABLE, SECURITY
 DEFINER, `search_path = public`; EXECUTE kun til `authenticated` og
 `service_role`.
+
+**Demo og slettet (rådets fund 2/10):** en demovirksomhed (`is_demo = true`)
+og en slettet (`data_slettet_at` sat) er ingen gæst, selv med flaget og
+uden slutdato — samme udelukkelse som klaviyoMedlem, trofæerne og
+kvartalstjek-universet. `is_demo` NULL tæller som «ikke demo». **`er_kunde`
+er bevidst IKKE med** (målt i koden 2/10): feltet bruges kun i tællinger og
+lister (online, kohorte, kvartalstjek, virksomhedslisten, rådgiverforsiden,
+ansøgninger, klaviyoMedlem) og i ingen adgangsdom — det markerer husets egen
+virksomhed (Topix.dk ApS), ikke en gæst.
 
 **Sandhedstabel** (R = kan læse community, S = kan skrive; rådgiveren er
 altid R+S via `has_role`):
@@ -283,7 +293,9 @@ altid R+S via `has_role`):
 | true | false | sat, ikke passeret | true | true | ja | fuldt medlem |
 | true | false | sat, passeret | false | false | nej | udløbet |
 | true | false | NULL | false | false | nej | «no_date» uden gæsteflag — som i dag ((b) afvist) |
-| **false** | **false** | **NULL** | **false** | **true ← ny** | **nej** | **gæsten (Jonas 14/9)** |
+| **false** | **false** | **NULL** (ikke demo, ikke slettet) | **false** | **true ← ny** | **nej** | **gæsten (Jonas 14/9)** |
+| false | false | NULL, `is_demo = true` | false | false | nej | demo — ingen gæst (fund 2/10) |
+| false | false | NULL, `data_slettet_at` sat | false | false | nej | slettet — ingen gæst (fund 2/10) |
 | false | false | sat, ikke passeret | true | true | ja | fuldt medlem skjult fra Netværket |
 | false | false | sat, passeret | false | false | nej | udløbet + flag: IKKE gæst |
 | (alt) | true | (alt) | false | false | nej | legat — eget miljø |
@@ -316,6 +328,19 @@ composeren, like er slået fra, og tjeklistens «Præsentér dig» udgår. Den
 grænse virker også FØR migrationen er kørt (gæsten ser da en tom liste med
 grænsen i stedet for en fejl). Værn: `communityGaest.guard.test.ts` (otte
 domme med selvbevis), `communityAdgang.test.ts` (sandhedstabellen).
+
+**Klienten dømmer KUN den aktive virksomhed (bevidst, rådets fund 2/10):**
+SQL-dommen ser ALLE brugerens medlemskaber (`EXISTS` over `company_members`),
+men `useCommunityGaest` læser kun `companyId`s række — medlemmets SELECT på
+`companies` er «Members can view own company» (`id = user_company_id(auth.uid())`,
+og `user_company_id` tager `LIMIT 1`; kodelæst i `20260224222456`, ikke målt i
+`pg_policy`), så klienten KAN ikke læse de andre rækker, og at hente alle
+medlemskaber er derfor ikke enkelt (det kræver en ny RPC). Følgen for en
+bruger i BÅDE en gæste- og en medlemsvirksomhed: er den aktive gæsten, skjuler
+fladen composeren, selv om databasen (`har_aktivt_medlemskab` over alle
+medlemskaber) ville tage imod et opslag — den forsigtige fejl (grænsen, ikke
+en afvisning). Er den aktive medlemsvirksomheden, er fladen og databasen
+enige. Målt i prod: ikke målt, hvor mange brugere der har to medlemskaber.
 
 **Paritet:** klientspejlet er testet mod tabellen ovenfor; SQL-dommen er det
 ikke (§6 åbent punkt gælder stadig — der er ingen SQL-testinfrastruktur).

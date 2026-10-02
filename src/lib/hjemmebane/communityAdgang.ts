@@ -11,6 +11,7 @@
  *   kan_laese_community(uid)  = har_aktivt_medlemskab(uid) OR gæst
  *   har_aktivt_medlemskab(uid) = harAdgangEfterRls (eventSvar.ts — spejlet ordret)
  *   gæst                       = vis_i_netvaerk = false AND is_legat = false AND contract_end_date IS NULL
+ *                                AND is_demo IS DISTINCT FROM true AND data_slettet_at IS NULL (rådets fund 2/10)
  * Skrivning (opslag, svar, reaktion) dømmes STADIG af har_aktivt_medlemskab —
  * klienten viser gæsten grænsen i stedet for at lade databasen afvise.
  *
@@ -22,16 +23,23 @@
  */
 import { harAdgangEfterRls } from "./eventSvar";
 
-/** Det af companies-rækken dommen læser — samme tre felter som SQL'en. */
+/** Det af companies-rækken dommen læser — samme fem felter som SQL'en. */
 export interface VirksomhedTilCommunity {
   vis_i_netvaerk: boolean | null;
   is_legat: boolean;
   contract_end_date: string | null;
+  /** NULL tæller som «ikke demo» — som SQL'ens `is_demo IS DISTINCT FROM true`. */
+  is_demo: boolean | null;
+  data_slettet_at: string | null;
 }
 
-/** Gæsten: flaget, ikke legat, OG ingen slutdato — alle tre (migration 20261002242000). */
+/**
+ * Gæsten: flaget, ikke legat, ingen slutdato, ikke demo OG ikke slettet — alle fem
+ * (migration 20261002242000; demo/slettet: rådets fund 2/10). er_kunde læses bevidst
+ * IKKE: feltet er husets tællemarkør, aldrig en adgangsdom (migrationens filhoved).
+ */
 export function erCommunityGaest(v: VirksomhedTilCommunity): boolean {
-  return v.vis_i_netvaerk === false && v.is_legat === false && v.contract_end_date === null;
+  return v.vis_i_netvaerk === false && v.is_legat === false && v.contract_end_date === null && v.is_demo !== true && v.data_slettet_at === null;
 }
 
 /** kan_laese_community: fuldt medlemskab (slutdagen talt med) ELLER gæst i mindst én virksomhed. */

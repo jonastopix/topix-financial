@@ -30,7 +30,19 @@
 --
 -- DOMMEN kan_laese_community(uid) = har_aktivt_medlemskab(uid)
 --   OR EXISTS (medlemskab i en virksomhed med vis_i_netvaerk = false
---              AND is_legat = false AND contract_end_date IS NULL).
+--              AND is_legat = false AND contract_end_date IS NULL
+--              AND is_demo IS DISTINCT FROM true AND data_slettet_at IS NULL).
+--   DEMO OG SLETTET (rådets fund 2/10): en demovirksomhed (is_demo = true) og en
+--   slettet (data_slettet_at sat) er ingen gæst, selv med flaget og uden slutdato —
+--   samme udelukkelse som klaviyoMedlem/trofaeer/kvartalstjek-universet. is_demo
+--   NULL tæller som «ikke demo» (IS DISTINCT FROM true), som i klientens spejl.
+--   er_kunde (MÅLT I KODEN 2/10): bruges KUN i tællinger og lister (online.ts,
+--   kohorte.ts, kvartalstjekOverblik, VirksomhedslisteView, AdvisorDashboard,
+--   ansoegninger, klaviyoMedlem) — ALDRIG i en adgangsdom (har_aktivt_medlemskab,
+--   is_membership_active, computeMembershipTier læser den ikke). Den er husets
+--   «egen virksomhed» (Topix.dk ApS, testkontoen), ikke en gæstemarkør. Gæstegrenen
+--   tager den derfor IKKE med: læseadgang er en adgangsdom, og at lægge er_kunde
+--   ind her ville gøre den til den eneste dom, der læser feltet.
 --   VALGT (det snævre): gæstegrenen kræver BÅDE flaget OG «ingen slutdato».
 --   Flaget alene ville give læseadgang til en UDLØBET virksomhed, der er sat som
 --   gæst (en tidligere kunde skjult fra Netværket — ikke en gæst); «ingen
@@ -46,9 +58,11 @@
 --   true           | false    | sat, ikke passeret     | true                  | true                | ja          | fuldt medlem
 --   true           | false    | sat, passeret          | false                 | false               | nej         | udløbet (App.tsx sender tier expired væk)
 --   true           | false    | NULL                   | false                 | false               | nej         | «no_date» uden gæsteflag — som i dag (mulighed (b) var dette: afvist)
---   false          | false    | NULL                   | false                 | TRUE  ← ny          | nej         | GÆSTEN (Jonas 14/9)
+--   false          | false    | NULL (ikke demo, ikke slettet) | false         | TRUE  ← ny          | nej         | GÆSTEN (Jonas 14/9)
 --   false          | false    | sat, ikke passeret     | true                  | true                | ja          | fuldt medlem skjult fra Netværket (testvirksomhed)
 --   false          | false    | sat, passeret          | false                 | false               | nej         | udløbet + gæsteflag: IKKE en gæst (valgt snævert)
+--   false          | false    | NULL  + is_demo = true | false                 | false               | nej         | demo — ingen gæst (fund 2/10)
+--   false          | false    | NULL  + data_slettet_at| false                 | false               | nej         | slettet — ingen gæst (fund 2/10)
 --   (alt)          | true     | (alt)                  | false                 | false               | nej         | legat — eget miljø
 --   intet medlemskab                                   | false                 | false               | nej         | ingen virksomhed
 --   Selvbetjeningsabonnent (subscription_status) vurderes IKKE — som i har_aktivt_medlemskab (abonnementet dækker ikke community).
@@ -99,7 +113,7 @@
 --   union all
 --   select '3 politik ' || polname, pg_get_expr(polqual, polrelid) from pg_policy where polrelid in ('public.community_traade'::regclass, 'public.community_svar'::regclass) and polcmd = 'r'
 --   union all
---   select '4 gaester (flag, ingen slutdato, ikke legat)', count(*)::text from public.companies where vis_i_netvaerk = false and contract_end_date is null and is_legat = false
+--   select '4 gaester (flag, ingen slutdato, ikke legat/demo/slettet)', count(*)::text from public.companies where vis_i_netvaerk = false and contract_end_date is null and is_legat = false and is_demo is distinct from true and data_slettet_at is null
 --   union all
 --   select '5 flag + udloebet (faar IKKE adgang)', count(*)::text from public.companies where vis_i_netvaerk = false and contract_end_date is not null and contract_end_date + 1 <= now()
 --   union all
@@ -107,7 +121,7 @@
 --   union all
 --   select '7 brugere der faar laeseadgang af den nye gren', count(distinct cm.user_id)::text
 --     from public.company_members cm join public.companies c on c.id = cm.company_id
---    where c.vis_i_netvaerk = false and c.contract_end_date is null and c.is_legat = false and not public.har_aktivt_medlemskab(cm.user_id)
+--    where c.vis_i_netvaerk = false and c.contract_end_date is null and c.is_legat = false and c.is_demo is distinct from true and c.data_slettet_at is null and not public.har_aktivt_medlemskab(cm.user_id)
 --   order by 1;
 --   Forventet: 1 = 0; 2 = «true / false» for alle ti; 3 = de to SELECT-politikker med har_aktivt_medlemskab;
 --   4–7 = TALLENE SKRIVES HER (de to gæster fra 2/9 blev slettet 21/9 — 4 kan være 0; da ændrer migrationen
@@ -159,11 +173,14 @@ AS $function$
              AND c.vis_i_netvaerk = false
              AND c.is_legat = false
              AND c.contract_end_date IS NULL
+             -- Rådets fund 2/10: en demo- eller slettet virksomhed er ingen gæst.
+             AND c.is_demo IS DISTINCT FROM true
+             AND c.data_slettet_at IS NULL
          )
 $function$;
 
 COMMENT ON FUNCTION public.kan_laese_community(uuid) IS
-  'LÆSE-dom for community (2/10-2026, Jonas 14/9 «En gæst ser Community, men skriver ikke»): har_aktivt_medlemskab(uid) ELLER et medlemskab i en gæstevirksomhed (vis_i_netvaerk = false AND is_legat = false AND contract_end_date IS NULL). Bruges KUN i SELECT-politikker og læse-RPC''er (feed, tråd, svar, billed-/filport). Skrivning dømmes stadig af har_aktivt_medlemskab. Spejl i klienten: src/lib/hjemmebane/communityAdgang.ts (værn communityGaest.guard).';
+  'LÆSE-dom for community (2/10-2026, Jonas 14/9 «En gæst ser Community, men skriver ikke»): har_aktivt_medlemskab(uid) ELLER et medlemskab i en gæstevirksomhed (vis_i_netvaerk = false AND is_legat = false AND contract_end_date IS NULL AND is_demo IS DISTINCT FROM true AND data_slettet_at IS NULL). Bruges KUN i SELECT-politikker og læse-RPC''er (feed, tråd, svar, billed-/filport). Skrivning dømmes stadig af har_aktivt_medlemskab. Spejl i klienten: src/lib/hjemmebane/communityAdgang.ts (værn communityGaest.guard).';
 
 REVOKE ALL ON FUNCTION public.kan_laese_community(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.kan_laese_community(uuid) FROM anon;

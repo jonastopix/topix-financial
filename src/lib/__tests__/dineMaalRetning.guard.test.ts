@@ -51,7 +51,7 @@ export const hierarkietHolder = (view: string): boolean => {
 /** Dom 2: én hovedlinje, neutral; aldrig «N af 3» med N > 3. */
 export const enHovedlinje = (view: string, flade: string, dom: string): boolean => {
   const v = udenKommentarer(view);
-  const hovedLinjeTag = /<p className="text-sm text-hb-ink-soft" data-hoved-linje>\{hovedLinje\(kort\.length, dom\.ubekraeftede\.length\)\}<\/p>/.test(v);
+  const hovedLinjeTag = /<p className="text-sm text-hb-ink-soft" data-hoved-linje>\{hovedLinje\(kort\.length, dom\.ubekraeftede\.length, dom\.pladsdom\)\}<\/p>/.test(v);
   const ingenGraense = !/graenseTekst/.test(v) && !/data-graense-tekst/.test(v);
   const f = udenKommentarer(flade);
   const fn = f.slice(f.indexOf("export function hovedLinje"), f.indexOf("export interface StatusChip"));

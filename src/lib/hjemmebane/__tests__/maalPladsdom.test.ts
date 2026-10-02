@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aktiveDerTaeller, laesPladsdom, PLADSDOM_RPC } from "@/lib/hjemmebane/maalPladsdom";
+import { aktiveDerTaeller, BEKRAEFT_PLADS_GRUND, bekraeftelseSpaerret, laesPladsdom, PLADSDOM_RPC } from "@/lib/hjemmebane/maalPladsdom";
 
 describe("maalPladsdom — reglen måles, den gættes ikke (punkt 13, migration 20261002241000)", () => {
   it("kun et bogstaveligt true giver «kun_bekraeftede»", () => {
@@ -23,5 +23,15 @@ describe("maalPladsdom — reglen måles, den gættes ikke (punkt 13, migration 
   });
   it("RPC-navnet er migrationens", () => {
     expect(PLADSDOM_RPC).toBe("maal_pladser_kun_bekraeftede");
+  });
+  it("bekraeftelseSpaerret: kun under «kun_bekraeftede» og ved 3 bekræftede aktive (triggeren 20261002241000 afviser den fjerde)", () => {
+    expect(bekraeftelseSpaerret("kun_bekraeftede", 3)).toBe(BEKRAEFT_PLADS_GRUND);
+    expect(bekraeftelseSpaerret("kun_bekraeftede", 4)).toBe(BEKRAEFT_PLADS_GRUND);
+    expect(bekraeftelseSpaerret("kun_bekraeftede", 2)).toBeNull();
+    expect(bekraeftelseSpaerret("kun_bekraeftede", 0)).toBeNull();
+    // «alle» (20260917150000): en bekræftelse ændrer ikke status og dømmes aldrig.
+    expect(bekraeftelseSpaerret("alle", 3)).toBeNull();
+    expect(bekraeftelseSpaerret("alle", 5)).toBeNull();
+    expect(BEKRAEFT_PLADS_GRUND).toBe("I har 3 aktive mål — parkér eller markér et som nået først");
   });
 });

@@ -7,6 +7,7 @@ import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
 import { useDineMaalGrundlag, useDineMaalSkrivning } from "@/hooks/dineMaalGrundlag";
 import { useMaalPladsdom } from "@/hooks/maalPladsdom";
+import { bekraeftelseSpaerret } from "@/lib/hjemmebane/maalPladsdom";
 import { dineMaalDom, doemMaalFristModSkridt, lokalDatoStreng, TILFOEJ_SKRIDT_FEJL_TEKST, TILFOEJ_SKRIDT_OK_TEKST, type SkridtTilDineMaal } from "@/lib/hjemmebane/dineMaal";
 import type { MaalRaekke } from "@/lib/hjemmebane/planen";
 import { maalKort, skarptForslag, type MaalKort as MaalKortDom } from "@/lib/hjemmebane/maalTal";
@@ -401,6 +402,7 @@ export const DineMaalView = () => {
           bekraeftelser={g.bekraeftelser}
           kvartalstjek={g.kvartalstjekFejlede ? [] : g.kvartalstjek}
           kanKlikke={kanBekraefte}
+          bekraeftSpaerret={bekraeftelseSpaerret(dom.pladsdom, dom.aktive.length)}
           onBekraeft={bekraeftHandling}
           onKvartal={kvartalHandling}
           onJuster={aabnJuster}

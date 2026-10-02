@@ -11,7 +11,7 @@ import {
 
 const NU = new Date("2026-10-02T10:00:00Z");
 const v = (over: Partial<VirksomhedTilCommunity> = {}): VirksomhedTilCommunity => ({
-  vis_i_netvaerk: true, is_legat: false, contract_end_date: "2027-01-01", ...over,
+  vis_i_netvaerk: true, is_legat: false, contract_end_date: "2027-01-01", is_demo: false, data_slettet_at: null, ...over,
 });
 
 describe("communityAdgang — gæsten læser, skriver ikke (Jonas 14/9; migration 20261002242000)", () => {
@@ -47,6 +47,10 @@ describe("communityAdgang — gæsten læser, skriver ikke (Jonas 14/9; migratio
     expect(erCommunityGaest(v({ vis_i_netvaerk: true, contract_end_date: null }))).toBe(false);
     expect(erCommunityGaest(v({ vis_i_netvaerk: false, contract_end_date: "2026-09-01" }))).toBe(false);
     expect(erCommunityGaest(v({ vis_i_netvaerk: false, contract_end_date: null, is_legat: true }))).toBe(false);
+    // Rådets fund 2/10: demo og slettet er ingen gæst; is_demo null = ikke demo (SQL: IS DISTINCT FROM true).
+    expect(erCommunityGaest(v({ vis_i_netvaerk: false, contract_end_date: null, is_demo: true }))).toBe(false);
+    expect(erCommunityGaest(v({ vis_i_netvaerk: false, contract_end_date: null, is_demo: null }))).toBe(true);
+    expect(erCommunityGaest(v({ vis_i_netvaerk: false, contract_end_date: null, data_slettet_at: "2026-09-21T10:00:00Z" }))).toBe(false);
   });
   it("slutdagen tæller med (7/9) i læsning som i skrivning — spejlet er eventSvar.harAdgangEfterRls", () => {
     const paaSlutdagen = v({ contract_end_date: "2026-10-02" });

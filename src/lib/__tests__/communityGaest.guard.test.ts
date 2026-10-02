@@ -9,7 +9,8 @@ import { resolve } from "node:path";
  *   1. Migrationens første linje kræver grønt lys (ikke «IKKE KØRT. DEPLOY:», så
  *      mappescanningen ikke tager den), og kan_laese_community er SECURITY
  *      DEFINER + STABLE + search_path, = har_aktivt_medlemskab OR (vis_i_netvaerk
- *      = false AND is_legat = false AND contract_end_date IS NULL); grant til
+ *      = false AND is_legat = false AND contract_end_date IS NULL AND is_demo IS
+ *      DISTINCT FROM true AND data_slettet_at IS NULL — demo/slettet: rådets fund 2/10); grant til
  *      authenticated + service_role, REVOKE fra PUBLIC og anon.
  *   2. Den nye dom bruges KUN i læsning: de to SELECT-politikker (samme navne,
  *      FOR SELECT) og de fem læse-RPC'er — og INGEN skrive-politik eller
@@ -18,13 +19,13 @@ import { resolve } from "node:path";
  *   3. De fem RPC-kroppe er TEGN FOR TEGN som den seneste migrationsfil for hver,
  *      når KUN porten (har_aktivt_medlemskab → kan_laese_community + den ene
  *      kommentarlinje) normaliseres væk — ingen anden ændring er smuglet ind.
- *   4. Klientens spejl dømmer gæsten med de samme tre felter (erCommunityGaest),
+ *   4. Klientens spejl dømmer gæsten med de samme fem felter (erCommunityGaest),
  *      læsning = harAdgangEfterRls OR gæst, skrivning = harAdgangEfterRls alene.
  *   5. Feedet og trådsiden viser composeren KUN gennem visComposer(gaest), grænsen
  *      gennem visGaestGraense(gaest) med GAEST_LAESER_TEKST, og like-knappen er
  *      slået fra for gæsten.
  *   6. Tjeklistens trådret kræver gaest === false og venter på dommen (gaest !== null).
- *   7. Hooken: fejl → false (som i dag), rådgiver → false, pending → null; feltlisten er de tre.
+ *   7. Hooken: fejl → false (som i dag), rådgiver → false, pending → null; feltlisten er de fem.
  *   8. har_aktivt_medlemskab røres ikke (ingen CREATE OR REPLACE af den i filen).
  */
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -57,7 +58,7 @@ export const dommenHolder = (raa: string): boolean => {
     raa.split("\n")[0] === "-- IKKE KØRT. KRÆVER JONAS' GRØNNE LYS (SECURITY DEFINER/trigger). DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik)." &&
     /RETURNS boolean\s+LANGUAGE sql\s+STABLE SECURITY DEFINER\s+SET search_path TO 'public'/.test(krop) &&
     /SELECT public\.har_aktivt_medlemskab\(_user_id\)\s+OR EXISTS \(/.test(krop) &&
-    /WHERE cm\.user_id = _user_id\s+AND c\.vis_i_netvaerk = false\s+AND c\.is_legat = false\s+AND c\.contract_end_date IS NULL/.test(krop) &&
+    /WHERE cm\.user_id = _user_id\s+AND c\.vis_i_netvaerk = false\s+AND c\.is_legat = false\s+AND c\.contract_end_date IS NULL\s+AND c\.is_demo IS DISTINCT FROM true\s+AND c\.data_slettet_at IS NULL\s*\)/.test(krop) &&
     sql.includes("REVOKE ALL ON FUNCTION public.kan_laese_community(uuid) FROM PUBLIC;") &&
     sql.includes("REVOKE ALL ON FUNCTION public.kan_laese_community(uuid) FROM anon;") &&
     sql.includes("GRANT EXECUTE ON FUNCTION public.kan_laese_community(uuid) TO authenticated;") &&
@@ -100,7 +101,7 @@ export const kroppeneErKilden = (ny: string, laesFil: (f: string) => string): st
 /** Dom 4. */
 export const spejletHolder = (dom: string): boolean =>
   dom.includes('import { harAdgangEfterRls } from "./eventSvar";') &&
-  dom.includes("return v.vis_i_netvaerk === false && v.is_legat === false && v.contract_end_date === null;") &&
+  dom.includes("return v.vis_i_netvaerk === false && v.is_legat === false && v.contract_end_date === null && v.is_demo !== true && v.data_slettet_at === null;") &&
   dom.includes("return harAdgangEfterRls(virksomheder, nu) || virksomheder.some(erCommunityGaest);") &&
   /export function kanSkriveICommunity\([^)]*\): boolean \{\s*return harAdgangEfterRls\(virksomheder, nu\);\s*\}/.test(dom) &&
   !/erCommunityGaest/.test(dom.match(/export function kanSkriveICommunity[\s\S]*?\n\}/)?.[0] ?? "x");
@@ -128,7 +129,7 @@ export const tjeklistenHolder = (hook: string): boolean =>
 
 /** Dom 7. */
 export const hookenHolder = (hook: string): boolean =>
-  hook.includes('export const COMMUNITY_GAEST_FELTER = "vis_i_netvaerk, is_legat, contract_end_date";') &&
+  hook.includes('export const COMMUNITY_GAEST_FELTER = "vis_i_netvaerk, is_legat, contract_end_date, is_demo, data_slettet_at";') &&
   /if \(error\) \{[\s\S]*?return false;\s*\}/.test(hook) &&
   hook.includes("if (isAdvisor) return false;") &&
   hook.includes('if (!companyId) return companyResolution === "pending" ? null : false;') &&
@@ -137,7 +138,7 @@ export const hookenHolder = (hook: string): boolean =>
 
 describe("communityGaest.guard — gæsten læser, skriver ikke", () => {
   const migration = laes(MIGRATION);
-  it("dom 1: første linje kræver grønt lys; kan_laese_community = har_aktivt_medlemskab OR (flag, ikke legat, ingen slutdato); DEFINER + STABLE + search_path; grants", () => {
+  it("dom 1: første linje kræver grønt lys; kan_laese_community = har_aktivt_medlemskab OR (flag, ikke legat, ingen slutdato, ikke demo, ikke slettet); DEFINER + STABLE + search_path; grants", () => {
     expect(dommenHolder(migration)).toBe(true);
   });
   it("dom 2 + 8: kun læsning rører den nye dom — to SELECT-politikker, fem læse-RPC'er; ingen skrive-RPC, ikke get_community_medlemmer, ikke har_aktivt_medlemskab", () => {
@@ -163,6 +164,8 @@ describe("communityGaest.guard — gæsten læser, skriver ikke", () => {
     expect(dommenHolder(migration.replace(/^[^\n]*/, "-- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik)."))).toBe(false);
     expect(dommenHolder(migration.replace("STABLE SECURITY DEFINER\nSET search_path TO 'public'\nAS $function$\n  SELECT public.har_aktivt_medlemskab(_user_id)", "STABLE\nSET search_path TO 'public'\nAS $function$\n  SELECT public.har_aktivt_medlemskab(_user_id)"))).toBe(false);
     expect(dommenHolder(migration.replace("             AND c.contract_end_date IS NULL\n", ""))).toBe(false);
+    expect(dommenHolder(migration.replace("             AND c.is_demo IS DISTINCT FROM true\n", ""))).toBe(false);
+    expect(dommenHolder(migration.replace("             AND c.data_slettet_at IS NULL\n", ""))).toBe(false);
     expect(dommenHolder(migration.replace("GRANT EXECUTE ON FUNCTION public.kan_laese_community(uuid) TO authenticated;", "GRANT EXECUTE ON FUNCTION public.kan_laese_community(uuid) TO authenticated;\nGRANT EXECUTE ON FUNCTION public.kan_laese_community(uuid) TO anon;") .replace("REVOKE ALL ON FUNCTION public.kan_laese_community(uuid) FROM anon;\n", ""))).toBe(false);
   });
   it("selvbevis 2: en INSERT-politik på den nye dom, en skrive-RPC eller har_aktivt_medlemskab i filen falder", () => {
@@ -183,7 +186,9 @@ describe("communityGaest.guard — gæsten læser, skriver ikke", () => {
   it("selvbevis 4–7: et spejl, der lader gæsten skrive; en composer uden dommen; en tjekliste uden gæsten; en hook, der kaster", () => {
     const dom = udenKommentarer(laes(DOM));
     expect(spejletHolder(dom.replace("return harAdgangEfterRls(virksomheder, nu);\n}", "return harAdgangEfterRls(virksomheder, nu) || virksomheder.some(erCommunityGaest);\n}"))).toBe(false);
-    expect(spejletHolder(dom.replace(" && v.contract_end_date === null;", ";"))).toBe(false);
+    expect(spejletHolder(dom.replace(" && v.contract_end_date === null && v.is_demo !== true && v.data_slettet_at === null;", ";"))).toBe(false);
+    expect(spejletHolder(dom.replace(" && v.is_demo !== true", ""))).toBe(false);
+    expect(spejletHolder(dom.replace(" && v.data_slettet_at === null;", ";"))).toBe(false);
     const feed = udenKommentarer(laes(FEED)), traad = udenKommentarer(laes(TRAAD));
     expect(fladenHolder(feed.replace("{!feedQuery.isLoading && user && visComposer(gaest) && (", "{!feedQuery.isLoading && user && ("), traad)).toBe(false);
     expect(fladenHolder(feed, traad.replace("{user && visComposer(gaest) && (", "{user && ("))).toBe(false);
