@@ -160,7 +160,7 @@ describe("communityMestLaest.guard — «N fandt det nyttigt» og «Mest læst d
 describe("communityMestLaest.guard — VÆRNET VIRKER", () => {
   const m = laes(MIGRATION);
   it("dom 1 fælder: andet filhoved, invoker, ulåst søgesti, port efter forespørgslen, skjulte tråde, forfatteren med, tjenestekonti med, UTC-uge, grant til anon, en policy", () => {
-    expect(migrationenHolder(m.replace(FOERSTE, "-- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik)."))).toBe(false);
+    expect(migrationenHolder(m.replace(m.split("\n")[0], "-- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik)."))).toBe(false);
     expect(migrationenHolder(m.replace("\nSECURITY DEFINER\n", "\nSECURITY INVOKER\n"))).toBe(false);
     expect(migrationenHolder(m.replace("SET search_path = public, pg_temp", "SET search_path = public"))).toBe(false);
     const port = "  IF auth.uid() IS NULL\n     OR NOT (public.kan_laese_community(auth.uid()) OR public.has_role(auth.uid(), 'advisor')) THEN\n    RETURN;\n  END IF;\n";
