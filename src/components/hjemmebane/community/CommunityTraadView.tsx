@@ -6,10 +6,12 @@ import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useCommunityGaest } from "@/hooks/communityAdgang";
 import { GAEST_LAESER_TEKST, visComposer, visGaestGraense } from "@/lib/hjemmebane/communityAdgang";
+import { useViewMode } from "@/hooks/useViewMode";
 import { cn } from "@/lib/utils";
 import {
   hentSvar,
   hentTraad,
+  markerSpoergsmaal,
   notificerNaevnelser,
   notificerSvar,
   opretSvar,
@@ -27,12 +29,26 @@ import { CommunityDokument } from "./CommunityDokument";
 import { LikeKnap } from "./LikeKnap";
 import { hentetilstand, sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
 import { UBESVAREDE_OPSLAG_KEY } from "@/hooks/ubesvaredeOpslag";
+import {
+  FJERN_MARKERING_LABEL,
+  MARKER_LABEL,
+  SPOERGSMAAL_TAG,
+  erSpoergsmaal,
+  visMarkerKnap,
+} from "@/lib/hjemmebane/communitySpoergsmaal";
+import { HbTag } from "../HbTag";
 
 /** Trådsiden (/community/:id) — læsning, svar, reaktioner og ret/slet af
     eget indhold (RPC'erne 20260812120000).
     Ikke-fundet håndteres blødt (EventDetailView-mønstret: venlig tekst +
     tilbage-link, ingen throw) — og tom kan også betyde "ingen adgang";
-    de to kan bevidst ikke skelnes (jf. communityApi.hentTraad). */
+    de to kan bevidst ikke skelnes (jf. communityApi.hentTraad).
+
+    RÅDGIVERNES «SPØRGSMÅL» (2/10): et markeret opslag bærer mærket
+    «Spørgsmål» i hovedet, og en rådgiver kan markere sit EGET opslag eller
+    fjerne markeringen på det markerede (visMarkerKnap i
+    communitySpoergsmaal.ts — databasen håndhæver reglen uanset, migration
+    20261002243000). Feedet og tråden hentes igen bagefter. */
 
 const BackLink = () => (
   <Link
@@ -167,6 +183,9 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
   const { user, isAdvisor, laeseMarkeringTilladt } = useAuth();
   /* Gæsten (2/10, Jonas 14/9: læser, skriver ikke): ingen svar-composer, ingen like; grænsen under svarene. */
   const gaest = useCommunityGaest();
+  /* Markér/fjern «Spørgsmål» kun for en rådgiver, der ikke ser som medlem
+     (rådets fund 2/10) — samme regel som feedet. */
+  const { viewingAsMember } = useViewMode();
 
   const [redigererTraad, setRedigererTraad] = useState(false);
   const [traadTitel, setTraadTitel] = useState("");
@@ -294,6 +313,16 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
     },
   });
 
+  /* Markeringen (2/10) — eget opslag eller det allerede markerede. Fejlen
+     siges som den er (RPC'ens besked — også «findes ikke» før migrationen). */
+  const markerMutation = useMutation({
+    mutationFn: (markeret: boolean) => markerSpoergsmaal(traadId, markeret),
+    onSuccess: invaliderTraadOgFeed,
+    onError: (fejl: Error) => {
+      toast.error("Markeringen blev ikke ændret", { description: fejl.message });
+    },
+  });
+
   const skjulMutation = useMutation({
     /* Begge retninger: skjul OG vis igen — læse-RPC'erne (20260812180000)
        viser skjulte tråde for rådgivere, så skjul er ikke længere en
@@ -348,6 +377,8 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
   const svarTilstand = hentetilstand(svarQuery, svar.length === 0);
   const erTraadForfatter = user !== null && user.id === traad.forfatter_id;
   const erSkjult = traad.status === "skjult";
+  const erMarkeret = erSpoergsmaal(traad);
+  const visMarker = visMarkerKnap({ erRaadgiver: isAdvisor && !viewingAsMember, erForfatter: erTraadForfatter, erMarkeret, status: traad.status });
 
   return (
     <div>
@@ -368,6 +399,7 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
             <span className="font-medium">{traad.forfatter_navn ?? "Medlem"}</span>
             <span className="text-hb-ink-soft"> · {fmtDato(traad.created_at)}</span>
           </p>
+          {erMarkeret && <HbTag className="bg-hb-rust/10 text-hb-rust">{SPOERGSMAAL_TAG}</HbTag>}
         </div>
 
         {redigererTraad && user ? (
@@ -430,6 +462,13 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
                     Slet
                   </TekstKnap>
                 </>
+              )}
+              {/* Rådgivernes «Spørgsmål» (2/10): markér eget opslag, eller
+                  fjern markeringen på det markerede. */}
+              {visMarker && (
+                <TekstKnap disabled={markerMutation.isPending} onClick={() => markerMutation.mutate(!erMarkeret)}>
+                  {erMarkeret ? FJERN_MARKERING_LABEL : MARKER_LABEL}
+                </TekstKnap>
               )}
               {/* Skjul-knappen er tilbage (holdt ude i PR #318, hvor skjul
                   var en envejsdør): læse-RPC'erne viser nu skjulte tråde

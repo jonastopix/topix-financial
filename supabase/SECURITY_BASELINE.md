@@ -177,6 +177,44 @@ to the entire access-control model.
   `FROM anon`
 - Introduced in migration `20260812150000_community_naevnelse_rpc.sql`
 
+### `marker_community_spoergsmaal(p_traad_id uuid, p_markeret boolean) → void` (rådgivernes «Spørgsmål» 2/10-2026, migration `20261002243000` — IKKE KØRT, KRÆVER JONAS' GRØNNE LYS)
+- Advisor gate FIRST (`has_role(auth.uid(), 'advisor')`, RAISE otherwise), before any
+  UPDATE — `skjul_community_traad` shape; a service account (`public.tjenestekonti`)
+  is refused right after the gate
+- Then `pg_advisory_xact_lock(hashtext('community_spoergsmaal'))` (rådets fund 2/10):
+  two concurrent markings run one after the other, so the second clears the first's
+  row — no 23505 from the partial unique index reaches the user
+- Only an `aktiv` thread; only a thread whose AUTHOR is an advisor (a member's post
+  never becomes «Spørgsmål fra rådgiverne»); row locked `FOR UPDATE`
+- `true` = clear every other marking, then set `now()` on this one (clear BEFORE set,
+  so the partial unique index is never hit); `false` = clear this one. Touches neither
+  `status`, `fastgjort` nor `updated_at`
+- VOLATILE, SECURITY DEFINER with `search_path = public`; grants: `EXECUTE TO
+  authenticated` only — `REVOKE ALL FROM PUBLIC` and `FROM anon`
+- Measured on a local Postgres 16 stub (not prod): member RPC → RAISE; member direct
+  UPDATE/INSERT of the column → RAISE (trigger); advisor on a member's post → RAISE;
+  second direct marking → unique_violation; new marking replaces the old
+
+### `get_community_feed(p_limit, p_offset)` / `get_community_traad(p_traad_id)` — three columns appended (same migration, DROP + CREATE)
+- RETURNS TABLE gains `spoergsmaal_markeret_at timestamptz`, `jeg_har_svaret boolean`
+  (caller has an ACTIVE reply in the thread) and `antal_svarere bigint` (distinct
+  authors of ACTIVE replies, thread author excluded) LAST; the feed orders
+  `(spoergsmaal_markeret_at IS NOT NULL AND status = 'aktiv') DESC` before the
+  canonical sort (a hidden marked thread is not on top for advisors)
+- Changing RETURNS TABLE requires DROP, which drops grants → REVOKE/GRANT repeated
+  (20260812090000 form); access check, status rule and everything else are
+  `20261002242000` (the guest read verdict: gate `kan_laese_community`, not
+  `har_aktivt_medlemskab`) verbatim — until that branch is merged the guard compares
+  with a verbatim fixture of its two read RPCs
+  (`src/lib/__fixtures__/community_gaest_laeser_20261002242000_laese_rpc.sql`), and
+  once the file exists the fixture must equal it block for block — the source guard `communitySpoergsmaal.guard` strips the
+  `-- SPOERGSMAAL` lines and requires the rest to match word for word, with ONE declared
+  exception: the feed body's two comment lines «Nøjagtig den kanoniske sortering …»
+  (no longer true) are replaced by marker lines (`ERSTATTEDE_KOMMENTARLINJER`). Before running:
+  `20261002242000` must be RUN, and `pg_get_functiondef` in prod must equal
+  `20261002242000` (gate `kan_laese_community`), otherwise STOP
+- `get_community_svar` untouched
+
 ### Cron-vagten: `vagt_cron()`, `get_cron_vagt()`, table `cron_vagt_log` (migration `20260909234500_cron_vagten.sql`)
 - Background (9/9): `vault.secrets` was emptied (~06:52, Lovable's mail update); all nine cron jobs sent `Bearer ` with no key and got 401 for ~17 hours while `cron.job_run_details` said "succeeded" (that only means `net.http_post` was enqueued). Nobody noticed until 23:39.
 - `vagt_cron()`: SECURITY DEFINER, `search_path = public`, run hourly by pg_cron (`vagt-cron`, `7 * * * *`) as `postgres`. **Pure SQL — no `net.http_post`, no decryption of any secret** (it only `count(*)`s `vault.secrets` by name), so it works precisely when everything else is down. Reads `vault.secrets`, `net._http_response`, `cron.job_run_details`, `cron.job`, `notifications`; writes `cron_vagt_log` and, when red, one `advisor_notifications` row per advisor (`type = 'drift'`, deduped on unread same title within 24 h). EXECUTE revoked from PUBLIC, anon and authenticated — only the cron runner calls it.
@@ -292,6 +330,10 @@ UPDATE always raises, for every role including `service_role` — the table is m
 ### `husk_foerste_godkendelse()` on `financial_report_facts AFTER INSERT OR UPDATE OF data_basis` (same migration)
 
 Writes one row per `(company_id, period_key)` into `maaned_foerste_godkendelse` with `now()` when a facts row BECOMES `measured` (INSERT, or UPDATE that flips `data_basis` to measured); `ON CONFLICT DO NOTHING` — the first stays. SECURITY DEFINER with `search_path = public` for the same reason as `cleanup_facts_on_report_delete`: every writer of facts (`commit_report_facts`, the annual/baseline edge functions with service role) must never have its INSERT rolled back by RLS on the memory table. It inserts into that one table only; EXECUTE revoked from PUBLIC/anon/authenticated (a trigger function cannot be called directly anyway). No existing SECURITY DEFINER function was changed. Proof of operation is a run, not the catalog — see `docs/boardroom-score.md` §4a for the FØR/EFTER query and the «replace a month, timestamp must not move» probe.
+
+### `community_traade_spoergsmaal_vaern()` on `community_traade BEFORE INSERT OR UPDATE` (rådgivernes «Spørgsmål» 2/10-2026, migration `20261002243000` — IKKE KØRT, KRÆVER JONAS' GRØNNE LYS)
+
+`spoergsmaal_markeret_at` can only be set (INSERT) or changed (UPDATE) by an advisor (`has_role(auth.uid(), 'advisor')`, admin inherits); everyone else gets RAISE. **Setting** it to a value additionally requires — the RPC's own rules, because advisors have UPDATE on ALL threads and a direct PostgREST PATCH must be judged the same (rådets fund 2/10) — that the caller is not a service account (`NOT EXISTS tjenestekonti`), the thread's author is an advisor, and `NEW.status = 'aktiv'`. **Hide/delete clears it:** an UPDATE leaving `NEW.status <> 'aktiv'` sets the column to NULL for any caller (a consequence of the status change, checked before the depth and role checks). A marked row updated in OTHER columns is not judged (the view counter writes the thread on a member's visit) — members have their own INSERT/UPDATE policies on the table (20260811160000), so without the trigger a member could mark their own post through PostgREST. `pg_trigger_depth() > 1` lets the counter triggers' indirect updates through, same shape as `protect_community_traad_immutable_fields`, which is deliberately NOT changed (FORBIDDEN list) — this is an additive trigger of its own. Not SECURITY DEFINER; `search_path = public`. `auth.uid()` is NULL in the SQL editor and for service role → `has_role` false → the column can only be set by a logged-in advisor (fail-closed on purpose). «At most one at a time» is the partial unique index `community_traade_et_spoergsmaal_uidx ON ((true)) WHERE spoergsmaal_markeret_at IS NOT NULL`.
 
 ## 4. Data Normalization Triggers
 

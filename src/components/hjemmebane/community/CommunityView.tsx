@@ -5,16 +5,34 @@ import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useCommunityGaest } from "@/hooks/communityAdgang";
 import { GAEST_LAESER_TEKST, visComposer, visGaestGraense } from "@/lib/hjemmebane/communityAdgang";
+import { useViewMode } from "@/hooks/useViewMode";
 import { TJEKLISTE_QUERY_KEY } from "@/hooks/useOnboardingTjekliste";
 import { cn } from "@/lib/utils";
 import {
   hentFeed,
+  markerSpoergsmaal,
   notificerNaevnelser,
   notificerNytOpslag,
   opretTraad,
   saetReaktion,
   type CommunityTraad,
 } from "@/lib/hjemmebane/communityApi";
+import { useNetvaerketsRaekker } from "@/hooks/netvaerketsRaekker";
+import {
+  FILTER_ALLE_LABEL,
+  MARKER_HJAELP,
+  MARKER_LABEL,
+  MARKERING_FEJL_TITEL,
+  UBESVAREDE_TOM,
+  UBESVARET_MAERKE,
+  delFeed,
+  erUbesvaret,
+  filtrerStroem,
+  raadgiverIdsAf,
+  taelUbesvarede,
+  ubesvaredeChipTekst,
+  type FeedFilter,
+} from "@/lib/hjemmebane/communitySpoergsmaal";
 import {
   KILDE_PRAESENTATION,
   KILDE_PRAESENTATION_LABEL,
@@ -23,7 +41,9 @@ import {
 } from "@/lib/hjemmebane/praesentation";
 import { CommunityComposer } from "./CommunityComposer";
 import { CommunityMedlemmer } from "./CommunityMedlemmer";
+import { HvemKanHjaelpe } from "./HvemKanHjaelpe";
 import { LikeKnap } from "./LikeKnap";
+import { SpoergsmaalKort } from "./SpoergsmaalKort";
 import { HbSection } from "../HbSection";
 import { hentetilstand, sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
 import { HbTag } from "../HbTag";
@@ -57,7 +77,25 @@ import { HbTag } from "../HbTag";
     krydser af med det samme.
     HISTORIK: 11/9-16/9 formiddag hentede fladen profilen (getMyMemberProfile,
     companies.description) og forudfyldte titel og brødtekst med
-    byggPraesentationsSkabelon — slettet med Jonas' beslutning 16/9. */
+    byggPraesentationsSkabelon — slettet med Jonas' beslutning 16/9.
+
+    RÅDGIVERNES «SPØRGSMÅL», FILTRET «UBESVAREDE» OG «HVEM KAN HJÆLPE» (2/10,
+    Jonas 07:26: ingen ugentlig pligt — rådgiveren markerer et opslag, og det
+    lægger sig øverst; medlemmernes opslag må ikke drukne). Dommene bor i
+    lib/hjemmebane/communitySpoergsmaal (delFeed, erUbesvaret, filtrerStroem)
+    og lib/hjemmebane/communityHjaelpere — fladen filtrerer aldrig selv.
+    Feedet deles i ÉT spørgsmål øverst (SpoergsmaalKort, foldet til én linje
+    for den, der har svaret) og strømmen, som er feedets egen orden uden
+    spørgsmålet; chips «Alle / Ubesvarede (N)» filtrerer strømmen. Hvem der
+    er rådgiver (til «ubesvaret»), læses af Netværkets rækker — samme
+    query-nøgle som medlemssporet ("member-directory"), intet nyt kald — og
+    «Hvem kan hjælpe med …» tegnes af de samme rækker under feedet.
+    Markér-feltet under composeren og «Fjern markeringen» på kortet ses KUN af
+    rådgivere, der ikke ser som medlem (kanMarkere = isAdvisor &&
+    !viewingAsMember); databasen håndhæver det uanset (migration
+    20261002243000). Opslaget deles FØRST, markeringen sættes BAGEFTER: fejler
+    markeringen (fx før migrationen er kørt), er opslaget delt, og det siges i
+    en toast — aldrig som et mislykket opslag. Intet andet fastgøres. */
 
 /** Relativ tid på seneste aktivitet — samme ånd som EventsViews
     eventCountdown, blot bagud: "I dag", "I går", "For N dage siden". */
@@ -117,10 +155,13 @@ const RowSkeleton = () => (
     <li>, så den følger hele rækken som før. */
 const TraadRaekke = ({
   traad,
+  ubesvaret,
   reagerer,
   onLike,
 }: {
   traad: CommunityTraad;
+  /** 2/10: et medlems opslag uden svar — mærket «ubesvaret» i metalinjen (dommen i communitySpoergsmaal.ts). */
+  ubesvaret: boolean;
   reagerer: boolean;
   onLike: () => void;
 }) => {
@@ -156,7 +197,7 @@ const TraadRaekke = ({
         <p className="mt-1 flex flex-wrap items-center gap-x-1.5 text-xs text-hb-ink-soft">
           <span>
             {[
-              taeller(traad.antal_svar, "svar", "svar"),
+              ubesvaret ? UBESVARET_MAERKE : taeller(traad.antal_svar, "svar", "svar"),
               taeller(traad.antal_visninger, "visning", "visninger"),
               relativTid(traad.seneste_aktivitet_at),
             ].join(" · ")}
@@ -179,12 +220,21 @@ const TraadRaekke = ({
 export const CommunityView = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, isAdvisor } = useAuth();
+  /* Markér-feltet og «Fjern markeringen» kun for en rådgiver, der IKKE ser
+     som medlem (rådets fund 2/10): «se som medlem» skal vise det, medlemmet
+     ser — og et medlem ser ingen knap. Databasen dømmer uanset. */
+  const { viewingAsMember } = useViewMode();
+  const kanMarkere = isAdvisor && !viewingAsMember;
   /* Gæsten (2/10, Jonas 14/9: læser, skriver ikke): null mens dommen hentes, true = gæst — ingen composer,
      ingen like, grænsen vises; false = som i dag. Hooken kaster aldrig (lib/hjemmebane/communityAdgang.ts). */
   const gaest = useCommunityGaest();
   const [searchParams, setSearchParams] = useSearchParams();
   const [titel, setTitel] = useState("");
+  /* 2/10: rådgiverens «Markér som Spørgsmål» i composeren og chip-filtret.
+     Begge er fladens egen tilstand — intet i URL'en, intet i localStorage. */
+  const [markerSomSpoergsmaal, setMarkerSomSpoergsmaal] = useState(false);
+  const [filter, setFilter] = useState<FeedFilter>("alle");
 
   /* PRÆSENTATIONEN (se filhovedet). Anmodningen latches i state, fordi
      parameteren ryddes i samme effekt. Intet andet hentes for vejens skyld. */
@@ -201,6 +251,27 @@ export const CommunityView = () => {
   const feedQuery = useQuery({
     queryKey: ["community", "feed"],
     queryFn: () => hentFeed(30),
+  });
+
+  /* Netværkets rækker (hooks/netvaerketsRaekker) — samme nøgle og staleTime
+     som CommunityMedlemmer, så cachen deles: is_advisor giver «ubesvaret»-
+     dommen sine rådgivere, og ask_me_about giver «Hvem kan hjælpe med …» sine
+     kort. Fail-soft begge steder (communitySpoergsmaal.ts regel 3;
+     HvemKanHjaelpe tegner intet uden data). Ikke en import af memberProfile:
+     praesentationPladsholder.guard dom 3 (profilen læses aldrig her). */
+  const directoryQuery = useNetvaerketsRaekker();
+
+  /* Markeringen (2/10) — begge retninger. Feedet hentes igen; trådsiden
+     deler ikke nøglen, men henter selv ved besøg. Fejlen siges som den er
+     (RPC'ens besked — også «findes ikke» før migrationen). */
+  const markerMutation = useMutation({
+    mutationFn: (args: { traadId: string; markeret: boolean }) => markerSpoergsmaal(args.traadId, args.markeret),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["community", "feed"] });
+    },
+    onError: (fejl: Error) => {
+      toast.error("Markeringen blev ikke ændret", { description: fejl.message });
+    },
   });
 
   /* Like fra feedet (14/9) — samme form som trådsidens reaktionMutation
@@ -223,13 +294,28 @@ export const CommunityView = () => {
        begrundelse som notificerSvar på trådsiden): koblingen til det
        netop oprettede id er direkte, og notificerNaevnelser kaster
        aldrig, så den kan ikke vælte mutationen. */
-    mutationFn: async (args: { titel: string; indholdJson: unknown; kildeType?: typeof KILDE_PRAESENTATION }) => {
+    mutationFn: async (args: {
+      titel: string;
+      indholdJson: unknown;
+      kildeType?: typeof KILDE_PRAESENTATION;
+      somSpoergsmaal?: boolean;
+    }) => {
       const nytId = await opretTraad({
         titel: args.titel,
         indhold: "",
         indholdJson: args.indholdJson,
         kildeType: args.kildeType,
       });
+      // Rådgiverens markering (2/10) — EFTER opslaget er gemt, og aldrig en
+      // kastet fejl: opslaget ER delt. Fejler markeringen (RPC'en afviser,
+      // eller migrationen er ikke kørt), siges det i sin egen toast.
+      if (args.somSpoergsmaal === true) {
+        try {
+          await markerSpoergsmaal(nytId, true);
+        } catch (fejl) {
+          toast.error(MARKERING_FEJL_TITEL, { description: fejl instanceof Error ? fejl.message : String(fejl) });
+        }
+      }
       await notificerNaevnelser({ traadId: nytId });
       // Opslagsmailen (3/9): alle øvrige med community-adgang. Samme
       // placering og samme garanti — kaster aldrig, kan ikke vælte opslaget.
@@ -247,6 +333,7 @@ export const CommunityView = () => {
         setPraesentationAnmodet(false);
         setTitel("");
       }
+      setMarkerSomSpoergsmaal(false);
       navigate(`/community/${nytId}`);
     },
     /* Composeren sluger bevidst fejl (den beholder blot medlemmets tekst),
@@ -264,8 +351,29 @@ export const CommunityView = () => {
   // Sentry får fejlen af QueryCache.onError — her læses kun dommen.
   const feedTilstand = hentetilstand(feedQuery, traade.length === 0);
 
+  /* 2/10: spørgsmålet ud af strømmen, strømmen gennem filtret. Dommene i
+     communitySpoergsmaal.ts; «tom» ovenfor er stadig HELE feedets tomhed —
+     et tomt filter er sin egen sætning nedenfor. */
+  const raadgiverIds = raadgiverIdsAf(directoryQuery.data);
+  const delt = delFeed(traade, user?.id);
+  const antalUbesvarede = taelUbesvarede(delt.stroem, raadgiverIds);
+  const viste = filtrerStroem(delt.stroem, filter, raadgiverIds);
+
   return (
     <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_288px] lg:items-start lg:gap-12">
+      <div className="min-w-0">
+      {/* Spørgsmålet ØVERST — før composeren, før strømmen (mockuppen 2/10).
+          Kun når feedet er hentet; fail-soft før migrationen (ingen markering
+          i svaret → intet kort). */}
+      {feedTilstand === "data" && delt.spoergsmaal && (
+        <SpoergsmaalKort
+          traad={delt.spoergsmaal}
+          foldet={delt.foldet}
+          onFjern={kanMarkere ? () => markerMutation.mutate({ traadId: delt.spoergsmaal!.id, markeret: false }) : undefined}
+          fjerner={markerMutation.isPending}
+          kanSvare={visComposer(gaest)}
+        />
+      )}
       <HbSection eyebrow="Fællesskab" hairline className="min-w-0">
         {/* Composeren vises først når feedet er færdigindlæst, så den ikke
             hopper ind over skeleton-rækkerne — OG først når brugeren er
@@ -288,10 +396,61 @@ export const CommunityView = () => {
               placeholder={praesentationAnmodet ? PRAESENTATION_PLADSHOLDER : undefined}
               onSubmit={(indholdJson) =>
                 opretMutation
-                  .mutateAsync({ titel, indholdJson, kildeType: praesentationAnmodet ? KILDE_PRAESENTATION : undefined })
+                  .mutateAsync({
+                    titel,
+                    indholdJson,
+                    kildeType: praesentationAnmodet ? KILDE_PRAESENTATION : undefined,
+                    somSpoergsmaal: kanMarkere && markerSomSpoergsmaal,
+                  })
                   .then(() => undefined)
               }
             />
+            {/* Rådgiverens markering (2/10) — uden for composeren, som er
+                delt med svar og redigering. Kun rådgivere ser feltet;
+                databasen afviser alle andre uanset. */}
+            {kanMarkere && (
+              <label className="mt-3 flex cursor-pointer items-start gap-2 text-sm text-hb-ink">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-4 w-4 accent-hb-evergreen"
+                  checked={markerSomSpoergsmaal}
+                  onChange={(e) => setMarkerSomSpoergsmaal(e.target.checked)}
+                  data-marker-spoergsmaal
+                />
+                <span>
+                  <span className="font-medium">{MARKER_LABEL}</span>
+                  <span className="block text-xs text-hb-ink-soft">{MARKER_HJAELP}</span>
+                </span>
+              </label>
+            )}
+          </div>
+        )}
+
+        {/* Filtret (2/10): «Alle» og «Ubesvarede (N)» — kun når der er noget at
+            filtrere. Tallet er dommens (taelUbesvarede), aldrig fladens. */}
+        {feedTilstand === "data" && (
+          <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Filtrér opslag">
+            {(
+              [
+                ["alle", FILTER_ALLE_LABEL],
+                ["ubesvarede", ubesvaredeChipTekst(antalUbesvarede)],
+              ] as const
+            ).map(([noegle, label]) => (
+              <button
+                key={noegle}
+                type="button"
+                aria-pressed={filter === noegle}
+                onClick={() => setFilter(noegle)}
+                className={cn(
+                  "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                  filter === noegle
+                    ? "border-hb-ink bg-hb-ink text-white"
+                    : "border-hb-line text-hb-ink-soft hover:bg-hb-sage/30",
+                )}
+              >
+                {label}
+              </button>
+            ))}
           </div>
         )}
 
@@ -310,12 +469,19 @@ export const CommunityView = () => {
           <p className="text-sm text-hb-ink-soft">{sektionsfejlTekst("community")} Prøv igen om lidt.</p>
         ) : feedTilstand === "tom" ? (
           <p className="text-sm text-hb-ink-soft">Der er ikke skrevet noget endnu. Om lidt er der.</p>
+        ) : viste.length === 0 ? (
+          <p className="text-sm text-hb-ink-soft">
+            {filter === "ubesvarede"
+              ? UBESVAREDE_TOM
+              : "Ingen andre opslag endnu."}
+          </p>
         ) : (
           <ul className="list-none">
-            {traade.map((traad) => (
+            {viste.map((traad) => (
               <TraadRaekke
                 key={traad.id}
                 traad={traad}
+                ubesvaret={erUbesvaret(traad, raadgiverIds)}
                 reagerer={reaktionMutation.isPending || !visComposer(gaest)}
                 onLike={() => reaktionMutation.mutate(traad.id)}
               />
@@ -323,6 +489,9 @@ export const CommunityView = () => {
           </ul>
         )}
       </HbSection>
+
+      <HvemKanHjaelpe profiler={directoryQuery.data} mitUserId={user?.id} nu={new Date()} />
+      </div>
 
       <div className="mt-14 lg:mt-0">
         <CommunityMedlemmer mitUserId={user?.id} />

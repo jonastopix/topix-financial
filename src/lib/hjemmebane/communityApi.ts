@@ -37,6 +37,16 @@ export interface CommunityTraad {
       det fremhævede opslags billede (forsideOpslag.ts). Valgfrit i typen,
       fordi ældre kald i tests bygger rækker uden det. */
   indhold_json?: unknown | null;
+  /** Rådgivernes «Spørgsmål» (migration 20261002243000): sat = opslaget
+      ligger øverst i feedet. Valgfrit i typen, fordi RPC'erne først bærer
+      kolonnen, når migrationen er kørt — fladen er fail-soft
+      (communitySpoergsmaal.ts). */
+  spoergsmaal_markeret_at?: string | null;
+  /** Har kalderen et aktivt svar i tråden (samme migration). */
+  jeg_har_svaret?: boolean;
+  /** Antal forskellige personer med et aktivt svar, trådens forfatter
+      fraregnet (samme migration) — «N har svaret» (communitySpoergsmaal.ts). */
+  antal_svarere?: number;
 }
 
 export interface CommunitySvar {
@@ -245,6 +255,21 @@ export async function skjulTraad(traadId: string, skjul: boolean): Promise<void>
     await (supabase.rpc as any)("skjul_community_traad", {
       p_traad_id: traadId,
       p_skjul: skjul,
+    }),
+  );
+}
+
+/** Rådgivernes «Spørgsmål» (2/10-2026, migration 20261002243000): true
+    markerer opslaget og afløser det forrige (højst ét ad gangen), false
+    fjerner markeringen. Reglerne bor i RPC'en marker_community_spoergsmaal:
+    kun rådgivere, kun et aktivt opslag, kun et opslag skrevet af en
+    rådgiver. Kaster med RPC'ens besked — også «findes ikke», før
+    migrationen er kørt; fladen siger det i en toast og lader opslaget stå. */
+export async function markerSpoergsmaal(traadId: string, markeret: boolean): Promise<void> {
+  throwIfError(
+    await (supabase.rpc as any)("marker_community_spoergsmaal", {
+      p_traad_id: traadId,
+      p_markeret: markeret,
     }),
   );
 }
