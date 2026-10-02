@@ -15,10 +15,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useOnboardingTjekliste } from "@/hooks/useOnboardingTjekliste";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompanyFacts } from "@/hooks/useCompanyFacts";
-import { factsToDanishMetrics } from "@/lib/factsAdapter";
 import {
   REPORT_OVERRIDE_SELECT,
-  formatDKK,
   getEffectiveReportPeriodKey,
   type ReportData,
 } from "@/lib/financialUtils";
@@ -28,8 +26,7 @@ import { getISOWeekKey } from "@/lib/hjemmebane/week";
 import { denneUgesFredag, efterMaalFrist, fraDatoStreng, naesteUgesFredag, omEnMaaned, tilDatoStreng } from "@/lib/hjemmebane/opgaveDato";
 import { danskDato, senesteSkridtFrist } from "@/lib/hjemmebane/skridtForslag";
 import { forslagMetaLinje, fristTekst } from "@/lib/hjemmebane/aftaler";
-import { aktiveMedlemmer, INGEN_RAADGIVERE, raadgiverAnsigt, raadgiverOpslag, synligeMedlemmer, type Ansigt } from "@/lib/hjemmebane/ansigter";
-import { listMemberDirectory } from "@/lib/hjemmebane/memberProfile";
+import { INGEN_RAADGIVERE, raadgiverAnsigt, raadgiverOpslag, type Ansigt } from "@/lib/hjemmebane/ansigter";
 import { vaerterForEvent } from "@/lib/hjemmebane/vaerter";
 import { listVaerterForEvents } from "@/lib/hjemmebane/vaerterApi";
 import { HbVaerter } from "../events/HbVaerter";
@@ -39,9 +36,8 @@ import { antalFraSvar, rejselinje } from "@/lib/hjemmebane/rejselinje";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { listUpcomingEvents } from "@/lib/hjemmebane/akademiApi";
-import { hentBilledUrl, hentFeed, type CommunityTraad } from "@/lib/hjemmebane/communityApi";
-import { foersteBilledsti, opslagMetaLinje, vaelgForsideOpslag } from "@/lib/hjemmebane/forsideOpslag";
-import { uddrag } from "@/lib/hjemmebane/uddrag";
+import { hentFeed } from "@/lib/hjemmebane/communityApi";
+import { naesteINetvaerket, NAESTE_I_NETVAERKET } from "@/lib/hjemmebane/naesteINetvaerket";
 import { eventMeetPhase, eventNedtaelling } from "@/lib/hjemmebane/eventPhase";
 import { EventRegisterAction } from "../events/EventRegisterAction";
 import { formatDuration } from "@/components/hjemmebane/admin/editors/shared";
@@ -53,8 +49,6 @@ import { TrofaeKort } from "./TrofaeKort";
 import { useMedlemmetsTrofaeer } from "@/hooks/trofaeer";
 import { useBoardroomScore } from "@/hooks/useBoardroomScore";
 import { HbCard } from "../HbCard";
-import { EstimatMaerke } from "../EstimatMaerke";
-import { dinMaanedDom, sparklineKoordinater, type DinMaanedDom, type MaanedsRaekke } from "@/lib/hjemmebane/dinMaaned";
 import { erDag1, hilsenLinje } from "@/lib/hjemmebane/forsideHilsen";
 import { VELKOMST_EYEBROW, VELKOMST_MANCHET, VELKOMST_SET_HJAELP, VELKOMST_SET_KNAP, VELKOMST_TITEL } from "@/lib/hjemmebane/velkomstHistorie";
 import { HbVelkomstVideoEmbed } from "../HbVelkomstVideoEmbed";
@@ -88,7 +82,14 @@ import { pushMedie, spotifyEmbedUrl, youtubeIdAf, youtubeNocookieEmbedUrl, youtu
 import { pushOverlinje } from "./pushOverlinje";
 
 /** Dit Boardroom (/boardroom) — Hb-forsiden i VANE-ANKER-IA'en (forside
-    PR 2, hb-forside-recon §C/§G): de tre lag i rækkefølgen
+    PR 2, hb-forside-recon §C/§G): de tre lag i rækkefølgen.
+    SEKS STEDER, SKRIDT 2 (2/10-2026 — Jonas' ja til forslagets spørgsmål 2):
+    forsiden handler om DIN VIRKSOMHED og din vej — hilsen → stedsætningen →
+    (fornyelsen) → «Dit næste skridt» → Boardroom Score (+ trofæer) → «Din
+    plan» → «Næste i Netværket» (ét kort: næste event + nyeste opslag,
+    lib/hjemmebane/naesteINetvaerket). «Din måned» er flyttet til /reports
+    (DinMaaned.tsx), «Kommende» og «Fra fællesskabet» er taget af — de bor i
+    Netværket (faner). Beskrivelsen herunder er historik (17/9–2/10).
     FORSIDE PR 2 (17/9-2026 — Jonas «A på alle» til analyse-medlemmets-
     forside.md §6.4): TOPPEN ER TO KOLONNER på md+ (grid-cols-12): venstre
     7/12 NYHEDEN som stående hovedhistorie (MainStoryShell: mediet øverst
@@ -171,88 +172,9 @@ const traadRelativTid = (iso: string): string => {
    afløst af husets HbAvatar — samme ramme, samme initial i sage, og nu
    ALDRIG et tomt billede (onError → initialen). */
 
-/** Det fremhævede opslags billede — første hvidlistede billede i
-    dokumentet, signeret ved visning som CommunityBillede (CommunityDokument
-    .tsx): samme query-nøgle ["community","billede",sti], så URL'en deles
-    med trådsiden; samme 50-minutters fornyelse under TTL'en på 3600 s.
-    Ét ekstra kald til get-community-billed-url, kun når det nyeste opslag
-    HAR et billede, og først når feedet er landet — kortets tekst står
-    imens, og cover-pladsen holdes af en pulserende flade i hovedhistoriens
-    cover-mål, så kortet ikke skifter form når billedet kommer. Fejl eller
-    nej fra adgangsdommen → intet billede, teksten tager bredden (samme
-    valg som CommunityBillede: et billede der ikke kan hentes, må ikke
-    efterlade en brudt firkant). */
-const FremhaevetOpslagBillede = ({ path }: { path: string }) => {
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ["community", "billede", path],
-    queryFn: () => hentBilledUrl(path),
-    staleTime: 50 * 60_000,
-    gcTime: 60 * 60_000,
-    refetchInterval: 50 * 60_000,
-    refetchIntervalInBackground: false,
-  });
-  if (isLoading) {
-    return (
-      <div
-        aria-hidden
-        className="aspect-[3/2] w-full animate-pulse bg-hb-line/40 md:aspect-auto md:w-[42%] md:shrink-0"
-      />
-    );
-  }
-  if (isError || !data?.url) return null;
-  return (
-    <div className="relative aspect-[3/2] md:aspect-auto md:w-[42%] md:shrink-0">
-      <img src={data.url} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
-    </div>
-  );
-};
-
-/** Det nyeste opslag som HOVEDHISTORIE — husets mønster fra «Fra os til
-    dig» (MainStoryShell + PushStorys portræt-form): det eneste hvide kort
-    i sektionen, cover i 42 % bredde når opslaget har et billede, portræt
-    72 px, titlen i editorial 30/36 px, uddraget som beskrivelse (samme
-    280-tegns-motor som opslagsmailen), svar og reaktioner i metalinjen,
-    og «Læs opslaget» som RedaktioneltCards sekundære knap. Ingen nye
-    farver eller størrelser — alt er hentet fra båndets kort. */
-const FremhaevetOpslag = ({ traad }: { traad: CommunityTraad }) => {
-  const navn = traad.forfatter_navn ?? "Medlem";
-  const udd = uddrag(traad.indhold);
-  const billedsti = foersteBilledsti(traad.indhold_json);
-  return (
-    <HbCard className="overflow-hidden">
-      <div className={cn(billedsti && "md:flex md:min-h-[280px]")}>
-        {billedsti && <FremhaevetOpslagBillede path={billedsti} />}
-        <div className="min-w-0 md:flex-1">
-          <div className="p-6 md:p-8">
-            <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">Seneste opslag</p>
-            <div className="mt-4 flex items-start gap-5">
-              {/* PR 4: portrættet når forfatteren har et, ellers initialen i husets form (HbAvatar — aldrig et tomt billede). */}
-              <HbAvatar navn={navn} avatarUrl={traad.forfatter_avatar_url} stoerrelse="lg" />
-              <div className="min-w-0">
-                <h2 className="font-editorial text-3xl font-medium leading-tight text-hb-ink md:text-4xl">
-                  {traad.titel}
-                </h2>
-                <p className="mt-2 text-sm font-medium text-hb-ink">{navn}</p>
-              </div>
-            </div>
-            {udd.tekst && (
-              <p className="mt-4 max-w-2xl text-base leading-relaxed text-hb-ink-soft">{udd.tekst}</p>
-            )}
-            <p className="mt-4 text-sm text-hb-ink-soft">
-              {opslagMetaLinje(traad.antal_svar, traad.antal_reaktioner, traadRelativTid(traad.seneste_aktivitet_at))}
-            </p>
-            <Link to={`/community/${traad.id}`} className="mt-6 inline-block">
-              <HbButton variant="secondary" className="h-9 px-4 text-sm">
-                Læs opslaget
-                <ArrowRight className="h-4 w-4" />
-              </HbButton>
-            </Link>
-          </div>
-        </div>
-      </div>
-    </HbCard>
-  );
-};
+/* «Fra fællesskabet» (det fremhævede opslag som hovedhistorie, PR 4) forlod
+   forsiden 2/10 (seks steder, skridt 2): FremhaevetOpslag og dets billede er
+   taget ud; det nyeste opslag står nu som én række i «Næste i Netværket». */
 
 /** Sidehovedet: rolig, personlig velkomst — altid til stede (pushet er
     flyttet ned i båndet som hovedhistorie). INGEN eyebrow (polish):
@@ -880,67 +802,8 @@ const StoryCard = ({
   }
 };
 
-/** «Din måned» (forside PR 2, 17/9 — Jonas «A» til valg 2) — afløser
-    tal-strippen nederst. Samme kilder (facts-laget via dinMaanedDom: sidste
-    periode, bank evt. fra en ældre række, estimat-mærket efter data_basis),
-    men i toppens højre kolonne og med RETNING I ORD mod forrige måned og
-    en SPARKLINE over de seneste 12 måneder med tal. Ingen procent, ingen
-    farve for op/ned — kun ord (negativt beløb er rust som i resten af
-    huset). Uden tal: hvad det bliver til + «Upload din første rapport». */
-const Sparkline = ({ dom }: { dom: Extract<DinMaanedDom, { tom: false }> }) => {
-  const k = sparklineKoordinater(dom.sparkline);
-  if (k.length < 2) return null;
-  const B = 100, H = 32;
-  const punkter = k.map((p) => `${(p.x * B).toFixed(1)},${(2 + p.y * (H - 4)).toFixed(1)}`).join(" ");
-  const sidste = k[k.length - 1];
-  return (
-    <svg viewBox={`0 0 ${B} ${H}`} preserveAspectRatio="none" className="mt-3 h-9 w-full" aria-hidden data-sparkline={k.length}>
-      <polyline points={punkter} fill="none" stroke="hsl(var(--hb-evergreen))" strokeWidth="1.5" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
-      <circle cx={(sidste.x * B).toFixed(1)} cy={(2 + sidste.y * (H - 4)).toFixed(1)} r="2.5" fill="hsl(var(--hb-evergreen))" vectorEffect="non-scaling-stroke" />
-    </svg>
-  );
-};
-
-const DinMaaned = ({ dom }: { dom: DinMaanedDom }) => {
-  // strict=false: `if (dom.tom)` snævrer ikke unionen — sammenlign med true (husets regel).
-  if (dom.tom === true) {
-    return (
-      <HbCard className="p-6" data-din-maaned="tom">
-        <h3 className="font-editorial text-2xl font-medium leading-tight text-hb-ink">{dom.overskrift}</h3>
-        <p className="mt-2 text-sm leading-relaxed text-hb-ink-soft">{dom.linje}</p>
-        <Link to={dom.cta.to} className="mt-4 inline-block">
-          <HbButton className="h-9 px-4 text-sm">{dom.cta.label}</HbButton>
-        </Link>
-      </HbCard>
-    );
-  }
-  return (
-    <HbCard className="p-6" data-din-maaned={dom.periodLabel}>
-      <p className="text-sm text-hb-ink-soft">
-        {dom.estimeret ? <>Seneste tal: {dom.periodLabel} <EstimatMaerke className="align-middle" /></> : <>Senest godkendt: {dom.periodLabel}</>}
-      </p>
-      <dl className="mt-3 divide-y divide-hb-line">
-        {dom.tal.map((t) => (
-          <div key={t.felt} className="flex items-baseline justify-between gap-4 py-2.5 first:pt-0" data-tal={t.felt}>
-            <dt className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
-              {t.label}
-              {t.estimeret && <EstimatMaerke kompakt className="ml-1" />}
-            </dt>
-            <dd className="text-right">
-              {/* Fortegns-tonen: samme udtryk som resten af platformen (HbBudgetEditTable:625). */}
-              <p className={cn("font-editorial text-2xl font-medium leading-none", t.value != null && t.value < 0 ? "text-hb-rust" : "text-hb-ink")}>
-                {t.value != null ? formatDKK(t.value) : "—"}
-              </p>
-              {t.retning && <p className="mt-1 text-xs text-hb-ink-soft" data-retning>{t.retning}</p>}
-            </dd>
-          </div>
-        ))}
-      </dl>
-      <p className="mt-4 text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{dom.sparklineTekst}</p>
-      <Sparkline dom={dom} />
-    </HbCard>
-  );
-};
+/* «Din måned» (forside PR 2, 17/9) bor siden 2/10 (seks steder, skridt 2) i
+   ./DinMaaned.tsx og tegnes øverst på Dine tals rapporteringsside — ikke her. */
 
 /** Det OpgaveKnapper skal vide om rækken. Bygges af "Dine aftaler"-
     sektionen direkte fra company_actions-rækken — fokus-motoren bærer
@@ -2045,6 +1908,9 @@ export const BoardroomView = () => {
   // fortjener de næste 2-3 pladser, ikke én tile i det redaktionelle bånd.
   // listUpcomingEvents KASTER (throwIfError) — men fladen læste kun data, så
   // en fejl blev «ingen kommende events» (sektionen udeladt). Nu siges det.
+  // «Næste i Netværket» (seks steder, skridt 2, 2/10): forsiden viser KUN det
+  // næste event — samme kilde og nøgle som før (listUpcomingEvents, stigende);
+  // limit 3 beholdes, så cachen under ["boardroom","events"] er den samme.
   const eventsQuery = useQuery({
     queryKey: ["boardroom", "events"],
     queryFn: () => listUpcomingEvents(3),
@@ -2073,31 +1939,14 @@ export const BoardroomView = () => {
     queryKey: ["community", "feed"],
     queryFn: () => hentFeed(30),
   });
-  // Nyeste opslag til kortet + de to næste til rækkerne (ren dom).
-  const forsideOpslag = useMemo(() => vaelgForsideOpslag(communityQuery.data ?? []), [communityQuery.data]);
+  // «Næste i Netværket» (skridt 2, 2/10): det næste event + det nyeste opslag — ren dom.
+  const naesteNetvaerk = useMemo(() => naesteINetvaerket(eventsQuery.data ?? [], communityQuery.data ?? []), [eventsQuery.data, communityQuery.data]);
+  // Eventet under sit eget navn: værternes linje har formen fra «Kommende»
+  // (eventVaerter.guard dom 2 — `vaerterForEvent(…, event.id, raadgivere)`).
+  const event = naesteNetvaerk.event;
 
-  // ── Tal-strip-afledning (uændret) ───────────────────────────────────────
-  const sorted = useMemo(
-    () => facts.map((f) => ({ key: f.period_key, kf: factsToDanishMetrics(f.metrics), period: f.period_label, basis: f.data_basis })),
-    [facts],
-  );
-  const processing = sorted.length === 0 && (processedQuery.data?.size ?? 0) > 0;
-  // «Din måned» (PR 2): samme rækker som tal-strippen læste — ren dom.
-  const dinMaaned = useMemo(
-    () =>
-      dinMaanedDom(
-        sorted.map<MaanedsRaekke>((r) => ({
-          key: r.key,
-          period: r.period,
-          basis: r.basis === "estimated" ? "estimated" : "measured",
-          omsaetning: r.kf.omsaetning ?? null,
-          resultat: r.kf.resultat_foer_skat ?? null,
-          bank: r.kf.bank_balance ?? null,
-        })),
-        processing,
-      ),
-    [sorted, processing],
-  );
+  // «Din måned» (PR 2) regnes ikke længere her (seks steder, skridt 2, 2/10):
+  // kortet og dommen tegnes øverst på /reports (RapporteringView + DinMaaned).
   // BOARDROOM SCORE (30/9 — Jonas D3): ÉN hook (react-query + motoren), kaldt her
   // i topblokken FØR enhver betinget return (React #310). Kortet tegner kun dommen.
   const boardroomScore = useBoardroomScore();
@@ -2125,21 +1974,9 @@ export const BoardroomView = () => {
     const raekke = aftaleRaekker.find((r) => r.id === primaer.sourceId);
     return raekke ? raadgiverAnsigt(raekke, raadgivere) : null;
   }, [focus, aftaleRaekker, raadgivere]);
-  // AKTIVE MEDLEMMER (PR 4, analyse §5): små portrætter af dem der har skrevet
-  // den seneste uge — kun medlemmer i Netværket (get_member_directory:
-  // vis_i_netvaerk, ingen rådgivere, ingen legat) og kun det feedet
-  // (fail-closed) allerede har givet. Hentes først når feedet har rækker;
-  // samme nøgle som /medlemmer og community-sporet, så cachen deles.
-  const directoryQuery = useQuery({
-    queryKey: ["member-directory"],
-    queryFn: listMemberDirectory,
-    staleTime: 5 * 60_000,
-    enabled: (communityQuery.data?.length ?? 0) > 0,
-  });
-  const aktive = useMemo(
-    () => aktiveMedlemmer(communityQuery.data ?? [], directoryQuery.data ? synligeMedlemmer(directoryQuery.data) : null, new Date()),
-    [communityQuery.data, directoryQuery.data],
-  );
+  // AKTIVE MEDLEMMER (PR 4): portræt-rækken forlod forsiden med «Fra
+  // fællesskabet» (skridt 2, 2/10) — ingen member-directory-hentning her mere;
+  // dommen aktiveMedlemmer (ansigter.ts) står til Netværket.
   const dineMaal = useMemo(
     () => (milestonesQuery.data && skridtQuery.data ? dineMaalDom(milestonesQuery.data, skridtQuery.data, new Date()) : null),
     [milestonesQuery.data, skridtQuery.data],
@@ -2264,18 +2101,14 @@ export const BoardroomView = () => {
           video», redaktionelt, «Værd at se igen») og «Se tidligere» er taget
           af forsiden — Jonas 1/10 22:50: «Det var fyld». Tilbage står den
           tidligere højre kolonne i fuld bredde (den tilstand toppen allerede
-          havde uden bånd): «DIN MÅNED» over «DIT NÆSTE SKRIDT» (kompakt).
-          «Din måned» FLYTTES IKKE i denne skive (forslagets spørgsmål 2 til
-          Jonas). data-forside-hoejre beholdes som anker for værnene. ── */}
+          havde uden bånd): «DIT NÆSTE SKRIDT» (kompakt).
+          «Din måned» er FLYTTET til /reports (skridt 2, 2/10 — Jonas' ja til
+          forslagets spørgsmål 2). data-forside-hoejre beholdes som anker for værnene. ── */}
       <div className="mt-10 grid grid-cols-1 gap-8 md:mt-12 md:items-start" data-forside-top>
         <div className="min-w-0 space-y-8 md:col-span-12" data-forside-hoejre>
-          {/* «DIN MÅNED» (valg 2) — afløser tal-strippen nederst. Kun med virksomhed. */}
-          {companyId && (
-            <HbSection eyebrow="Din måned" hairline linkLabel="Se dine tal" linkTo="/kpis" data-forside-din-maaned>
-              <DinMaaned dom={dinMaaned} />
-            </HbSection>
-          )}
-
+          {/* «DIN MÅNED» (valg 2) stod her til 2/10 (seks steder, skridt 2 —
+              Jonas: den forlader forsiden): kortet tegnes nu øverst på
+              /reports (DinMaaned.tsx). Toppen er «Dit næste skridt» alene. */}
           {/* «DIT NÆSTE SKRIDT» (kompakt) — fokus-motoren er urørt (nextStep.ts);
               kun præsentationen er kompakt, og «Måske relevant» står som kortets
               sidste linje. Rådgiverens ansigt (valg 6) VENTER til PR 4: fokus-
@@ -2481,26 +2314,27 @@ export const BoardroomView = () => {
         </HbSection>
       )}
 
-      {/* ── EVENTS: egen sektion mellem lag 1 og lag 2 — live-sessions
-          er en KERNEYDELSE, ikke en nyhed; de skal ikke bo som én tile
-          i det redaktionelle bånd. Rolige rammeløse rækker (samme
-          tile-materiale: hb-line + luft) m. dato tydeligt.
-          Højrekolonnen bærer inline-tilmeldingen (Events trin 3b);
-          nedtællingen bor i meta-linjen. Ingen kommende events → ingen
-          sektion. */}
-      {eventsQuery.isError && (
-        <p className="mt-14 text-sm text-hb-rust md:mt-16">{sektionsfejlTekst("events")}</p>
-      )}
-      {events.length > 0 && (
-        <HbSection eyebrow="Kommende" hairline className="mt-10 md:mt-12">
-          {/* Link'et dækker KUN dato+titel+meta — tilmeldingshandlingen
-              står som SØSKENDE i rækken, aldrig inde i linket (klikbar
-              handling i et anker er ugyldig HTML og ville trigge
-              navigation). Hover-tonen bor på wrapperen. */}
-          <ul>
-            {events.map((event) => (
-              <li key={event.id} className="border-t border-hb-line last:border-b">
-                <div className="flex items-center gap-5 py-4 transition-colors hover:bg-hb-sage/20">
+      {/* ── NÆSTE I NETVÆRKET (seks steder, skridt 2, 2/10 — Jonas: «Kommende»
+          og «Fra fællesskabet» forlader forsiden «med én linje tilbage»;
+          «Nyeste opslag fra community vil jeg dog gerne have vist nederst,
+          under næste event»): ÉT kort nederst — det næste event (som «Kommende»
+          tegnede det: dag, titel, meta, værter, tilmelding som søskende til
+          linket, aldrig inde i det) og under det det nyeste opslag (titel,
+          forfatter, tid, svar, link). Dommen er naesteINetvaerket (ren);
+          kilderne er de samme hentninger som før (listUpcomingEvents, hentFeed
+          under Community-fladens nøgle — ingen ny RPC). Hver del har sin tomme
+          tilstand; fejl i en hentning siges for den del alene. Kun med
+          virksomhed, som Score. ── */}
+      {companyId && (
+        <HbSection eyebrow={NAESTE_I_NETVAERKET.eyebrow} linkLabel={NAESTE_I_NETVAERKET.link} linkTo={NAESTE_I_NETVAERKET.linkTo} hairline className="mt-10 md:mt-12" data-forside-naeste-netvaerk>
+          <HbCard className="overflow-hidden">
+            {/* Det næste event */}
+            <div className="px-5 py-4 md:px-6" data-naeste-event={event ? event.id : "tom"}>
+              <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{NAESTE_I_NETVAERKET.eventEyebrow}</p>
+              {eventsQuery.isError ? (
+                <p className="mt-2 text-sm text-hb-rust">{sektionsfejlTekst("events")}</p>
+              ) : event ? (
+                <div className="mt-2 flex items-center gap-5">
                   <Link to={`/events/${event.id}`} className="flex min-w-0 flex-1 items-center gap-5">
                     <div className="w-12 shrink-0 text-center">
                       <p className="font-editorial text-3xl font-medium leading-none text-hb-ink">
@@ -2527,75 +2361,42 @@ export const BoardroomView = () => {
                   </Link>
                   <EventRegisterAction eventId={event.id} phase={eventMeetPhase(event)} />
                 </div>
-              </li>
-            ))}
-          </ul>
-        </HbSection>
-      )}
-
-      {/* ── COMMUNITY: efter events, før båndet — events er tidsbundne
-          og skal ses først; fællesskabet er levende, men ikke
-          tidskritisk; det kuraterede bånd er redaktionelt og hører
-          nederst. Ingen skeleton: sektionen dukker op når data er der —
-          forsiden har allerede nok bevægelse. TOMT feed → sektionen
-          renderes IKKE: en tom sektion på forsiden ser ud som om noget
-          er gået i stykker — og et medlem uden community-adgang får
-          netop et tomt feed (RPC'en er fail-closed), så sektionen skal
-          forsvinde helt for dem. Fejl → samme som tomt.
-          VÆGT (3/9, Jonas: «den er tam»): det NYESTE opslag får kortet
-          (FremhaevetOpslag) efter båndets mønster — ét hvidt kort, resten
-          rolige rækker. Dommen om hvad der er nyest, og hvilke to der
-          står under, er ren (vaelgForsideOpslag). */}
-      {communityQuery.isError && (
-        <p className="mt-14 text-sm text-hb-rust md:mt-16">{sektionsfejlTekst("community")}</p>
-      )}
-      {forsideOpslag.fremhaevet && (
-        <HbSection
-          eyebrow="Fra fællesskabet"
-          linkLabel="Gå til fællesskabet"
-          linkTo="/community"
-          hairline
-          className="mt-10 md:mt-12"
-        >
-          {/* PR 4: de seneste aktive medlemmer — små portrætter (højst 6) og
-              «N medlemmer har skrevet den seneste uge». Kun Netværkets
-              medlemmer; dommen er aktiveMedlemmer. Ingen når ingen har skrevet. */}
-          {aktive.tekst && (
-            <div className="mb-5 flex flex-wrap items-center gap-3" data-aktive-medlemmer={aktive.antal}>
-              <ul className="flex -space-x-2">
-                {aktive.medlemmer.map((m) => (
-                  <li key={m.userId}>
-                    <Link to={`/medlemmer/${m.userId}`} className="block rounded-full ring-2 ring-hb-paper">
-                      <HbAvatar navn={m.navn} avatarUrl={m.avatarUrl} stoerrelse="sm" />
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-              <p className="text-sm text-hb-ink-soft">{aktive.tekst}</p>
+              ) : (
+                <p className="mt-2 text-sm text-hb-ink-soft" data-naeste-event-tom>
+                  {NAESTE_I_NETVAERKET.eventTom}{" "}
+                  <Link to={NAESTE_I_NETVAERKET.eventAlleTo} className="text-hb-evergreen underline-offset-4 hover:underline">{NAESTE_I_NETVAERKET.eventAlle}</Link>
+                </p>
+              )}
             </div>
-          )}
-          <FremhaevetOpslag traad={forsideOpslag.fremhaevet} />
-          <ul className={cn(forsideOpslag.resten.length > 0 && "mt-8")}>
-            {forsideOpslag.resten.map((traad) => (
-              <li key={traad.id} className="border-t border-hb-line last:border-b">
-                <Link
-                  to={`/community/${traad.id}`}
-                  className="flex items-center gap-5 py-4 transition-colors hover:bg-hb-sage/20"
-                >
-                  <HbAvatar navn={traad.forfatter_navn} avatarUrl={traad.forfatter_avatar_url} />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm text-hb-ink-soft">{traad.forfatter_navn ?? "Medlem"}</p>
-                    <p className="mt-1 truncate font-editorial text-lg font-medium leading-snug text-hb-ink">
-                      {traad.titel}
-                    </p>
-                    <p className="mt-1 text-sm text-hb-ink-soft">
-                      {traad.antal_svar} svar · {traadRelativTid(traad.seneste_aktivitet_at)}
-                    </p>
-                  </div>
-                </Link>
-              </li>
-            ))}
-          </ul>
+            {/* Det nyeste opslag — under eventet (Jonas 2/10). */}
+            <div className="border-t border-hb-line px-5 py-4 md:px-6" data-naeste-opslag={naesteNetvaerk.opslag ? naesteNetvaerk.opslag.id : "tom"}>
+              <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{NAESTE_I_NETVAERKET.opslagEyebrow}</p>
+              {communityQuery.isError ? (
+                <p className="mt-2 text-sm text-hb-rust">{sektionsfejlTekst("community")}</p>
+              ) : naesteNetvaerk.opslag ? (
+                <div className="mt-2 flex items-center gap-5">
+                  <Link to={`/community/${naesteNetvaerk.opslag.id}`} className="flex min-w-0 flex-1 items-center gap-5">
+                    {/* PR 4: portrættet når forfatteren har et, ellers initialen i husets form (HbAvatar — aldrig et tomt billede). */}
+                    <HbAvatar navn={naesteNetvaerk.opslag.forfatter_navn} avatarUrl={naesteNetvaerk.opslag.forfatter_avatar_url} />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[15px] font-medium leading-snug text-hb-ink">{naesteNetvaerk.opslag.titel}</p>
+                      <p className="mt-1 text-sm text-hb-ink-soft">
+                        {naesteNetvaerk.opslag.forfatter_navn ?? "Medlem"} · {traadRelativTid(naesteNetvaerk.opslag.created_at)} · {naesteNetvaerk.opslag.antal_svar} svar
+                      </p>
+                    </div>
+                  </Link>
+                  <Link to={`/community/${naesteNetvaerk.opslag.id}`} className="shrink-0">
+                    <HbButton variant="secondary" className="h-9 px-4 text-sm">{NAESTE_I_NETVAERKET.opslagLaes}</HbButton>
+                  </Link>
+                </div>
+              ) : (
+                <p className="mt-2 text-sm text-hb-ink-soft" data-naeste-opslag-tom>
+                  {NAESTE_I_NETVAERKET.opslagTom}{" "}
+                  <Link to="/community" className="text-hb-evergreen underline-offset-4 hover:underline">{NAESTE_I_NETVAERKET.link}</Link>
+                </p>
+              )}
+            </div>
+          </HbCard>
         </HbSection>
       )}
 

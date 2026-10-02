@@ -8,11 +8,16 @@ import { resolve } from "node:path";
 //      22:50 «Det var fyld»): båndet «Fra os til dig», tiles og «Se tidligere»
 //      er taget af forsiden. Toppen er nu ÉN kolonne (grid grid-cols-1, ingen
 //      md:grid-cols-12, ingen data-forside-venstre/-nyheden/-tiles) med
-//      «Din måned» FØR «Dit næste skridt» (kompakt) i data-forside-hoejre —
-//      og intet StoryCard tegnes i BoardroomView. Var (17/9–2/10): to kolonner,
-//      venstre (md:col-span-7) nyheden, højre (md:col-span-5) Din måned/skridt.
+//      «Dit næste skridt» (kompakt) ALENE i data-forside-hoejre — og intet
+//      StoryCard tegnes i BoardroomView. SKRIDT 2 (2/10, Jonas' ja): «Din
+//      måned» har forladt forsiden (intet data-forside-din-maaned, ingen
+//      <DinMaaned i BoardroomView) og tegnes øverst på /reports
+//      (RapporteringView, data-rapportering-din-maaned) — SAMME komponent,
+//      nu i boardroom/DinMaaned.tsx. Var (17/9–2/10 nat): to kolonner,
+//      venstre (md:col-span-7) nyheden, højre (md:col-span-5) Din måned/skridt;
+//      2/10 nat–2/10: én kolonne, Din måned før Dit næste skridt.
 //   2. «Din måned» viser INGEN procent: hverken dommen (dinMaaned.ts) eller
-//      kortet (DinMaaned i BoardroomView) skriver «%»; retningen er ord.
+//      kortet (DinMaaned.tsx) skriver «%»; retningen er ord.
 //   3. Sparklinen har INGEN nul-punkter: sparkline() filtrerer på `!= null`
 //      og indsætter aldrig `?? 0`; tegningen tager punkterne som de er.
 //      Og KUN MÅLTE måneder (17/9, Jonas «Vi går med dine anbefalinger» —
@@ -28,6 +33,8 @@ const udenKommentarer = (k: string) =>
 
 const FORSIDE = "src/components/hjemmebane/boardroom/BoardroomView.tsx";
 const DOM = "src/lib/hjemmebane/dinMaaned.ts";
+const KORT = "src/components/hjemmebane/boardroom/DinMaaned.tsx";
+const RAPPORTERING = "src/components/hjemmebane/rapportering/RapporteringView.tsx";
 
 /** Blokken for én komponent: fra `const Navn = (` til næste top-level `const`/`function`/`export`. */
 function blok(kode: string, navn: string): string {
@@ -38,30 +45,51 @@ function blok(kode: string, navn: string): string {
   return m === -1 ? kode.slice(fra) : kode.slice(fra, fra + 1 + m);
 }
 
-/** Dom 1 (omskrevet 2/10): toppen uden bånd — én kolonne, Din måned før Dit
-    næste skridt (kompakt), ingen nyhed/tiles/StoryCard i BoardroomView, ingen
-    tal-strip. */
+/** Dom 1 (omskrevet 2/10, igen i skridt 2): toppen uden bånd — én kolonne,
+    «Dit næste skridt» (kompakt) alene; «Din måned» er IKKE på forsiden (den
+    bor på /reports — dom 6); ingen nyhed/tiles/StoryCard i BoardroomView,
+    ingen tal-strip. */
 export const toppenHolder = (forside: string): boolean => {
   const krop = forside.slice(forside.indexOf("export const BoardroomView = () => {"));
   const top = forside.indexOf("data-forside-top");
   const hoejre = forside.indexOf("data-forside-hoejre", top);
-  const maaned = forside.indexOf("data-forside-din-maaned", hoejre);
-  const skridt = forside.indexOf("data-forside-naeste-skridt", maaned);
+  const skridt = forside.indexOf("data-forside-naeste-skridt", hoejre);
   const topLinje = forside.slice(forside.lastIndexOf("\n", top), forside.indexOf("\n", top));
-  return krop.length > 0 && top > -1 && hoejre > top && maaned > hoejre && skridt > maaned &&
+  return krop.length > 0 && top > -1 && hoejre > top && skridt > hoejre &&
+    !/data-forside-din-maaned|<DinMaaned\b|dinMaanedDom\(/.test(krop) &&
     /grid grid-cols-1/.test(topLinje) && !/md:grid-cols-12/.test(topLinje) && !/hasBand/.test(topLinje) &&
     /<div className="min-w-0 space-y-8 md:col-span-12" data-forside-hoejre>/.test(forside) &&
     !/data-forside-venstre|data-forside-nyheden|data-forside-tiles/.test(forside) &&
     !/<StoryCard\b|variant="main"|variant="side"|hasBand|band\.main|band\.side|redaktioneltHistory|historikOpen/.test(krop) &&
     !/"Fra os til dig"|Se tidligere|Skjul tidligere/.test(krop) &&
     /<FocusCard\s+variant="kompakt"/.test(forside.slice(skridt)) &&
-    /<DinMaaned dom=\{dinMaaned\} \/>/.test(forside.slice(maaned, skridt)) &&
     !/<TalStrip/.test(forside);
+};
+
+/** Dom 6 (skridt 2, 2/10): «Din måned» bor øverst på /reports — SAMME kort
+    (DinMaaned.tsx eksporterer det, RapporteringView tegner det med dommen
+    dinMaanedDom over facts), i en HbSection «Din måned» FØR leveringsbåndet
+    og KUN når godkendelsen ikke er ukendt (facts tomme af en fejl må ikke
+    tegne «Din måned står her»). Kortet ligger ét sted: ingen anden flade
+    definerer `const DinMaaned`. */
+export const dinMaanedPaaRapportering = (rapportering: string, kort: string, forside: string): boolean => {
+  const sektion = rapportering.indexOf("data-rapportering-din-maaned");
+  const baand = rapportering.indexOf("Levering {currentYearGroup.year}");
+  return kort.includes("export const DinMaaned = (") && /const Sparkline = \(/.test(kort) &&
+    rapportering.includes('import { DinMaaned } from "../boardroom/DinMaaned";') &&
+    rapportering.includes("return dinMaanedDom(raekker, processing);") &&
+    sektion > -1 && baand > sektion &&
+    /<HbSection eyebrow="Din måned" hairline linkLabel="Se dine tal" linkTo="\/kpis"[^>]*data-rapportering-din-maaned>/.test(rapportering) &&
+    rapportering.includes("{companyId && !godkendelseUkendt && (") &&
+    /<DinMaaned dom=\{dinMaaned\} udenCta \/>/.test(rapportering) &&
+    // Hook (useMemo) FØR den betingede return (React #310).
+    rapportering.indexOf("const dinMaaned = useMemo(") < rapportering.indexOf("if (isAdvisor && !companyId) {") &&
+    !/const DinMaaned = \(/.test(forside);
 };
 
 /** Dom 5 (PR 3, Jonas' skærm 17/9 11:28; OMSKREVET 2/10): MOBIL-RÆKKEFØLGEN
     var tiles EFTER højre kolonne — nu er der ingen tiles. DOM-ordenen ER
-    stadig mobil-ordenen: hilsen → stedsætningen → (fornyelsen) → Din måned →
+    stadig mobil-ordenen: hilsen → stedsætningen → (fornyelsen) →
     Dit næste skridt → Score → Din plan; ingen `order-*`, ingen md:hidden-
     dublet, og stedsætningen står under hilsenen og FØR toppen. */
 export const mobilRaekkefoelge = (forside: string): boolean => {
@@ -80,9 +108,9 @@ export const mobilRaekkefoelge = (forside: string): boolean => {
     !/md:hidden|hidden md:block/.test(topBlok);
 };
 
-/** Dom 2: ingen procent i «Din måned». */
-export const ingenProcent = (dom: string, forside: string): boolean => {
-  const kort = blok(forside, "DinMaaned") + blok(forside, "Sparkline");
+/** Dom 2: ingen procent i «Din måned» — kortet læses af DinMaaned.tsx (skridt 2). */
+export const ingenProcent = (dom: string, kortfil: string): boolean => {
+  const kort = blok(kortfil, "DinMaaned") + blok(kortfil, "Sparkline");
   return kort.length > 0 && !/%/.test(dom) && !/%/.test(kort) &&
     /return `højere end i \$\{navn\}`;/.test(dom) && /return `lavere end i \$\{navn\}`;/.test(dom) && /return `som i \$\{navn\}`;/.test(dom);
 };
@@ -105,15 +133,20 @@ export const staaende = (forside: string): boolean => {
   return shell.length > 0 && /data-hovedhistorie="staaende"/.test(shell) && /relative aspect-video w-full/.test(shell) && !/md:w-\[42%\]/.test(shell) && !/md:flex/.test(shell);
 };
 
-describe("forsideTop.guard — PR 2: to kolonner, Din måned uden procent, sparkline uden nul, stående nyhed", () => {
+describe("forsideTop.guard — PR 2 (omskrevet 2/10): toppen, Din måned (på /reports) uden procent, sparkline uden nul, stående nyhed", () => {
   const forside = udenKommentarer(laes(FORSIDE));
   const dom = udenKommentarer(laes(DOM));
+  const kort = udenKommentarer(laes(KORT));
+  const rapportering = udenKommentarer(laes(RAPPORTERING));
 
-  it("dom 1 (omskrevet 2/10): toppen er én kolonne uden bånd — Din måned før Dit næste skridt; intet StoryCard, ingen tiles, tal-strippen er væk", () => {
+  it("dom 1 (omskrevet 2/10, skridt 2): toppen er én kolonne uden bånd — Dit næste skridt alene, Din måned ikke på forsiden; intet StoryCard, ingen tiles, tal-strippen er væk", () => {
     expect(toppenHolder(forside)).toBe(true);
   });
+  it("dom 6 (skridt 2): Din måned bor øverst på /reports — samme kort, før leveringsbåndet, kun når godkendelsen er kendt, hook før return", () => {
+    expect(dinMaanedPaaRapportering(rapportering, kort, forside)).toBe(true);
+  });
   it("dom 2: ingen procent i Din måned — retningen er ord", () => {
-    expect(ingenProcent(dom, forside)).toBe(true);
+    expect(ingenProcent(dom, kort)).toBe(true);
   });
   it("dom 3: sparklinen filtrerer null, indsætter aldrig nul — og tager kun målte måneder", () => {
     expect(ingenNulPunkter(dom)).toBe(true);
@@ -131,11 +164,20 @@ describe("forsideTop.guard — PR 2: to kolonner, Din måned uden procent, spark
     expect(toppenHolder(forside.replace("data-forside-hoejre>", "data-forside-hoejre><div data-forside-tiles />"))).toBe(false);
     expect(toppenHolder(forside.replace('<FocusCard\n              variant="kompakt"', '<FocusCard\n              variant="fuld"'))).toBe(false);
     expect(toppenHolder(forside + "\n<TalStrip hasFacts={false} />")).toBe(false);
-    expect(toppenHolder(forside.replace("data-forside-din-maaned", "x").replace("data-forside-naeste-skridt", "data-forside-din-maaned"))).toBe(false);
+    // Din måned tilbage på forsiden falder (skridt 2).
+    expect(toppenHolder(forside.replace("data-forside-naeste-skridt>", 'data-forside-naeste-skridt><HbSection eyebrow="Din måned" data-forside-din-maaned><DinMaaned dom={dinMaaned} /></HbSection>'))).toBe(false);
+  });
+  it("selvbevis 6: Din måned efter leveringsbåndet, uden godkendelses-gaten, med CTA, eller kortet defineret på forsiden igen, falder", () => {
+    const sektion = rapportering.slice(rapportering.indexOf("{companyId && !godkendelseUkendt && ("), rapportering.indexOf("Levering {currentYearGroup.year}"));
+    expect(sektion.length).toBeGreaterThan(0);
+    expect(dinMaanedPaaRapportering(rapportering.replace(sektion, "") + sektion, kort, forside)).toBe(false);
+    expect(dinMaanedPaaRapportering(rapportering.replace("{companyId && !godkendelseUkendt && (", "{companyId && ("), kort, forside)).toBe(false);
+    expect(dinMaanedPaaRapportering(rapportering.replace("<DinMaaned dom={dinMaaned} udenCta />", "<DinMaaned dom={dinMaaned} />"), kort, forside)).toBe(false);
+    expect(dinMaanedPaaRapportering(rapportering, kort, forside + "\nconst DinMaaned = () => null;")).toBe(false);
   });
   it("selvbevis 2: en procent i dommen eller i kortet falder", () => {
-    expect(ingenProcent(dom.replace("return `højere end i ${navn}`;", "return `${Math.round(100 * (nu - foer) / foer)} % højere end i ${navn}`;"), forside)).toBe(false);
-    expect(ingenProcent(dom, forside.replace("<Sparkline dom={dom} />", "<Sparkline dom={dom} /><p>+12 %</p>"))).toBe(false);
+    expect(ingenProcent(dom.replace("return `højere end i ${navn}`;", "return `${Math.round(100 * (nu - foer) / foer)} % højere end i ${navn}`;"), kort)).toBe(false);
+    expect(ingenProcent(dom, kort.replace("<Sparkline dom={dom} />", "<Sparkline dom={dom} /><p>+12 %</p>"))).toBe(false);
   });
   it("selvbevis 3: en sparkline der fylder nul ind for manglende måneder, eller tegner estimater med, falder", () => {
     expect(ingenNulPunkter(dom.replace(".filter((r) => r[felt] != null)", ""))).toBe(false);

@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { bygHbNav, medLiveMaerke, SEKS_STEDER } from "@/lib/hjemmebane/hbNav";
-import { skallenTegnerSaetning, STEDER_MED_EGET_HOVED, STEDERNES_STIER, STEDS_SAETNINGER } from "@/lib/hjemmebane/stedsSaetninger";
+import { bygHbNav, medLiveMaerke, NETVAERKETS_BOERN, SEKS_STEDER } from "@/lib/hjemmebane/hbNav";
+import { netvaerksSti, skallenTegnerSaetning, STEDER_MED_EGET_HOVED, STEDERNES_STIER, STEDS_SAETNINGER, visStedsSaetning } from "@/lib/hjemmebane/stedsSaetninger";
+import { netvaerkFaner, visNetvaerkFaner } from "@/lib/hjemmebane/netvaerkFaner";
 
 /**
  * seksSteder.guard — SEKS STEDER, skridt 1 (2/10-2026 nat; FORBEREDT,
@@ -27,10 +28,33 @@ import { skallenTegnerSaetning, STEDER_MED_EGET_HOVED, STEDERNES_STIER, STEDS_SA
  *   4. FORSIDEN RYDDET: «Fra os til dig», «Denne uges video», «Værd at se
  *      igen» og «Se tidligere» tegnes ikke i BoardroomView — intet StoryCard,
  *      ingen pickMainStory, ingen tiles; og det, der skulle blive, er der:
- *      Score, Din plan, Dine mål-ankeret, Din måned, Dit næste skridt,
- *      fornyelsen, trofæerne. Kortene og dommene (pushSelection.ts) er
- *      IKKE slettet — de kan tegne «Nyt fra os» i Akademiet.
+ *      Score, Din plan, Dine mål-ankeret, Dit næste skridt, fornyelsen,
+ *      trofæerne. Kortene og dommene (pushSelection.ts) er IKKE slettet — de
+ *      kan tegne «Nyt fra os» i Akademiet. SKRIDT 2 (dom 8): «Din måned»,
+ *      «Kommende» og «Fra fællesskabet» er heller ikke på forsiden — nederst
+ *      står ÉT kort «Næste i Netværket» (næste event + nyeste opslag).
  *   5. «LIVE NU» følger Events ned under Netværket (medLiveMaerke).
+ *
+ * SKRIDT 2 (2/10-2026 — Jonas' ja: «Fordele» under Netværket; «Din måned»,
+ * «Kommende», «Fra fællesskabet» forlader forsiden «med én linje tilbage»;
+ * «Nyeste opslag fra community vil jeg dog gerne have vist nederst, under
+ * næste event»):
+ *   7. NETVÆRKET SOM ÉT STED MED FANER: fanerne ER menuens fem børn
+ *      (NETVAERKETS_BOERN — én liste), dømt af STIEN (netvaerksSti: kun de
+ *      fem forsider, ingen underside); gaten er sætningens (visNetvaerkFaner
+ *      === visStedsSaetning: fuldt medlem, rådgiver i «Se som medlem», aldrig
+ *      abonnenten, null tier = intet); skallen tegner HbNetvaerkFaner på de
+ *      fem stier (netvaerkHovedSti) og sætningen IKKE dér
+ *      (skallenTegnerSaetning er falsk for Netværket); hovedet er eyebrow →
+ *      h1 → sætningen (HbStedsSaetning) → <nav> med vandret scroll og
+ *      aria-current; Events, Medlemmerne og Fordele tegner HbNetvaerkFaneHoved
+ *      (h2 under fanerne, eyebrow → h1 → intro uden) og IKKE sætningen;
+ *      Community-fladen er URØRT (en anden agent bygger dér); «Community er
+ *      forsiden.» står i Netværkets sætning igen.
+ *   8. FORSIDEN, SKRIDT 2: intet «Din måned»/«Kommende»/«Fra fællesskabet»;
+ *      «Næste i Netværket» nederst (efter «Din plan»), dommen
+ *      naesteINetvaerket (ren), begge dele med tom tilstand; ingen
+ *      member-directory-hentning, ingen ny RPC.
  * Kildelæsning med selvbevis på kopier (dineMaal.guard-mønstret).
  */
 
@@ -45,6 +69,16 @@ const KOMPONENT = "src/components/hjemmebane/HbStedsSaetning.tsx";
 const SKAL = "src/components/hjemmebane/HbMemberShell.tsx";
 const FORSIDE = "src/components/hjemmebane/boardroom/BoardroomView.tsx";
 const RAADGIVER_FORSIDE = "src/components/hjemmebane/forside/RaadgiverForsideView.tsx";
+const FANER = "src/components/hjemmebane/netvaerk/HbNetvaerkFaner.tsx";
+const FANE_HOVED = "src/components/hjemmebane/netvaerk/HbNetvaerkFaneHoved.tsx";
+const FANE_DOM = "src/lib/hjemmebane/netvaerkFaner.ts";
+const COMMUNITY_VIEW = "src/components/hjemmebane/community/CommunityView.tsx";
+const NETVAERK_VIEWS: Record<string, string> = {
+  "/events": "src/components/hjemmebane/events/EventsView.tsx",
+  "/medlemmer": "src/components/hjemmebane/members/MemberDirectoryView.tsx",
+  "/rabataftaler": "src/components/hjemmebane/rabataftaler/RabataftalerView.tsx",
+};
+const NETVAERK_STIER = ["/community", "/events", "/medlemmer", "/rabataftaler", "/deling"];
 
 const flad = (nav: ReturnType<typeof bygHbNav>) =>
   nav.map((n) => ({ label: n.label, to: n.to ?? null, children: n.children?.map((c) => ({ label: c.label, to: c.to ?? null })) ?? null }));
@@ -117,7 +151,8 @@ export const saetningerneEtSted = (kilder: Array<[string, string]>, komponent: s
     !raadgiverForside.includes("HbStedsSaetning");
 };
 
-/** Dom 4: forsiden ryddet — og det, der skulle blive, er der. */
+/** Dom 4: forsiden ryddet — og det, der skulle blive, er der. (Skridt 2:
+    «Din måned» er ikke længere blandt det, der skal blive — dom 8.) */
 export const forsidenRyddet = (forside: string): boolean => {
   const krop = forside.slice(forside.indexOf("export const BoardroomView = () => {"));
   return krop.length > 0 &&
@@ -126,12 +161,64 @@ export const forsidenRyddet = (forside: string): boolean => {
     !/pickActivePush\(|pickActiveWeekVideo\(|pickActiveItem\(|pickEvergreen\(|velkomstHovedhistorie\(/.test(krop) &&
     !/data-forside-venstre|data-forside-nyheden|data-forside-tiles|hasBand|band\.main|band\.side|redaktioneltHistory|countNewSince\(/.test(krop) &&
     /<ScoreKort\b/.test(krop) && /<TrofaeKort\b/.test(krop) && /id="din-plan"/.test(krop) && /id="dine-maal"/.test(krop) &&
-    /data-forside-din-maaned/.test(krop) && /data-forside-naeste-skridt/.test(krop) && /<FornyelsesBaand \/>/.test(krop) &&
+    /data-forside-naeste-skridt/.test(krop) && /<FornyelsesBaand \/>/.test(krop) &&
     // Kortene og dommene er IKKE slettet — de kan tegne «Nyt fra os» i Akademiet.
     /const StoryCard = \(/.test(forside) && /const VelkomstStory = \(/.test(forside) &&
     // Døde imports er væk (rådets fund 9) — dommene bor i pushSelection.ts og importeres ikke længere.
     !/pickMainStory,|countNewSince,|pickEvergreen,|velkomstHovedhistorie|useAppConfig|tileColsClass|stripHtml|truncateText/.test(forside) &&
     /export function pickMainStory</.test(udenKommentarer(laes("src/components/hjemmebane/boardroom/pushSelection.ts")));
+};
+
+/** Dom 7: Netværket som ét sted med faner. `kilder` som dom 3. */
+export const netvaerketHarFaner = (faner: string, faneHoved: string, faneDom: string, skal: string, ord: string, views: Record<string, string>, community: string): boolean =>
+  // Fanerne ER menuens børn — én liste, læst af dommen.
+  faneDom.includes('import { NETVAERKETS_BOERN } from "./hbNav";') &&
+  faneDom.includes("const faner = NETVAERKETS_BOERN.map((b) => ({ label: b.label, to: b.to, aktiv: b.to === sti }));") &&
+  faneDom.includes("export const visNetvaerkFaner = visStedsSaetning;") &&
+  // Komponenten: hooks først, gaten er dommens, sætningen gennem HbStedsSaetning, <nav> med vandret scroll og aria-current.
+  /const \{ isAdvisor, membershipTier \} = useAuth\(\);/.test(faner) &&
+  faner.indexOf("useViewMode()") < faner.indexOf("if (!faner || !vises) return null;") &&
+  faner.includes("const vises = visNetvaerkFaner({ isAdvisor, viewingAsMember, membershipTier });") &&
+  faner.includes("<HbStedsSaetning sti={sti} className=\"mt-3\" />") &&
+  faner.indexOf("<h1") < faner.indexOf("<HbStedsSaetning sti={sti}") && faner.indexOf("<HbStedsSaetning sti={sti}") < faner.indexOf("<nav") &&
+  /<nav aria-label="Netværket" className="[^"]*overflow-x-auto[^"]*"/.test(faner) &&
+  /<ul className="[^"]*min-w-max[^"]*"/.test(faner) && /whitespace-nowrap/.test(faner) &&
+  faner.includes('aria-current={f.aktiv ? "page" : undefined}') &&
+  !/role="tab"|role="tablist"|"subscriber"/.test(faner) &&
+  // Skallen: netværkshovedet på de fem stier, dømt af netvaerksSti — og sætningen ikke dér.
+  skal.includes("const netvaerkHovedSti = netvaerksSti(location.pathname);") &&
+  (skal.match(/<HbNetvaerkFaner sti=\{netvaerkHovedSti\} \/>/g) ?? []).length === 1 &&
+  skal.indexOf("<HbNetvaerkFaner sti={netvaerkHovedSti} />") < skal.indexOf("{children}", skal.indexOf("<HbNetvaerkFaner")) &&
+  ord.includes('sted !== "netvaerket"') &&
+  // Fanens hoved: h2 under fanerne, det gamle hoved uden — samme dom.
+  faneHoved.includes("const underFaner = visNetvaerkFaner({ isAdvisor, viewingAsMember, membershipTier });") &&
+  faneHoved.indexOf("useViewMode()") < faneHoved.indexOf("if (underFaner) {") &&
+  /<h2 className="[^"]*">\{rubrik\}<\/h2>/.test(faneHoved.slice(faneHoved.indexOf("if (underFaner) {"), faneHoved.indexOf("return (", faneHoved.indexOf("if (underFaner) {") + 30 + 1))) &&
+  /<h1 className="[^"]*">\{rubrik\}<\/h1>/.test(faneHoved) && faneHoved.includes("{intro}") &&
+  !faneHoved.includes("HbStedsSaetning") &&
+  // De tre views tegner fanens hoved — ikke sætningen, ikke en egen h1.
+  Object.entries(views).every(([, k]) => (k.match(/<HbNetvaerkFaneHoved\b/g) ?? []).length === 1 && !/<HbStedsSaetning\b|<h1\b/.test(k)) &&
+  // Community-fladen er urørt: ingen faner, intet hoved tegnet dér.
+  !/HbNetvaerkFaner|HbNetvaerkFaneHoved|HbStedsSaetning/.test(community);
+
+/** Dom 8: forsiden, skridt 2 — «Næste i Netværket» nederst; de tre sektioner væk. */
+export const forsidenSkridt2 = (forside: string, naesteDom: string): boolean => {
+  const krop = forside.slice(forside.indexOf("export const BoardroomView = () => {"));
+  const plan = krop.indexOf('id="din-plan"');
+  const naeste = krop.indexOf("data-forside-naeste-netvaerk");
+  const event = krop.indexOf("data-naeste-event=", naeste);
+  const opslag = krop.indexOf("data-naeste-opslag=", event);
+  return krop.length > 0 && plan > -1 && naeste > plan && event > naeste && opslag > event &&
+    !/"Din måned"|"Kommende"|"Fra fællesskabet"|data-forside-din-maaned|<DinMaaned\b|<FremhaevetOpslag\b|aktiveMedlemmer\(|"member-directory"/.test(krop) &&
+    (krop.match(/data-forside-naeste-netvaerk/g) ?? []).length === 1 &&
+    krop.includes("const naesteNetvaerk = useMemo(() => naesteINetvaerket(eventsQuery.data ?? [], communityQuery.data ?? []), [eventsQuery.data, communityQuery.data]);") &&
+    krop.includes('queryFn: () => hentFeed(30),') && krop.includes("queryFn: () => listUpcomingEvents(3),") &&
+    /data-naeste-event-tom/.test(krop) && /data-naeste-opslag-tom/.test(krop) &&
+    krop.includes("const event = naesteNetvaerk.event;") &&
+    krop.includes("<EventRegisterAction eventId={event.id} phase={eventMeetPhase(event)} />") &&
+    krop.includes("to={`/community/${naesteNetvaerk.opslag.id}`}") &&
+    !/\.rpc\("get_community_feed"|\.rpc\("get_member_directory"/.test(forside) &&
+    naesteDom.includes("return { event: events[0] ?? null, opslag: vaelgForsideOpslag(traade).fremhaevet };");
 };
 
 describe("seksSteder.guard — skridt 1: menuen, stedsætningerne, forsiden ryddet", () => {
@@ -144,6 +231,13 @@ describe("seksSteder.guard — skridt 1: menuen, stedsætningerne, forsiden rydd
   const forside = udenKommentarer(laes(FORSIDE));
   const raadgiverForside = udenKommentarer(laes(RAADGIVER_FORSIDE));
   const nav = udenKommentarer(laes(NAV));
+  const faner = udenKommentarer(laes(FANER));
+  const faneHoved = udenKommentarer(laes(FANE_HOVED));
+  const faneDom = udenKommentarer(laes(FANE_DOM));
+  const ord = udenKommentarer(laes(ORD));
+  const community = udenKommentarer(laes(COMMUNITY_VIEW));
+  const netvaerkViews = Object.fromEntries(Object.entries(NETVAERK_VIEWS).map(([sti, fil]) => [sti, udenKommentarer(laes(fil))]));
+  const naesteDom = udenKommentarer(laes("src/lib/hjemmebane/naesteINetvaerket.ts"));
 
   it("dom 1: det fulde medlems menu er de seks steder i rækkefølge, Netværkets fem børn, Dine mål eget punkt, ingen rute ændret", () => {
     expect(menuenErSeksSteder(medlem)).toBe(true);
@@ -168,18 +262,15 @@ describe("seksSteder.guard — skridt 1: menuen, stedsætningerne, forsiden rydd
     expect(STEDS_SAETNINGER.akademiet).toContain("lærer det, du skal bruge");
     expect(STEDS_SAETNINGER.din_raadgiver).toContain("skriver til os og booker en session");
   });
-  it("dom 4: «Fra os til dig», «Denne uges video», «Værd at se igen» og «Se tidligere» tegnes ikke på medlemmets forside — Score, Din plan, Din måned, Dit næste skridt står", () => {
+  it("dom 4: «Fra os til dig», «Denne uges video», «Værd at se igen» og «Se tidligere» tegnes ikke på medlemmets forside — Score, Din plan, Dit næste skridt står", () => {
     expect(forsidenRyddet(forside)).toBe(true);
   });
-  it("dom 6 (rådets fund 7): de otte steder med eget hoved tegner sætningen selv under h1 — og skallen springer dem over; de fem andre får den fra skallen", () => {
+  it("dom 6 (rådets fund 7; skridt 2: fem steder): de steder med eget hoved tegner sætningen selv under h1 — og skallen springer dem over; chatten og booking får den fra skallen; Netværket får den fra fanehovedet", () => {
     const VIEWS: Record<string, string> = {
       "/reports": "src/components/hjemmebane/rapportering/RapporteringView.tsx",
       "/kpis": "src/components/hjemmebane/noegletal/NoegletalView.tsx",
       "/budget": "src/components/hjemmebane/budget/BudgetteringView.tsx",
       "/milestones": "src/components/hjemmebane/milestones/DineMaalView.tsx",
-      "/events": "src/components/hjemmebane/events/EventsView.tsx",
-      "/medlemmer": "src/components/hjemmebane/members/MemberDirectoryView.tsx",
-      "/rabataftaler": "src/components/hjemmebane/rabataftaler/RabataftalerView.tsx",
       "/akademiet": "src/components/hjemmebane/akademi/views/ForsideView.tsx",
     };
     expect([...STEDER_MED_EGET_HOVED].sort()).toEqual(Object.keys(VIEWS).sort());
@@ -190,7 +281,9 @@ describe("seksSteder.guard — skridt 1: menuen, stedsætningerne, forsiden rydd
       expect(k.indexOf("<h1"), fil).toBeLessThan(k.indexOf(`sti="${sti}"`));
       expect(skallenTegnerSaetning(sti), sti).toBe(false);
     }
-    for (const sti of ["/community", "/deling", "/chat", "/book-session"]) expect(skallenTegnerSaetning(sti), sti).toBe(true);
+    for (const sti of ["/chat", "/book-session"]) expect(skallenTegnerSaetning(sti), sti).toBe(true);
+    // Netværkets fem stier: sætningen kommer fra fanehovedet (dom 7), ikke skallen.
+    for (const sti of NETVAERK_STIER) expect(skallenTegnerSaetning(sti), sti).toBe(false);
     expect(skallenTegnerSaetning("/")).toBe(false);
     expect(skallenTegnerSaetning("/community/abc")).toBe(false);
     // Ingen anden flade tegner komponenten med en fast sti (ud over forsiden og de otte).
@@ -211,6 +304,36 @@ describe("seksSteder.guard — skridt 1: menuen, stedsætningerne, forsiden rydd
     expect(nav).not.toContain('label: "Fortæl det videre"');
     expect(nav).toContain('export const FORDELE_PUNKT = { label: "Fordele", to: "/rabataftaler" } as const;');
     expect(nav).toContain('export const ANBEFAL_PUNKT = { label: "Anbefal", to: "/deling" } as const;');
+  });
+
+  it("dom 7 (skridt 2): Netværket er ét sted med fem faner — menuens børn, dømt af stien, sætningens gate, skallen på de fem stier, h2 under fanerne, Community urørt", () => {
+    expect(netvaerketHarFaner(faner, faneHoved, faneDom, skal, ord, netvaerkViews, community)).toBe(true);
+    // Dommen: de fem forsider får fanerne (præcis én aktiv, menuens ord og links); undersider og alt andet intet.
+    for (const sti of NETVAERK_STIER) {
+      const f = netvaerkFaner(sti);
+      expect(f?.map((x) => [x.label, x.to]), sti).toEqual(NETVAERKETS_BOERN.map((b) => [b.label, b.to]));
+      expect(f?.filter((x) => x.aktiv).map((x) => x.to), sti).toEqual([sti]);
+      expect(netvaerksSti(sti + "/"), sti).toBe(sti);
+      expect(netvaerksSti(sti + "?x=1"), sti).toBe(sti);
+    }
+    for (const sti of ["/community/abc", "/events/abc", "/medlemmer/abc", "/", "/akademiet", "/chat", "/nyheder", "/rabataftaler/x"]) {
+      expect(netvaerkFaner(sti), sti).toBeNull();
+      expect(netvaerksSti(sti), sti).toBeNull();
+    }
+    expect(NETVAERKETS_BOERN.map((b) => b.label)).toEqual(["Community", "Events", "Medlemmerne", "Fordele", "Anbefal"]);
+    expect(STEDS_SAETNINGER.netvaerket.endsWith("Community er forsiden.")).toBe(true);
+    // Gaten er sætningens — samme funktion, samme svar for alle former.
+    expect(visNetvaerkFaner).toBe(visStedsSaetning);
+    expect(visNetvaerkFaner({ isAdvisor: false, viewingAsMember: false, membershipTier: "full" })).toBe(true);
+    expect(visNetvaerkFaner({ isAdvisor: false, viewingAsMember: false, membershipTier: "subscriber" })).toBe(false);
+    expect(visNetvaerkFaner({ isAdvisor: false, viewingAsMember: false, membershipTier: null })).toBe(false);
+    expect(visNetvaerkFaner({ isAdvisor: true, viewingAsMember: false, membershipTier: "full" })).toBe(false);
+    expect(visNetvaerkFaner({ isAdvisor: true, viewingAsMember: true, membershipTier: "full" })).toBe(true);
+    // Ruterne er uændrede: fanernes links er stedets stier.
+    for (const b of NETVAERKETS_BOERN) expect(STEDERNES_STIER[b.to], b.to).toBe("netvaerket");
+  });
+  it("dom 8 (skridt 2): forsiden uden Din måned, Kommende og Fra fællesskabet — «Næste i Netværket» nederst med næste event og nyeste opslag, hver med tom tilstand, ingen ny hentning", () => {
+    expect(forsidenSkridt2(forside, naesteDom)).toBe(true);
   });
 
   it("selvbevis 1: Dine mål tilbage under Dine tal, Netværket med Rabataftaler-ordet, eller en byttet rækkefølge falder", () => {
@@ -241,6 +364,23 @@ describe("seksSteder.guard — skridt 1: menuen, stedsætningerne, forsiden rydd
     expect(forsidenRyddet(forside.replace(/<ScoreKort\b/, "<ScoreKortX"))).toBe(false);
     // Sletter nogen kortene, falder værnet også — de skal blive til Akademiet.
     expect(forsidenRyddet(forside.replace("const StoryCard = (", "const StoryCardX = ("))).toBe(false);
+  });
+  it("selvbevis 7: fanerne med egen liste, uden gate, uden vandret scroll, skallen uden hovedet, eller Community med faner falder", () => {
+    expect(netvaerketHarFaner(faner, faneHoved, faneDom.replace("const faner = NETVAERKETS_BOERN.map((b) => ({ label: b.label, to: b.to, aktiv: b.to === sti }));", 'const faner = [{ label: "Community", to: "/community", aktiv: true }];'), skal, ord, netvaerkViews, community)).toBe(false);
+    expect(netvaerketHarFaner(faner.replace("const vises = visNetvaerkFaner({ isAdvisor, viewingAsMember, membershipTier });", "const vises = true;"), faneHoved, faneDom, skal, ord, netvaerkViews, community)).toBe(false);
+    expect(netvaerketHarFaner(faner.replace("overflow-x-auto", "overflow-x-visible"), faneHoved, faneDom, skal, ord, netvaerkViews, community)).toBe(false);
+    expect(netvaerketHarFaner(faner, faneHoved, faneDom, skal.replace("{netvaerkHovedSti && <HbNetvaerkFaner sti={netvaerkHovedSti} />}", ""), ord, netvaerkViews, community)).toBe(false);
+    expect(netvaerketHarFaner(faner, faneHoved, faneDom, skal, ord.replace('sted !== "netvaerket" && ', ""), netvaerkViews, community)).toBe(false);
+    expect(netvaerketHarFaner(faner, faneHoved, faneDom, skal, ord, netvaerkViews, community + "\n<HbNetvaerkFaner sti=\"/community\" />")).toBe(false);
+    expect(netvaerketHarFaner(faner, faneHoved, faneDom, skal, ord, { ...netvaerkViews, "/events": netvaerkViews["/events"].replace("<HbNetvaerkFaneHoved", '<h1>Events</h1><HbNetvaerkFaneHoved') }, community)).toBe(false);
+  });
+  it("selvbevis 8: Din måned eller Fra fællesskabet tilbage på forsiden, kortet over planen, eller en member-directory-hentning falder", () => {
+    expect(forsidenSkridt2(forside.replace("data-forside-naeste-skridt>", 'data-forside-naeste-skridt><HbSection eyebrow="Din måned" data-forside-din-maaned />'), naesteDom)).toBe(false);
+    expect(forsidenSkridt2(forside.replace("<FornyelsesBaand />", '<FornyelsesBaand /><HbSection eyebrow="Fra fællesskabet" />'), naesteDom)).toBe(false);
+    const naeste = forside.slice(forside.indexOf("{companyId && (\n        <HbSection eyebrow={NAESTE_I_NETVAERKET.eyebrow}"), forside.lastIndexOf("    </div>\n  );\n};"));
+    expect(naeste.length).toBeGreaterThan(0);
+    expect(forsidenSkridt2(forside.replace(naeste, "").replace("<FornyelsesBaand />", `<FornyelsesBaand />${naeste}`), naesteDom)).toBe(false);
+    expect(forsidenSkridt2(forside.replace("const naesteNetvaerk = useMemo(", 'const d = useQuery({ queryKey: ["member-directory"], queryFn: listMemberDirectory });\n  const naesteNetvaerk = useMemo('), naesteDom)).toBe(false);
   });
   it("selvbevis 5: et mærke på et andet barn, eller et toppunkt der rører Netværket, falder", () => {
     const maerke = { tekst: "Live nu", to: "/events/x", titel: "x" };

@@ -5,7 +5,7 @@ import { listAllUpcomingEvents, listPastEvents } from "@/lib/hjemmebane/akademiA
 import type { EventRow } from "@/lib/hjemmebane/adminContentApi";
 import { eventMeetPhase, eventNedtaelling, isEventPast } from "@/lib/hjemmebane/eventPhase";
 import { HbSection } from "../HbSection";
-import { HbStedsSaetning } from "../HbStedsSaetning";
+import { HbNetvaerkFaneHoved } from "../netvaerk/HbNetvaerkFaneHoved";
 import { hentetilstand, sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
 import { EventRegisterAction } from "./EventRegisterAction";
 
@@ -151,20 +151,15 @@ export const EventsView = () => {
 
   return (
     <div>
-      {/* ── Header (Akademi-ForsideView-mønstret): fladens eget navn som
-          eyebrow, en SÆTNING som rubrik. ── */}
-      <section className="max-w-3xl">
-        <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">Events</p>
-        <h1 className="mt-3 font-editorial text-4xl font-medium leading-[1.1] tracking-tight text-hb-ink md:text-5xl">
-          Mød op, mens det sker.
-        </h1>
-        {/* Stedsætningen under h1 (rådets fund 7, 2/10): eyebrow → h1 → én sætning — sidens gamle intro kun for dem, sætningen ikke taler til (ellers). */}
-        <HbStedsSaetning
-          sti="/events"
-          className="mt-3"
-          ellers={<p className="mt-3 text-sm text-hb-ink-soft">Live sparring og workshops — kommende datoer først, historikken nedenunder.</p>}
-        />
-      </section>
+      {/* ── Header: under Netværkets faner (skridt 2, 2/10) er siden en FANE og
+          rubrikken en h2 — Netværkets hoved (eyebrow, h1, sætningen, fanerne)
+          tegner skallen. Uden fanerne (rådgiveren på sin egen flade) det gamle
+          hoved ordret: eyebrow → h1 → intro. Dommen er HbNetvaerkFaneHoved. ── */}
+      <HbNetvaerkFaneHoved
+        eyebrow="Events"
+        rubrik="Mød op, mens det sker."
+        intro={<p className="mt-3 text-sm text-hb-ink-soft">Live sparring og workshops — kommende datoer først, historikken nedenunder.</p>}
+      />
 
       {/* ── Kommende ── */}
       <HbSection eyebrow="Kommende" hairline className="mt-12 md:mt-14">
