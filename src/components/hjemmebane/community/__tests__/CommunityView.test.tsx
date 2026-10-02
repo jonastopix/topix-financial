@@ -21,6 +21,7 @@ const api = vi.hoisted(() => ({
   hentFeed: vi.fn(),
   saetReaktion: vi.fn(),
   markerSpoergsmaal: vi.fn(),
+  hentMestLaestUge: vi.fn(),
 }));
 vi.mock("@/lib/hjemmebane/communityApi", () => ({
   hentFeed: api.hentFeed,
@@ -30,6 +31,7 @@ vi.mock("@/lib/hjemmebane/communityApi", () => ({
   opretTraad: vi.fn(async () => "ny"),
   hentCommunityMedlemmer: vi.fn(async () => []),
   markerSpoergsmaal: api.markerSpoergsmaal,
+  hentMestLaestUge: api.hentMestLaestUge,
 }));
 const katalog = vi.hoisted(() => ({ listMemberDirectory: vi.fn(async () => [] as unknown[]) }));
 vi.mock("@/lib/hjemmebane/memberProfile", () => ({
@@ -94,6 +96,8 @@ beforeEach(() => {
   api.hentFeed.mockReset();
   api.saetReaktion.mockReset();
   api.markerSpoergsmaal.mockReset();
+  api.hentMestLaestUge.mockReset();
+  api.hentMestLaestUge.mockResolvedValue([]);
   katalog.listMemberDirectory.mockReset();
   katalog.listMemberDirectory.mockResolvedValue([]);
   auth.user = null;
@@ -107,9 +111,23 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Community-feedet — like fra feedet", () => {
+  it("0 reaktioner: intet tal — kun hjertet, og knappens navn er titlen", async () => {
+    api.hentFeed.mockResolvedValue([traad({ antal_reaktioner: 0 })]);
+    const li = await raekke();
+    const knap = within(li).getByRole("button", { name: "Synes godt om" });
+    expect(knap).toHaveAttribute("aria-pressed", "false");
+    expect(within(li).queryByText(/fandt det nyttigt/)).toBeNull();
+  });
+
+  it("1 reaktion: «1 fandt det nyttigt»", async () => {
+    api.hentFeed.mockResolvedValue([traad({ antal_reaktioner: 1 })]);
+    const li = await raekke();
+    expect(within(li).getByRole("button", { name: "1 fandt det nyttigt" })).toBeInTheDocument();
+  });
+
   it("tallet i knappen er RPC'ens antal_reaktioner, og hjertet er tomt når jeg_har_reageret er false", async () => {
     const li = await raekke();
-    const knap = within(li).getByRole("button", { name: "3" });
+    const knap = within(li).getByRole("button", { name: "3 fandt det nyttigt" });
     expect(knap).toHaveAttribute("aria-pressed", "false");
     expect(knap).toHaveAttribute("title", "Synes godt om");
     expect(li.querySelector("button svg")).not.toHaveClass("fill-hb-evergreen");
@@ -118,7 +136,7 @@ describe("Community-feedet — like fra feedet", () => {
   it("et klik på hjertet kalder saetReaktion med trådens id — og navigerer IKKE til tråden", async () => {
     const li = await raekke();
     await act(async () => {
-      fireEvent.click(within(li).getByRole("button", { name: "3" }));
+      fireEvent.click(within(li).getByRole("button", { name: "3 fandt det nyttigt" }));
     });
     expect(api.saetReaktion).toHaveBeenCalledTimes(1);
     expect(api.saetReaktion).toHaveBeenCalledWith({ traadId: "t1" });
@@ -128,7 +146,7 @@ describe("Community-feedet — like fra feedet", () => {
 
   it("knappen står UDEN FOR linket — ingen <button> inde i et <a>", async () => {
     const li = await raekke();
-    const knap = within(li).getByRole("button", { name: "3" });
+    const knap = within(li).getByRole("button", { name: "3 fandt det nyttigt" });
     expect(knap.closest("a")).toBeNull();
     expect(within(li).getByRole("link", { name: "Hej, jeg er Mette" })).toHaveAttribute("href", "/community/t1");
   });
@@ -143,9 +161,9 @@ describe("Community-feedet — like fra feedet", () => {
     api.hentFeed.mockResolvedValueOnce([traad()]).mockResolvedValueOnce([traad({ antal_reaktioner: 4, jeg_har_reageret: true })]);
     const li = await raekke();
     await act(async () => {
-      fireEvent.click(within(li).getByRole("button", { name: "3" }));
+      fireEvent.click(within(li).getByRole("button", { name: "3 fandt det nyttigt" }));
     });
-    const knap = await within(li).findByRole("button", { name: "4" });
+    const knap = await within(li).findByRole("button", { name: "4 fandt det nyttigt" });
     expect(knap).toHaveAttribute("aria-pressed", "true");
     expect(knap).toHaveAttribute("title", "Fjern reaktion");
     expect(api.hentFeed).toHaveBeenCalledTimes(2);
@@ -155,11 +173,11 @@ describe("Community-feedet — like fra feedet", () => {
     api.saetReaktion.mockRejectedValueOnce(new Error("Ingen adgang til community"));
     const li = await raekke();
     await act(async () => {
-      fireEvent.click(within(li).getByRole("button", { name: "3" }));
+      fireEvent.click(within(li).getByRole("button", { name: "3 fandt det nyttigt" }));
     });
     expect(toastMock.error).toHaveBeenCalledWith("Reaktionen blev ikke gemt", { description: "Ingen adgang til community" });
     expect(screen.getByText("Hej, jeg er Mette")).toBeInTheDocument();
-    expect(within(li).getByRole("button", { name: "3" })).not.toBeDisabled();
+    expect(within(li).getByRole("button", { name: "3 fandt det nyttigt" })).not.toBeDisabled();
   });
 });
 
@@ -167,7 +185,7 @@ describe("Gæsten i feedet (2/10; Jonas 14/9: læser, skriver ikke)", () => {
   it("gæst: feedet vises, like-knappen er slået fra, grænsen står — ingen fejl, ingen toast", async () => {
     gaestMock.gaest = true;
     const li = await raekke();
-    expect(within(li).getByRole("button", { name: "3" })).toBeDisabled();
+    expect(within(li).getByRole("button", { name: "3 fandt det nyttigt" })).toBeDisabled();
     expect(screen.getByText("Som gæst kan du læse med — opslag, svar og reaktioner er for medlemmer.")).toBeInTheDocument();
     expect(api.saetReaktion).not.toHaveBeenCalled();
     expect(toastMock.error).not.toHaveBeenCalled();
@@ -175,13 +193,13 @@ describe("Gæsten i feedet (2/10; Jonas 14/9: læser, skriver ikke)", () => {
   it("dommen ukendt (null): hverken grænse eller aktiv like — intet blinker frem, før virksomheden er kendt", async () => {
     gaestMock.gaest = null;
     const li = await raekke();
-    expect(within(li).getByRole("button", { name: "3" })).toBeDisabled();
+    expect(within(li).getByRole("button", { name: "3 fandt det nyttigt" })).toBeDisabled();
     expect(screen.queryByText(/Som gæst kan du læse med/)).toBeNull();
   });
   it("ikke gæst: ingen grænse, like virker som før", async () => {
     const li = await raekke();
     expect(screen.queryByText(/Som gæst kan du læse med/)).toBeNull();
-    expect(within(li).getByRole("button", { name: "3" })).not.toBeDisabled();
+    expect(within(li).getByRole("button", { name: "3 fandt det nyttigt" })).not.toBeDisabled();
   });
 });
 
@@ -355,5 +373,51 @@ describe("Community-feedet — rådgivernes «Spørgsmål» øverst (2/10)", () 
     expect(within(sektion).getByText("Dig")).toBeInTheDocument();
     expect(within(sektion).getByRole("link", { name: "Skriv én linje →" })).toHaveAttribute("href", "/settings?fane=profil");
     expect(within(sektion).getByRole("link", { name: "Alle medlemmer" })).toHaveAttribute("href", "/medlemmer");
+  });
+});
+
+/* ── «Mest læst denne uge» (2/10, mockuppen) ── */
+
+describe("Community-feedet — «Mest læst denne uge» på højst én tråd", () => {
+  const to = () => [
+    traad({ id: "t1", titel: "Hej, jeg er Mette" }),
+    traad({ id: "t2", titel: "Hvordan prissætter I service?", kilde_type: null }),
+  ];
+
+  it("mærket står på vinderen — og kun på den", async () => {
+    api.hentFeed.mockResolvedValue(to());
+    api.hentMestLaestUge.mockResolvedValue([{ traad_id: "t2", laesere: 5 }, { traad_id: "t1", laesere: 3 }]);
+    vis();
+    const vinder = (await screen.findByText("Hvordan prissætter I service?")).closest("li")!;
+    expect(await within(vinder).findByText("Mest læst denne uge")).toBeInTheDocument();
+    expect(screen.getAllByText("Mest læst denne uge")).toHaveLength(1);
+  });
+
+  it("under 3 læsere: intet mærke", async () => {
+    api.hentFeed.mockResolvedValue(to());
+    api.hentMestLaestUge.mockResolvedValue([{ traad_id: "t2", laesere: 2 }]);
+    vis();
+    await screen.findByText("Hvordan prissætter I service?");
+    await waitFor(() => expect(api.hentMestLaestUge).toHaveBeenCalled());
+    expect(screen.queryByText("Mest læst denne uge")).toBeNull();
+  });
+
+  it("uafgjort: intet mærke", async () => {
+    api.hentFeed.mockResolvedValue(to());
+    api.hentMestLaestUge.mockResolvedValue([{ traad_id: "t1", laesere: 4 }, { traad_id: "t2", laesere: 4 }]);
+    vis();
+    await screen.findByText("Hvordan prissætter I service?");
+    await waitFor(() => expect(api.hentMestLaestUge).toHaveBeenCalled());
+    expect(screen.queryByText("Mest læst denne uge")).toBeNull();
+  });
+
+  it("en fejl i hentningen: feedet står, intet mærke, ingen toast", async () => {
+    api.hentFeed.mockResolvedValue(to());
+    api.hentMestLaestUge.mockRejectedValue(new Error("boom"));
+    vis();
+    await screen.findByText("Hvordan prissætter I service?");
+    await waitFor(() => expect(api.hentMestLaestUge).toHaveBeenCalled());
+    expect(screen.queryByText("Mest læst denne uge")).toBeNull();
+    expect(toastMock.error).not.toHaveBeenCalled();
   });
 });

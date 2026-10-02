@@ -105,6 +105,28 @@ export async function hentSvar(traadId: string): Promise<CommunitySvar[]> {
   return (rows ?? []).map(normaliserAntalReaktioner);
 }
 
+/** «Mest læst denne uge» (2/10-2026, migration 20261002275000 —
+    community_mest_laest_uge(), SECURITY DEFINER, IKKE KØRT før Jonas'
+    grønne lys). FAIL-SOFT: findes funktionen ikke endnu (42883 fra
+    Postgres, PGRST202 fra PostgREST's skemacache), svares [] — intet
+    mærke, ingen fejl. Enhver ANDEN fejl kastes (Sentry får den af
+    QueryCache.onError); fladen tegner da blot intet mærke — feedet
+    afhænger aldrig af denne hentning. Udvælgelsen er vaelgMestLaest
+    (communityMestLaest.ts). */
+export const MEST_LAEST_MANGLER_KODER = ["42883", "PGRST202"] as const;
+
+export async function hentMestLaestUge(): Promise<{ traad_id: string; laesere: number }[]> {
+  const { data, error } = await (supabase.rpc as any)("community_mest_laest_uge");
+  if (error) {
+    if ((MEST_LAEST_MANGLER_KODER as readonly string[]).includes(String(error.code ?? ""))) return [];
+    throw new Error(error.message);
+  }
+  return ((data ?? []) as { traad_id: string; laesere: unknown }[]).map((r) => ({
+    traad_id: r.traad_id,
+    laesere: Number(r.laesere ?? 0),
+  }));
+}
+
 // ── Skrivning ──────────────────────────────────────────────────────────────
 
 export async function opretTraad(input: {

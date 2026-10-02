@@ -10,6 +10,7 @@ import { TJEKLISTE_QUERY_KEY } from "@/hooks/useOnboardingTjekliste";
 import { cn } from "@/lib/utils";
 import {
   hentFeed,
+  hentMestLaestUge,
   markerSpoergsmaal,
   notificerNaevnelser,
   notificerNytOpslag,
@@ -43,6 +44,7 @@ import { CommunityComposer } from "./CommunityComposer";
 import { CommunityMedlemmer } from "./CommunityMedlemmer";
 import { HvemKanHjaelpe } from "./HvemKanHjaelpe";
 import { LikeKnap } from "./LikeKnap";
+import { MEST_LAEST_MAERKE, vaelgMestLaest } from "@/lib/hjemmebane/communityMestLaest";
 import { SpoergsmaalKort } from "./SpoergsmaalKort";
 import { HbSection } from "../HbSection";
 import { hentetilstand, sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
@@ -156,12 +158,15 @@ const RowSkeleton = () => (
 const TraadRaekke = ({
   traad,
   ubesvaret,
+  mestLaest,
   reagerer,
   onLike,
 }: {
   traad: CommunityTraad;
   /** 2/10: et medlems opslag uden svar — mærket «ubesvaret» i metalinjen (dommen i communitySpoergsmaal.ts). */
   ubesvaret: boolean;
+  /** 2/10: «Mest læst denne uge» — højst én række i feedet (dommen i communityMestLaest.ts). */
+  mestLaest: boolean;
   reagerer: boolean;
   onLike: () => void;
 }) => {
@@ -184,6 +189,7 @@ const TraadRaekke = ({
           <p className="text-sm text-hb-ink-soft">{traad.forfatter_navn ?? "Medlem"}</p>
           {traad.fastgjort && <HbTag>Fastgjort</HbTag>}
           {kilde && <HbTag>{kilde}</HbTag>}
+          {mestLaest && <HbTag data-mest-laest>{MEST_LAEST_MAERKE}</HbTag>}
           {erSkjult && <HbTag>Skjult</HbTag>}
         </div>
         <p className="mt-1 truncate font-editorial text-lg font-medium leading-snug text-hb-ink">
@@ -203,7 +209,8 @@ const TraadRaekke = ({
             ].join(" · ")}
           </span>
           <span aria-hidden>·</span>
-          {/* Tallet er RPC'ens antal_reaktioner; jeg_har_reageret fylder hjertet. */}
+          {/* Tallet er RPC'ens antal_reaktioner, vist som «N fandt det nyttigt»
+              (LikeKnap → nyttigtTekst); jeg_har_reageret fylder hjertet. */}
           <LikeKnap
             antal={traad.antal_reaktioner}
             harReageret={traad.jeg_har_reageret}
@@ -260,6 +267,19 @@ export const CommunityView = () => {
      HvemKanHjaelpe tegner intet uden data). Ikke en import af memberProfile:
      praesentationPladsholder.guard dom 3 (profilen læses aldrig her). */
   const directoryQuery = useNetvaerketsRaekker();
+
+  /* «Mest læst denne uge» (2/10, mockuppen): én SECURITY DEFINER-RPC
+     (migration 20261002275000). Fail-soft hele vejen — hentMestLaestUge
+     svarer [] før migrationen, og en fejl her tegner blot intet mærke;
+     feedet venter aldrig på den. Dommen (vinder, tærskel 3, uafgjort =
+     intet) er vaelgMestLaest — fladen vælger aldrig selv. */
+  const mestLaestQuery = useQuery({
+    queryKey: ["community", "mest-laest-uge"],
+    queryFn: hentMestLaestUge,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+  const mestLaestId = vaelgMestLaest(mestLaestQuery.data);
 
   /* Markeringen (2/10) — begge retninger. Feedet hentes igen; trådsiden
      deler ikke nøglen, men henter selv ved besøg. Fejlen siges som den er
@@ -482,6 +502,7 @@ export const CommunityView = () => {
                 key={traad.id}
                 traad={traad}
                 ubesvaret={erUbesvaret(traad, raadgiverIds)}
+                mestLaest={traad.id === mestLaestId}
                 reagerer={reaktionMutation.isPending || !visComposer(gaest)}
                 onLike={() => reaktionMutation.mutate(traad.id)}
               />
