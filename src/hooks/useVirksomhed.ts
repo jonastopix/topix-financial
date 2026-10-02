@@ -127,8 +127,8 @@ export interface VirksomhedsData {
     address?: string | null;
     industry_code?: string | null;
     cvr_fetched_at?: string | null;
-    /** Ansøgningen som den blev skrevet ved oprettelsen (monday-webhook /
-        import-application): current_situation, goals, help_needed m.fl.
+    /** Ansøgningen som den blev skrevet ved oprettelsen (ansøgningsmotoren /
+        import-application; historisk også monday-webhook, nedlagt 2/10-2026): current_situation, goals, help_needed m.fl.
         Statisk — designets §4 blok 2 vil have den SAMMENFATTET og gemt i
         egen kolonne; den findes ikke endnu, så rå jsonb indtil da. */
     application_context: Json | null;

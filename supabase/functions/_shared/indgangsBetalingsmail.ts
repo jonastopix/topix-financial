@@ -11,14 +11,19 @@
  * intern function-til-function-kald rammer en verify_jwt = true-funktion.
  * Derfor deles LOGIKKEN, og hver kalder bringer sin egen service-role-
  * klient: send-indgangs-betalingsmail (HTTP, Bucket B) til prissætningen
- * og manuelle kald, saet-indgangs-prisniveau (prissætningen) og
+ * og manuelle kald, saet-indgangs-prisniveau (prissætningen),
  * ansøgningsmotoren (_shared/ansoegningMotor.ts) i samme proces ved
- * «underskrevet».
+ * «underskrevet», og aftale-underskrift direkte, når en EKSISTERENDE
+ * virksomhed (aftale_underskrift.company_id) underskriver.
  *
- * KALDERNE i dag: ansøgningsmotoren ved underskrift og prissætningen på en
- * virksomhed der manglede pris (docs/indgangen-design.md §19; Monday-grenen
- * ved «Godkendt» var den første udløser, nedlagt 2/10-2026). Hver giver et
- * company_id og intet andet — motoren afgør.
+ * KALDERNE i dag (målt med grep 2/10-2026): ansøgningsmotoren ved
+ * underskrift (også når aftale-underskrift kalder motoren for en
+ * ansøgning), aftale-underskrift for en eksisterende virksomhed,
+ * saet-indgangs-prisniveau og send-indgangs-betalingsmail — prissætningen
+ * på en virksomhed der manglede pris (docs/indgangen-design.md §19).
+ * Monday-grenen ved «Godkendt» var den første udløser; den er nedlagt
+ * 2/10-2026 (monday-webhook svarer 410). Hver giver et company_id og intet
+ * andet — motoren afgør.
  *
  * IDEMPOTENSEN bæres af betalingsmail_sendt_at (§19): afgoerBetalingsfrist
  * giver klar_til_mail KUN når prisen er sat og stemplet er tomt. Efter
@@ -186,12 +191,13 @@ export async function udloesIndgangsBetalingsmail(
     return { status: 422, body: { error: "ingen_kontakt_email", company_id: companyId } };
   }
 
-  // FORNAVNET tages fra companies.contact_person. Feltet skrives af
-  // monday-webhook ved «Godkendt» (fra Fornavn + Efternavn på
-  // Ansøgninger, 2/9) — før det (målt 2/9) skrev ingen det, og
-  // virksomheder oprettet ad andre veje (import-application) har det
-  // stadig tomt. tiltale() i indgangsMail.ts håndterer det tomme felt —
-  // aldrig «Kære ,».
+  // FORNAVNET tages fra companies.contact_person. Feltet skrives i dag af
+  // byggVirksomhedsRaekke (contact_person: bygKontaktperson(contact_name))
+  // for begge veje ind — ansøgningsmotoren og import-application
+  // (contactPerson.guard). Historie: før 2/9 skrev ingen det; 2/9–2/10
+  // skrev den nu nedlagte monday-webhook det ved «Godkendt». Ældre
+  // virksomheder kan stadig have det tomt — tiltale() i indgangsMail.ts
+  // håndterer det tomme felt — aldrig «Kære ,».
   const fornavn = fornavnAf(company.contact_person);
 
   // Fristen er kontraktens: fra underskriften, ikke fra denne mail

@@ -30,7 +30,8 @@
  *   - Fejler insert'en, KASTES der med en dansk fejltekst der bærer navn
  *     og CVR (samme mønster som companyHardDelete og agentSkriveveje).
  *     Kalderen oversætter til sit eget svar — import-application til 500,
- *     monday-webhook til sit.
+ *     ansøgningsmotoren til sin konvertering (historie: den nu nedlagte
+ *     monday-webhook, 410 siden 2/10-2026, oversatte til sit).
  *
  * HJÆLPEREN SÆTTER ALDRIG KONTRAKTDATOER. contract_start_date og
  * contract_end_date findes hverken i VirksomhedsInput eller i rækken,

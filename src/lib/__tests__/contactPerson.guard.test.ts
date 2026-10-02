@@ -5,13 +5,20 @@
  * MÅLT: byggVirksomhedsRaekke skrev aldrig contact_person; navnet landede i
  * application_context.contact_name, og 35 af 39 virksomheder stod med
  * kolonnens DEFAULT ''. Bevist 14/9: den daværende Monday-vej satte feltet
- * (en separat opdatering efter rækken), import-vejen gjorde ikke. Nu bærer
- * rækken feltet, og hver kalder sender contact_name ind til rækkebyggeren.
+ * (en separat opdatering efter rækken), import-vejen gjorde ikke. Siden da
+ * bærer rækken feltet, og hver kalder sender contact_name ind til
+ * rækkebyggeren.
  *
  * 2/10-2026: Monday-vejen er nedlagt (monday-webhook svarer 410,
  * mondayAnsoegning.ts er slettet — mondayVaek.guard). Dommene om den er
  * taget ud; bygKontaktperson (delt navn → ét) lever videre i
  * virksomhedsraekke.ts og prøves i virksomhedsraekke.test.ts.
+ *
+ * Vejene ind i dag, og hver har sin dom herunder: import-vejen
+ * (import-application, body.contact_name) og ansøgningsmotoren
+ * (_shared/ansoegningMotor.ts, konverterTilVirksomhed: a.navn) — begge
+ * giver contact_name til opretEllerGenbrugVirksomhed, som bygger rækken
+ * med byggVirksomhedsRaekke.
  *
  * Kildelæsning for functions (de importerer npm:/esm.sh-moduler).
  */
@@ -33,11 +40,20 @@ describe("contactPerson.guard — rækkebyggeren bærer feltet i begge kopier", 
   }
 });
 
-describe("contactPerson.guard — import-vejen (samlet navn) sender contact_name ind", () => {
+describe("contactPerson.guard — import-vejen og ansøgningsmotoren sender contact_name ind", () => {
   it("import-application giver body.contact_name til opretEllerGenbrugVirksomhed", () => {
     const kode = udenKommentarer(laes("supabase/functions/import-application/index.ts"));
     expect(kode).toContain("contact_name: body.contact_name,");
     expect(kode).toContain("oprettet = await opretEllerGenbrugVirksomhed({");
+  });
+
+  it("ansøgningsmotoren giver a.navn som contact_name til opretEllerGenbrugVirksomhed", () => {
+    const kode = udenKommentarer(laes("supabase/functions/_shared/ansoegningMotor.ts"));
+    const start = kode.indexOf("await opretEllerGenbrugVirksomhed(");
+    expect(start).toBeGreaterThan(-1);
+    // Argumentobjektet: fra kaldet til den lukkende «},» før admin-klienten.
+    const kald = kode.slice(start, kode.indexOf("admin,", start));
+    expect(kald).toContain("contact_name: a.navn,");
   });
 
   it("virksomhedsOprettelse indsætter rækken fra byggVirksomhedsRaekke uden at pille felter af", () => {

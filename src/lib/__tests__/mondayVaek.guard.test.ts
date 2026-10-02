@@ -11,7 +11,7 @@ import { join, resolve } from "node:path";
 //      ingen env, ingen service-role, ingen database, ingen fetch. Det er
 //      grunden til, at den må stå uden auth-prædikat (CI-værnet springer
 //      den over som «skip-no-sr») — og den grund må ikke forsvinde stille.
-//   2. Ingen function kalder Monday's API eller læser en Monday-secret.
+//   2. Ingen function kalder Monday's API eller læser en MONDAY_*-secret.
 //   3. De Monday-specifikke delte filer er væk, og ingen importerer dem.
 //   4. CI-værnets prædikatliste bærer ikke et prædikat, ingen fil kan
 //      opfylde (verifyMondayJwt).
@@ -21,8 +21,12 @@ import { join, resolve } from "node:path";
 
 const ROD = process.cwd();
 const laes = (sti: string) => readFileSync(resolve(ROD, sti), "utf8");
+// Linjekommentarer skæres KUN, når `//` ikke står efter `:` — ellers skar
+// den `https://api.monday.com/v2` væk (rådets fund 2/10: en fetch mod
+// Monday i en streng ville have sluppet igennem dom 5). Selvtesten nederst
+// i værnet beviser, at et rigtigt kald fanges.
 const udenKommentarer = (k: string) =>
-  k.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, "")).replace(/\/\/[^\n]*/g, "");
+  k.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, "")).replace(/(^|[^:])\/\/[^\n]*/gm, "$1");
 
 const WEBHOOK = "supabase/functions/monday-webhook/index.ts";
 
@@ -80,8 +84,8 @@ describe("mondayVaek.guard — ingen function kalder Monday, ingen læser en Mon
     expect(ramt).toEqual([]);
   });
 
-  it("MONDAY_API_TOKEN, MONDAY_SIGNING_SECRET og MONDAY_WEBHOOK_SECRET læses ingen steder", () => {
-    const ramt = functions.filter((f) => /MONDAY_(API_TOKEN|SIGNING_SECRET|WEBHOOK_SECRET)/.test(udenKommentarer(laes(f))));
+  it("ingen MONDAY_*-secret (MONDAY_API_TOKEN, MONDAY_SIGNING_SECRET, MONDAY_WEBHOOK_SECRET eller en ny) læses nogen steder", () => {
+    const ramt = functions.filter((f) => /MONDAY_[A-Z_]+/.test(udenKommentarer(laes(f))));
     expect(ramt).toEqual([]);
   });
 });
@@ -115,5 +119,24 @@ describe("mondayVaek.guard — CI-værnet og config.toml", () => {
   it("config.toml holder monday-webhook nåbar (verify_jwt = false), så 410-beviset kan måles", () => {
     const toml = laes("supabase/config.toml");
     expect(toml).toMatch(/\[functions\.monday-webhook\]\s*\n\s*verify_jwt = false/);
+  });
+});
+
+describe("mondayVaek.guard — selvtest: kommentar-skæreren skærer ikke URL'er", () => {
+  it("fetch(\"https://api.monday.com/v2\") fanges, også med en kommentar bagefter", () => {
+    const kode = 'await fetch("https://api.monday.com/v2", { method: "POST" }); // hent item\n';
+    const renset = udenKommentarer(kode);
+    expect(renset).toMatch(/api\.monday\.com/);
+    expect(renset).not.toMatch(/hent item/);
+  });
+
+  it("en ren linjekommentar og en blokkommentar skæres stadig væk", () => {
+    expect(udenKommentarer("// api.monday.com\nconst x = 1;")).not.toMatch(/api\.monday\.com/);
+    expect(udenKommentarer("/* api.monday.com */ const x = 1;")).not.toMatch(/api\.monday\.com/);
+    expect(udenKommentarer("const x = 1; // MONDAY_API_TOKEN")).not.toMatch(/MONDAY_/);
+  });
+
+  it("secret-dommen fanger også en ny MONDAY_-secret", () => {
+    expect(/MONDAY_[A-Z_]+/.test(udenKommentarer('Deno.env.get("MONDAY_BOARD_ID")'))).toBe(true);
   });
 });

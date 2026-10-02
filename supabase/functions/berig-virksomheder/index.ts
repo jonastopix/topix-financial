@@ -74,8 +74,8 @@ const PAUSE_MS = 500;
 /**
  * Loft pr. kørsel. Regnestykket (16/9): DataCVR's gratis plan har 25 opslag
  * pr. dag pr. nøgle, og nøglen deles med importen (import-application) og
- * Monday-vejen (monday-webhook) samme døgn — hvert nyt CVR koster ét
- * opslag. 25 − 20 = 5 opslag tilbage til dagens nye virksomheder.
+ * ansøgningsmotoren samme døgn — hvert nyt CVR koster ét opslag (16/9
+ * stod her Monday-vejen, monday-webhook — nedlagt 2/10-2026). 25 − 20 = 5 opslag tilbage til dagens nye virksomheder.
  */
 const MAKS_OPSLAG = 20;
 
