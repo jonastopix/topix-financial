@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Check, Loader2, CheckCircle2, RotateCcw, Eye, Target, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -43,14 +43,19 @@ interface HbHandoutDetailProps {
   onModuleSelect?: (module: HandoutModule) => void;
   /** Handouts i Akademiet (1/10-2026 nat): medlemmet kom fra Akademiet —
       eyebrow'en er «Øvelse», og «Tilbage» er et link til den lektion, der
-      bærer modulet (oevelseTilbage: den første, ellers /akademiet), ikke
-      onBack til en liste, som medlemmet ikke har længere. «Næste modul»
-      vises ikke (listen er rådgiverens og legatets). */
+      bærer modulet (oevelseTilbage: afsenderen `fra`, ellers den første,
+      ellers /akademiet), ikke onBack til en liste, som medlemmet ikke har
+      længere. «Næste modul» vises ikke (listen er rådgiverens, legatets og
+      abonnentens). */
   tilbageTilAkademiet?: boolean;
+  /** Afsenderen fra URL'en (`fra=<area>/<slug>`) — valideres i
+      oevelseTilbage mod modulets lektioner; aldrig en fri URL. */
+  fra?: string | null;
 }
 
-export const HbHandoutDetail = ({ config, onBack, userId, onModuleSelect, tilbageTilAkademiet = false }: HbHandoutDetailProps) => {
+export const HbHandoutDetail = ({ config, onBack, userId, onModuleSelect, tilbageTilAkademiet = false, fra = null }: HbHandoutDetailProps) => {
   const { user, companyId, companyName } = useAuth();
+  const queryClient = useQueryClient();
   const [industry, setIndustry] = useState<string | null>(null);
   const effectiveUserId = userId || user?.id;
   const isOwner = !userId || userId === user?.id;
@@ -83,7 +88,18 @@ export const HbHandoutDetail = ({ config, onBack, userId, onModuleSelect, tilbag
     config.module,
   );
   const hoererTil = hoererTilTekst(lektioner.length);
-  const tilbage = tilbageTilAkademiet ? oevelseTilbage(lektioner) : null;
+  const tilbage = tilbageTilAkademiet ? oevelseTilbage(lektioner, fra) : null;
+  // Mens kataloget hentes, er lektionen ukendt: linket peger på Akademiet
+  // uden tekst (kun pilen), så «Akademiet» ikke blinker før lektionens navn
+  // (rådets fund 9, 2/10).
+  const tilbageTekstKlar = !lektionerQuery.isPending;
+
+  // Øvelsens kort (OevelseKort) læser status fra ["akademi","handout",modul]
+  // — efter gem og «Markér udfyldt» friskes den, så kortet viser det nye
+  // (rådets fund 7, 2/10).
+  const friskOevelseKort = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ["akademi", "handout", config.module] });
+  }, [queryClient, config.module]);
 
   // Load handout data (H1a + H1b i motoren)
   const loadData = useCallback(async () => {
@@ -141,12 +157,15 @@ export const HbHandoutDetail = ({ config, onBack, userId, onModuleSelect, tilbag
     });
     if (!result.skipped) {
       if (result.error) { toast.error("Fejl ved gem", { description: result.error.message }); }
-      else if (!handoutId && result.handoutId) { setHandoutId(result.handoutId); }
+      else {
+        if (!handoutId && result.handoutId) { setHandoutId(result.handoutId); }
+        friskOevelseKort();
+      }
     }
 
     setSaveStatus("saved");
     setTimeout(() => setSaveStatus("idle"), 2000);
-  }, [effectiveUserId, isOwner, config.module, handoutId]);
+  }, [effectiveUserId, isOwner, config.module, handoutId, friskOevelseKort]);
 
   const debounceSave = useCallback((r: Record<string, string>, c: Record<string, boolean>, l: string[]) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -184,6 +203,7 @@ export const HbHandoutDetail = ({ config, onBack, userId, onModuleSelect, tilbag
       toast.error("Fejl", { description: result.error.message });
     } else {
       setHandoutStatus(result.newStatus);
+      friskOevelseKort();
       toast.success(result.newStatus === "completed" ? "Handout markeret som udfyldt ✓" : "Handout genåbnet");
     }
   };
@@ -208,9 +228,10 @@ export const HbHandoutDetail = ({ config, onBack, userId, onModuleSelect, tilbag
           {tilbage ? (
             <Link
               to={tilbage.to}
+              aria-label="Tilbage"
               className="mb-3 inline-flex items-center gap-1.5 text-sm text-hb-ink-soft transition-colors hover:text-hb-ink"
             >
-              <ArrowLeft className="h-4 w-4" /> {tilbage.label}
+              <ArrowLeft className="h-4 w-4" /> {tilbageTekstKlar ? tilbage.label : ""}
             </Link>
           ) : (
             <button

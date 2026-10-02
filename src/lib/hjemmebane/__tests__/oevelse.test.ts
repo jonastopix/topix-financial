@@ -4,10 +4,12 @@ import {
   RETNING_MODUL,
   RETNING_STI,
   erOevelse,
+  modulFraParam,
   oevelseDom,
   oevelseLektionSti,
   oevelseSti,
   oevelseTilbage,
+  oevelseUlaastISamling,
   oevelserForSamling,
 } from "@/lib/hjemmebane/oevelse";
 
@@ -35,6 +37,18 @@ describe("erOevelse", () => {
 describe("oevelseSti", () => {
   it("er den eksisterende editor-rute med modulet som query (Akademi-broens kontrakt)", () => {
     expect(oevelseSti("salg")).toBe("/handouts?module=salg");
+    expect(oevelseSti("salg", null)).toBe("/handouts?module=salg");
+  });
+  it("bærer afsenderen som fra=<area>/<slug> (URL-kodet), så «Tilbage» kan føre til lektionen, medlemmet kom fra", () => {
+    expect(oevelseSti("salg", { area: "classroom", slug: "salg-2" })).toBe("/handouts?module=salg&fra=classroom%2Fsalg-2");
+  });
+});
+
+describe("modulFraParam", () => {
+  it("kun et kendt modul — også overordnet (HandoutsView sender det til Dine mål); alt andet er null", () => {
+    expect(modulFraParam("salg")).toBe("salg");
+    expect(modulFraParam("overordnet")).toBe("overordnet");
+    for (const p of [null, undefined, "", "ukendt", "toString", "/handouts"]) expect(modulFraParam(p)).toBeNull();
   });
 });
 
@@ -86,11 +100,36 @@ describe("oevelserForSamling", () => {
   });
 });
 
+describe("oevelseUlaastISamling", () => {
+  const el = (handout_module: string | null, unlocked: boolean) => ({ item: { handout_module }, drip: { unlocked } });
+  it("ulåst, når en lektion MED modulet er ulåst — en ulåst lektion med et andet modul låser ikke op (rådets fund 5)", () => {
+    const entries = [el("bogholderi", true), el("salg", false), el(null, true)];
+    expect(oevelseUlaastISamling(entries, "bogholderi")).toBe(true);
+    expect(oevelseUlaastISamling(entries, "salg")).toBe(false);
+    expect(oevelseUlaastISamling(entries, "marketing")).toBe(false);
+    expect(oevelseUlaastISamling([el("salg", false), el("salg", true)], "salg")).toBe(true);
+    expect(oevelseUlaastISamling([], "salg")).toBe(false);
+  });
+});
+
 describe("oevelseTilbage", () => {
+  const to = [{ area: "classroom", slug: "salg-1", title: "Salg 1" }, { area: "classroom", slug: "salg-2", title: "Salg 2" }];
   it("den første lektion, der bærer modulet — ellers Akademiet; aldrig /handouts", () => {
-    expect(oevelseTilbage([{ area: "classroom", slug: "salg-1", title: "Salg 1" }, { area: "classroom", slug: "salg-2", title: "Salg 2" }]))
-      .toEqual({ to: "/akademiet/classroom/salg-1", label: "Salg 1" });
+    expect(oevelseTilbage(to)).toEqual({ to: "/akademiet/classroom/salg-1", label: "Salg 1" });
     expect(oevelseTilbage([])).toEqual({ to: "/akademiet", label: "Akademiet" });
+  });
+  it("afsenderen (fra) vinder, når den står blandt modulets lektioner — ellers den første (aldrig en fri URL)", () => {
+    expect(oevelseTilbage(to, "classroom/salg-2")).toEqual({ to: "/akademiet/classroom/salg-2", label: "Salg 2" });
+    expect(oevelseTilbage(to, "classroom/salg-1")).toEqual({ to: "/akademiet/classroom/salg-1", label: "Salg 1" });
+    for (const fra of [null, undefined, "", "classroom/ukendt", "academy/salg-2", "https://evil.example/x", "/akademiet/classroom/salg-2", "../salg-2"]) {
+      expect(oevelseTilbage(to, fra)).toEqual({ to: "/akademiet/classroom/salg-1", label: "Salg 1" });
+    }
+  });
+  it("lektioner i områder uden Akademi-side (AREAS.akademi = false) er aldrig et mål (rådets fund 10)", () => {
+    const blandet = [{ area: "talks", slug: "t", title: "T" }, { area: "quick_wins", slug: "q", title: "Q" }, { area: "academy", slug: "a", title: "A" }];
+    expect(oevelseTilbage(blandet)).toEqual({ to: "/akademiet/academy/a", label: "A" });
+    expect(oevelseTilbage(blandet, "talks/t")).toEqual({ to: "/akademiet/academy/a", label: "A" });
+    expect(oevelseTilbage([{ area: "talks", slug: "t", title: "T" }])).toEqual({ to: "/akademiet", label: "Akademiet" });
   });
 });
 
@@ -103,5 +142,9 @@ describe("oevelseLektionSti", () => {
     expect(oevelseLektionSti(katalog, "salg")).toBe("/akademiet/classroom/a");
     expect(oevelseLektionSti(katalog, "bogholderi")).toBe("/akademiet");
     expect(oevelseLektionSti([], "salg")).toBe("/akademiet");
+  });
+  it("et område uden Akademi-side springes over (fund 10)", () => {
+    const katalog = [{ ...lektion("t", "salg", "published", 0), area: "talks" }, lektion("a", "salg", "published", 1)];
+    expect(oevelseLektionSti(katalog, "salg")).toBe("/akademiet/classroom/a");
   });
 });

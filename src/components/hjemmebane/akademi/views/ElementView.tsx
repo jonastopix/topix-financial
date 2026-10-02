@@ -240,9 +240,10 @@ export const ElementView = ({ areaKey, slug }: { areaKey: string; slug: string }
 
         {/* Øvelsen (handouts i Akademiet, 1/10-2026 nat): handoutet er
             lektionens øvelse, og overordnet henviser til Dine mål —
-            OevelseKort/lib/hjemmebane/oevelse.ts. */}
+            OevelseKort/lib/hjemmebane/oevelse.ts. `fra` er denne lektion,
+            så «Tilbage» i editoren fører hertil (rådets fund 4, 2/10). */}
         {item.handout_module && (
-          <OevelseKort module={item.handout_module} unlocked={drip.unlocked} />
+          <OevelseKort module={item.handout_module} unlocked={drip.unlocked} fra={{ area: areaKey, slug }} />
         )}
 
         <MaterialsSection itemId={item.id} unlocked={drip.unlocked} />

@@ -307,7 +307,8 @@ export function byggTjekliste(input: TjeklisteInput, nu: Date = new Date()): Tje
 
   // HANDOUT — udfyldt, ikke startet. En påbegyndt række (in_progress)
   // findes så snart et enkelt felt er gemt; «Markér udfyldt» er den
-  // handling der tæller.
+  // handling der tæller. Tællingen (useOnboardingTjekliste) udelader
+  // overordnet (2/10): det er retningen i Dine mål, ikke en øvelse.
   const handoutGjort = input.antal_udfyldte_handouts > 0;
 
   // BESKED — triggeren sætter stemplet kun for beskeder fra ikke-

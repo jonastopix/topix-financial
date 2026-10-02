@@ -23,7 +23,14 @@
 
 import { handoutConfigs, moduleOrder, type HandoutConfig, type HandoutModule } from "@/lib/handoutConfig";
 import { calcHandoutProgress } from "@/lib/handoutUtils";
+import { AREAS } from "@/lib/hjemmebane/adminContentApi";
 import { lektionerForModul, lektionsSti, type LektionRaekke } from "@/lib/hjemmebane/lektionerForModul";
+
+/** Områderne, der HAR en side i Akademiet (AREAS.akademi) — kun de kan være
+    et «Tilbage»-mål. Et modul kan bæres af en lektion i et område uden
+    flade (talks, quick_wins …), og et link derhen ville ende i 404 /
+    gaten i ElementView (rådets fund 10, 2/10). */
+const AKADEMI_OMRAADER: ReadonlySet<string> = new Set(AREAS.filter((a) => a.akademi).map((a) => a.key));
 
 /** Modulet, der er flyttet til Dine mål — aldrig en øvelse i Akademiet. */
 export const RETNING_MODUL: HandoutModule = "overordnet";
@@ -38,6 +45,11 @@ export const RETNING_TEKST = {
 
 /** Ordene på en øvelse — ét sted, så begge flader (lektion og samling) siger det samme. */
 export const OEVELSE_EYEBROW = "Øvelse";
+/** En dryp-låst øvelse: kort uden knap og uden status (rådets fund 5, 2/10). */
+export const OEVELSE_LAAST_TEKST = "Låses op med lektionen";
+/** Knappen, før medlemmets egen række er hentet (hverken «Lav øvelsen» eller
+    «Se dine svar» er sandt endnu — en udfyldt øvelse må ikke se ustartet ud). */
+export const OEVELSE_KNAP_UAFGJORT = "Åbn øvelsen";
 
 /** Et modul er en øvelse, når det er et kendt handout-modul og ikke retningen. */
 export function erOevelse(modul: string | null | undefined): modul is HandoutModule {
@@ -45,11 +57,34 @@ export function erOevelse(modul: string | null | undefined): modul is HandoutMod
   return modul !== RETNING_MODUL && Object.prototype.hasOwnProperty.call(handoutConfigs, modul);
 }
 
+/** Afsenderen: den lektion, medlemmet kom fra — bæres i URL'en som
+    `fra=<area>/<slug>` og VALIDERES mod kataloget i oevelseTilbage (aldrig
+    en fri URL; rådets fund 4, 2/10). */
+export interface OevelseAfsender {
+  area: string;
+  slug: string;
+}
+
+export function afsenderNoegle(fra: OevelseAfsender): string {
+  return `${fra.area}/${fra.slug}`;
+}
+
 /** Vejen ind i udfyldningen — den eksisterende editor på /handouts?module=<m>
     (HandoutsView åbner detaljen direkte og sender medlemmet tilbage til
-    lektionen; se oevelseTilbage). */
-export function oevelseSti(modul: HandoutModule): string {
-  return `/handouts?module=${modul}`;
+    lektionen; se oevelseTilbage). Med afsender: `&fra=<area>/<slug>`, så
+    «Tilbage» fører til den lektion, medlemmet kom fra (samlingen giver
+    ingen — der falder tilbage-linket på den første lektion). Parametret
+    overlever reload og bogmærke: HandoutsView rydder det ikke for medlemmet. */
+export function oevelseSti(modul: HandoutModule, fra?: OevelseAfsender | null): string {
+  const sti = `/handouts?module=${modul}`;
+  return fra ? `${sti}&fra=${encodeURIComponent(afsenderNoegle(fra))}` : sti;
+}
+
+/** `?module=` som modul: kun et kendt handout-modul — alt andet er null
+    (medlemmet uden gyldigt modul sendes til Akademiet). */
+export function modulFraParam(param: string | null | undefined): HandoutModule | null {
+  if (!param) return null;
+  return (moduleOrder as readonly string[]).includes(param) ? (param as HandoutModule) : null;
 }
 
 export type OevelseTilstand = "ikke_startet" | "i_gang" | "udfyldt";
@@ -100,14 +135,32 @@ export function oevelserForSamling(
   return moduleOrder.filter((m) => set.has(m));
 }
 
+/** Om en samlings øvelse er låst op: ulåst, hvis BARE ÉN lektion i
+    samlingen, der bærer modulet, er dryp-ulåst — ikke om nogen lektion i
+    samlingen er det (rådets fund 5: en samling med én ulåst lektion låste
+    før alle sine øvelser op). */
+export function oevelseUlaastISamling(
+  elementer: readonly { item: { handout_module: string | null }; drip: { unlocked: boolean } }[],
+  modul: HandoutModule,
+): boolean {
+  return elementer.some((e) => e.item.handout_module === modul && e.drip.unlocked);
+}
+
 /** Hvor «Tilbage» fører hen fra udfyldningen, når medlemmet kom fra
-    Akademiet: den første lektion, der bærer modulet (forløbsrækkefølge,
-    lektionerForModul) — ellers Akademiets forside. Aldrig /handouts. */
+    Akademiet: den lektion, afsenderen (`fra`) peger på, HVIS den står blandt
+    modulets lektioner i et Akademi-område (valideret — aldrig en fri URL);
+    ellers den første lektion, der bærer modulet (forløbsrækkefølge,
+    lektionerForModul) — ellers Akademiets forside. Aldrig /handouts.
+    Lektioner i områder uden Akademi-side (AREAS.akademi = false) tæller
+    ikke — de har ingen flade at vende tilbage til. */
 export function oevelseTilbage(
   lektioner: readonly Pick<LektionRaekke, "area" | "slug" | "title">[],
+  fra?: string | null,
 ): { to: string; label: string } {
-  const foerste = lektioner[0];
-  if (foerste) return { to: lektionsSti(foerste), label: foerste.title };
+  const iAkademiet = lektioner.filter((l) => AKADEMI_OMRAADER.has(l.area));
+  const afsender = fra ? iAkademiet.find((l) => afsenderNoegle(l) === fra) : undefined;
+  const maal = afsender ?? iAkademiet[0];
+  if (maal) return { to: lektionsSti(maal), label: maal.title };
   return { to: "/akademiet", label: "Akademiet" };
 }
 

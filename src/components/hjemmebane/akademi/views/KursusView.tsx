@@ -5,7 +5,7 @@ import { HbItemRow } from "../HbItemRow";
 import { HbProgressBar } from "../HbProgressBar";
 import { progressSummary, useAkademiData } from "../useAkademiData";
 import { sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
-import { oevelserForSamling } from "@/lib/hjemmebane/oevelse";
+import { oevelseUlaastISamling, oevelserForSamling } from "@/lib/hjemmebane/oevelse";
 import { OevelseKort } from "../OevelseKort";
 
 /** Kursussiden (/akademiet/{area}/{collection-slug}) — samlingen som
@@ -81,8 +81,10 @@ export const KursusView = ({ areaKey, slug }: { areaKey: string; slug: string })
   // handout-moduler, samlingens lektioner bærer — Fundamentets Bogholderi,
   // Administration, Salg og Marketing bærer hver sit. Kortet står under
   // listen, så lektionerne kommer først; overordnet udelades i dommen.
+  // Låsen regnes PR. MODUL (rådets fund 5, 2/10): ulåst, hvis en lektion,
+  // der bærer modulet, er dryp-ulåst — ikke hvis nogen lektion i samlingen
+  // er det. Ingen afsender: «Tilbage» falder på modulets første lektion.
   const oevelser = oevelserForSamling(entries);
-  const samlingUlaast = entries.some((entry) => entry.drip.unlocked);
 
   return (
     <div>
@@ -134,7 +136,7 @@ export const KursusView = ({ areaKey, slug }: { areaKey: string; slug: string })
       {oevelser.length > 0 && (
         <div className="max-w-3xl">
           {oevelser.map((modul) => (
-            <OevelseKort key={modul} module={modul} unlocked={samlingUlaast} />
+            <OevelseKort key={modul} module={modul} unlocked={oevelseUlaastISamling(entries, modul)} />
           ))}
         </div>
       )}
