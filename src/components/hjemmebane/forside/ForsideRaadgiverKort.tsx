@@ -8,7 +8,7 @@ import { sendeUdfald } from "@/lib/chatSendefejl";
 import { notifyChatMessage } from "@/lib/chatNotify";
 import { MAX_MESSAGE_LENGTH } from "@/lib/chatShared";
 import {
-  beskedLinje, beskedTid, kortetsContent, RAADGIVER_KORT, raadgiverAdresse, raadgiverFornavn, sendtKvittering, skrivTilPladsholder,
+  beskedLinje, beskedTid, kortetsContent, RAADGIVER_KORT, raadgiverAdresse, raadgiverFornavn, sendtKvittering,
 } from "@/lib/hjemmebane/raadgiverKort";
 import { laesChatVideo } from "@/lib/chatVideo";
 import { cn } from "@/lib/utils";
@@ -138,7 +138,7 @@ export const ForsideRaadgiverKort = ({ className = "mt-10 md:mt-12" }: { classNa
                         if (sendt) setSendt(false);
                       }}
                       disabled={sender}
-                      placeholder={skrivTilPladsholder(raadgiverNavne)}
+                      placeholder={RAADGIVER_KORT.pladsholder}
                       aria-label={RAADGIVER_KORT.feltLabel}
                       className="h-10 min-w-0 flex-1 rounded-full border border-hb-line bg-hb-surface px-4 text-sm text-hb-ink placeholder:text-hb-ink-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hb-evergreen disabled:opacity-60"
                     />

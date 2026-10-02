@@ -31,6 +31,7 @@
  *   kurven). loefterMest = størst gevinst; ved lige: disciplin, likviditet,
  *   indtjening, vækst (adfærd før tal).
  */
+import { kortDato } from "@/lib/hjemmebane/forsideDato";
 import { kbhDato, kbhDele, kbhTilUtc, laegMaanederTilDato } from "@/lib/hverdage";
 import { maanedsnavn } from "@/lib/maanedsnoegle";
 import { MAX_AKTIVE_MAAL } from "@/lib/hjemmebane/maal";
@@ -72,8 +73,10 @@ export function krTekst(v: number): string {
 }
 
 /** «12/10» af en «YYYY-MM-DD». */
+/** Fristen i forsidens ENE datoformat (docs/forside-v3.md §0; UX-rådet 2/10: «senest 20/10» brød det):
+    «tirs. 20. okt.». Året vises ikke — fristen ligger altid i den kommende måned. */
 function datoTekst(dato: string): string {
-  return `${Number(dato.slice(8, 10))}/${Number(dato.slice(5, 7))}`;
+  return kortDato(dato, new Date(`${dato}T12:00:00Z`));
 }
 
 /** Samme klokkeslæt én måned tilbage, dansk tid. */

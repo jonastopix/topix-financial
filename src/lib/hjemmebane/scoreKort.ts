@@ -53,9 +53,9 @@ function enDecimal(v: number): string {
   return (Math.round(v * 10) / 10).toFixed(1).replace(".", ",").replace(/,0$/, "");
 }
 
-/** «12/10» af en «YYYY-MM-DD». */
+/** «tirs. 20. okt.» af en «YYYY-MM-DD» — forsidens ene datoformat (UX-rådet 2/10; før «20/10»). */
 function datoKort(dato: string): string {
-  return `${Number(dato.slice(8, 10))}/${Number(dato.slice(5, 7))}`;
+  return kortDato(dato, new Date(`${dato}T12:00:00Z`));
 }
 
 const maaned = (key: string): string => maanedsnavn(key) ?? key;
@@ -155,7 +155,7 @@ export function streakLinjer(streak: StreakDom): StreakLinjer {
   const enhed = streak.laengde === 1 ? "måned i træk" : "måneder i træk";
   const status =
     streak.status === "aktiv"
-      ? "Dine tal er godkendt til tiden"
+      ? "Den seneste frist blev holdt"
       : streak.status === "brudt"
         ? "Streaken er brudt — næste frist starter en ny"
         : STREAK_INGEN_TEKST;
@@ -307,6 +307,9 @@ export function streakForsideLinje(streak: StreakDom, nu: Date): string {
  * størrelse (TROFAEER.length), aldrig hårdkodet. Henter (undefined), fejl eller
  * en tom liste → null (ingen linje; fail-soft som TrofaeKort).
  */
+/** Knappens anden halvdel på forsiden: «4 af 8 trofæer · Se dem» åbner detaljerne og ruller til trofæerne. */
+export const TROFAE_SE_DEM = "Se dem";
+
 export function trofaeLinje(trofaeer: readonly TrofaeDom[] | undefined, fejl: boolean): string | null {
   if (fejl || !trofaeer || trofaeer.length === 0) return null;
   return `${antalOpnaaet(trofaeer)} af ${TROFAEER.length} trofæer`;

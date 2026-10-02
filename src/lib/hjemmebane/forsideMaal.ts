@@ -85,6 +85,8 @@ export const FORSIDE_MAAL_ORD = {
   jeresSkridt: "Jeres skridt",
   /** Forside v3 (mockup v3): mikro-overskriften over et måls skridt, og spørgsmålet, når alle er gjort. */
   skridt: "Skridt",
+  /** «Din plan»s link (mockup v3, UX-rådet 2/10: før «Se hele planen»). */
+  dineMaalLink: "Dine mål",
   erIMaal: "Er I i mål?",
   alleGjortKort: "Alle skridt er gjort",
   tilfoejPaaDineMaal: "Tilføj det på Dine mål",

@@ -36,6 +36,7 @@ import {
   TAEL_OP_MS,
   taelOpVaerdi,
   trofaeLinje,
+  TROFAE_SE_DEM,
   type LoefterLinje,
   type SoejleLinje,
 } from "@/lib/hjemmebane/scoreKort";
@@ -556,7 +557,27 @@ function ScoreKortForside({ dom, loefter: linjer, vist, bevaegelse, aaben, onSki
         {trofaeTekst && (
           <li className="flex items-center gap-2 text-hb-ink-soft" data-score-trofaeer-antal>
             <Trophy className="h-4 w-4 shrink-0" aria-hidden />
-            {trofaeTekst}
+            {/* Jonas 2/10 23:39: «Man har vel reelt ikke mulighed for at se hvilke trofæer man har og hvilke man
+                mangler nu?» — de stod kun bag «Se hvad der tæller». Linjen ÅBNER nu detaljerne og ruller til
+                trofæerne (samme fold, samme TrofaeKort — intet nyt sted). */}
+            <button
+              type="button"
+              onClick={() => {
+                if (!aaben) onSkift();
+                // Efter folden er tegnet: rul til trofæerne (respekterer reduceret bevægelse).
+                window.requestAnimationFrame(() => {
+                  const maal = document.getElementById(detaljerId)?.querySelector("[data-trofaeer]");
+                  const roligt = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+                  maal?.scrollIntoView({ block: "start", behavior: roligt ? "auto" : "smooth" });
+                });
+              }}
+              aria-expanded={aaben}
+              aria-controls={detaljerId}
+              className={cn("inline-flex min-h-6 items-center gap-1 text-left underline-offset-4 hover:text-hb-ink hover:underline", fokus)}
+              data-score-trofaeer-knap
+            >
+              {trofaeTekst} <span className="text-hb-evergreen">· {TROFAE_SE_DEM}</span>
+            </button>
           </li>
         )}
         {cert &&
