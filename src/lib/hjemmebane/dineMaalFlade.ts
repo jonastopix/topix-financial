@@ -177,8 +177,36 @@ export const KORT_ORD = {
  *     to cifre): «1.5» → 1,5 · «1.25» → 1,25. «1.500» er altså ALTID 1500 —
  *     skriv «1,5» for halvanden.
  *   - alt andet («abc», «1,5,5», «1.50,5», «1.», «.5») → null.
+ *
+ * Rådets runde 2 (fund 6): kendte SUFFIKSER bagest fjernes — «kr.», «kr», «%»,
+ * «mdr.», «mdr» ignoreres; «mio.»/«mio» ganger med 1.000.000, men KUN når
+ * tallet foran er entydigt: uden punktum («2 mio.», «1,5 mio. kr.»). «1.500 mio.»
+ * og «1.5 mio.» afvises — punktummet er tusindtal ELLER decimal, og med en
+ * million-faktor er fejlen tusind gange større end ellers. Unicode-minus «−»
+ * (U+2212) læses som «-». Alt andet, der ikke er et tal («100 kunder», «5 stk»,
+ * «ca. 40»), får sin egen grund: TAL_KUN_TALLET — danskTalDom bærer den, danskTal
+ * svarer kun med tallet (null ved nej).
  */
-export function danskTal(raa: string): number | null {
+export const TAL_KUN_TALLET = "Skriv kun tallet — uden kr., % eller mio.";
+export const TAL_MIO_TVETYDIG = "Skriv mio.-tallet med komma — fx «1,5 mio.» — eller skriv hele tallet.";
+
+export interface DanskTalDom {
+  /** Tallet; null når teksten ikke er ét tal. */
+  vaerdi: number | null;
+  /** En egen grund, når vi HAR en (suffiks, tvetydig mio.); null ellers — kalderen bruger sin egen tekst («Skriv måltallet»). */
+  grund: string | null;
+}
+
+/** Kendte suffikser bagest; faktor 1 = ignoreres, 1e6 = millioner. */
+const SUFFIKSER: readonly { moenster: RegExp; faktor: number }[] = [
+  { moenster: /\s*kr\.?$/i, faktor: 1 },
+  { moenster: /\s*%$/, faktor: 1 },
+  { moenster: /\s*mdr\.?$/i, faktor: 1 },
+  { moenster: /\s*mio\.?$/i, faktor: 1e6 },
+];
+
+/** Selve tallet — reglerne i filhovedet ovenfor; ingen suffikser. */
+function rentDanskTal(raa: string): number | null {
   const s = raa.replace(/[\s\u00a0]/g, "");
   if (s === "") return null;
   const m = /^([+-]?)(\d[\d.]*)(?:,(\d+))?$/.exec(s);
@@ -200,6 +228,55 @@ export function danskTal(raa: string): number | null {
   }
   const v = Number(`${fortegn}${heltal}${brok === undefined ? "" : `.${brok}`}`);
   return Number.isFinite(v) ? v : null;
+}
+
+export function danskTalDom(raa: string): DanskTalDom {
+  // Unicode-minus → ASCII; hårdt mellemrum som blødt.
+  let s = raa.replace(/\u2212/g, "-").replace(/\u00a0/g, " ").trim();
+  if (s === "") return { vaerdi: null, grund: null };
+  let faktor = 1;
+  let fundet = true;
+  while (fundet) {
+    fundet = false;
+    for (const suf of SUFFIKSER) {
+      const m = suf.moenster.exec(s);
+      if (!m) continue;
+      if (suf.faktor !== 1 && faktor !== 1) return { vaerdi: null, grund: TAL_KUN_TALLET }; // «2 mio. mio.»
+      faktor *= suf.faktor;
+      s = s.slice(0, m.index).trim();
+      fundet = true;
+      break;
+    }
+  }
+  if (s === "") return { vaerdi: null, grund: TAL_KUN_TALLET }; // kun et suffiks («kr.»)
+  const v = rentDanskTal(s);
+  if (v === null) {
+    // Bogstaver eller andre tegn end cifre, punktum, komma, fortegn og mellemrum → vores egen grund.
+    return { vaerdi: null, grund: /[^\d\s.,+-]/.test(s) ? TAL_KUN_TALLET : null };
+  }
+  if (faktor !== 1 && s.includes(".")) return { vaerdi: null, grund: TAL_MIO_TVETYDIG };
+  const ud = v * faktor;
+  return Number.isFinite(ud) ? { vaerdi: ud, grund: null } : { vaerdi: null, grund: null };
+}
+
+/** Tallet alene — null ved nej (dommen med grund: danskTalDom). */
+export function danskTal(raa: string): number | null {
+  return danskTalDom(raa).vaerdi;
+}
+
+/**
+ * Et tal TIL et inputfelt — den danske form, danskTal læser tilbage uændret:
+ * komma som decimaltegn, INGEN gruppering (rådets runde 2, fund 1: «String(2.125)»
+ * gav «2.125», som danskTal læste som 2125 — et uberørt felt ændrede tallet
+ * ×1000 ved Gem). Rundturen danskTal(danskTalTilFelt(v)) === v er prøvet.
+ * null/NaN/∞ → tomt felt. Et tal, String() skriver med eksponent («1e21»,
+ * «1e-7»), skrives ud i cifre.
+ */
+export function danskTalTilFelt(v: number | null | undefined): string {
+  if (v === null || v === undefined || !Number.isFinite(v)) return "";
+  let s = String(v);
+  if (/e/i.test(s)) s = v.toLocaleString("en-US", { useGrouping: false, maximumFractionDigits: 20 });
+  return s.replace(".", ",");
 }
 
 // ── Guiden ─────────────────────────────────────────────────────────────────

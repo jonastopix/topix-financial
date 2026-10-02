@@ -20,14 +20,18 @@ import { HbCard } from "../HbCard";
  * alle bredder.
  */
 
-/** Vandret placering for et mærke: translate holder det centreret om sin x — ved kanterne skubbes det ind. */
+/**
+ * Vandret placering for et mærke: translate holder det centreret om sin x — ved
+ * kanterne (x ≈ 0/1) skubbes det ind, så det ikke klippes af kortet. Samme dom
+ * for «i dag», skridt og frister (runde 2, fund 10).
+ */
 const kant = (x: number) => (x < 0.04 ? "translate-x-0" : x > 0.96 ? "-translate-x-full" : "-translate-x-1/2");
 
 const Maerke = ({ p, art }: { p: TidslinjeMarkoer; art: "skridt" | "frist" }) => {
   const naaet = p.punkt.art === "maal_frist" && p.punkt.naaet;
   return (
     <span
-      className="absolute top-1/2 -translate-x-1/2"
+      className={cn("absolute top-1/2", kant(p.x))}
       style={{ left: `${p.x * 100}%` }}
       title={`${p.dato}: ${p.punkt.titel}`}
       aria-hidden

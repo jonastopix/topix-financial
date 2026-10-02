@@ -40,6 +40,8 @@ const tilstand = vi.hoisted(() => ({
   isLoading: false,
   isError: false,
   isAdvisor: false,
+  /** Runde 2, fund 2: «Se som medlem» — rådgiveren er stadig rådgiver. */
+  viewingAsMember: false,
   retningHenter: false,
   /** Fund 12: useMilestones kender kun disse id'er (null = alle i grundlaget). */
   kendteIder: null as string[] | null,
@@ -47,7 +49,7 @@ const tilstand = vi.hoisted(() => ({
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { functions: { invoke: vi.fn() } } }));
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: "u1" }, companyId: "c1", isAdvisor: tilstand.isAdvisor }) }));
-vi.mock("@/hooks/useViewMode", () => ({ useViewMode: () => ({ viewingAsMember: false }) }));
+vi.mock("@/hooks/useViewMode", () => ({ useViewMode: () => ({ viewingAsMember: tilstand.viewingAsMember }) }));
 vi.mock("@/hooks/dineMaalGrundlag", async (importOriginal) => {
   const orig = await importOriginal<typeof import("@/hooks/dineMaalGrundlag")>();
   return {
@@ -103,6 +105,7 @@ beforeEach(() => {
   tilstand.isLoading = false;
   tilstand.isError = false;
   tilstand.isAdvisor = false;
+  tilstand.viewingAsMember = false;
   tilstand.retningHenter = false;
   tilstand.kendteIder = null;
   tilstand.retning = retningFraHandout(null);
@@ -204,6 +207,16 @@ describe("DineMaalView — rådets fund 3, 6 og 14", () => {
     vis();
     expect(screen.queryByRole("button", { name: RETNING_INVITATION })).toBeNull();
     expect(screen.getByText(RETNING_IKKE_SKREVET_TEKST)).toBeInTheDocument();
+  });
+
+  it("runde 2, fund 2: rådgiveren i «Se som medlem» kan stadig ikke rette retningen — den RÅ rolle dømmer", () => {
+    tilstand.isAdvisor = true;
+    tilstand.viewingAsMember = true;
+    tilstand.retning = udfyldtAfAnden();
+    vis();
+    expect(screen.getByText("2 mio. i årstakt")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: RETNING_RET })).toBeNull();
+    expect(document.querySelector("[data-retning-kan-rette]")!.getAttribute("data-retning-kan-rette")).toBe("0");
   });
 
   it("medlemmet ser «Ret» på egen række — og ikke «Skrevet af en anden»", () => {

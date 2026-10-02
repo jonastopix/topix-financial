@@ -5,12 +5,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ScoreMaaned } from "@/lib/boardroomScore";
-import { GUIDE_ORD } from "@/lib/hjemmebane/dineMaalFlade";
+import { GUIDE_ORD, TAL_KUN_TALLET } from "@/lib/hjemmebane/dineMaalFlade";
 import { MAAL_FORKLARING_TEKST } from "@/lib/hjemmebane/maalForklaring";
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 
-import { SaetMaalGuide } from "../SaetMaalGuide";
+import { MAALET_SAT_IKKE_LAEST_TEKST, SaetMaalGuide } from "../SaetMaalGuide";
 
 const NU = new Date("2026-10-01T10:00:00Z");
 const m = (key: string, metrics: Record<string, number | null>): ScoreMaaned => ({ key, basis: "measured", foersteGodkendtAt: null, metrics });
@@ -237,6 +237,48 @@ describe("SaetMaalGuide — rådets fund 1, 4, 9, 19, 20", () => {
     expect(alert.textContent).toBe("Måltallet er det samme som udgangspunktet");
     expect(alert.className).not.toContain("sr-only");
     expect(screen.getAllByText("Måltallet er det samme som udgangspunktet")).toHaveLength(1);
+  });
+
+  it("runde 2, fund 1: «Gør målet skarpt» forudfylder tal dansk («2,125» — ikke «2.125»), og gemmer dem uændret", async () => {
+    const p = vis({ tilstand: { art: "skarpt", maalId: "m-gammelt", titel: "Nå 2,125 kunder", forslag: { maaltal: 2.125, udgangspunkt: 0.5, enhed: "kunder" }, frist: "2027-03-01" } });
+    fireEvent.click(document.querySelector('[data-guide-kort="andet_tal"]')!);
+    expect((screen.getByLabelText(GUIDE_ORD.maaltal) as HTMLInputElement).value).toBe("2,125");
+    expect((screen.getByLabelText(GUIDE_ORD.udgangspunkt) as HTMLInputElement).value).toBe("0,5");
+    fireEvent.click(screen.getByRole("button", { name: GUIDE_ORD.gemSkarpt }));
+    await waitFor(() => expect(p.onGoerSkarpt).toHaveBeenCalledTimes(1));
+    expect(p.onGoerSkarpt.mock.calls[0][1]).toMatchObject({ maaltal: 2.125, udgangspunkt: 0.5 });
+  });
+
+  it("runde 2, fund 3: svarer skriveren ja uden id, lukkes guiden ikke — grunden står, og videre oprettelse er låst", async () => {
+    const p = tilTrin3();
+    p.onOpret.mockResolvedValueOnce({ ok: true, id: null });
+    await waitFor(() => expect(document.querySelector("[data-guide-trin]")!.getAttribute("data-guide-trin")).toBe("3"));
+    fireEvent.click(screen.getByRole("button", { name: GUIDE_ORD.springOver }));
+    await screen.findByText(MAALET_SAT_IKKE_LAEST_TEKST);
+    expect(p.onOpret).toHaveBeenCalledTimes(1);
+    expect(p.onClose).not.toHaveBeenCalled();
+    expect(document.querySelector("[data-guide-laast]")!.getAttribute("data-guide-laast")).toBe("1");
+    expect((screen.getByRole("button", { name: GUIDE_ORD.springOver }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: GUIDE_ORD.gem }) as HTMLButtonElement).disabled).toBe(true);
+    // Et nyt klik opretter ikke målet igen.
+    fireEvent.click(screen.getByRole("button", { name: GUIDE_ORD.springOver }));
+    await new Promise((r) => setTimeout(r, 10));
+    expect(p.onOpret).toHaveBeenCalledTimes(1);
+  });
+
+  it("runde 2, fund 6: «2 mio. kr.» læses som 2.000.000; «2 mio. kunder» får sin egen grund", async () => {
+    const p = vis();
+    fireEvent.click(document.querySelector('[data-guide-kort="omsaetning_aarstakt"]')!);
+    fireEvent.change(screen.getByLabelText(GUIDE_ORD.maaltal), { target: { value: "2 mio. kunder" } });
+    fireEvent.click(screen.getByRole("button", { name: GUIDE_ORD.videre }));
+    await screen.findByText(TAL_KUN_TALLET);
+    expect(document.querySelector("[data-guide-trin]")!.getAttribute("data-guide-trin")).toBe("2");
+    fireEvent.change(screen.getByLabelText(GUIDE_ORD.maaltal), { target: { value: "2 mio. kr." } });
+    fireEvent.click(screen.getByRole("button", { name: GUIDE_ORD.videre }));
+    await waitFor(() => expect(document.querySelector("[data-guide-trin]")!.getAttribute("data-guide-trin")).toBe("3"));
+    fireEvent.click(screen.getByRole("button", { name: GUIDE_ORD.springOver }));
+    await waitFor(() => expect(p.onOpret).toHaveBeenCalledTimes(1));
+    expect(p.onOpret.mock.calls[0][0]).toMatchObject({ maaltal: 2_000_000 });
   });
 
   it("fund 19/20: eksemplerne står i trin 1; kortene har ikke aria-pressed", () => {

@@ -123,11 +123,11 @@ export const loeftestangHolder = (kode: string): boolean =>
   /source: "handout", company_id: companyId, status \}/.test(kode) &&
   !/functions\.invoke\("maal-skriv"/.test(kode);
 
-/** Dom 4: medlemmets flade — vejen til at sætte et mål bevaret (fladen 1/10: TomPladsKort → aabnGuide(GUIDE_NY) → guiden → skriv.opret; rådets fund 16: guiden får sit åbningstidspunkt), triggerfejl oversat. */
+/** Dom 4: medlemmets flade — vejen til at sætte et mål bevaret (fladen 1/10: TomPladsKort → aabnGuide(GUIDE_NY) → guiden → skriv.opret; rådets fund 16: guiden får sit åbningstidspunkt, runde 2 fund 7: samme frosne `guideNu` i skriveren), triggerfejl oversat. */
 export const medlemsfladenHolder = (view: string, hook: string, fejl: string): boolean =>
   view.includes('{tomPlads && <TomPladsKort onSaetMaal={() => aabnGuide(GUIDE_NY)} />}') &&
   view.includes("const tomPlads = !dom.overGraensen && dom.kanOprette;") &&
-  view.includes("await skriv.opret({ companyId, userId: user.id, input, nu: new Date(), maaneder: g.grundlag?.maaneder ?? null });") &&
+  view.includes("await skriv.opret({ companyId, userId: user.id, input, nu: guideNu, maaneder: g.grundlag?.maaneder ?? null });") &&
   view.includes("onSlet={() => setSletId(ms.id)}") && view.includes("onSlet={() => setSletId(k.id)}") &&
   hook.includes('import { maalFejlTekst } from "@/lib/hjemmebane/maalFejl";') &&
   hook.includes('toast.error(maalFejlTekst(error, "Kunne ikke oprette målet"))') &&

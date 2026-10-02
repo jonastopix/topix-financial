@@ -841,6 +841,8 @@ export function doemNytMaal(input: NytMaalInput, nu: Date, nuvaerende: TalDom | 
   if (maaltal === null) return { ok: false, grund: "Skriv måltallet" };
   if (noegle === "db_grad" && (maaltal < DB_GRAD_MIN || maaltal > DB_GRAD_MAKS)) return { ok: false, grund: `Dækningsgraden skal ligge mellem ${DB_GRAD_MIN} og ${DB_GRAD_MAKS} %` };
   if (noegle === "likviditet_mdr" && maaltal < 0) return { ok: false, grund: "Likviditeten kan ikke være under 0 måneder" };
+  // Runde 2, fund 9: en omsætning under 0 kr. findes ikke (resultatet må være negativt).
+  if (noegle === "omsaetning_aarstakt" && maaltal < 0) return { ok: false, grund: "Omsætningen kan ikke være under 0 kr." };
 
   if (noegle === "andet_tal") {
     const udg = tal(input.udgangspunkt);

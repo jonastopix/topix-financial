@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { doemMaalFrist, MAKS_FRIST_MAANEDER, TITEL_MAX, type MaalKort } from "@/lib/hjemmebane/maalTal";
-import { danskTal } from "@/lib/hjemmebane/dineMaalFlade";
+import { danskTalDom, danskTalTilFelt } from "@/lib/hjemmebane/dineMaalFlade";
 import { kbhDato, laegMaanederTilDato } from "@/lib/hverdage";
 import { HbButton } from "../HbButton";
 import { HbField, HbInput } from "../admin/HbField";
@@ -25,7 +25,20 @@ import { HbDialog } from "./HbOverlejring";
  * genhentning, og en effekt på `kort` nulstillede medlemmets indtastning.
  * Skrivningen er useMilestones.opdaterFelt (medlemmets klientvej, uændret RLS);
  * et nej (fund 13) holder dialogen åben med grunden.
+ *
+ * Rådets runde 2:
+ *   - (1) Tallet forudfyldes af danskTalTilFelt («2,125» — ikke String(2.125) =
+ *     «2.125», som danskTal læste som 2125), og KUN felter, medlemmet faktisk har
+ *     ændret, gemmes: hvert felt sammenlignes med sin STARTVÆRDI SOM TEKST
+ *     (`start`), så et uberørt felt aldrig parses og aldrig skrives.
+ *   - (4) try/finally om onGem — et kast låser ikke «Gemmer…».
+ *   - (6) danskTalDom's egen grund («Skriv kun tallet — uden kr., % eller mio.»)
+ *     vises, når den findes.
+ *   - (8) Også for et GAMMELT mål (art null) afvises en TASTET frist før i dag;
+ *     en uændret frist i fortiden blokerer ikke en titelrettelse.
  */
+export const FRIST_FOER_I_DAG = "Fristen kan ikke ligge før i dag";
+export const TALLET_NU_MANGLER = "Skriv tallet som det er nu";
 
 export const REDIGER_TITEL = "Redigér målet";
 export const REDIGER_TALLET_NU = "Tallet nu";
@@ -55,6 +68,8 @@ export const RedigerMaalDialog = ({ kort, open, onClose, doemFrist, tastetTal, e
   const [fejl, setFejl] = useState<string | null>(null);
   const [fristFejl, setFristFejl] = useState<string | null>(null);
   const [gemmer, setGemmer] = useState(false);
+  // Runde 2, fund 1: startværdierne som TEKST — et felt, der står som ved åbningen, gemmes aldrig.
+  const [start, setStart] = useState({ titel: "", frist: "", tal: "" });
   const gemmerRef = useRef(false);
   const idRod = useId();
   // Startværdierne læses gennem en ref, så effekten kun kører ved åbning og ved et andet mål (fund 2).
@@ -64,10 +79,12 @@ export const RedigerMaalDialog = ({ kort, open, onClose, doemFrist, tastetTal, e
 
   useEffect(() => {
     if (!open || kortId === null) return;
-    const start = startRef.current;
-    setTitel(start.kort?.titel ?? "");
-    setFrist(start.kort?.frist ?? "");
-    setTal(start.tastetTal === null ? "" : String(start.tastetTal));
+    const s = startRef.current;
+    const startVaerdier = { titel: s.kort?.titel ?? "", frist: s.kort?.frist ?? "", tal: danskTalTilFelt(s.tastetTal) };
+    setStart(startVaerdier);
+    setTitel(startVaerdier.titel);
+    setFrist(startVaerdier.frist);
+    setTal(startVaerdier.tal);
     setFejl(null);
     setFristFejl(null);
     setGemmer(false);
@@ -84,17 +101,25 @@ export const RedigerMaalDialog = ({ kort, open, onClose, doemFrist, tastetTal, e
     if (gemmerRef.current) return;
     const t = titel.trim();
     if (!t) { setFejl("Skriv målet som én sætning"); return; }
+    // Runde 2, fund 1: ændret = teksten i feltet er en anden end ved åbningen.
+    const titelAendret = titel !== start.titel;
+    const fristAendret = frist.trim() !== start.frist;
+    const talAendret = tal !== start.tal;
     let nyFrist = frist.trim() || null;
     if (kraeverFrist) {
       const fristDom = doemMaalFrist(nyFrist, nu);
       if (fristDom.ok === false) { setFristFejl(fristDom.grund); return; }
       nyFrist = fristDom.dato;
+    } else if (fristAendret && nyFrist !== null) {
+      // Runde 2, fund 8: et gammelt mål må stå uden frist, men en TASTET frist må ikke ligge før i dag.
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(nyFrist)) { setFristFejl("Vælg en frist"); return; }
+      if (nyFrist < idag) { setFristFejl(FRIST_FOER_I_DAG); return; }
     }
     const grund = doemFrist(nyFrist);
     if (grund) { setFristFejl(grund); return; }
     const felter: Felter = {};
-    if (t !== kort.titel) felter.title = t;
-    if (nyFrist !== (kort.frist ?? null)) {
+    if (titelAendret && t !== kort.titel) felter.title = t;
+    if (fristAendret && nyFrist !== (kort.frist ?? null)) {
       if (nyFrist) {
         const [y, m, d] = nyFrist.split("-").map(Number);
         felter.deadline = new Date(y, m - 1, d);
@@ -102,19 +127,26 @@ export const RedigerMaalDialog = ({ kort, open, onClose, doemFrist, tastetTal, e
         felter.deadline = null;
       }
     }
-    if (erTastet) {
-      const v = danskTal(tal);
-      if (v === null) { setFejl("Skriv tallet som det er nu"); return; }
-      if (v !== tastetTal) felter.current_value = v;
+    if (erTastet && talAendret) {
+      const d = danskTalDom(tal);
+      if (d.vaerdi === null) { setFejl(d.grund ?? TALLET_NU_MANGLER); return; }
+      if (d.vaerdi !== tastetTal) felter.current_value = d.vaerdi;
     }
     setFejl(null);
     setFristFejl(null);
     if (Object.keys(felter).length === 0) { onClose(); return; }
     gemmerRef.current = true;
     setGemmer(true);
-    const svar = await onGem(felter);
-    gemmerRef.current = false;
-    setGemmer(false);
+    let svar: string | null;
+    try {
+      // Runde 2, fund 4: et kast fra skriveren låser ikke «Gemmer…».
+      svar = await onGem(felter);
+    } catch (e) {
+      svar = e instanceof Error && e.message ? e.message : "Målet blev ikke gemt — prøv igen";
+    } finally {
+      gemmerRef.current = false;
+      setGemmer(false);
+    }
     if (svar) { setFejl(svar); return; }
     onClose();
   };

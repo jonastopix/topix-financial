@@ -6,7 +6,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ScoreMaaned } from "@/lib/boardroomScore";
 import { maalKort, type MaalMedTal } from "@/lib/hjemmebane/maalTal";
-import { RedigerMaalDialog, REDIGER_TALLET_NU } from "../RedigerMaalDialog";
+import { TAL_KUN_TALLET } from "@/lib/hjemmebane/dineMaalFlade";
+import { FRIST_FOER_I_DAG, RedigerMaalDialog, REDIGER_TALLET_NU } from "../RedigerMaalDialog";
 
 const NU = new Date("2026-10-01T10:00:00Z");
 const m = (key: string, metrics: Record<string, number | null>): ScoreMaaned => ({ key, basis: "measured", foersteGodkendtAt: null, metrics });
@@ -122,5 +123,59 @@ describe("RedigerMaalDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Gem" }));
     expect(onGem).not.toHaveBeenCalled();
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("runde 2, fund 1: et decimaltal forudfyldes dansk («2,125»), og et UBERØRT felt gemmes aldrig — kun titlen sendes", async () => {
+    const { onGem } = vis(maal({ current_value: 2.125 }));
+    expect((screen.getByLabelText(REDIGER_TALLET_NU) as HTMLInputElement).value).toBe("2,125");
+    fireEvent.change(screen.getByLabelText("Målet som én sætning"), { target: { value: "120 kunder" } });
+    fireEvent.click(screen.getByRole("button", { name: "Gem" }));
+    await waitFor(() => expect(onGem).toHaveBeenCalledWith({ title: "120 kunder" }));
+    expect(onGem.mock.calls[0][0]).not.toHaveProperty("current_value");
+  });
+
+  it("runde 2, fund 1: et felt, der rettes tilbage til startteksten, gemmes ikke", () => {
+    const { onGem, onClose } = vis(maal());
+    const tal = screen.getByLabelText(REDIGER_TALLET_NU);
+    fireEvent.change(tal, { target: { value: "41" } });
+    fireEvent.change(tal, { target: { value: "40" } });
+    fireEvent.click(screen.getByRole("button", { name: "Gem" }));
+    expect(onGem).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("runde 2, fund 4: kaster skriveren, låses «Gemmer…» ikke — knappen er fri igen og grunden står", async () => {
+    const onGemKaster = vi.fn<Props["onGem"]>(async () => { throw new Error("Netværket faldt ud"); });
+    const { onClose } = vis(maal(), { onGem: onGemKaster });
+    fireEvent.change(screen.getByLabelText("Målet som én sætning"), { target: { value: "120 kunder" } });
+    fireEvent.click(screen.getByRole("button", { name: "Gem" }));
+    await screen.findByText("Netværket faldt ud");
+    expect((screen.getByRole("button", { name: "Gem" }) as HTMLButtonElement).disabled).toBe(false);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("runde 2, fund 6: «100 kunder» i talfeltet får sin egen grund; «1.500 kr.» læses som 1500", async () => {
+    const { onGem } = vis(maal());
+    fireEvent.change(screen.getByLabelText(REDIGER_TALLET_NU), { target: { value: "100 kunder" } });
+    fireEvent.click(screen.getByRole("button", { name: "Gem" }));
+    await screen.findByText(TAL_KUN_TALLET);
+    expect(onGem).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText(REDIGER_TALLET_NU), { target: { value: "1.500 kr." } });
+    fireEvent.click(screen.getByRole("button", { name: "Gem" }));
+    await waitFor(() => expect(onGem).toHaveBeenCalledWith({ current_value: 1500 }));
+  });
+
+  it("runde 2, fund 8: et gammelt mål (art null) afviser en TASTET frist før i dag — en uændret gammel frist blokerer ikke titlen", async () => {
+    const gammelt = maal({ art: null, maal_noegle: null, udgangspunkt: null, deadline: "2026-09-01" });
+    const { onGem } = vis(gammelt);
+    fireEvent.change(screen.getByLabelText("Frist"), { target: { value: "2026-09-15" } });
+    fireEvent.click(screen.getByRole("button", { name: "Gem" }));
+    await screen.findByText(FRIST_FOER_I_DAG);
+    expect(onGem).not.toHaveBeenCalled();
+    cleanup();
+    const anden = vis(gammelt);
+    fireEvent.change(screen.getByLabelText("Målet som én sætning"), { target: { value: "Nyt navn" } });
+    fireEvent.click(screen.getByRole("button", { name: "Gem" }));
+    await waitFor(() => expect(anden.onGem).toHaveBeenCalledWith({ title: "Nyt navn" }));
   });
 });

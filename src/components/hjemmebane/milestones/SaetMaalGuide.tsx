@@ -19,7 +19,7 @@ import {
   type SkarptForslag,
   type TalDom,
 } from "@/lib/hjemmebane/maalTal";
-import { danskTal, GUIDE_ORD, guideKort, kraeverTekst, type GuideValg } from "@/lib/hjemmebane/dineMaalFlade";
+import { danskTal, danskTalDom, danskTalTilFelt, GUIDE_ORD, guideKort, kraeverTekst, type GuideValg } from "@/lib/hjemmebane/dineMaalFlade";
 import { MAAL_FORKLARING_TEKST, maalEksemplerHjaelp } from "@/lib/hjemmebane/maalForklaring";
 import { doemFrist, doemFristModMaal, foreslaaetFristModMaal, senesteSkridtFrist } from "@/lib/hjemmebane/skridtForslag";
 import { kbhDato, laegMaanederTilDato } from "@/lib/hverdage";
@@ -60,7 +60,18 @@ import { HbDialog } from "./HbOverlejring";
  *   - (19) Eksemplerne («Fx: …», maalEksemplerHjaelp) står under kortene i trin 1.
  *   - (20) Nulstillingen afhænger af [open, tilstand, nu] — `nu` er fastfrosset af
  *     kalderen, mens guiden er åben (DineMaalView gemmer åbningstidspunktet).
+ *
+ * Rådets runde 2:
+ *   - (1) «Gør målet skarpt» forudfylder tal med danskTalTilFelt («2,125»), så
+ *     danskTal læser dem tilbage uændret.
+ *   - (3) Svarer skriveren ja uden id (svar.id === null — rækken kunne ikke
+ *     læses tilbage efter insert), lukkes guiden IKKE stille: grunden står
+ *     (MAALET_SAT_IKKE_LAEST_TEKST), og videre oprettelse er LÅST (`laast`) —
+ *     et nyt klik ville oprette målet igen. Kun «Annuller»/luk er muligt.
+ *   - (6) danskTalDom's egen grund («Skriv kun tallet — uden kr., % eller mio.»)
+ *     vises ved «Videre», før dommen.
  */
+export const MAALET_SAT_IKKE_LAEST_TEKST = "Målet er sat, men kunne ikke læses tilbage — genindlæs siden.";
 
 export type GuideTilstand =
   | { art: "ny" }
@@ -106,6 +117,8 @@ export const SaetMaalGuide = ({ open, onClose, tilstand, maaneder, nu, onOpret, 
   const gemmerRef = useRef(false);
   // Fund 1: det oprettede måls id — målet oprettes aldrig to gange fra samme åbning.
   const [oprettetId, setOprettetId] = useState<string | null>(null);
+  // Runde 2, fund 3: målet er sat, men id'et kom ikke tilbage — videre oprettelse er låst.
+  const [laast, setLaast] = useState(false);
   const idRod = useId();
 
   const idag = kbhDato(nu);
@@ -122,14 +135,15 @@ export const SaetMaalGuide = ({ open, onClose, tilstand, maaneder, nu, onOpret, 
     setGemmer(false);
     gemmerRef.current = false;
     setOprettetId(null);
+    setLaast(false);
     const foreslaaet = laegMaanederTilDato(idagVedAabning, FORESLAAET_FRIST_MAANEDER);
     if (tilstand.art === "skarpt") {
       // Fund 8: målets egen frist, når den er sat og ligger efter i dag; ellers forslaget.
       setFrist(tilstand.frist && tilstand.frist > idagVedAabning ? tilstand.frist : foreslaaet);
       setTitel(tilstand.titel);
       setTitelRettet(true);
-      setMaaltal(tilstand.forslag.maaltal === null ? "" : String(tilstand.forslag.maaltal));
-      setUdgangspunkt(tilstand.forslag.udgangspunkt === null ? "" : String(tilstand.forslag.udgangspunkt));
+      setMaaltal(danskTalTilFelt(tilstand.forslag.maaltal));
+      setUdgangspunkt(danskTalTilFelt(tilstand.forslag.udgangspunkt));
       setEnhed(tilstand.forslag.enhed ?? "");
     } else {
       setFrist(foreslaaet);
@@ -196,7 +210,16 @@ export const SaetMaalGuide = ({ open, onClose, tilstand, maaneder, nu, onOpret, 
   };
 
   const videreFraTrin2 = () => {
-    if (gemmerRef.current) return;
+    if (gemmerRef.current || laast) return;
+    // Runde 2, fund 6: suffikser og tekst i talfelterne får deres egen grund før dommen.
+    if (noegle) {
+      const mt = danskTalDom(maaltal);
+      if (mt.vaerdi === null && mt.grund) { setFejl(mt.grund); return; }
+      if (noegle === "andet_tal") {
+        const ud = danskTalDom(udgangspunkt);
+        if (ud.vaerdi === null && ud.grund) { setFejl(ud.grund); return; }
+      }
+    }
     const dom = doemNytMaal(input(), nu, nuvaerende());
     if (dom.ok === false) { setFejl(dom.grund); return; }
     setFejl(null);
@@ -207,7 +230,7 @@ export const SaetMaalGuide = ({ open, onClose, tilstand, maaneder, nu, onOpret, 
 
   const gem = async (medSkridt = false) => {
     // Fund 1: et kald, mens der gemmes, gør intet (dobbelt Enter/klik) — synkront gennem ref'en.
-    if (gemmerRef.current) return;
+    if (gemmerRef.current || laast) return;
     gemmerRef.current = true;
     setGemmer(true);
     setFejl(null);
@@ -218,6 +241,14 @@ export const SaetMaalGuide = ({ open, onClose, tilstand, maaneder, nu, onOpret, 
       // Målet oprettes (eller gøres skarpt) KUN første gang; et nyt klik efter et fejlet skridt springer hertil.
       const svar = erSkarpt && tilstand.art === "skarpt" ? await onGoerSkarpt(tilstand.maalId, input()) : await onOpret(input());
       if (svar.ok === false) { faerdig(); setFejl(svar.grund); return; }
+      if (svar.id === null) {
+        // Runde 2, fund 3: målet FINDES, men vi fik intet id — ingen stille lukning, ingen ny oprettelse.
+        faerdig();
+        setLaast(true);
+        // Grunden skal stå i det trin, der er åbent: trin 3 tegner skridtFejl, trin 2 (gør skarpt) fejl.
+        if (trin === 3) setSkridtFejl(MAALET_SAT_IKKE_LAEST_TEKST); else setFejl(MAALET_SAT_IKKE_LAEST_TEKST);
+        return;
+      }
       maalId = svar.id;
       setOprettetId(maalId);
     }
@@ -230,7 +261,7 @@ export const SaetMaalGuide = ({ open, onClose, tilstand, maaneder, nu, onOpret, 
   };
 
   const gemMedSkridt = () => {
-    if (gemmerRef.current) return;
+    if (gemmerRef.current || laast) return;
     const fristDom = doemFrist(skridtFrist, nu);
     if (fristDom.ok === false) { setSkridtFejl(fristDom.grund); return; }
     const modMaal = doemFristModMaal(fristDom.dato, frist, nu);
@@ -257,16 +288,16 @@ export const SaetMaalGuide = ({ open, onClose, tilstand, maaneder, nu, onOpret, 
       <HbButton variant="secondary" onClick={onClose}>Annuller</HbButton>
     ) : trin === 2 ? (
       <>
-        <HbButton variant="secondary" onClick={() => { setFejl(null); setTrin(1); }} disabled={gemmer}>{O.tilbage}</HbButton>
-        <HbButton onClick={videreFraTrin2} disabled={gemmer} data-guide-videre>
+        <HbButton variant="secondary" onClick={() => { setFejl(null); setTrin(1); }} disabled={gemmer || laast}>{O.tilbage}</HbButton>
+        <HbButton onClick={videreFraTrin2} disabled={gemmer || laast} data-guide-videre>
           {gemmer ? O.gemmer : erSkarpt ? O.gemSkarpt : O.videre}
         </HbButton>
       </>
     ) : (
       <>
-        <HbButton variant="secondary" onClick={() => { setSkridtFejl(null); setTrin(2); }} disabled={gemmer || oprettetId !== null} title={oprettetId !== null ? O.maaletErSat : undefined}>{O.tilbage}</HbButton>
-        <HbButton variant="secondary" onClick={() => void gem(false)} disabled={gemmer} data-guide-spring-over>{O.springOver}</HbButton>
-        <HbButton onClick={gemMedSkridt} disabled={gemmer || !skridtTitel.trim() || !skridtFrist} data-guide-gem>
+        <HbButton variant="secondary" onClick={() => { setSkridtFejl(null); setTrin(2); }} disabled={gemmer || laast || oprettetId !== null} title={oprettetId !== null ? O.maaletErSat : undefined}>{O.tilbage}</HbButton>
+        <HbButton variant="secondary" onClick={() => void gem(false)} disabled={gemmer || laast} data-guide-spring-over>{O.springOver}</HbButton>
+        <HbButton onClick={gemMedSkridt} disabled={gemmer || laast || !skridtTitel.trim() || !skridtFrist} data-guide-gem>
           {gemmer ? O.gemmer : O.gem}
         </HbButton>
       </>
@@ -274,7 +305,7 @@ export const SaetMaalGuide = ({ open, onClose, tilstand, maaneder, nu, onOpret, 
 
   return (
     <HbDialog open={open} onClose={onClose} titel={titelNode} beskrivelse={trin === 1 ? MAAL_FORKLARING_TEKST : undefined} bred fod={fod}>
-      <div data-guide-trin={trin} data-guide-valg={valg ?? ""}>
+      <div data-guide-trin={trin} data-guide-valg={valg ?? ""} data-guide-laast={laast ? "1" : "0"}>
         {trin === 1 && (
           <ul className="grid gap-2 sm:grid-cols-2" role="list">
             {kort.map((k) => {

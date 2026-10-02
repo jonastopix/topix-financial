@@ -38,6 +38,18 @@ describe("Rejsen", () => {
     expect(document.querySelector("[data-rejsen-idag]")!.textContent).toBe(REJSEN_ORD.idag);
   });
 
+  it("runde 2, fund 10: et mærke ved kanten (x ≈ 0 eller 1) skubbes ind som «i dag» — ikke centreret ud over kortet", () => {
+    const vedStart: SkridtTilMaal[] = [{ id: "s0", title: "Dag ét", status: "done", due_date: null, maal_id: "m1", closed_at: "2026-04-01T06:00:00Z" }];
+    render(<Rejsen tidslinje={tidslinje([{ ...maal, deadline: "2027-04-01" }], vedStart, "2026-04-01", NU)} />);
+    const skridtMaerke = document.querySelector('[data-rejsen-maerke="skridt"]') as HTMLElement;
+    expect(skridtMaerke.style.left).toBe("0%");
+    expect(skridtMaerke.className).toContain("translate-x-0");
+    expect(skridtMaerke.className).not.toContain("-translate-x-1/2");
+    const fristMaerke = document.querySelector('[data-rejsen-maerke="frist"]') as HTMLElement;
+    expect(fristMaerke.style.left).toBe("100%");
+    expect(fristMaerke.className).toContain("-translate-x-full");
+  });
+
   it("tom: teksten, ingen mærker", () => {
     render(<Rejsen tidslinje={tidslinje([], [], "2026-04-01", NU)} />);
     expect(document.querySelector("[data-rejsen]")!.getAttribute("data-rejsen")).toBe("tom");

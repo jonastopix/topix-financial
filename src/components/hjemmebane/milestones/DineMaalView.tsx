@@ -73,6 +73,12 @@ import { RedigerMaalDialog } from "./RedigerMaalDialog";
  * retningens række ikke er den indloggedes; (16) `nu` er hookets tikkende ur —
  * guiden får ÅBNINGSTIDSPUNKTET, så dens nulstilling ikke tikker; (21) «Gør
  * målet skarpt» er låst, når den rå række mangler.
+ *
+ * Rådets runde 2: (2) «kan rette retningen» dømmes af den RÅ rådgiverrolle
+ * (useAuth's isAdvisor, som HbMemberShell's hjerteslag) — ikke af «Se som
+ * medlem»: gemRetning skriver på den indloggedes eget user_id, og i «Se som
+ * medlem» er rådgiveren stadig rådgiver; (7) guidens frosne `nu` gives videre
+ * til opret/goerSkarpt, så dommen ikke skifter ved midnat, mens guiden er åben.
  */
 
 /** Fail-closed (fund 12): et kort, dommen ikke kender, kan intet. */
@@ -167,6 +173,8 @@ export const DineMaalView = () => {
   const [redigerId, setRedigerId] = useState<string | null>(null);
   const [sletId, setSletId] = useState<string | null>(null);
   const aabnGuide = (tilstand: GuideTilstand) => setGuide({ tilstand, nu: new Date() });
+  // Runde 2, fund 7: guidens frosne åbningstidspunkt bærer også dommen i skriverne.
+  const guideNu = guide?.nu ?? nu;
 
   // Handlingernes dom (uændret): dineMaalDom → planen → milepaelDom.
   const skridtTilDom = useMemo<SkridtTilDineMaal[]>(
@@ -219,8 +227,8 @@ export const DineMaalView = () => {
   const chips = statusChips(kort);
   const henter = loading || g.isLoading;
   const tomPlads = !dom.overGraensen && dom.kanOprette;
-  // Fund 3: rådgiveren retter ikke retningen — gemRetning ville skrive i rådgiverens egen handout-række.
-  const kanRetteRetning = !isAdvisor;
+  // Fund 3 + runde 2 fund 2: rådgiveren retter ikke retningen — heller ikke i «Se som medlem» (den RÅ rolle).
+  const kanRetteRetning = !rawAdvisor;
   const retningSkrevetAfAnden = !!g.retning?.userId && !!user && g.retning.userId !== user.id;
   const gemRetning = async (svar: Record<RetningNoegle, string>): Promise<string | null> => {
     if (!user || !companyId) return "Du er ikke logget ind";
@@ -386,15 +394,15 @@ export const DineMaalView = () => {
         onClose={() => setGuide(null)}
         tilstand={guide?.tilstand ?? GUIDE_NY}
         maaneder={g.grundlag?.maaneder ?? null}
-        nu={guide?.nu ?? nu}
+        nu={guideNu}
         onOpret={async (input) => {
           if (!user || !companyId) return { ok: false, grund: "Du er ikke logget ind", afventerMigration: false };
-          const s = await skriv.opret({ companyId, userId: user.id, input, nu: new Date(), maaneder: g.grundlag?.maaneder ?? null });
+          const s = await skriv.opret({ companyId, userId: user.id, input, nu: guideNu, maaneder: g.grundlag?.maaneder ?? null });
           if (s.ok) toast.success("Målet er sat");
           return s;
         }}
         onGoerSkarpt={async (maalId, input) => {
-          const s = await skriv.goerSkarpt({ maalId, input, nu: new Date(), maaneder: g.grundlag?.maaneder ?? null });
+          const s = await skriv.goerSkarpt({ maalId, input, nu: guideNu, maaneder: g.grundlag?.maaneder ?? null });
           if (s.ok) toast.success("Målet er gjort skarpt");
           return s;
         }}

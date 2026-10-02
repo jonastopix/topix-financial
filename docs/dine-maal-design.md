@@ -370,6 +370,35 @@ oversættes af `maalFejlTekst` gennem `opretMaalMedTal`.
   prøv igen uden dobbelt mål, dansk tal, alert-linjen, egen frist), retningen (rådgiver ser ikke
   «Ret», tom kladde, skrevet af anden), `danskTal` og `doemMaalFrist`.
 
+### Det tekniske råds runde 2 (1/10-2026 nat, rettet på `feat/dine-maal-flade`)
+
+- **(1) Tal til og fra feltet — rundturen:** `String(2.125)` gav «2.125», som `danskTal` læste som
+  2125; et UBERØRT talfelt i «Redigér» skrev `current_value` ×1000 ved Gem. Nu forudfylder
+  `danskTalTilFelt` (komma som decimaltegn, ingen gruppering — `dineMaalFlade.ts`) overalt
+  («Redigér», «Gør målet skarpt»), og rundturen `danskTal(danskTalTilFelt(v)) === v` er prøvet for
+  2,125 · 0,001 · 1500 · −200000 · 1000000,25 · 12,5 · 1e21 · 1e-7. «Redigér» gemmer desuden KUN
+  felter, hvis TEKST er en anden end ved åbningen (`start`) — et uberørt felt parses aldrig.
+- **(2) Den rå rådgiverrolle:** `kanRetteRetning = !rawAdvisor` (useAuth's `isAdvisor`, som
+  HbMemberShells hjerteslag) — i «Se som medlem» var `isAdvisor` falsk, og rådgiveren kunne gemme
+  retningen i sin EGEN handout-række. Prøvet med `viewingAsMember: true`.
+- **(3) Ja uden id:** svarer skriveren `{ ok: true, id: null }` (rækken kunne ikke læses tilbage
+  efter insert), lukker guiden ikke stille: `MAALET_SAT_IKKE_LAEST_TEKST` står, og videre oprettelse
+  er låst (`laast`, `data-guide-laast`) — et nyt klik ville ellers oprette målet igen.
+- **(4) `try/finally` om `onGem`** i «Redigér»: et kast låser ikke «Gemmer…»; beskeden vises.
+- **(5) Ingen tom menu:** «…» tegnes kun, når den har mindst ét punkt (`menuPunkter`).
+- **(6) Suffikser:** `danskTalDom` fjerner «kr.», «kr», «%», «mdr.», «mdr»; «mio.»/«mio» ganger med
+  1.000.000, KUN når tallet er entydigt (uden punktum — «1.500 mio.» og «1.5 mio.» afvises med
+  `TAL_MIO_TVETYDIG`); unicode-minus «−» læses; anden tekst («100 kunder», «ca. 40») får
+  `TAL_KUN_TALLET` («Skriv kun tallet — uden kr., % eller mio.»). `danskTal` er uændret i form
+  (tallet eller null); dommen med grund bruges i guiden og «Redigér».
+- **(7) Frossent `nu`:** guidens åbningstidspunkt (`guideNu`) gives videre til `opret`/`goerSkarpt`,
+  så dommen ikke skifter ved midnat, mens guiden står åben (værnene `dineMaal.guard` dom 4 og
+  `maalSkriv.guard` dom 4 pinner linjen).
+- **(8) Gammelt mål, tastet frist:** også for art null afvises en TASTET frist før i dag
+  (`FRIST_FOER_I_DAG`); en uændret gammel frist blokerer ikke en titelrettelse.
+- **(9) `doemNytMaal`:** omsætningens måltal ≥ 0 — resultatet må stadig være negativt.
+- **(10) Rejsen:** skridt- og fristmærker ved x ≈ 0/1 kant-justeres som «i dag» (`kant`).
+
 ### Åbne punkter efter fladen
 
 9. «Foreslået af <navn>» viser rollen, ikke navnet — et navn kræver et profilopslag pr. skridt.

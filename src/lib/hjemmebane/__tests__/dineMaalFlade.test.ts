@@ -5,6 +5,8 @@ import {
   bane,
   chipTone,
   danskTal,
+  danskTalDom,
+  danskTalTilFelt,
   eyebrowTekst,
   flereSkridtTekst,
   guideKort,
@@ -14,6 +16,8 @@ import {
   statusChips,
   stregTekst,
   talUndertekst,
+  TAL_KUN_TALLET,
+  TAL_MIO_TVETYDIG,
   TASTET_TEKST,
   tidslinjeTegning,
 } from "../dineMaalFlade";
@@ -176,5 +180,58 @@ describe("danskTal — ét dansk tal fra et inputfelt (fund 4)", () => {
     expect(danskTal("1.5.000")).toBeNull();
     expect(danskTal("1.500.00")).toBeNull();
     expect(danskTal("1e5")).toBeNull();
+  });
+
+  it("runde 2, fund 6: kendte suffikser fjernes — kr., kr, %, mdr., mdr", () => {
+    expect(danskTal("1.500 kr.")).toBe(1500);
+    expect(danskTal("1.500kr")).toBe(1500);
+    expect(danskTal("2.000.000 KR.")).toBe(2_000_000);
+    expect(danskTal("40 %")).toBe(40);
+    expect(danskTal("40%")).toBe(40);
+    expect(danskTal("6 mdr.")).toBe(6);
+    expect(danskTal("6 mdr")).toBe(6);
+    expect(danskTal("1,5 mio.")).toBe(1_500_000);
+    expect(danskTal("2 mio")).toBe(2_000_000);
+    expect(danskTal("1,5 mio. kr.")).toBe(1_500_000);
+    expect(danskTal("1,5 mio. kr")).toBe(1_500_000);
+    expect(danskTal("-2 mio. kr.")).toBe(-2_000_000);
+  });
+  it("runde 2, fund 6: mio. kun når tallet er entydigt (uden punktum) — ellers afvist med grund", () => {
+    expect(danskTalDom("1.500 mio.")).toEqual({ vaerdi: null, grund: TAL_MIO_TVETYDIG });
+    expect(danskTalDom("1.5 mio.")).toEqual({ vaerdi: null, grund: TAL_MIO_TVETYDIG });
+    expect(danskTalDom("2 mio. mio.")).toEqual({ vaerdi: null, grund: TAL_KUN_TALLET });
+  });
+  it("runde 2, fund 6: unicode-minus «−» læses som minus", () => {
+    expect(danskTal("\u2212200.000")).toBe(-200_000);
+    expect(danskTal("\u2212 1,5 mio.")).toBe(-1_500_000);
+  });
+  it("runde 2, fund 6: tekst, der ikke er et tal, får sin egen grund; en formfejl og et tomt felt har ingen (kalderens tekst)", () => {
+    expect(danskTalDom("100 kunder")).toEqual({ vaerdi: null, grund: TAL_KUN_TALLET });
+    expect(danskTalDom("ca. 40")).toEqual({ vaerdi: null, grund: TAL_KUN_TALLET });
+    expect(danskTalDom("kr.")).toEqual({ vaerdi: null, grund: TAL_KUN_TALLET });
+    expect(danskTalDom("1.500 mia.")).toEqual({ vaerdi: null, grund: TAL_KUN_TALLET });
+    expect(danskTalDom("1,5,5")).toEqual({ vaerdi: null, grund: null });
+    expect(danskTalDom("")).toEqual({ vaerdi: null, grund: null });
+    expect(danskTalDom("1.500")).toEqual({ vaerdi: 1500, grund: null });
+  });
+});
+
+describe("danskTalTilFelt — et tal til et felt, så danskTal læser det uændret (runde 2, fund 1)", () => {
+  it("komma som decimaltegn, ingen gruppering", () => {
+    expect(danskTalTilFelt(2.125)).toBe("2,125");
+    expect(danskTalTilFelt(1500)).toBe("1500");
+    expect(danskTalTilFelt(-200_000)).toBe("-200000");
+    expect(danskTalTilFelt(1_000_000.25)).toBe("1000000,25");
+    expect(danskTalTilFelt(0.001)).toBe("0,001");
+    expect(danskTalTilFelt(null)).toBe("");
+    expect(danskTalTilFelt(undefined)).toBe("");
+    expect(danskTalTilFelt(Number.NaN)).toBe("");
+  });
+  it("rundturen danskTal(danskTalTilFelt(v)) === v", () => {
+    for (const v of [2.125, 0.001, 1500, -200_000, 1_000_000.25, 12.5, 0, 1e21, 1e-7]) {
+      expect(danskTal(danskTalTilFelt(v))).toBe(v);
+    }
+    // Det gamle String(2.125) = «2.125» læste danskTal som 2125 — fejlen, fund 1 fandt.
+    expect(danskTal(String(2.125))).toBe(2125);
   });
 });

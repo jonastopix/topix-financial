@@ -171,6 +171,14 @@ describe("MaalKort — rådets fund 10 og 21", () => {
     expect(tekst.className).not.toContain("hidden");
     expect(tekst.closest("[aria-hidden]")).toBeNull();
   });
+  it("runde 2, fund 5: et gammelt mål uden parkér/nået/slet (kort uden dom) har ingen «…»-menu", () => {
+    const INGEN: MedlemsHandlinger = { kanMarkereNaaet: false, kanGenaabne: false, kanParkere: false, kanAktivere: false, kanSlette: false, kanSaetteFremdrift: false, kanTilfoejeSkridt: false };
+    const kort = maalKort(maal({ art: null, maal_noegle: null, udgangspunkt: null }), [], TRE, NU);
+    render(<MaalKort kort={kort} handlinger={INGEN} skridtLinjer={[]} busy={false} onGjort={vi.fn()} onTilfoejSkridt={vi.fn(async () => null)} onRediger={vi.fn()} onParker={vi.fn()} onNaaet={vi.fn()} onSlet={vi.fn()} onGoerSkarpt={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: KORT_ORD.menu })).toBeNull();
+    expect(screen.getByRole("button", { name: KORT_ORD.goerSkarpt })).toBeInTheDocument();
+  });
+
   it("fund 21: «Gør målet skarpt» er låst, når onGoerSkarpt er null", () => {
     const h = { ...handlere(), onGoerSkarpt: null };
     vis(maal({ art: null, maal_noegle: null, udgangspunkt: null }), [], TRE, h);

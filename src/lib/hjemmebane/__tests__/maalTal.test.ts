@@ -576,6 +576,17 @@ describe("guiden", () => {
     expect(doemNytMaal(lind(-1), NU, lik)).toEqual({ ok: false, grund: "Likviditeten kan ikke være under 0 måneder" });
   });
 
+  it("doemNytMaal (runde 2, fund 9): omsætningens måltal ≥ 0 — resultatet må stadig være negativt", () => {
+    const TRE = [m("2026-07", { revenue: 100_000 }), m("2026-08", { revenue: 120_000 }), m("2026-09", { revenue: 140_000 })];
+    const oms = nuvaerendeTal("omsaetning_aarstakt", TRE, NU);
+    const oind = (maaltal: number) => ({ titel: "x", art: "tal" as const, noegle: "omsaetning_aarstakt" as const, maaltal, frist: "2027-10-01" });
+    expect(doemNytMaal(oind(0), NU, oms).ok).toBe(true);
+    expect(doemNytMaal(oind(2_000_000), NU, oms).ok).toBe(true);
+    expect(doemNytMaal(oind(-1), NU, oms)).toEqual({ ok: false, grund: "Omsætningen kan ikke være under 0 kr." });
+    const res = nuvaerendeTal("resultat_aarstakt", [m("2026-07", { ebt: 10_000 }), m("2026-08", { ebt: 10_000 }), m("2026-09", { ebt: 10_000 })], NU);
+    expect(doemNytMaal({ titel: "x", art: "tal", noegle: "resultat_aarstakt", maaltal: -100_000, frist: "2027-10-01" }, NU, res).ok).toBe(true);
+  });
+
   it("doemNytMaal: andet_tal gemmer udgangspunktet som current_value og kræver en enhed", () => {
     expect(doemNytMaal({ titel: "Flere kunder", art: "tal", noegle: "andet_tal", maaltal: 100, udgangspunkt: 60, frist: "2027-10-01" }, NU)).toEqual({ ok: false, grund: "Skriv hvad tallet tæller (fx kunder)" });
     const d = doemNytMaal({ titel: "Flere kunder", art: "tal", noegle: "andet_tal", maaltal: 100, udgangspunkt: 60, enhed: "kunder", frist: "2027-10-01" }, NU);

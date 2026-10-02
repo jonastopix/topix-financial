@@ -158,8 +158,10 @@ export const medlemmetEjer = (view: string, migrationer: readonly string[]): boo
   view.includes('onParker={() => void opdaterMaalFelt(k.id, { status: "parked" })}') &&
   view.includes("onSlet={() => setSletId(ms.id)}") &&
   view.includes("onSlet={() => setSletId(k.id)}") &&
-  view.includes("await skriv.opret({ companyId, userId: user.id, input, nu: new Date(), maaneder: g.grundlag?.maaneder ?? null });") &&
-  view.includes("await skriv.goerSkarpt({ maalId, input, nu: new Date(), maaneder: g.grundlag?.maaneder ?? null });") &&
+  // Runde 2, fund 7: guidens frosne åbningstidspunkt (guideNu) bærer dommen — ikke et nyt Date() ved klik.
+  view.includes("const guideNu = guide?.nu ?? nu;") &&
+  view.includes("await skriv.opret({ companyId, userId: user.id, input, nu: guideNu, maaneder: g.grundlag?.maaneder ?? null });") &&
+  view.includes("await skriv.goerSkarpt({ maalId, input, nu: guideNu, maaneder: g.grundlag?.maaneder ?? null });") &&
   !/saetFremgang|saetNuvaerendeVaerdi|onQuickProgress|onUpdateCurrentValue/.test(view) &&
   !/functions\.invoke\("maal-skriv"/.test(view) &&
   !/\.from\("milestones"\)/.test(view) &&
@@ -271,6 +273,7 @@ describe("dineMaal.guard — fase 3: medlemmets mål, uden milepæls-slot, skyde
     expect(medlemmetEjer(view + '\nawait supabase.functions.invoke("maal-skriv", {});', migrationer)).toBe(false);
     expect(medlemmetEjer(view + '\nawait supabase.from("milestones").update({});', migrationer)).toBe(false);
     expect(medlemmetEjer(view.replace("onNaaet={() => void markerNaaetOgRyd(k.id)}", "onNaaet={() => undefined}"), migrationer)).toBe(false);
+    expect(medlemmetEjer(view.replace("input, nu: guideNu, maaneder", "input, nu: new Date(), maaneder"), migrationer)).toBe(false);
     expect(medlemmetEjer(view, [...migrationer, "supabase/migrations/20260917160000_maal_skrives_af_raadgiveren.sql"])).toBe(false);
   });
   it("selvbevis 5: «Målet mangler» tilbage i functionen, et værn der er væk, eller en kalder uden «Uden mål» falder", () => {

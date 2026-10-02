@@ -31,6 +31,8 @@ import { TilfoejSkridtForm } from "./HbMaalRaekke";
  * som title; (17) et begivenhedsmåls «N af M skridt gjort» står ÉT sted
  * (chippen) — baren under viser kun fristen; (21) «Gør målet skarpt» er låst
  * (onGoerSkarpt null), når fladen ikke har målets rå række at forudfylde af.
+ * Runde 2, fund 5: «…»-menuen tegnes slet ikke, når den ville være tom (et
+ * gammelt mål uden parkér/nået/slet — fx et kort uden dom, fund 12).
  */
 
 const mikro = "text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft";
@@ -104,8 +106,10 @@ export const MaalKort = ({ kort, handlinger, skridtLinjer, busy, onGjort, onTilf
   const erBegivenhed = kort.art === "begivenhed";
   const fremdrift = erBegivenhed ? skridtFremdrift(kort) : null;
   const undertekst = talUndertekst(kort);
+  // Runde 2, fund 5: hvilke punkter menuen HAR — ingen punkter, ingen menu.
+  const menuPunkter = (kort.goerSkarpt ? 0 : 1) + (handlinger.kanParkere ? 1 : 0) + (handlinger.kanMarkereNaaet ? 1 : 0) + (handlinger.kanSlette ? 1 : 0);
 
-  const menu = (
+  const menu = menuPunkter === 0 ? null : (
     <HbPopover
       open={menuAaben}
       onOpenChange={setMenuAaben}
