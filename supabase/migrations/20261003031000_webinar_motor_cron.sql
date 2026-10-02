@@ -1,5 +1,5 @@
 -- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
--- KØRES ALLERSIDST i skive 3 — efter 20260930100000 og 20260930160000, efter at
+-- KØRES ALLERSIDST i skive 3 — efter 20261003010000 og 20261003030000, efter at
 -- webinar-motor-cron er UDRULLET og har svaret med `motor: "boardroom-3"` på en
 -- tørkørsel (docs/webinarmotor.md §7, trin 6). Et job mod en function, der ikke
 -- er udrullet, giver 404 hvert femte minut.

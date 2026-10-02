@@ -8,6 +8,8 @@ Husets egen lead-motor, der skal erstatte eWebinar. Spec'en er `~/topix-financia
 
 **2/10-2026 — grenen `feat/webinarmotor-skive1-v2`:** main flettet ind (ingen adfærdsændring), og migrationen er OMDØBT `20260930100000_webinarmotor_skive1.sql` → `20261003010000_webinarmotor_skive1.sql`. Grunden: main har kørte migrationer helt op til `20261002276000`, og en ukørt fil må aldrig sortere før en kørt (husreglen; `metaSend.guard` dom 11 — `ukoerteFoerKoerte`). Indholdet er uændret.
 
+**2/10-2026 — grenene `feat/webinarmotor-skive2-v2` og `feat/webinarmotor-skive3-v2`:** stablet oven på skive1-v2 (merge, ingen rebase). Skive 3's to migrationer er omdøbt af samme grund: `20260930160000_webinarmotor_skive3.sql` → `20261003030000_webinarmotor_skive3.sql` og `20260930161000_webinar_motor_cron.sql` → `20261003031000_webinar_motor_cron.sql`. Rækkefølgen er uændret (skive 1 → skive 3 → cron), og alle henvisninger i dette dokument, CLAUDE.md, SECURITY_BASELINE.md, koden og værnene er flyttet med. Eneste indholdsændring i en migration: kommentarteksten (`COMMENT ON`) i skive 1's migration og filhovederne i skive 3's to nævner de nye navne.
+
 ## 1. Arkitektur i én skærm
 
 ```
@@ -197,7 +199,7 @@ Bucket B (`verify_jwt = true`, `authenticateServiceRole` først), tørkørsel so
 
 ### 7.3 Den interne prøvesession (D2.7)
 
-- `webinar_sessioner.intern` (migration `20260930160000`). En intern session står ALDRIG i `webinar-tilmeld` «sessioner» eller i `naesteSessioner` (uden `medInterne`).
+- `webinar_sessioner.intern` (migration `20261003030000`). En intern session står ALDRIG i `webinar-tilmeld` «sessioner» eller i `naesteSessioner` (uden `medInterne`).
 - Vejen ind er rådgiverens **prøvelink** `/w/<slug>/tilmeld?session=<id>` (`tilmeldSti`, vist og kopierbart på `/webinar/motor`). «sessioner» med `session_id` svarer med netop den ene (`intern: true`).
 - «tilmeld» til en intern session kræver en adresse på **præcis** `topix.dk` eller `theboardroom.dk` (`internDom` FØR dubletdommen; ellers 403 «intern»). Rækken får `raa.intern = true`, så den kan filtreres fra i tallene senere.
 - Rummets «Tag næste session» tilbyder kun interne sessioner til husets egne adresser (`erInternAdresse`).
@@ -214,10 +216,10 @@ Bucket B (`verify_jwt = true`, `authenticateServiceRole` først), tørkørsel so
    - `BUNNY_WEBINAR_LIBRARY_ID` og `BUNNY_WEBINAR_TOKEN_AUTH_KEY` — webinarbiblioteket i Bunny (EU, token-auth til, tilladt referrer `app.theboardroom.dk`). Uden dem svarer rummet `embed_status: "ikke_sat_op"` (rummet virker, videoen ikke).
    - Findes allerede og bruges uændret: Mailgun-nøglen, afmeldingens secret og `KLAVIYO_API_KEY`.
 3. **Migrationer** i Lovable → SQL editor, hver med FØR-SQL og EFTER-SQL fra filhovedet (resultatet gemt):
-   1. `20260930100000_webinarmotor_skive1.sql`
-   2. `20260930160000_webinarmotor_skive3.sql`
+   1. `20261003010000_webinarmotor_skive1.sql`
+   2. `20261003030000_webinarmotor_skive3.sql`
    - **Bevis** (browser/terminal med anon-nøglen fra bundlen): `GET /rest/v1/webinar_tilmeldinger?select=kilde_system,session_id,token_version&limit=0` → 200 og `GET /rest/v1/webinar_sessioner?select=intern&limit=0` → 200.
-   - `20260930161000_webinar_motor_cron.sql` køres IKKE nu (trin 10).
+   - `20261003031000_webinar_motor_cron.sql` køres IKKE nu (trin 10).
 4. **Deploy** fra Lovable build-chat («kør deploy-værktøjet og vis resultatet»): `webinar-tilmeld`, `webinar-rum`, `webinar-puls`, `webinar-motor-cron`, `webinar-mail-cron` — og **`ansoegning-gem`** (den delte fil `_shared/ansoegningSkema.ts` er ændret i skive 2: `landingUdenToken` skræller `#`-fragmentet af, så deltagertokenet fra exitrummets knap aldrig lander i `landing`/Metas `event_source_url`; merge udruller ikke en function, hvis delte fil er ændret). `ansoegningSkema.ts` importeres også af `ansoegning-cvr` og `ansoegning-cvr-opslag` (målt med grep 30/9) — de bruger ikke `landingUdenToken`, så de behøver ikke udrulles for denne ændring.
    - **Bevis** (SQL editor, svaret i `net._http_response`):
      - `SELECT public.kald_edge('webinar-motor-cron', '{}'::jsonb);` → `"motor":"boardroom-3"`, `"dry_run":true`.
@@ -237,13 +239,13 @@ Bucket B (`verify_jwt = true`, `authenticateServiceRole` først), tørkørsel so
 10. **Efter sessionen** (exitrummets slut + 5 min): kør dommen for NETOP den interne session (låsen røres ikke):
     `SELECT public.kald_edge('webinar-motor-cron', '{"dry_run": false, "session_id": "<session-id>"}'::jsonb);`
     - **Bevis:** svaret `"sender_rigtigt":true`, sessionen `"afsluttet":true`; `select state, sidste_action, set_procent, set_procent_kilde from public.webinar_tilmeldinger where session_id = '<session-id>';` → Watched/WatchedWebinar/… /`boardroom-bitmap`; `select data from public.webinar_motor_log where session_id = '<session-id>' and art in ('fremmoede_dom','session_afsluttet');`; `select metric, unikt_id, udfald from public.klaviyo_haendelser where unikt_id like 'P-%';` → «Deltog i webinar» med `P-<id>:set` (eller `:delvist`).
-    - Først nu, og kun hvis Jonas vil have dommen til at køre af sig selv: `20260930161000_webinar_motor_cron.sql` (jobbet er ufarligt uden låsen: det tørkører).
+    - Først nu, og kun hvis Jonas vil have dommen til at køre af sig selv: `20261003031000_webinar_motor_cron.sql` (jobbet er ufarligt uden låsen: det tørkører).
 
 ### 7.4 Rådgiverens opsætning (`/webinar/motor`)
 
 Bag `AdvisorRoute`, i INGEN menu (værn dom 6). Opret webinar (titel, slug, Bunny-GUID, varighed, vært, venteværelse/exitrum, CTA-tid/mål/tekst/knap), status (kladde → aktiv → arkiveret), sessioner (dansk dato og tid → UTC gennem `kbhTilUtc`, pladser, intern ja/nej, aflys), og tidslinjen: interaktioner (tidskode fra/til, type, hvor, tekst) lægges i en **kladde** (version = udgivet + 1) og udgives samlet. «Ret tidslinjen» kopierer den udgivne version til en ny kladde. Formularerne dømmes i `lib/webinarMotorAdmin/opsaetning.ts` (interaktionerne af SAMME `interaktionSkema` som serveren); skrivningerne går gennem RLS (`hooks/webinarMotorAdmin.ts`), og databasen dømmer igen:
 
-- RLS (`20260930160000`): rådgivere INSERT/UPDATE på `webinarer` og `webinar_sessioner`, INSERT/UPDATE/DELETE på `webinar_interaktioner` KUN når `version > tidslinje_version`.
+- RLS (`20261003030000`): rådgivere INSERT/UPDATE på `webinarer` og `webinar_sessioner`, INSERT/UPDATE/DELETE på `webinar_interaktioner` KUN når `version > tidslinje_version`.
 - Triggere: `webinar_tidslinje_frem` (versionen går kun frem; slug'en er fast, når der er sessioner — den står i mailenes links), `webinar_session_laast` (en session med tilmeldte kan ikke flyttes — aflys og opret en ny; flyt med mail og SEQUENCE + 1 er spec'ens skive 6).
 
 **Afvigelser fra spec'en (B1–B3):** varigheden TASTES (spec'en: målt fra Bunnys video-info — kræver webinarbibliotekets API-nøgle; et tastet tal er en observation, så det skal være videoens præcise længde); ingen Bunny-upload, ingen skrubber/preview, ingen gentagelser, ingen flyt. CTA-målene i editoren er kun «ansøgningen» og «ikke klar endnu» (skemaets «ressource»/«link» har ingen vej i seerens kort endnu).

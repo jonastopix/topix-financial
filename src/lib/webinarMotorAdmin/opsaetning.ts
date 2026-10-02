@@ -4,7 +4,7 @@
  * Rene domme bag /webinar/motor (bag rådgiver-login, i ingen menu endnu):
  * formularerne for webinaret, sessionen og tidslinjens interaktioner, dømt
  * HER før noget sendes — og databasen dømmer igen (CHECK'ene i
- * 20260930100000, RLS og triggerne i 20260930160000). Interaktionernes
+ * 20261003010000, RLS og triggerne i 20261003030000). Interaktionernes
  * indhold dømmes af SAMME interaktionSkema, som webinar-rum/-puls bruger, så
  * editoren og serveren afviser det samme.
  *
@@ -278,7 +278,7 @@ const SKEMA_FEJL: Record<string, string> = {
 /**
  * Versionerne. Den UDGIVNE er webinarer.tidslinje_version (0 = intet udgivet);
  * KLADDEN er altid den næste (udgivet + 1) — kun den kan ændres (RLS i
- * 20260930160000 + skive 1's trigger). «Udgiv» sætter udgivet = kladde, og
+ * 20261003030000 + skive 1's trigger). «Udgiv» sætter udgivet = kladde, og
  * kun med mindst én interaktion i kladden: en tom kladde ville udgive en tom
  * tidslinje over en fyldt.
  */

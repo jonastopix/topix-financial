@@ -233,12 +233,13 @@ describe("webinarMotor.guard 5 — migrationen", () => {
     expect(laes(MIGRATION).split("\n")[0]).toBe("-- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).");
   });
   it("tidsstemplet er efter alle andre migrationer — undtagen webinarmotorens egne senere skiver", () => {
-    // Skive 3 (30/9) lagde 20260930160000_webinarmotor_skive3 og 20260930161000_webinar_motor_cron
-    // EFTER skive 1's. Reglen er stadig, at skive 1 kommer efter alt, der ikke er motorens.
+    // Skive 3 (30/9) lagde webinarmotor_skive3 og webinar_motor_cron EFTER skive 1's (omdøbt 2/10-2026 til
+    // 20261003030000/20261003031000 sammen med skive 1 → 20261003010000: en ukørt fil må aldrig sortere før en kørt).
+    // Reglen er stadig, at skive 1 kommer efter alt, der ikke er motorens.
     const alle = readdirSync(resolve(ROD, "supabase/migrations")).filter((f) => f.endsWith(".sql")).sort();
     const efter = alle.slice(alle.indexOf(MIGRATION.split("/")[2]) + 1);
     expect(alle).toContain(MIGRATION.split("/")[2]);
-    expect(efter).toEqual(["20260930160000_webinarmotor_skive3.sql", "20260930161000_webinar_motor_cron.sql"]);
+    expect(efter).toEqual(["20261003030000_webinarmotor_skive3.sql", "20261003031000_webinar_motor_cron.sql"]);
   });
   it("kun tilføjende", () => {
     expect(kunTilfoejende(laes(MIGRATION))).toBe(true);

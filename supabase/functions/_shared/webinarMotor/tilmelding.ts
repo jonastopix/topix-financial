@@ -208,7 +208,7 @@ export function internDom(sessionIntern: boolean, email: string): Interndom {
 
 /**
  * app_config-nøglen. FRAVÆRENDE = false (fail-closed), som webinar_mail_aktiv.
- * Migrationen 20260930160000 lægger den som false (ON CONFLICT DO NOTHING).
+ * Migrationen 20261003030000 lægger den som false (ON CONFLICT DO NOTHING).
  * Så længe den er lukket, findes motoren kun for den INTERNE prøvesession
  * (D2.7): ingen offentlig session vises, og ingen kan tilmelde sig en.
  */

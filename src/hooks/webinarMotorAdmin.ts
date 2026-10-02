@@ -2,9 +2,9 @@
  * Webinarmotorens opsætning — rådgiverens I/O bag /webinar/motor (skive 3, 30/9-2026).
  * Hook = I/O, lib = dom: formularerne dømmes i src/lib/webinarMotorAdmin/opsaetning.ts.
  *
- * LÆSNING OG SKRIVNING GÅR GENNEM RLS: rådgivere har SELECT (20260930100000) og
+ * LÆSNING OG SKRIVNING GÅR GENNEM RLS: rådgivere har SELECT (20261003010000) og
  * INSERT/UPDATE på webinarer og webinar_sessioner og INSERT/UPDATE/DELETE på
- * KLADDEN af webinar_interaktioner (20260930160000). Databasen dømmer igen:
+ * KLADDEN af webinar_interaktioner (20261003030000). Databasen dømmer igen:
  * CHECK'ene, triggerne (en udgivet version ændres aldrig; tidslinje_version går
  * kun frem; en session med tilmeldte flyttes ikke) og politikkerne.
  *

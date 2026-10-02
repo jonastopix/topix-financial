@@ -38,8 +38,8 @@ const MAIL_CRON = "supabase/functions/webinar-mail-cron/index.ts";
 const MOTOR_CRON = "supabase/functions/webinar-motor-cron/index.ts";
 const TILMELD = "supabase/functions/webinar-tilmeld/index.ts";
 const RUM = "supabase/functions/webinar-rum/index.ts";
-const MIG = "supabase/migrations/20260930160000_webinarmotor_skive3.sql";
-const MIG_CRON = "supabase/migrations/20260930161000_webinar_motor_cron.sql";
+const MIG = "supabase/migrations/20261003030000_webinarmotor_skive3.sql";
+const MIG_CRON = "supabase/migrations/20261003031000_webinar_motor_cron.sql";
 
 // ── 1. Ordene ────────────────────────────────────────────────────────────────
 

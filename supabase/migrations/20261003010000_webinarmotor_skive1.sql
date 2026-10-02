@@ -103,7 +103,7 @@ create trigger webinarer_updated_at before update on public.webinarer
   for each row execute function public.update_updated_at_column();
 
 comment on table public.webinarer is
-  'Webinarmotoren (skive 1, 30/9-2026): ét webinar = én video + tidslinje. varighed_sek og intro_sek TASTES af rådgiveren på /webinar/motor (skive 3) — ikke læst fra Bunny; et tastet tal er en observation og skal være videoens præcise længde. Service role skriver; rådgivere læser (og skriver gennem RLS fra skive 3, migration 20260930160000).';
+  'Webinarmotoren (skive 1, 30/9-2026): ét webinar = én video + tidslinje. varighed_sek og intro_sek TASTES af rådgiveren på /webinar/motor (skive 3) — ikke læst fra Bunny; et tastet tal er en observation og skal være videoens præcise længde. Service role skriver; rådgivere læser (og skriver gennem RLS fra skive 3, migration 20261003030000).';
 
 -- ── 2. Sessioner og gentagelser ─────────────────────────────────────────────
 create table if not exists public.webinar_gentagelser (

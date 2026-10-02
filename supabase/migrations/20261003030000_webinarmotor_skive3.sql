@@ -1,5 +1,5 @@
 -- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
--- OG EFTER 20260930100000_webinarmotor_skive1.sql (den skaber tabellerne, som
+-- OG EFTER 20261003010000_webinarmotor_skive1.sql (den skaber tabellerne, som
 -- denne fil tilføjer til), og FØR webinar-tilmeld, webinar-rum og
 -- webinar-motor-cron udrulles: de læser kolonnen `intern` og svarer 500 uden den.
 --
