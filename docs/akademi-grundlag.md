@@ -383,3 +383,42 @@ ORDER BY 1, 2;
 - **08** svarer på, hvor Quick Wins står, og på, om dryp er i brug. Dryp-tallet tæller kun dryp
   sat på selve elementet. Dryp arvet fra en samling (`content_collections.drip_after_days`)
   tælles ikke her.
+
+---
+
+## 7. Forespørgslen KØRT i prod (2/10 ca. kl. 02:40 dansk, Claude via Lovable `query_database`, kun SELECT; sektion 06 udeladt for længdens skyld)
+
+| Sektion | Nøgle | a | b | c |
+|---|---|---|---|---|
+| 01 batch | 2026-08-05 (grupper · rækker · brugere) | 3 | 23 | 1 |
+| 01 batch | 2026-08-12 (grupper · rækker · brugere) | 31 | 176 | 18 |
+| 02 kontrol | medlemmernes rækker · heraf batch · heraf egen aktivitet | 330 | 199 | 131 |
+| 03 medlemmer | i alt · med egen aktivitet · med egen gennemført | 29 | 18 | 18 |
+| 03 medlemmer | egen aktivitet seneste 30 · 90 · 365 dage | 6 | 18 | 18 |
+| 04 område | classroom (egen aktivitet · egen gennemført · batch-rækker) | 16 | 16 | 152 |
+| 04 område | start_her | 4 | 4 | 47 |
+| 04 område | academy | 1 | 1 | 0 |
+| 05 samling | Bogholderi (videoer · ≥1 egen gennemført · alle egne) | 14 | 12 | 0 |
+| 05 samling | Administration | 7 | 2 | 0 |
+| 05 samling | Kundeservice | 6 | 3 | 1 |
+| 05 samling | Målgruppe & strategi | 5 | 1 | 1 |
+| 05 samling | Marketing | 4 | 3 | 1 |
+| 05 samling | Salg | 4 | 1 | 1 |
+| 05 samling | Netværk & støtte | 4 | 1 | 1 |
+| 05 samling | Mål, retning og motivation | 3 | 1 | 1 |
+| 05 samling | Start her / Kom godt i gang med vores Akademi | 3 | 4 | 0 |
+| 07 handout | overordnet (udfyldt · egen video i modulet · begge) | 8 | 1 | 1 |
+| 07 handout | bogholderi | 4 | 11 | 2 |
+| 07 handout | administration | 4 | 1 | 0 |
+| 07 handout | marketing | 4 | 3 | 1 |
+| 07 handout | salg | 3 | 1 | 0 |
+| 08 indhold | classroom / start_her / academy (publicerede elementer) | 47 | 3 | 27 |
+| 09 brugbar | «ja»-svar i alt (classroom 1, start_her 2) | 3 | 0 | 2 |
+
+**Læsningen — og en rettelse (skrevet højt):**
+- **Fingeraftrykket holder kun delvist.** §5-«Sådan læses resultatet» forventede ca. 231 batch-rækker 12/8; målt er 176 rækker i 31 grupper 12/8 (+ 23 rækker 5/8). Blandt medlemmerne er 199 af 330 rækker batch. Batches med én række kan ikke skelnes (§6) — så de 131 «egne» rækker er et LOFT, ikke et tal.
+- **«22 af 29 har aldrig selv åbnet en video» er IKKE bekræftet af denne definition:** fingeraftrykket finder 18 af 29 med egen aktivitet. Forskellen er sandsynligvis enkelt-rækkes kvitteringer fra en rådgiver, der her tæller som «egne». Begge tal er usikre, indtil F0 skiller rådgiverens markering fra medlemmets. Det, begge målinger er enige om: **brugen er lav og ikke aktuel — kun 6 af 29 har haft egen aktivitet de seneste 30 dage** (Wilson ca. 10–39 %).
+- **Ingen har selv gennemført Bogholderi** (14 videoer) eller Administration — Fundamentets to største samlinger. Kun ét medlem har gennemført hver af de små samlinger.
+- **Handouts:** 8 har udfyldt «overordnet» (nu «Jeres retning» i Dine mål — det er den mest brugte); 3–4 pr. øvelse ellers.
+- **Dryp er ikke i brug på elementerne** (0) — kun eventuelt arvet fra samlingen (ikke målt her).
+- **Konsekvens for rækkefølgen:** F0 er stadig først — uden den kan ingen af forslagenes målinger læses ærligt.
