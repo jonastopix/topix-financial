@@ -11455,6 +11455,14 @@ En recon-agent (kun læsning) gik alle kort igennem med bevis fra `git log` og O
 - Fase 3a (legacy-nøglerne) — beslutning D1 i `docs/prod-hjem-plan.md`.
 - lh@-koblingen (manuel webinarkobling) — forslag, ikke bygget.
 
+### 2. oktober eftermiddag — ring-op i drift, Update, og to lærestreger
+
+- **Udrullet 14:05:** `ring-mig-op`, `ewebinar-webhook`, `ewebinar-import` («Successfully deployed edge functions: ring-mig-op, ewebinar-webhook, ewebinar-import»; build-chatten committede kun `types.ts`). `RING_SECRET` lagt af Jonas 14:03; Mondays tre secrets slettet af Jonas samme tid. **Bevist:** `ring-mig-op` tomt kald → 400 `"ring_mig_op": "skive-1"` (pg_net 29513); falsk token → 403 «ukendt», ikke 503 (29515) = secret'en læses. **Ikke bevist:** de to eWebinar-functions har intet nyt felt i svaret — beviset er den første «Deltog i webinar»-række i `klaviyo_haendelser` med `ring_op_url` efter webinaret **13/10 kl. 11** (370 tilmeldte).
+- **Update 14:09, målt i frisk hentning:** bundlen `index-C6nvmI43.js` (før `CoAcihj5`); fundet rekursivt i delene: RingMigOp/Opkald-siderne, `marker_community_spoergsmaal` (communityApi), «Hvem kan hjælpe» (Community), «Som gæst kan du læse med» (HbMemberShell), `markeret_at`/`markeret_af` (AdminContent), `maal_pladser_kun_bekraeftede` (HbMemberShell).
+- **LÆRESTREG — prøvekald gennem pg_net udløser cron-vagten.** Alarmen 14:19 («2 cron-jobs svarede ikke 200») var mine to beviskald (400 og 403) — vagten tilskriver ethvert ikke-200 i `net._http_response` til cron-jobs efter tid. Ingen job fejlede. Fremover: et bevis, der FORVENTER et ikke-200, varsles til Jonas i samme besked, eller køres som et 200-kald.
+- **LÆRESTREG — en flowmail kan ikke rettes gennem skabelon-API'et.** `PATCH /templates/TYARdA` (skabelonen bag «Deltog»-flowets mail 1, fundet gennem flowet) → 404 «does not exist», selv om `GET` virker. Husets vej er `klaviyo-motor` (`opret_skabelon` → `ret_flowmail`), som kræver en indlogget rådgiver; claude@ er kun læsning. Knappen «Ring mig op» (bag `{% if person.ring_op_url %}`) blev derfor leveret som færdig HTML til Jonas, der sætter den ind i Klaviyos editor. **Åbent:** mailens TEKST-version (plaintext) er forældet — den lover optagelsen (`topix.dk/webinar/optagelse`, taget ned 28/9) og nævner priser, som HTML'en ikke gør.
+- **«Opkald» i rådgivermenuen** (Jonas 14:22 «Jeg kan ikke se /opkald»): `/opkald` var bygget som «nås fra klokken, intet menupunkt» — en side, man ikke kan finde, er ikke i drift for mennesket. Nu lige under «Webinar» (`hbNav.ts`, `hbNav.test`).
+
 ### 2. oktober morgen — triggeren tæller kun bekræftede, og gæsten læser Community (gren `feat/trigger-og-gaest`; to migrationer — begge KØRT i prod 2/10 ca. 12:00–12:20 efter Jonas' «Klar» 11:31)
 
 Svar på morgenlisten 2/10 på to af nattens åbne punkter (pkt. 8 ovenfor).

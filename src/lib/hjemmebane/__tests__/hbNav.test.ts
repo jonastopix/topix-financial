@@ -126,6 +126,7 @@ describe("rådgiverens menu — det I bruger øverst (Jonas 8/9)", () => {
       ["Virksomheder", "/virksomheder", null],
       ["Ansøgninger", "/ansoegninger", null],
       ["Webinar", "/webinar", null],
+      ["Opkald", "/opkald", null],
       ["Engagement", "/engagement", null],
       ["Indbakke", "/chat", null],
       ["Community", "/community", null],
@@ -167,11 +168,12 @@ describe("rådgiverens menu — det I bruger øverst (Jonas 8/9)", () => {
   });
   it("partneren får «Økonomi» sidst i den øverste blok, efter Indhold, uden blok-overskrift; aktiv på /oekonomi", () => {
     const p = bygHbNav({ isAdvisor: true, erAbonnent: false, active: "boardroom", isPartner: true });
-    expect(flad(p).slice(0, 10).map((n) => [n.label, n.to, n.blok])).toEqual([
+    expect(flad(p).slice(0, 11).map((n) => [n.label, n.to, n.blok])).toEqual([
       ["Forside", "/", null],
       ["Virksomheder", "/virksomheder", null],
       ["Ansøgninger", "/ansoegninger", null],
       ["Webinar", "/webinar", null],
+      ["Opkald", "/opkald", null],
       ["Engagement", "/engagement", null],
       ["Indbakke", "/chat", null],
       ["Community", "/community", null],
@@ -194,6 +196,11 @@ describe("rådgiverens menu — det I bruger øverst (Jonas 8/9)", () => {
     }
     expect(bygHbNav({ isAdvisor: true, erAbonnent: false, active: "webinar" }).find((n) => n.label === "Webinar")?.active).toBe(true);
     expect(nav.find((n) => n.label === "Webinar")?.active).toBe(false);
+    // Jonas 2/10 14:22: «Opkald» står lige under Webinar og er aktiv på /opkald.
+    const raad = bygHbNav({ isAdvisor: true, erAbonnent: false, active: "opkald" });
+    const navne = raad.map((n) => n.label);
+    expect(navne.indexOf("Opkald")).toBe(navne.indexOf("Webinar") + 1);
+    expect(raad.find((n) => n.label === "Opkald")?.active).toBe(true);
   });
   it("et medlem ser ALDRIG «Webinar» — heller ikke som partner", () => {
     for (const p of [false, true]) {

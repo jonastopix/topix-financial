@@ -8,7 +8,7 @@ import { OpkaldView } from "@/components/hjemmebane/opkald/OpkaldView";
     klokken «opkald_anmodet» (klokke.ts: reference_type opkald → /opkald) og
     morgenmailen. Markeret som Webinar i menuen — det er dér, de kom fra. */
 const Opkald = () => (
-  <HbMemberShell active="webinar">
+  <HbMemberShell active="opkald">
     <OpkaldView />
   </HbMemberShell>
 );

@@ -356,7 +356,7 @@ const App = () => (
               <Route path="/webinar" element={<AdvisorRoute><Webinar /></AdvisorRoute>} />
               {/* Nyhedsagenten (30/9, skive 1): rådgiverens godkendelse af ugens nyhedsudkast — N1, intet publiceres uden klik her. Nås fra klokken. */}
               <Route path="/nyheder" element={<AdvisorRoute><Nyheder /></AdvisorRoute>} />
-              {/* «Må vi ringe til dig?» (2/10): rådgivernes kø af dem, der bad om et opkald — nås fra klokken, intet menupunkt. */}
+              {/* «Må vi ringe til dig?» (2/10): rådgivernes kø af dem, der bad om et opkald — fra klokken og menupunktet «Opkald» (Jonas 2/10 14:22). */}
               <Route path="/opkald" element={<AdvisorRoute><Opkald /></AdvisorRoute>} />
               {/* Kontoen i Hjemmebane (9/9): navn, adgangskode, login, log ud — for alle roller. */}
               <Route path="/konto" element={<ProtectedRoute><Konto /></ProtectedRoute>} />

@@ -109,6 +109,8 @@ export type HbAktiv =
   | "oekonomi"
   /** /webinar (19/9): webinartallene — tilmeldte, deltagelse, annoncespor. Alle rådgivere. */
   | "webinar"
+  /** /opkald (2/10): dem, der efter webinaret bad Morten eller Jonas ringe op. Alle rådgivere (ikke tjenestekonti — RLS). */
+  | "opkald"
   /** /deling (14/9): «Fortæl det videre», sidste punkt i medlemmets menu. */
   | "deling"
   /** /certifikat (29/9): «Dit certifikat» — efter «Fortæl det videre», kun når medlemmet er berettiget. */
@@ -257,6 +259,9 @@ export function raadgiverensNav(active: HbAktiv, isPartner = false): HbNavEntry[
     // de 330 tilmeldte er pipelinen FØR pipelinen. Alle rådgivere, ikke kun
     // partnere: det er ikke omsætningstal, det er hvem der kommer.
     { label: "Webinar", to: "/webinar", active: active === "webinar" },
+    // Jonas 2/10 14:22 «Jeg kan ikke se /opkald»: køen af dem, der bad om et opkald efter
+    // webinaret, skal kunne findes uden om klokken — derfor lige under Webinar, hvor de kommer fra.
+    { label: "Opkald", to: "/opkald", active: active === "opkald" },
     // 1/10 (efter Webinar: Ansøgninger skal stå lige efter Virksomheder og Webinar lige efter Ansøgninger — flowRettelser.guard 7, hbNav.test): trofæer og streak pr. kunde (docs/boardroom-score.md «Trofæer»).
     { label: "Engagement", to: "/engagement", active: active === "engagement" },
     { label: "Indbakke", to: "/chat", active: active === "chat" },
