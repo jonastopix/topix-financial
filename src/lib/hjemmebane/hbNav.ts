@@ -177,6 +177,19 @@ export const FORDELE_PUNKT = { label: "Fordele", to: "/rabataftaler" } as const;
     teksten; /deling og kreativerne er urørte. */
 export const ANBEFAL_PUNKT = { label: "Anbefal", to: "/deling" } as const;
 
+/** Netværkets fem børn — ÉN liste (skridt 2, 2/10): menuens underpunkter OG
+    fanerne øverst på de fem ruter (netvaerkFaner.ts, HbNetvaerkFaner) læser
+    den samme, så en fane og et menupunkt aldrig kan hedde to ting. `aktiv`
+    er menuens aktiv-nøgle (HbAktiv); fanerne dømmes af STIEN. Jonas 2/10:
+    «Fordele» under Netværket — ja. */
+export const NETVAERKETS_BOERN = [
+  { label: "Community", to: "/community", aktiv: "community" },
+  { label: "Events", to: "/events", aktiv: "events" },
+  { label: "Medlemmerne", to: "/medlemmer", aktiv: "medlemmer" },
+  { ...FORDELE_PUNKT, aktiv: "rabataftaler" },
+  { ...ANBEFAL_PUNKT, aktiv: "deling" },
+] as const satisfies ReadonlyArray<{ label: string; to: string; aktiv: HbAktiv }>;
+
 /** Netværket (seks steder, 2/10): Community er forsiden (første barn), så
     Events (mærket «Live nu» lander på barnet — HbMemberShell), Medlemmerne
     (/medlemmer — ordet «Netværket» er nu stedets, ikke listens), Fordele,
@@ -184,13 +197,7 @@ export const ANBEFAL_PUNKT = { label: "Anbefal", to: "/deling" } as const;
 function netvaerket(active: HbAktiv): HbNavEntry {
   return {
     label: "Netværket",
-    children: [
-      { label: "Community", to: "/community", active: active === "community" },
-      { label: "Events", to: "/events", active: active === "events" },
-      { label: "Medlemmerne", to: "/medlemmer", active: active === "medlemmer" },
-      { ...FORDELE_PUNKT, active: active === "rabataftaler" },
-      { ...ANBEFAL_PUNKT, active: active === "deling" },
-    ],
+    children: NETVAERKETS_BOERN.map((b) => ({ label: b.label, to: b.to, active: active === b.aktiv })),
   };
 }
 

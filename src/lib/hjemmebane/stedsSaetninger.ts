@@ -19,7 +19,10 @@
  * en underside (/community/:id, /events/:id, /akademiet/:area) giver null.
  * «Dine tal» er tre stier (Rapportering, KPI'er, Budget) og «Netværket» fem
  * (Community, Events, Medlemmerne, Fordele, Anbefal) — samme sætning på
- * hver, så stedet er det samme uanset hvilken dør man kom ind ad.
+ * hver, så stedet er det samme uanset hvilken dør man kom ind ad. Skridt 2
+ * (2/10): på Netværkets fem stier tegnes sætningen af NETVÆRKSHOVEDET
+ * (HbNetvaerkFaner — eyebrow, h1, sætningen, fanerne), som skallen sætter
+ * over indholdet; `netvaerksSti` er dommen.
  *
  * Abonnenten og rådgiveren får ingen sætninger (komponentens gate,
  * `visStedsSaetning` nedenfor): abonnenten har ikke de seks steder, og
@@ -39,12 +42,12 @@ export const STEDS_SAETNINGER: Readonly<Record<Sted, string>> = {
     "Det her er stedet, hvor du afleverer dine tal hver måned, følger nøgletallene og lægger budgettet — og ser, hvad tallene fortæller.",
   dine_maal:
     "Det her er stedet, hvor du sætter mål for virksomheden og bryder dem ned i skridt med en frist. Et mål er nået, når du selv siger det.",
-  // Rådets fund 4 (2/10): «Community er forsiden.» er taget ud — den
-  // forudsætter fanerne (skridt 2) og var usand på Events/Medlemmerne/
-  // Fordele/Anbefal. Læg sætningen tilbage i skridt 2, når Netværket ER
-  // én side med Community som første fane.
+  // Rådets fund 4 (2/10 nat) tog «Community er forsiden.» ud, fordi den
+  // forudsatte fanerne. Skridt 2 (2/10): Netværket ER nu ét sted med fem
+  // faner og Community som den første (HbNetvaerkFaner) — sætningen er sand
+  // på alle fem stier og står tilbage, forslagets ordlyd ordret.
   netvaerket:
-    "Det her er stedet, hvor du møder de andre medlemmer — spørg, svar, mød op, og få de andres fordele.",
+    "Det her er stedet, hvor du møder de andre medlemmer — spørg, svar, mød op, og få de andres fordele. Community er forsiden.",
   // Rådets fund 13 (2/10): «ofte med en øvelse» — det er UMÅLT, at hver
   // lektion har én; «i hver» lovede noget, ingen har talt.
   akademiet:
@@ -89,17 +92,33 @@ function normaliser(pathname: string): string {
     skallen som før — dér er den den ENESTE indledning, så intet stables.
     Skallen springer stierne her over (`skallenTegnerSaetning`); værnet
     (seksSteder.guard dom 3) kræver, at hver sti her har en view, der
-    tegner `<HbStedsSaetning sti="<sti>"`. */
+    tegner `<HbStedsSaetning sti="<sti>"`.
+    SKRIDT 2 (2/10): Events, Medlemmerne og Fordele er ude af listen — Netværket
+    er ét sted, og dets ene sætning står i NETVÆRKSHOVEDET over fanerne
+    (HbNetvaerkFaner, tegnet af skallen på de fem Netværks-stier), ikke under
+    de enkelte faners h1. Fem steder tilbage: Dine tal (3), Dine mål, Akademiet. */
 export const STEDER_MED_EGET_HOVED: ReadonlySet<string> = new Set([
-  "/reports", "/kpis", "/budget", "/milestones", "/events", "/medlemmer", "/rabataftaler", "/akademiet",
+  "/reports", "/kpis", "/budget", "/milestones", "/akademiet",
 ]);
 
 /** Tegner SKALLEN sætningen for stien? Nej på forsiden (BoardroomView
-    tegner den under hilsenen) og nej på de steder, der har eget hoved. */
+    tegner den under hilsenen), nej på de steder, der har eget hoved — og nej
+    på Netværkets fem stier (skridt 2): dér tegner skallen netværkshovedet
+    (HbNetvaerkFaner: eyebrow → h1 → sætningen → fanerne), som bærer
+    sætningen én gang over fanerne. Tilbage: chatten og booking. */
 export function skallenTegnerSaetning(pathname: string): boolean {
   const sti = normaliser(pathname);
   const sted = STEDERNES_STIER[sti] ?? null;
-  return sted !== null && sted !== "boardroom" && !STEDER_MED_EGET_HOVED.has(sti);
+  return sted !== null && sted !== "boardroom" && sted !== "netvaerket" && !STEDER_MED_EGET_HOVED.has(sti);
+}
+
+/** Netværkets fem stier (skridt 2) — de nøjagtige stier, hvor netværkshovedet
+    med fanerne tegnes; undersider (/community/:id, /events/:id,
+    /medlemmer/:userId) giver null som for sætningen. Afledt af
+    STEDERNES_STIER, så en ny Netværks-sti kun skal tilføjes ét sted. */
+export function netvaerksSti(pathname: string): string | null {
+  const sti = normaliser(pathname);
+  return STEDERNES_STIER[sti] === "netvaerket" ? sti : null;
 }
 
 /** Hvilket sted er stien forsiden for? null = ingen (underside, rådgiverflade, konto …). */

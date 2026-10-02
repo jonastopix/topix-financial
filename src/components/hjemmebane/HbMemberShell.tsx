@@ -22,7 +22,8 @@ import { listAllUpcomingEvents } from "@/lib/hjemmebane/akademiApi";
 import { LIVE_MAERKE, liveEvent, liveEventSti, liveEventTitel } from "@/lib/hjemmebane/liveEvent";
 import { useCertificate } from "@/hooks/useCertificate";
 import { HbStedsSaetning } from "./HbStedsSaetning";
-import { skallenTegnerSaetning } from "@/lib/hjemmebane/stedsSaetninger";
+import { HbNetvaerkFaner } from "./netvaerk/HbNetvaerkFaner";
+import { netvaerksSti, skallenTegnerSaetning } from "@/lib/hjemmebane/stedsSaetninger";
 
 /** Fælles Hb-medlemsskal for forsiden ("/") og de øvrige medlemsflader
     (generalisering af den tidligere HbAkademiShell): V0-layoutmodellen
@@ -197,12 +198,19 @@ export const HbMemberShell = ({
      ikke af `active`, så undersider tier. Hvem der ser den (det fulde medlem,
      en rådgiver i «Se som medlem», aldrig abonnenten) afgør komponenten selv —
      skallen gater ikke. Forsiden («/») tegner selv sætningen under hilsenen
-     (BoardroomView), og de otte steder med eget redaktionelt hoved
-     (STEDER_MED_EGET_HOVED: Dine tal, Dine mål, Events, Medlemmerne, Fordele,
-     Akademiet) tegner den selv under deres h1 (rådets fund 7, 2/10) — så
-     skallen tegner den KUN, hvor den er den eneste indledning: Community,
-     Anbefal, chatten, booking. */
+     (BoardroomView), og de fem steder med eget redaktionelt hoved
+     (STEDER_MED_EGET_HOVED: Dine tal, Dine mål, Akademiet) tegner den selv
+     under deres h1 (rådets fund 7, 2/10) — så skallen tegner den KUN, hvor
+     den er den eneste indledning: chatten, booking.
+     NETVÆRKET (skridt 2, 2/10): på de fem Netværks-stier (/community,
+     /events, /medlemmer, /rabataftaler, /deling — ruterne er uændrede)
+     tegner skallen i stedet NETVÆRKSHOVEDET (HbNetvaerkFaner: eyebrow → h1 →
+     sætningen → fanebjælken) over indholdet — ét sted, fem faner, sætningen
+     én gang. Hvem der ser det (det fulde medlem, en rådgiver i «Se som
+     medlem»; aldrig abonnenten) afgør komponenten selv, som sætningen.
+     Undersider (/community/:id, /events/:id, /medlemmer/:userId) får intet. */
   const stedsSaetningSti = skallenTegnerSaetning(location.pathname) ? location.pathname : null;
+  const netvaerkHovedSti = netvaerksSti(location.pathname);
 
   /* «LIVE NU» VED EVENTS (Jonas 10/9). Hentningen deler cache-nøgle med
      /events og Community-composeren (["events", "upcoming-all"]), så
@@ -274,6 +282,7 @@ export const HbMemberShell = ({
           ) : (
             <main className={`mx-auto max-w-[1200px] px-6 py-10 md:py-14 ${tjeklisteBundluft}`}>
               {stedsSaetningSti && <HbStedsSaetning sti={stedsSaetningSti} className="mb-8" />}
+              {netvaerkHovedSti && <HbNetvaerkFaner sti={netvaerkHovedSti} />}
               {children}
             </main>
           )}

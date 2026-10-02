@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { listMemberDirectory, type MemberProfile } from "@/lib/hjemmebane/memberProfile";
 import { kortLinje } from "@/lib/hjemmebane/netvaerksprofil";
 import { HbCard } from "../HbCard";
-import { HbStedsSaetning } from "../HbStedsSaetning";
+import { HbNetvaerkFaneHoved } from "../netvaerk/HbNetvaerkFaneHoved";
 
 /** Medlemsoversigten (/medlemmer): hele netværket som kort-grid med
     klient-side søgning — 31 medlemmer er for lidt til server-søgning.
@@ -114,25 +114,19 @@ export const MemberDirectoryView = () => {
 
   return (
     <div>
-      {/* ── Header (Events-mønstret): fladens navn som eyebrow, en
-          SÆTNING som rubrik. ── */}
-      <section className="max-w-3xl">
-        {/* «Medlemmerne» (rådets fund 6, 2/10): samme ord som menuen (hbNav.ts) — «Netværket» er nu stedet, denne side er ét af dets børn. */}
-        <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">Medlemmerne</p>
-        <h1 className="mt-3 font-editorial text-4xl font-medium leading-[1.1] tracking-tight text-hb-ink md:text-5xl">
-          Folk der står, hvor du står.
-        </h1>
-        {/* Stedsætningen under h1 (rådets fund 7, 2/10): eyebrow → h1 → én sætning — sidens gamle intro kun for dem, sætningen ikke taler til (ellers). */}
-        <HbStedsSaetning
-          sti="/medlemmer"
-          className="mt-3"
-          ellers={
-            <p className="mt-3 text-sm text-hb-ink-soft">
-              Find de andre medlemmer — se hvad de laver og har været igennem, og tag fat i dem der har prøvet det, du står i.
-            </p>
-          }
-        />
-      </section>
+      {/* ── Header: under Netværkets faner (skridt 2, 2/10) er siden en FANE og
+          rubrikken en h2 — Netværkets hoved tegner skallen. Uden fanerne
+          (rådgiveren på sin egen flade) det gamle hoved ordret. «Medlemmerne»
+          (rådets fund 6): samme ord som menuen (hbNav.ts NETVAERKETS_BOERN). ── */}
+      <HbNetvaerkFaneHoved
+        eyebrow="Medlemmerne"
+        rubrik="Folk der står, hvor du står."
+        intro={
+          <p className="mt-3 text-sm text-hb-ink-soft">
+            Find de andre medlemmer — se hvad de laver og har været igennem, og tag fat i dem der har prøvet det, du står i.
+          </p>
+        }
+      />
 
       <div className="mt-10">
         <input

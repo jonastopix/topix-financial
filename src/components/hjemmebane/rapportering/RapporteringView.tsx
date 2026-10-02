@@ -40,6 +40,10 @@ import PulseCheckinModal from "@/components/PulseCheckinModal";
 import { HbAdvisorCompanyPrompt } from "../HbAdvisorCompanyPrompt";
 import { HbCard } from "../HbCard";
 import { HbStedsSaetning } from "../HbStedsSaetning";
+import { HbSection } from "../HbSection";
+import { DinMaaned } from "../boardroom/DinMaaned";
+import { factsToDanishMetrics } from "@/lib/factsAdapter";
+import { dinMaanedDom, type MaanedsRaekke } from "@/lib/hjemmebane/dinMaaned";
 import { HbButton } from "../HbButton";
 import { hbControlClasses } from "../admin/HbField";
 import { deriveReportCardView, type CardAction, erForTidligt, godkendSpaerret, rapportFejlgrund, rapportNaesteSkridt } from "./reportCardView";
@@ -181,6 +185,28 @@ export const RapporteringView = () => {
   const foersteGang =
     !reportsQuery.isLoading && !reportsQuery.isError && !godkendelseHentes && !godkendelseUkendt && historikFoerst(facts.length);
   const latestCommittedLabel = facts.length > 0 ? facts[facts.length - 1].period_label : null;
+
+  // «DIN MÅNED» (seks steder, skridt 2, 2/10 — flyttet hertil fra forsiden,
+  // Jonas' ja til forslagets spørgsmål 2): SAMME komponent (DinMaaned.tsx) og
+  // SAMME dom (dinMaanedDom) som forsiden tegnede — rækkerne er facts
+  // (samme hentning som godkendelsen ovenfor); «behandles» = ingen facts,
+  // men en rapport med status processed i listen (forsidens processedQuery
+  // læste det samme felt). Hooks i topblokken, før enhver betinget return.
+  const dinMaaned = useMemo(() => {
+    const raekker = facts.map<MaanedsRaekke>((f) => {
+      const kf = factsToDanishMetrics(f.metrics);
+      return {
+        key: f.period_key,
+        period: f.period_label,
+        basis: f.data_basis === "estimated" ? "estimated" : "measured",
+        omsaetning: kf.omsaetning ?? null,
+        resultat: kf.resultat_foer_skat ?? null,
+        bank: kf.bank_balance ?? null,
+      };
+    });
+    const processing = raekker.length === 0 && dbReports.some((r) => r.status === "processed");
+    return dinMaanedDom(raekker, processing);
+  }, [facts, dbReports]);
 
   // ── Deep link: ?reportId= → expand + scroll + highlight (arvet 1:1) ──────
   // Dependency-mønstret fra gamle Reports (searchParams + dbReports): et NYT
@@ -534,6 +560,18 @@ export const RapporteringView = () => {
               : "Ingen godkendte tal endnu"}
         </p>
       </section>
+
+      {/* ── DIN MÅNED (skridt 2, 2/10): øverst på Dine tals rapporteringsside —
+          tre tal med retning i ord + sparkline, forsidens kort uændret
+          (DinMaaned.tsx). Uden CTA: den tomme tilstands knap pegede på /reports,
+          og upload-zonen står lige under. Kun med virksomhed; udelades, når
+          godkendelsen er ukendt — facts tomme af en FEJL ville tegne «Din måned
+          står her» for en med tyve måneder (samme regel som leveringsbåndet). ── */}
+      {companyId && !godkendelseUkendt && (
+        <HbSection eyebrow="Din måned" hairline linkLabel="Se dine tal" linkTo="/kpis" className="mt-8" data-rapportering-din-maaned>
+          <DinMaaned dom={dinMaaned} udenCta />
+        </HbSection>
+      )}
 
       {/* ── Leveringsbånd (indeværende år) — udelades når godkendelsen er
           ukendt: «0 af 9 måneder godkendt» ville være en løgn. ── */}

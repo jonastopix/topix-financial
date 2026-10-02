@@ -160,7 +160,8 @@ describe("Boardroom Score-fladen — kildeværn", () => {
 
   it("dom 2: sektionen står mellem toppen og «Din plan», én gang, ikke i højre kolonne", () => {
     expect(placering(forside)).toBe(true);
-    const iToppen = forside.replace("data-forside-din-maaned>", "data-forside-din-maaned><ScoreKort />");
+    // (Til 2/10 var ankeret data-forside-din-maaned — «Din måned» bor nu på /reports, seks steder skridt 2.)
+    const iToppen = forside.replace("data-forside-naeste-skridt>", "data-forside-naeste-skridt><ScoreKort />");
     expect(placering(iToppen)).toBe(false);
   });
 

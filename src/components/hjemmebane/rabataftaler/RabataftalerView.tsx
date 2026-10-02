@@ -10,7 +10,7 @@ import {
   afgoerAftaleMaal, AFTALE_FINDES_IKKE, aftalenErUdloebet, laesRabataftaleId, MARKERING_MS, rabataftaleElementId,
 } from "@/lib/hjemmebane/rabataftaleAdresse";
 import { hbButtonVariants } from "../HbButton";
-import { HbStedsSaetning } from "../HbStedsSaetning";
+import { HbNetvaerkFaneHoved } from "../netvaerk/HbNetvaerkFaneHoved";
 
 /** Rabataftaler-miljøet (13-08-2026). Datamodellen og admin-fladen fandtes
     allerede (partners-tabellen, 20260804120000:82-108 + PartnersView/
@@ -177,23 +177,16 @@ export const RabataftalerView = () => {
 
   return (
     <div>
-      <section className="max-w-3xl">
-        {/* «Fordele» (rådets fund 6, 2/10): samme ord som menuen (hbNav.ts FORDELE_PUNKT) — som eyebrow,
-            fordi eyebrowen i husets mønster (Events, Medlemmerne) ER fladens navn; h1 «Rabataftaler» står,
-            fordi det er, hvad siden rummer, og abonnent og rådgiver stadig når den under det ord. */}
-        <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">
-          Fordele
-        </p>
-        <h1 className="mt-3 font-editorial text-4xl font-medium leading-[1.1] tracking-tight text-hb-ink md:text-5xl">
-          Rabataftaler
-        </h1>
-        {/* Stedsætningen under h1 (rådets fund 7, 2/10): eyebrow → h1 → én sætning — sidens gamle intro kun for dem, sætningen ikke taler til (ellers). */}
-        <HbStedsSaetning
-          sti="/rabataftaler"
-          className="mt-3"
-          ellers={<p className="mt-3 text-sm text-hb-ink-soft">Aftaler forhandlet hjem til medlemmer af The Boardroom.</p>}
-        />
-      </section>
+      {/* ── Header: under Netværkets faner (skridt 2, 2/10; Jonas 2/10: «Fordele» under Netværket — ja)
+          er siden fanen «Fordele» og rubrikken en h2 — Netværkets hoved tegner skallen. Uden fanerne —
+          ABONNENTEN (Rabataftaler er hendes direkte punkt; hun har intet Netværk) og rådgiveren på sin
+          egen flade — det gamle hoved ordret: eyebrow «Fordele» (rådets fund 6: samme ord som menuen,
+          hbNav.ts FORDELE_PUNKT), h1 «Rabataftaler» (det, siden rummer, og ordet i deres menuer), intro. ── */}
+      <HbNetvaerkFaneHoved
+        eyebrow="Fordele"
+        rubrik="Rabataftaler"
+        intro={<p className="mt-3 text-sm text-hb-ink-soft">Aftaler forhandlet hjem til medlemmer af The Boardroom.</p>}
+      />
 
       <section className="mt-10 max-w-4xl md:mt-12">
         {findesIkke && (
