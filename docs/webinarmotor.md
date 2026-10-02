@@ -233,12 +233,12 @@ Bucket B (`verify_jwt = true`, `authenticateServiceRole` først), tørkørsel so
 7. **Tilmeld** som testadresse: åbn prøvelinket fra `/webinar/motor` i et privat vindue, fornavn + egen `@topix.dk`-adresse → kvitteringen.
    - **Bevis:** `select id, ewebinar_id, kilde_system, state, raa from public.webinar_tilmeldinger where session_id = '<session-id>';` → én række, `P-…`, `platform`, `Registered`, `raa.intern = true`. En adresse uden for husets domæner får «Den session er en intern prøve …» (403).
 8. **Mails:** `webinar_mail_aktiv` er tændt i drift (cron 573), så bekræftelsen kommer i næste slot (≤ 10 min).
-   - **Bevis:** `select art, udfald, invitation, ewebinar_id from public.webinar_mails where ewebinar_id like 'P-%' order by forsoegt_at desc;` → `bekraeftelse · ok · hentet · P-…`. I indbakken: knappen «Gå til webinaret» peger på `/w/<slug>?t=…`, og den vedhæftede invitation har UID `<tilmeldings-id>@webinar.topix.dk`. «Om en time» kommer 60 min før.
+   - **Bevis:** `select art, udfald, invitation, ewebinar_id from public.webinar_mails where ewebinar_id ~ '^P-[0-9a-f]{8}-' order by forsoegt_at desc;` → `bekraeftelse · ok · hentet · P-…`. I indbakken: knappen «Gå til webinaret» peger på `/w/<slug>?t=…`, og den vedhæftede invitation har UID `<tilmeldings-id>@webinar.topix.dk`. «Om en time» kommer 60 min før.
 9. **Sessionen:** åbn linket fra mailen — venteværelset → «Gå ind» → videoen. Se mindst nogle minutter, gerne på en telefon og en computer.
    - **Bevis:** `select set_procent, foerste_ind_at, enheder from public.webinar_deltagelser where session_id = '<session-id>';` → `set_procent > 0`; og `select count(*) from public.webinar_pulser p join public.webinar_deltagelser d on d.id = p.deltagelse_id where d.session_id = '<session-id>';` > 0.
 10. **Efter sessionen** (exitrummets slut + 5 min): kør dommen for NETOP den interne session (låsen røres ikke):
     `SELECT public.kald_edge('webinar-motor-cron', '{"dry_run": false, "session_id": "<session-id>"}'::jsonb);`
-    - **Bevis:** svaret `"sender_rigtigt":true`, sessionen `"afsluttet":true`; `select state, sidste_action, set_procent, set_procent_kilde from public.webinar_tilmeldinger where session_id = '<session-id>';` → Watched/WatchedWebinar/… /`boardroom-bitmap`; `select data from public.webinar_motor_log where session_id = '<session-id>' and art in ('fremmoede_dom','session_afsluttet');`; `select metric, unikt_id, udfald from public.klaviyo_haendelser where unikt_id like 'P-%';` → «Deltog i webinar» med `P-<id>:set` (eller `:delvist`).
+    - **Bevis:** svaret `"sender_rigtigt":true`, sessionen `"afsluttet":true`; `select state, sidste_action, set_procent, set_procent_kilde from public.webinar_tilmeldinger where session_id = '<session-id>';` → Watched/WatchedWebinar/… /`boardroom-bitmap`; `select data from public.webinar_motor_log where session_id = '<session-id>' and art in ('fremmoede_dom','session_afsluttet');`; `select metric, unikt_id, udfald from public.klaviyo_haendelser where unikt_id ~ '^P-[0-9a-f]{8}-';` → «Deltog i webinar» med `P-<id>:set` (eller `:delvist`).
     - Først nu, og kun hvis Jonas vil have dommen til at køre af sig selv: `20261003031000_webinar_motor_cron.sql` (jobbet er ufarligt uden låsen: det tørkører).
 
 ### 7.4 Rådgiverens opsætning (`/webinar/motor`)
@@ -271,4 +271,77 @@ Bag `AdvisorRoute`, i INGEN menu (værn dom 6). Opret webinar (titel, slug, Bunn
 | 8 | LAV — `set_procent_kilde` hed «boardroom-1» i SQL'en og MOTOR_VERSION i cronen; migrationskommentaren påstod, at `varighed_sek` kom fra Bunny | ÉT navn, «boardroom-bitmap» (`fremmoede.ts:SET_PROCENT_KILDE_MOTOR`), i begge; kommentaren siger nu, at varigheden TASTES. Værn dom 8 |
 | 9 | LAV — tokenet i URL'en | Bogført i `docs/tracking.md` række 27 |
 
+**Målt i prod 3/10-2026 ca. 01:05 — «P-» er ikke et sikkert filter i SQL:** én eWebinar-tilmelding har et registrant-id, der begynder med «P-» (`P-JirsFNyOpp0cKQN99pf`; 1 af 845 rækker, 3 rækker i `webinar_mails`). Koden er sikker — `erMotorId` kræver hele formen «P-<uuid>» (`mail.ts:MOTOR_ID_FORM`) — men en `like 'P-%'` i en bevis-SQL tæller eWebinar-rækken med. Runbookens trin 8 og 10 bruger derfor `~ '^P-[0-9a-f]{8}-'`; brug den form (eller `kilde_system = 'platform'`) i al SQL om motorens rækker.
+
 **Værn:** `webinarMotorSkive3.test.ts` (fremmøde, mailvej, intern, formularerne) og `webinarMotorSkive3.guard.test.ts` (seks domme med mutationer: ordene, mailvejen, cronen, den interne session, migrationerne, opsætningen). Paritet: `fremmoede.ts` og `mail.ts` er spejlet ordret (elleve filer). `MOTOR_VERSION` = «boardroom-3».
+
+## 8. Vejen til første offentlige session (udkast 3/10-2026 nat — AFVENTER JONAS' BESLUTNINGER)
+
+Jonas 2/10: første rigtige session på egen platform i starten af november, tilmelding åben ca. tre uger før — «vi skal have styr på hele setuppet snarest». Planen er lagt af planlægningsagenten 3/10 nat (kun læsning) og efterprøvet mod prod på ét punkt (§7.6-noten om «P-»). **Intet her er besluttet, før Jonas har svaret på §8.2.**
+
+**Målt i prod 2/10 aften:** den eneste programsatte session er eWebinars 13/10 kl. 11 (370 tilmeldte). Der findes ingen novembersession nogen steder.
+
+### 8.1 Den kritiske sti (forslag: session tirsdag 3/11 kl. 11, tilmelding åben onsdag 14/10)
+
+14/10 er dagen efter eWebinars sidste programsatte session — widgetten har alligevel ingen dato derefter.
+
+| # | Hvornår | Skridt | Hvem | Beviset før næste skridt |
+|---|---|---|---|---|
+| 1 | lør 3/10 | Beslutningerne §8.2 | Jonas | Bogført her |
+| 2 | søn 4/10 | Merge skive 1 → 2 → 3 (v2-grenene; afløser #1158/#1161/#1173) | Claude PR, Jonas go | CI grøn på hver (`gh run list --branch`) |
+| 3 | søn–man | Migrationerne `20261003010000` og `20261003030000` (IKKE `031000`) | Jonas, SQL editor | EFTER-SELECT gemt; begge `GET …?limit=0` → 200 |
+| 4 | man 5/10 | Secrets `WEBINAR_JOIN_SECRET`, `BUNNY_WEBINAR_LIBRARY_ID`, `BUNNY_WEBINAR_TOKEN_AUTH_KEY`; Bunny-biblioteket «Webinar» (EU, token-auth, referrer app.theboardroom.dk) | Jonas | Rummet svarer ikke `embed_status: "ikke_sat_op"` |
+| 5 | man 5/10 | Deploy `webinar-tilmeld`, `-rum`, `-puls`, `-motor-cron`, `-mail-cron`, `ansoegning-gem` → Update | Jonas/Lovable | `"motor":"boardroom-3"`, `motor_mail` i svaret, `/webinar/motor` åbner |
+| 6 | man 5/10 | Videoen ud af eWebinar (MP4 + CTA-tidskoder) → Bunny; varigheden tastes sekundpræcist | Jonas | GUID og længde noteret her |
+| 7 | 6–7/10 | Intern prøvesession (runbook §7.3 trin 6–10) | Jonas + 2–3 interne | Mail med `/w/…?t=` + husets .ics; `set_procent > 0`; fremmødedom + Klaviyo `P-…:set`. **iPhone Safari og Android Chrome MED LYD på fysiske telefoner; Bunnys cookies i DevTools** |
+| 8 | **fre 9/10** | **Go/no-go 1:** åbner vi tilmelding på platformen? | Jonas | Punkt 7 grønt — ellers reserve A |
+| 9 | 8–12/10 | Privatlivstekst på topix.dk, tilmeldingsformularen (B2), Meta-signalet (B3) | Jonas, Claude | Teksten publiceret FØR første Meta-hændelse; `CompleteRegistration` set i Events Manager → Test events |
+| 10 | man 12/10 | Det offentlige webinar + sessionen 3/11 oprettes, status aktiv | Jonas | Præcis én offentlig session |
+| 11 | tir 13/10 kl. 11 | **P0-skygge:** intern session samtidig med eWebinars | 20–30 interne | `set_procent` afviger ≤ 5 pp for ≥ 90 % af dem i begge; synk p95 < 3 s |
+| 12 | ons 14/10 | Låsen `webinarmotor_offentlig_aktiv` → true (SELECT før/efter, UPDATE vagtet på false); widget og annoncer peger på formularen | Jonas, marketing | En ekstern tilmelding står som `P-<uuid>`, bekræftelsen `ok` |
+| 13 | 14–30/10 | `ti_minutter`, minimal konsol, lastprøve (~300 samtidige), afmelding prøvet, .ics i Apple Mail/Gmail/Outlook | Claude bygger, Jonas udruller | Ét resultatsæt med E3-punkterne |
+| 14 | **tir 27/10** | **Go/no-go 2:** afholder vi på platformen? | Jonas | 11 og 13 grønne |
+| 15 | tir 3/11 | **P1** | Morten/Jonas i konsollen | Fremmødedommen kørt; `/webinar` viser sessionen uden kodeændring |
+
+**Før åbningen 14/10:** 2–7, 9, 10, 12. **Før 3/11:** 11, lastprøven, afmeldingsprøven, konsollen (hvis der loves svar undervejs). **Kan vente til efter P1:** `raaAdapter`, analytics, gentagelser/flyt/aflys-mails (en aflysning på platformen sender i dag INGEN mail), Bunny-upload fra fladen, klokker, svar pr. mail. **Undtagelsen:** `ansoegninger.webinar_tilmelding_id` (skive 4) — uden den kan tragten for 3/11 kun genskabes på mail bagefter.
+
+**Uge 41–42:** ca. 8–10 udrulningsrunder for Jonas på ti dage; uge 42 er efterårsferie.
+
+### 8.2 Beslutninger kun Jonas kan tage
+
+| | Beslutning | Anbefaling | Blokerer |
+|---|---|---|---|
+| B1 | G1 ærlighed (ingen falsk chathistorik; «X venter» først fra 10, det reelle tal) | Ja | Formularens og rummets løfter |
+| B2 | Hvor tilmeldingen bor | Et indlejret script, serveret fra app'en og sat ind på topix.dk som eWebinars widget — pixlen fyrer da i topix.dk's eget samtykke-/GTM-miljø, og app'en forbliver uden tracking (`webinarRum.guard` dom 3). Alternativ: `/w/:slug/tilmeld` (bygget) — så er CAPI eneste Meta-vej | Punkt 9 og 12 |
+| B3 | G3 Meta | Pixel + CAPI med dedup på `event_id` (= tilmeldings-id) | Annoncernes signal; «Fuldfør registrering» kommer i dag fra eWebinars pixel |
+| B4 | Privatlivsteksten | Spec §C6. Løftet «Selve din tilmelding deler vi ikke med Meta» SKAL ændres før første CAPI-hændelse | Åbning + CAPI |
+| B5 | Hvem afholder, svares der undervejs? | Morten i en minimal konsol, svar kun i rummet. **Der findes i dag ingen rådgiverflade til spørgsmål** | Om konsollen er på stien |
+| B6 | Video | eWebinars video til intern prøve og P0 (P0 kræver samme video). Ny optagelse til 3/11 kun hvis færdig senest ~20/10 | 6, 7 |
+| B7 | Dato | Tirsdag 3/11 kl. 11 (samme ugedag/tid — tallene kan sammenlignes) | 10 |
+| B8 | P0 13/10 | Ja, med alias-adresser (fx `navn+ew@topix.dk` hos eWebinar) — dubletværnet dømmer «nærmeste session» pr. `lower(email)` på tværs af systemerne (§7.3). Om topix.dk-mailen tager plus-adresser: UMÅLT | Paritetsbeviset |
+| B9 | Merge-go + go/no-go-datoerne 9/10 og 27/10 | | Alt |
+
+### 8.3 Risici og reserve
+
+- **9/10 — lyd/autoplay på iPhone er UMÅLT.** Fejler den: plan B (egen HLS-afspiller) koster 3–4 dage.
+- **12/10 — registreringssignalet.** Ikke bevist i Test events = tre ugers kampagne uden signal. Største kommercielle risiko.
+- **Formularen på topix.dk:** hvem der kan publicere, og hvor hurtigt — UMÅLT (site-repoet er ikke i sessionen).
+- **Videoen:** format, og om den kan hentes ud af eWebinar — UMÅLT.
+- **Punktet uden vej tilbage er åbningen 14/10:** tilmeldte på platformen kan ikke flyttes rent til eWebinar. Derfor porten 9/10.
+
+**Reserve A (anbefalet, hvis 9/10 ikke er grøn; besluttes senest 12/10):** 3/11 oprettes i eWebinar, widgetten bliver, motoren kører skygge samme dag (P0 flyttes til 3/11). En måned mere med eWebinar; annoncerne ikke i fare.
+**Reserve B (tilmelding i eWebinar, afholdelse hos os) FRARÅDES:** to sæt mails, links og kalenderfiler (eWebinars UID/ORGANIZER), og en bro, der hverken er specificeret eller bygget.
+**Reserve C (go/no-go 2 fejler):** 3/11 aflyses manuelt med en mail og tilbud om ny dato — aflysningsmailen er ikke bygget (skive 6).
+
+### 8.4 Det, Claude bygger uden beslutninger (rækkefølge = hvor meget det afkorter stien)
+
+1. PR'er for v2-grenene (skive 1 → 2 → 3).
+2. Denne runbook (§8).
+3. `ti_minutter` — CHECK-migration efter `20261003031000` (KØRT før deploy), kun for motorens rækker (eWebinar sender selv sin 10-minutters-mail).
+4. Minimal værtskonsol `/webinar/motor/session/:id` — FØRST måles, om RLS giver rådgivere UPDATE på `webinar_spoergsmaal`.
+5. Server-side CAPI bag låsen `webinarmotor_meta_aktiv` (CHECK-migration på `meta_haendelser`, ikke kørt; værn `webinarTilmeldMeta.guard`).
+6. Lastprøve (k6), P0-sammenligningens SQL og E3-tjeklisten som ét resultatsæt.
+7. `ansoegninger.webinar_tilmelding_id` (skive 4).
+8. Efter B2: udkast til indlejrings-scriptet (honningfelt, utm/fbclid, `_fbp`/`_fbc` kun med samtykke, `CompleteRegistration` med `eventID` = tilmeldings-id).
+
+**Kendt hul (fra v2-flettet):** den interne prøvesession filtreres i `webinarDashboard` (begge spejle), men IKKE i `maalstreger` og `annoncepriser`. Skal lukkes før P0 — interne tilmeldinger må ikke trække målstregerne.
