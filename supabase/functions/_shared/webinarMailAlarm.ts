@@ -288,7 +288,7 @@ const UDFALD_ORD: Record<string, string> = {
 };
 
 const ART_ORD: Record<MailArt, string> = {
-  bekraeftelse: "bekræftelsen", fjorten_dage: "om to uger", syv_dage: "om en uge", tre_dage: "om tre dage", en_dag: "i morgen", dagen: "i dag", en_time: "om en time", ti_minutter: "om 10 minutter",
+  bekraeftelse: "bekræftelsen", fjorten_dage: "om to uger", syv_dage: "om en uge", tre_dage: "om tre dage", en_dag: "i morgen", dagen: "i dag", en_time: "om en time", ti_minutter: "lige før start",
 };
 
 /** «kl. 10:00» dansk for et ISO-tidspunkt — eller teksten selv, hvis den ikke kan læses. */

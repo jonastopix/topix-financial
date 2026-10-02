@@ -858,7 +858,7 @@ describe("INGEN BLIND GENSENDELSE: et ukendt udfald indhentes ikke (29/9)", () =
   });
 });
 
-describe("ti_minutter — «Vi begynder om 10 minutter», KUN webinarmotorens rækker (3/10-2026)", () => {
+describe("ti_minutter — påmindelsen lige før start, KUN webinarmotorens rækker (3/10-2026)", () => {
   // Session 13/10 kl. 11:00 dansk = 09:00Z. Planlagt T−10 = 08:50Z; vinduet T−15 … T−5 = 08:45Z … 08:55Z.
   const MOTOR_ID = "P-0b9c5f1e-1234-4abc-8def-0123456789ab";
   const MAIL = "motor@x.dk";

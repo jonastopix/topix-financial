@@ -398,7 +398,7 @@ export const tekstenFoelgerInvitationen = (cron: string, tekster: string): boole
     // Feltet er KRÆVET, flaget når dommen, og dommen har begge grene.
     t.includes("invitationVedhaeftet: boolean;") &&
     !/invitationVedhaeftet\?:/.test(t) &&
-    t.includes("const i = indhold(a.art, tid, a.invitationVedhaeftet, video);") &&
+    t.includes("const i = indhold(a.art, tid, a.invitationVedhaeftet, video, klokke);") &&
     t.includes("const inv = invitationsTekst(medInvitation);") &&
     t.includes("export function invitationsTekst(medInvitation: boolean)") &&
     /if \(medInvitation\) \{/.test(t)
@@ -723,7 +723,7 @@ export const videoKunEnDag = (a: { cron: string; tekster: string; video: string;
     // ── Byggeren ──
     t.includes("video: MailVideo | null;") && !/video\?:/.test(t) &&
     t.includes("const video = a.art === VIDEO_ART ? a.video : null;") &&
-    t.includes("const i = indhold(a.art, tid, a.invitationVedhaeftet, video);") &&
+    t.includes("const i = indhold(a.art, tid, a.invitationVedhaeftet, video, klokke);") &&
     !/<iframe|<video/i.test(t) &&
     // ── Motoren ──
     v.includes('export const VIDEO_ART: MailArt = "en_dag";') &&
@@ -851,7 +851,7 @@ describe("webinarMail.guard dom 19 — fanger fejlen på en kopi", () => {
 
   it("et valgfrit felt, en afspiller i mailen, eller et flag der ikke når indholdet, fælder dom 19", () => {
     expect(med("tekster", "video: MailVideo | null;", "video?: MailVideo | null;")).toBe(false);
-    expect(med("tekster", "const i = indhold(a.art, tid, a.invitationVedhaeftet, video);", "const i = indhold(a.art, tid, a.invitationVedhaeftet, a.video);")).toBe(false);
+    expect(med("tekster", "const i = indhold(a.art, tid, a.invitationVedhaeftet, video, klokke);", "const i = indhold(a.art, tid, a.invitationVedhaeftet, a.video);")).toBe(false);
     expect(videoKunEnDag({ ...f, tekster: `${f.tekster}\nconst X = "<iframe src=x>";` })).toBe(false);
   });
 
@@ -1227,7 +1227,7 @@ describe("webinarMail.guard — dommene fanger fejlen på en kopi", () => {
     // Feltet gjort valgfrit — en glemt værdi ville blive «false» i stilhed, eller «true» hos en kalder med default.
     expect(tekstenFoelgerInvitationen(cron, tekster.split("invitationVedhaeftet: boolean;").join("invitationVedhaeftet?: boolean;"))).toBe(false);
     // Dommen ignorerer flaget.
-    expect(tekstenFoelgerInvitationen(cron, tekster.split("const i = indhold(a.art, tid, a.invitationVedhaeftet, video);").join("const i = indhold(a.art, tid, true, video);"))).toBe(false);
+    expect(tekstenFoelgerInvitationen(cron, tekster.split("const i = indhold(a.art, tid, a.invitationVedhaeftet, video, klokke);").join("const i = indhold(a.art, tid, true, video);"))).toBe(false);
     expect(tekstenFoelgerInvitationen(cron, tekster.split("const inv = invitationsTekst(medInvitation);").join("const inv = invitationsTekst(true);"))).toBe(false);
   });
 });

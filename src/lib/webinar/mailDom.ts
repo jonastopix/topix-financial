@@ -140,7 +140,7 @@ export const PLANEN: readonly Plan[] = [
   { art: "en_dag", dageFoer: 1, time: 8, minut: 0, indhentesSenestDageFoer: 1, kraeverIkkeBegyndt: false },
   // «Om en time» — det er DEN, der bærer join-linket til en, der er på vej.
   { art: "en_time", minutterFoer: 60, kraeverIkkeBegyndt: true },
-  // «Vi begynder om 10 minutter» (3/10-2026, docs/webinarmotor.md §8.4 punkt 3) —
+  // 10-minutters-påmindelsen (3/10-2026, docs/webinarmotor.md §8.4 punkt 3) —
   // KUN motorens rækker (kunMotor): eWebinar sender selv sin 10-minutters-mail.
   //
   // VINDUET OG NÅDEN — regnestykket. Cronen kører i minutterne
@@ -158,7 +158,9 @@ export const PLANEN: readonly Plan[] = [
   // fyrer et par sekunder efter sit minut; i et 10-min-hul ligger det forrige slot
   // på T−15 eller senere, eller det næste på T−5 eller før — prøvet for alle 60
   // minutter i webinarMailDom.test.ts). For en session kl. hh:00: vinduet
-  // hh−1:45 … hh−1:55 → slot :47, altså 13 min før.
+  // hh−1:45 … hh−1:55 → slot :47, altså 13 min før. DERFOR siger teksten
+  // klokkeslættet («Vi begynder kl. 11.00 — venteværelset er åbent»), aldrig
+  // «om 10 minutter» (webinarMailTekster.ts; prøvet i webinarMail.test.ts).
   // ALDRIG EFTER STARTEN: dommens `nu` er kørslens start. Seneste ja = T − 5 min.
   // Budgettet (webinarMailBudget.ts) starter et forsøg uden invitation senest
   // 40 s inde i kørslen, og Mailgun-kaldet har en timeout på 10 s:

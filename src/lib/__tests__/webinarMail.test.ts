@@ -3,6 +3,7 @@ import { bygWebinarMail, EMNER, AFSENDER, SVAR_TIL, invitationsTekst } from "../
 import { bygFormData, beskedUrl, MAILGUN_EU_BASE, sendMailgun } from "../../../supabase/functions/_shared/mailgunAfsendelse.ts";
 import { byggAfmeldToken, laesAfmeldToken, afmeldUrl, TOKEN_FORM } from "../../../supabase/functions/_shared/webinarAfmeldToken.ts";
 import { AKTIVE_ARTER, ARTER, MED_INVITATION, type MailArt, UDGAAEDE_ARTER } from "@/lib/webinar/mailDom";
+import { webinarKlokke, webinarTekst } from "../../../supabase/functions/_shared/klaviyoDato.ts";
 
 const SESSION = "2026-10-13T09:00:00.000Z";
 const AFMELD = "https://p.supabase.co/functions/v1/webinar-afmeld?t=abc.def";
@@ -175,16 +176,48 @@ describe("INGEN LØFTER OM ET LINK, DER KOMMER (Jonas 22/9 ca. 19:35)", () => {
   });
 });
 
-describe("ti_minutter — «Vi begynder om 10 minutter» (3/10-2026, kun motorens tilmeldte)", () => {
+describe("ti_minutter — «Vi begynder kl. 11.00 — venteværelset er åbent» (3/10-2026, kun motorens tilmeldte)", () => {
   const MOTOR = { ...ARGS, joinLink: "https://app.theboardroom.dk/w/webinar?t=abc.def", kalenderLink: "https://app.theboardroom.dk/w/webinar/kalender?t=abc.def", invitationVedhaeftet: false };
   const m = bygWebinarMail({ ...MOTOR, art: "ti_minutter" });
 
-  it("emnet, overskriften og knappen til rummet", () => {
-    expect(m.subject).toBe("Vi begynder om 10 minutter — her er dit link");
-    expect(m.html).toContain("Vi begynder<br/>om 10 minutter");
+  it("emnet, overskriften, klokkeslættet og knappen til rummet", () => {
+    expect(m.subject).toBe("Venteværelset er åbent — her er dit link");
+    expect(m.html).toContain("Vi begynder<br/>kl. 11.00");
+    expect(m.html).toContain("Vi begynder kl. 11.00 — venteværelset er åbent.");
+    expect(m.text).toContain("Vi begynder kl. 11.00 — venteværelset er åbent.");
     expect(m.html).toContain(`href="${MOTOR.joinLink}"`);
     expect(m.text).toContain(`Gå til webinaret: ${MOTOR.joinLink}`);
-    expect(m.text).toContain("Vi begynder tirsdag 13. oktober kl. 11.00.");
+  });
+
+  /** Fælder ethvert løfte om et ANTAL minutter — mailen går 5–15 min før (dommens vindue). */
+  const LOVER_MINUTTER = /10\s*minutter|om\s+10\b|om\s+ti\b|ti\s+minutter|\bom\s+\d+\s*min/i;
+  it("teksten lover ALDRIG et antal minutter («10 minutter», «om 10») — emne, HTML og tekst", () => {
+    for (const [navn, tekst] of [["emne", m.subject], ["html", m.html], ["tekst", m.text]]) {
+      expect(tekst, navn).not.toMatch(LOVER_MINUTTER);
+    }
+  });
+  it("PRØVEN VIRKER: den første udgave (3/10) ville være fældet", () => {
+    for (const gammel of ["Vi begynder om 10 minutter — her er dit link", "Vi begynder<br/>om 10 minutter", "OM 10 MINUTTER", "Vi starter om 10."]) {
+      expect(gammel, gammel).toMatch(LOVER_MINUTTER);
+    }
+  });
+
+  it("klokkeslættet er dansk tid hen over skiftet 25/10-2026 (sommertid → vintertid)", () => {
+    // 24/10 kl. 11.00 dansk = 09:00Z (UTC+2); 26/10 kl. 11.00 dansk = 10:00Z (UTC+1).
+    const klokke = (sessionTid: string) => bygWebinarMail({ ...MOTOR, art: "ti_minutter", sessionTid }).text;
+    expect(klokke("2026-10-24T09:00:00.000Z")).toContain("Vi begynder kl. 11.00 —");
+    expect(klokke("2026-10-26T10:00:00.000Z")).toContain("Vi begynder kl. 11.00 —");
+    // Selve skiftedagen: 25/10 kl. 11.00 dansk er vintertid = 10:00Z; 09:00Z er kl. 10.00.
+    expect(klokke("2026-10-25T10:00:00.000Z")).toContain("Vi begynder kl. 11.00 —");
+    expect(klokke("2026-10-25T09:00:00.000Z")).toContain("Vi begynder kl. 10.00 —");
+    // Og om natten, hvor skiftet sker (03:00 sommertid → 02:00 vintertid): 00:30Z = 02.30 sommertid, 01:30Z = 02.30 vintertid.
+    expect(klokke("2026-10-25T00:30:00.000Z")).toContain("Vi begynder kl. 2.30 —");
+    expect(klokke("2026-10-25T01:30:00.000Z")).toContain("Vi begynder kl. 2.30 —");
+    expect(webinarKlokke(new Date("2026-10-25T10:00:00.000Z"))).toBe("kl. 11.00");
+    // Hjælperen er webinarTekst' hale — samme format.
+    for (const s of ["2026-10-24T09:00:00.000Z", "2026-10-25T10:00:00.000Z", "2026-03-29T08:30:00.000Z"]) {
+      expect(webinarTekst(new Date(s)).endsWith(webinarKlokke(new Date(s))), s).toBe(true);
+    }
   });
 
   it("INGEN kalenderrække og ingen kalenderfil — hverken i HTML eller tekst", () => {

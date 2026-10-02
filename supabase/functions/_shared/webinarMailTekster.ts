@@ -33,8 +33,9 @@
  * områder og de fem spørgsmål — ordret fra «tre_dage» og «dagen»); de to er de
  * eneste tekster i filen, der ikke er Mortens egne, og begge er markeret.
  *
- * Den ottende, `ti_minutter` (3/10-2026), er også husets: «Vi begynder om 10
- * minutter» — KUN til webinarmotorens tilmeldte (dommens kunMotor; eWebinar
+ * Den ottende, `ti_minutter` (3/10-2026), er også husets: «Vi begynder kl. 11.00
+ * — venteværelset er åbent» (klokkeslættet, aldrig «om 10 minutter»: mailen går
+ * 5–15 min før) — KUN til webinarmotorens tilmeldte (dommens kunMotor; eWebinar
  * sender selv sin 10-minutters-mail til sine). Ingen kalenderrække (UDEN_KALENDER)
  * og ingen kalenderfil.
  *
@@ -94,7 +95,7 @@
  * Layoutet er ordret Mortens: Parkinsans/Manrope, #FAF8F5, 600 px, TOPIX-
  * ordmærke, eyebrow i #A3D9C4, portrættet, hårlinjerne, den grønne boks.
  */
-import { webinarTekst } from "./klaviyoDato.ts";
+import { webinarKlokke, webinarTekst } from "./klaviyoDato.ts";
 import { googleKalenderUrl, outlookKalenderUrl, type MailArt } from "./webinarMailDom.ts";
 import { knapTekst, type MailVideo, VIDEO_ART } from "./webinarVideo.ts";
 
@@ -248,7 +249,8 @@ export const EMNER: Record<MailArt, string> = {
   en_dag: "Vi ses i morgen — tag én beslutning med",
   dagen: "Det er i dag",
   en_time: "Vi starter om en time — her er dit link",
-  ti_minutter: "Vi begynder om 10 minutter — her er dit link",
+  // Intet antal minutter: mailen går 5–15 min før (dommens vindue). Klokkeslættet står i mailen.
+  ti_minutter: "Venteværelset er åbent — her er dit link",
 };
 
 /**
@@ -259,7 +261,7 @@ export const EMNER: Record<MailArt, string> = {
  */
 export const UDEN_KALENDER: readonly MailArt[] = ["ti_minutter"];
 
-function indhold(art: MailArt, tid: string, medInvitation: boolean, video: MailVideo | null): MailIndhold {
+function indhold(art: MailArt, tid: string, medInvitation: boolean, video: MailVideo | null, klokke: string): MailIndhold {
   const inv = invitationsTekst(medInvitation);
   switch (art) {
     case "bekraeftelse":
@@ -398,18 +400,27 @@ function indhold(art: MailArt, tid: string, medInvitation: boolean, video: MailV
       // tilmeldte (dommens kunMotor — eWebinar sender selv sin til sine). Den
       // korteste af alle: knappen til rummet er hele ærindet. Intet løfte om noget
       // bagefter og ingen påstand om sendingen (D2.1, docs/webinarmotor.md §7).
+      //
+      // KLOKKESLÆTTET, IKKE ET ANTAL MINUTTER (3/10-2026): mailen går et sted
+      // mellem T−15 og T−5 (dommens vindue mod cronens slots) — «om 10 minutter»
+      // ville være forkert med op til fem minutter. Teksten skal være sand, så den
+      // siger klokkeslættet i dansk tid (webinarKlokke, samme hjælper som
+      // webinarTekst). «Venteværelset er åbent» holder, når sessionens lobby_min
+      // er standarden 15 (vinduet begynder T−15).
       return {
-        eyebrow: "OM 10 MINUTTER",
-        overskrift: "Vi begynder<br/>om 10 minutter",
+        eyebrow: "VENTEVÆRELSET ER ÅBENT",
+        overskrift: `Vi begynder<br/>${esc(klokke)}`,
         laesetid: "10 sekunders læsning",
         krop:
-          FOERSTE(`Vi begynder ${esc(tid)}.`) +
+          FOERSTE(`Vi begynder ${esc(klokke)} — venteværelset er åbent.`) +
           BOKS("Knappen herunder er dit personlige link til rummet. Det åbner i browseren — du behøver ikke installere noget.") +
-          P("Find noget at skrive på, og sæt telefonen på lydløs. Vi ses om lidt."),
+          P("Find noget at skrive på, og sæt telefonen på lydløs. Vi ses om lidt.") +
+          P(`Webinaret: ${esc(tid)}.`, true),
         kropTekst:
-          `Vi begynder ${tid}.\n\n` +
+          `Vi begynder ${klokke} — venteværelset er åbent.\n\n` +
           "Linket herunder er dit personlige link til rummet. Det åbner i browseren — du behøver ikke installere noget.\n\n" +
-          "Find noget at skrive på, og sæt telefonen på lydløs. Vi ses om lidt.",
+          "Find noget at skrive på, og sæt telefonen på lydløs. Vi ses om lidt.\n\n" +
+          `Webinaret: ${tid}.`,
       };
   }
 }
@@ -425,7 +436,9 @@ export function bygWebinarMail(a: MailArgs): Mail {
   const titel = (a.webinarTitel ?? "").trim() || WEBINAR_TITEL_STANDARD;
   // Kun VIDEO_ART kan bære videoen — også hvis en kalder giver den til en anden art.
   const video = a.art === VIDEO_ART ? a.video : null;
-  const i = indhold(a.art, tid, a.invitationVedhaeftet, video);
+  // «kl. 11.00» i dansk tid — kun «ti_minutter» bruger den (3/10).
+  const klokke = webinarKlokke(new Date(a.sessionTid));
+  const i = indhold(a.art, tid, a.invitationVedhaeftet, video, klokke);
   // UDEN_KALENDER («ti_minutter»): ingen kalenderrække — hverken i HTML eller tekst.
   const medKalender = !UDEN_KALENDER.includes(a.art);
   const google = medKalender ? googleKalenderUrl({ titel, sessionTid: a.sessionTid, joinLink: a.joinLink }) : null;
