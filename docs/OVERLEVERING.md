@@ -410,8 +410,10 @@ Jonas 17:19: «Ja den er fin. Men du skal have lavet hele forsiden færdig … K
 
 **Lærestreg (rettelse undervejs):** begge migrationer var navngivet efter de ventende `20261002280000`/`290000` (with-check og 3a, mandag). Da de blev KØRT, fældede `metaSend.guard` dom 11 («en ikke-kørt migration må ikke sortere før en kørt»). De er omdøbt til `20261002275000` og `20261002276000` (efter den seneste kørte, før de ventende), og deres egne værn, der krævede «efter den seneste kørte», er rettet til kun at gælde, så længe filen ikke selv er kørt. Fremover: en migration, der skal køres SAMME dag, mens ældre ventende findes, navngives FØR de ventende.
 
+**Rettet samme aften (Jonas 19:29, skærmbillede af sin egen forside: «Ift. den mockup du sendte mig … lever du ikke op til dit arbejde»):** Jonas havde ret. Jeg havde prøvet forsiden i harnessen på eksempeldata med tal-mål, skønt jeg havde MÅLT, at prod har 0 tal-mål — så hans rigtige data (to gamle mål) ramte den tilstand, der havde fået mindst omhu: chippen «Kan ikke afgøres endnu» på hvert mål, en mørk bar uden etiket (skridtene) under «2 mio. i omsætning», «Alle skridt er gjort …» over «+ Tilføj det første skridt», «Gør målet skarpt» som en gemt link-tekst, skridtene to gange («Dit næste skridt» og «Din plan») og løse rester under kortene. Rettet i grenen `fix/forside-gamle-maal` (CLAUDE.md «Forsidens «Din plan» i tre tilstande»), prøvet på Topix' rigtige mål i harnessen på desktop og 375 px FØR det blev vist. **Lærestreg: prøv en flade på de rigtige data — den tilstand, de fleste medlemmer står i — før den vises.**
+
 **Åbent:**
-1. Update i Lovable (bærer #1245, #1246, #1247).
+1. Update i Lovable (bærer #1245, #1246, #1247 og rettelsen).
 2. Designgennemsyn af forsiden i drift efter Update, i en frisk fane, desktop og 375 px — som medlem (rådgiverkortet er skjult for rådgivere).
 3. Jonas åbner `dag1_klokke_aktiv`, når han vil have klokken.
 
