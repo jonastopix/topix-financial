@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { likviditet, type ScoreMaaned } from "@/lib/boardroomScore";
 import {
   dageMellem,
+  doemMaalFrist,
   doemNytMaal,
   fristTekst,
   kraeverPrMaanedFor,
@@ -24,6 +25,8 @@ import {
   periodeTekst,
   sidsteDagIMaaned,
   skarptForslag,
+  skridtKilde,
+  foreslaaTitel,
   talDato,
   type MaalMedTal,
   type SkridtTilMaal,
@@ -573,6 +576,17 @@ describe("guiden", () => {
     expect(doemNytMaal(lind(-1), NU, lik)).toEqual({ ok: false, grund: "Likviditeten kan ikke være under 0 måneder" });
   });
 
+  it("doemNytMaal (runde 2, fund 9): omsætningens måltal ≥ 0 — resultatet må stadig være negativt", () => {
+    const TRE = [m("2026-07", { revenue: 100_000 }), m("2026-08", { revenue: 120_000 }), m("2026-09", { revenue: 140_000 })];
+    const oms = nuvaerendeTal("omsaetning_aarstakt", TRE, NU);
+    const oind = (maaltal: number) => ({ titel: "x", art: "tal" as const, noegle: "omsaetning_aarstakt" as const, maaltal, frist: "2027-10-01" });
+    expect(doemNytMaal(oind(0), NU, oms).ok).toBe(true);
+    expect(doemNytMaal(oind(2_000_000), NU, oms).ok).toBe(true);
+    expect(doemNytMaal(oind(-1), NU, oms)).toEqual({ ok: false, grund: "Omsætningen kan ikke være under 0 kr." });
+    const res = nuvaerendeTal("resultat_aarstakt", [m("2026-07", { ebt: 10_000 }), m("2026-08", { ebt: 10_000 }), m("2026-09", { ebt: 10_000 })], NU);
+    expect(doemNytMaal({ titel: "x", art: "tal", noegle: "resultat_aarstakt", maaltal: -100_000, frist: "2027-10-01" }, NU, res).ok).toBe(true);
+  });
+
   it("doemNytMaal: andet_tal gemmer udgangspunktet som current_value og kræver en enhed", () => {
     expect(doemNytMaal({ titel: "Flere kunder", art: "tal", noegle: "andet_tal", maaltal: 100, udgangspunkt: 60, frist: "2027-10-01" }, NU)).toEqual({ ok: false, grund: "Skriv hvad tallet tæller (fx kunder)" });
     const d = doemNytMaal({ titel: "Flere kunder", art: "tal", noegle: "andet_tal", maaltal: 100, udgangspunkt: 60, enhed: "kunder", frist: "2027-10-01" }, NU);
@@ -683,5 +697,58 @@ describe("«Måltallet er nået» opfordrer kun (fund 16)", () => {
   it("teksten foreslår at overveje klikket — den siger ikke, at målet er nået", () => {
     expect(MAAL_ORD.maaltalNaaetSpoergsmaal).toBe("Måltallet er nået. Overvej at markere målet som nået.");
     expect(MAAL_ORD.status.naaet_i_tal).toBe("Måltallet er nået");
+  });
+});
+
+// ── Fladen 1/10-2026: skridtets kilde og guidens titelforslag ──────────────
+
+describe("skridtKilde — company_actions.source_type er en observation", () => {
+  it("manual → jer selv, advisor → din rådgiver, maskinens ord → AI, alt andet → null", () => {
+    expect(skridtKilde("manual")).toBe("medlem");
+    expect(skridtKilde("advisor")).toBe("raadgiver");
+    for (const s of ["ai_weekly", "agent", "reflection", "deterministic_template", "ai_extraction"]) expect(skridtKilde(s)).toBe("ai");
+    expect(skridtKilde("manual_baseline")).toBeNull();
+    expect(skridtKilde(null)).toBeNull();
+    expect(skridtKilde(undefined)).toBeNull();
+  });
+  it("naesteSkridt bærer «foreslået af …» i ord — og null uden kilde", () => {
+    const sk = (over: Partial<SkridtTilMaal>): SkridtTilMaal => ({ id: "s", title: "Ring", status: "active", due_date: "2026-10-10", maal_id: "m1", ...over });
+    expect(naesteSkridt("m1", [sk({ source_type: "advisor" })], NU).skridt?.foreslaaetAf).toBe("din rådgiver");
+    expect(naesteSkridt("m1", [sk({ source_type: "manual" })], NU).skridt?.foreslaaetAf).toBe("jer selv");
+    expect(naesteSkridt("m1", [sk({ source_type: "ai_weekly" })], NU).skridt?.foreslaaetAf).toBe("AI");
+    expect(naesteSkridt("m1", [sk({})], NU).skridt?.foreslaaetAf).toBeNull();
+  });
+});
+
+describe("foreslaaTitel — guidens titel af nøglen og måltallet", () => {
+  it("husnøglerne i ord", () => {
+    expect(foreslaaTitel("omsaetning_aarstakt", 2_000_000)).toBe("Omsætning på 2 mio. kr. i årstakt");
+    expect(foreslaaTitel("resultat_aarstakt", 620_000)).toBe("Resultat før skat på 620.000 kr. i årstakt");
+    expect(foreslaaTitel("likviditet_mdr", 4)).toBe("4 mdr. drift i banken");
+    expect(foreslaaTitel("db_grad", 42.5)).toBe("Dækningsgrad på 42,5 %");
+  });
+  it("andet_tal kræver en enhed; uden måltal intet forslag", () => {
+    expect(foreslaaTitel("andet_tal", 12, "kunder")).toBe("12 kunder");
+    expect(foreslaaTitel("andet_tal", 12, "")).toBeNull();
+    expect(foreslaaTitel("omsaetning_aarstakt", null)).toBeNull();
+  });
+});
+
+describe("doemMaalFrist — én fristdom for guiden og «Redigér» (fund 5)", () => {
+  const nu = new Date("2026-10-01T10:00:00Z");
+  it("efter i dag og højst 36 måneder frem (inklusive)", () => {
+    expect(doemMaalFrist("2026-10-02", nu)).toEqual({ ok: true, dato: "2026-10-02" });
+    expect(doemMaalFrist("2029-10-01", nu)).toEqual({ ok: true, dato: "2029-10-01" });
+    expect(doemMaalFrist("2026-10-01", nu)).toEqual({ ok: false, grund: "Fristen skal ligge efter i dag" });
+    expect(doemMaalFrist("2026-09-30", nu)).toEqual({ ok: false, grund: "Fristen skal ligge efter i dag" });
+    expect(doemMaalFrist("2029-10-02", nu).ok).toBe(false);
+  });
+  it("tom, null eller ikke en dato → «Vælg en frist»", () => {
+    expect(doemMaalFrist("", nu)).toEqual({ ok: false, grund: "Vælg en frist" });
+    expect(doemMaalFrist(null, nu)).toEqual({ ok: false, grund: "Vælg en frist" });
+    expect(doemMaalFrist("2026-13-45", nu)).toEqual({ ok: false, grund: "Vælg en frist" });
+  });
+  it("doemNytMaal dømmer fristen med den samme dom", () => {
+    expect(doemNytMaal({ titel: "Ansat", art: "begivenhed", frist: "2026-10-01" }, nu)).toEqual({ ok: false, grund: "Fristen skal ligge efter i dag" });
   });
 });

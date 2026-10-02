@@ -22,9 +22,10 @@ import { resolve } from "node:path";
 //      hvad et mål er eller kan være»): forklaringen og eksemplerne har ÉN
 //      kilde (lib/hjemmebane/maalForklaring) og bruges TRE steder — forsidens
 //      «Din plan» (åben uden mål, foldet <details> med mål), /milestones'
-//      tomme tilstand (DineMaalView) og «Sæt et mål»-formularen
-//      (MilestoneDialoger: teksten over titelfeltet, eksemplerne som hjælp
-//      under). Ingen anden kildefil bærer teksten.
+//      tomme tilstand (DineMaalView) og guiden «Sæt et mål» (SaetMaalGuide,
+//      fladen 1/10-2026: teksten som dialogens beskrivelse i trin 1 «Hvad vil
+//      I nå?» — før MilestoneDialoger: over titelfeltet, eksemplerne som
+//      hjælp). Ingen anden kildefil bærer teksten.
 // Kildelæsning med selvbevis på kopier (dineMaal.guard-mønstret).
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -36,7 +37,7 @@ const DOM = "src/lib/hjemmebane/forsidePlan.ts";
 const KILDE = "src/lib/hjemmebane/maalForklaring.ts";
 const KOMPONENT = "src/components/hjemmebane/milestones/HbMaalForklaring.tsx";
 const VIEW = "src/components/hjemmebane/milestones/DineMaalView.tsx";
-const DIALOG = "src/components/hjemmebane/milestones/MilestoneDialoger.tsx";
+const DIALOG = "src/components/hjemmebane/milestones/SaetMaalGuide.tsx";
 
 /** Alle kildefiler under src (uden tests) — til «ingen anden fil bærer teksten». */
 const kildefiler = (rod = "src"): string[] =>
@@ -115,7 +116,8 @@ export const enKildeTreSteder = (filer: Record<string, string>): boolean => {
   const kunKilden = Object.entries(filer).every(([sti, k]) => sti === KILDE || (!k.includes(tekst) && !k.includes(eksempel) && !k.includes("Hvad er et mål?")));
   const planTom = forside.slice(forside.indexOf("<div data-plan-tom>"), forside.indexOf("{plan.ingenAktive && ("));
   const fold = forside.slice(forside.indexOf("{!plan.tom && (\n            <details"), forside.indexOf("</details>"));
-  const viewTom = view.slice(view.indexOf("dom.tom ? ("), view.indexOf("{opretKnap}", view.indexOf("dom.tom ? (")));
+  // Fladen 1/10-2026: den tomme tilstand er blokken data-dine-maal="tom" FØR gitteret med den stiplede plads «Sæt et mål».
+  const viewTom = view.slice(view.indexOf('data-dine-maal="tom"'), view.indexOf("<TomPladsKort", view.indexOf('data-dine-maal="tom"')));
   return kilde.includes('export const MAAL_FORKLARING_OVERSKRIFT = "Hvad er et mål?";') &&
     kilde.includes(`  "${tekst} Skridtene er de konkrete ting, du gør for at komme dertil. Et godt mål kan mærkes på bundlinjen eller i hverdagen, og du ved, hvornår du er i mål.";`) &&
     kilde.includes("export const MAAL_EKSEMPLER: readonly MaalEksempel[] = [") && kilde.includes("export function maalEksemplerHjaelp(): string {") &&
@@ -129,9 +131,11 @@ export const enKildeTreSteder = (filer: Record<string, string>): boolean => {
     // 2. /milestones' tomme tilstand: åben FØR «Sæt et mål»; den gamle sætning væk
     view.includes('import { HbMaalForklaring } from "./HbMaalForklaring";') && viewTom.includes("<HbMaalForklaring />") &&
     !view.includes("Et mål er det I arbejder hen imod") &&
-    // 3. «Sæt et mål»-formularen: teksten over titelfeltet, eksemplerne som hjælp under
+    // 3. Guiden «Sæt et mål» (fladen 1/10): teksten som dialogens beskrivelse i trin 1 — og eksemplerne
+    //    (maalEksemplerHjaelp, rådets fund 19) under kortene i trin 1, så de ikke er død kode.
     dialog.includes('import { MAAL_FORKLARING_TEKST, maalEksemplerHjaelp } from "@/lib/hjemmebane/maalForklaring";') &&
-    dialog.includes("beskrivelse={MAAL_FORKLARING_TEKST}") && dialog.includes('<HbField label="Titel *" htmlFor="ms-titel" help={maalEksemplerHjaelp()}>');
+    dialog.includes("beskrivelse={trin === 1 ? MAAL_FORKLARING_TEKST : undefined}") &&
+    dialog.includes("{trin === 1 && <p") && dialog.includes("data-guide-eksempler>{maalEksemplerHjaelp()}</p>}");
 };
 
 describe("forsidePlan.guard — PR 3: én sektion, skridt under mål, samme functions, invitationen, fejringen, «Hvad er et mål?»", () => {
@@ -154,7 +158,7 @@ describe("forsidePlan.guard — PR 3: én sektion, skridt under mål, samme func
     expect(fejringenHolder(dom, forside)).toBe(true);
   });
   const filer = Object.fromEntries(kildefiler().map((sti) => [sti, udenKommentarer(laes(sti))]));
-  it("dom 6: «Hvad er et mål?» har én kilde (maalForklaring) og bruges tre steder — forsiden (åben/foldet), /milestones' tomme tilstand, «Sæt et mål»-formularen", () => {
+  it("dom 6: «Hvad er et mål?» har én kilde (maalForklaring) og bruges tre steder — forsiden (åben/foldet), /milestones' tomme tilstand, guiden «Sæt et mål»", () => {
     expect(Object.keys(filer)).toContain(KILDE);
     expect(enKildeTreSteder(filer)).toBe(true);
   });
@@ -178,7 +182,8 @@ describe("forsidePlan.guard — PR 3: én sektion, skridt under mål, samme func
   it("selvbevis 6: en kopi af teksten i en anden fil, forklaringen væk fra /milestones' tomme tilstand, den gamle dialogtekst tilbage, eller <details open>, falder", () => {
     expect(enKildeTreSteder({ ...filer, [FORSIDE]: filer[FORSIDE] + '\nconst kopi = "Et mål er det, du vil nå med din virksomhed det næste halve til hele år.";' })).toBe(false);
     expect(enKildeTreSteder({ ...filer, [VIEW]: filer[VIEW].replace("<HbMaalForklaring />", "") })).toBe(false);
-    expect(enKildeTreSteder({ ...filer, [DIALOG]: filer[DIALOG].replace("beskrivelse={MAAL_FORKLARING_TEKST}", 'beskrivelse="Definer dit mål og vælg en kategori."') })).toBe(false);
+    expect(enKildeTreSteder({ ...filer, [DIALOG]: filer[DIALOG].replace("beskrivelse={trin === 1 ? MAAL_FORKLARING_TEKST : undefined}", 'beskrivelse="Definer dit mål og vælg en kategori."') })).toBe(false);
+    expect(enKildeTreSteder({ ...filer, [DIALOG]: filer[DIALOG].replace("data-guide-eksempler>{maalEksemplerHjaelp()}</p>}", "data-guide-eksempler>Fx</p>}") })).toBe(false);
     expect(enKildeTreSteder({ ...filer, [FORSIDE]: filer[FORSIDE].replace('<details className="-mt-2 mb-4" data-maal-forklaring-fold>', '<details open className="-mt-2 mb-4" data-maal-forklaring-fold>') })).toBe(false);
   });
   it("selvbevis 5: en fejring der regner procenten selv, eller uden FejringRaekke, falder", () => {
