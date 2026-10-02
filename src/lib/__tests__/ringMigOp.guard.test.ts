@@ -198,7 +198,9 @@ export const husetsRegler = (fn: string, config: string, ci: string, mig: string
     begrundelse.includes("laesRingToken") &&
     ci.includes('{ name: "laesRingToken()",') &&
     k.includes("ukendteFelter(body, KENDTE_FELTER)") && k.includes("ukendteFelterBesked(") &&
-    laes(MIGRATION).startsWith("-- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).") &&
+    // Før kørslen «IKKE KØRT. DEPLOY: …»; efter (2/10-2026) «KØRT i prod <dato> …».
+    (laes(MIGRATION).startsWith("-- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).") ||
+      /^-- KØRT i prod \d{1,2}\/\d{1,2}-\d{4} /.test(laes(MIGRATION))) &&
     m.includes("revoke all on public.opkaldsanmodninger from anon;") &&
     m.includes("grant select, update on public.opkaldsanmodninger to authenticated;") &&
     !/grant[^;]*(insert|delete)[^;]*to authenticated/i.test(m) &&

@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod 2/10-2026 ca. 12:55 (Claude via Lovable-MCP, atomisk i én DO-blok; Jonas «Ja, efter papiret» + «Klar» 11:31) — FØR merge og FØR udrulningen af ring-mig-op. FØR: tabellen null, cron 0. EFTER: tabel, 12 kolonner, RLS true, 3 politikker (2 udelukker tjenestekonti), trigger 1, anon SELECT false, authenticated INSERT/DELETE false, cron opkald-opbevaring aktiv «33 5 * * *», 0 rækker. Prøve (rullet tilbage): medlem ser 0 · tjenestekonto ser 0 · rådgiver ser 1 · telefon ændret → afvist · ringet_af = en anden → afvist · ringet = sig selv → ok · DELETE → afvist.
 --
 -- «MÅ VI RINGE TIL DIG?» (2/10-2026, docs/samtykke-og-opkald.md del 2; Jonas' fem svar
 -- 2/10 kl. 07:38–07:39): efter webinaret kan en DELTAGER bede om, at Morten eller Jonas
