@@ -182,7 +182,7 @@ export const ItemEditor = forwardRef<EditorHandle, ItemEditorProps>(
           />
         }
       >
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <HbField label="Type" htmlFor="item-type">
             <HbSelect
               id="item-type"
@@ -309,7 +309,7 @@ export const ItemEditor = forwardRef<EditorHandle, ItemEditorProps>(
           <HbMaterials itemId={item.id} />
         </HbField>
 
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           {showDuration && (
             <HbField label="Varighed" htmlFor="item-duration" help="mm:ss — bruges i visning og progress.">
               <div className="flex items-center gap-3">

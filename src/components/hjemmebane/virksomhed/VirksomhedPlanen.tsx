@@ -124,6 +124,11 @@ export function VirksomhedPlanen({
       const r = await kaldForeslaaOpgave({ companyId, conversationId: samtaleId, titel: t, ...(skridtBegrundelse.trim() ? { begrundelse: skridtBegrundelse.trim() } : {}), ...(maalId ? { maalId } : {}) });
       if (r.ok === false) {
         toast.error("Skridtet blev ikke foreslået", { description: r.fejl });
+        // Rådets fund 11 (1/10 — beholdt): en serverfejl (404/409 — målet er
+        // nået/parkeret/slettet) betyder, at kortets mål kan være forældede.
+        // Hent dem igen, så vælgeren viser den faktiske liste. Fejler
+        // genhentningen, står den første fejl alene.
+        void onOpdateret().catch(() => undefined);
         return;
       }
       await onOpdateret();
@@ -289,7 +294,7 @@ export function VirksomhedPlanen({
             <HbField label="Målet" htmlFor="planen-titel" help="Ét mål, kort — som medlemmet selv ville sige det. Højst 120 tegn.">
               <HbInput id="planen-titel" value={titel} maxLength={120} onChange={(e) => setTitel(e.target.value)} autoFocus />
             </HbField>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <HbField label="Kategori" htmlFor="planen-kategori" help="Fri tekst (fx økonomi, salg). Tom = «other».">
                 <HbInput id="planen-kategori" value={kategori} onChange={(e) => setKategori(e.target.value)} />
               </HbField>

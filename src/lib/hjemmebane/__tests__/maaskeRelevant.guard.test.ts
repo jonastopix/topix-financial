@@ -38,19 +38,14 @@ export function memoBlok(flade: string): string {
   return slut === -1 ? "" : flade.slice(start, slut);
 }
 
-/** Linjeblokken (PR 2): FocusCards `{!loading && relevante.length > 0 && (`
-    til blokkens `</ul>` — PLUS fladens prop-linje `relevante={(maaskeRelevante ?? []).map(…)}`,
-    så dommen ser både hvor stien regnes (lektionsSti i fladen) og hvor
-    ordene står (præfikset i kortet).
-    Før (til 17/9): fra `{maaskeRelevante && maaskeRelevante.length > 0 && (` til
-    `{hentefejlLinje && (` under kortet. */
+/** Linjeblokken (FORSIDE V3, 2/10-2026): «Måske relevant» er én af linjerne under «Det vigtigste lige nu» —
+    blokken er linjen i vigtigstLinjer, hvor ordene (motorens præfiks) og stien (lektionsSti) står.
+    Før (PR 2 – 2/10): FocusCards `{!loading && relevante.length > 0 && (`-blok + prop-linjen; før 17/9:
+    `{maaskeRelevante && maaskeRelevante.length > 0 && (` til `{hentefejlLinje && (`. */
 export function linjeBlok(flade: string): string {
-  const start = flade.indexOf("{!loading && relevante.length > 0 && (");
+  const start = flade.indexOf("...(maaskeRelevante ?? []).slice(0, 1).map((l) => (");
   if (start === -1) return "";
-  const slut = flade.indexOf("</ul>", start);
-  const prop = flade.indexOf("relevante={(maaskeRelevante ?? []).map(");
-  if (slut === -1 || prop === -1) return "";
-  return flade.slice(start, slut) + "\n" + flade.slice(prop, flade.indexOf("\n", prop));
+  return flade.slice(start, flade.indexOf("\n", start));
 }
 
 /** Dom 1: fladen dømmer gennem motoren på de kilder den allerede har. */
@@ -129,10 +124,8 @@ export const motorenErRenTransitivt = (kaede: readonly string[], laesFil: (sti: 
     blok.includes("<Link to={lektionsSti(lektion)}"). */
 export const linjenErMotorens = (flade: string): boolean => {
   const blok = linjeBlok(flade);
-  return blok.includes("{!loading && relevante.length > 0 && (") &&
-    blok.includes("{MAASKE_RELEVANT_PRAEFIKS}:") &&
-    blok.includes("<Link to={lektion.sti}") &&
-    blok.includes("sti: lektionsSti(lektion)") &&
+  return blok.includes("tekst: `${MAASKE_RELEVANT_PRAEFIKS}: ${l.title}`") &&
+    blok.includes("href: lektionsSti(l)") &&
     !/Måske relevant/.test(blok);
 };
 
@@ -203,10 +196,8 @@ describe("maaskeRelevant.guard — dommene fanger fejlen på en kopi af kilden",
     expect(motorenErDelt(egen)).toBe(false);
   });
   it("3. en linje med fast tekst eller uden lektionsSti fælder dom 3", () => {
-    expect(linjenErMotorens(flade.replace("{MAASKE_RELEVANT_PRAEFIKS}:", "Måske relevant for dig:"))).toBe(false);
-    // Før: flade.replace("<Link to={lektionsSti(lektion)}", "<Link to={`/akademiet/${lektion.id}`}").
-    expect(linjenErMotorens(flade.replace("sti: lektionsSti(lektion)", "sti: `/akademiet/${lektion.id}`"))).toBe(false);
-    expect(linjenErMotorens(flade.replace("<Link to={lektion.sti}", "<Link to={`/akademiet/${lektion.id}`}"))).toBe(false);
+    expect(linjenErMotorens(flade.replace("tekst: `${MAASKE_RELEVANT_PRAEFIKS}: ${l.title}`", "tekst: `Måske relevant for dig: ${l.title}`"))).toBe(false);
+    expect(linjenErMotorens(flade.replace("href: lektionsSti(l)", "href: `/akademiet/${l.id}`"))).toBe(false);
   });
   it("5. en motor der importerer fra akademiApi (som importerer klienten) fælder dom 5 — transitivt, ikke kun i den ene fil", () => {
     // Kopien af motoren peger på akademiApi igen; alt andet læses fra disken som det er.

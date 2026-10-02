@@ -1,7 +1,7 @@
 # Agenten som rådgivernes rådgiver
 
 **Besluttet**: 2026-08-25
-**Status**: Form besluttet. Implementering ikke påbegyndt.
+**Status**: Form besluttet. Bygget i etaper — seneste beslutning er §9 (30/9-2026: tør-kørslen foreslår kun det, der kan afgøres).
 **Grundlag**: `docs/agent-forslag-recon.md`, `docs/indhold-recon.md`, `docs/chat-recon-2.md`.
 
 ---
@@ -231,3 +231,37 @@ Konsekvensen er bevidst: velkomstbeskeden i chatten er ikke længere agentens �
 **8.2 Målt i drift samme dag: forslagsrummet er større end godkendelseslaget.**
 
 Kørsel `5da0a17a-2c5a-4e36-aa60-cf1dbbaa5de4` (25/8 kl. 14:47) foreslog `write_company_action` — et af de fem ikke-idempotente tools, som §7.4-laget kun kan forkaste, aldrig godkende. Rådgiveren ser altså et forslag hun ikke kan sige ja til. Det er en revne der vokser: jo bedre agenten bliver, jo flere forslag lander uden for laget. Lukkes kun ved at beslutte gentagelses-semantikken for opgaverne — hører til opgave-modellens spor (BACKLOG [P1], PR #423-koblingen), ikke som lap her.
+
+**Efterskrift 30/9:** revnen er lukket fra den anden side — tør-kørslen foreslår ikke længere det, laget ikke kan godkende (§9). Gentagelses-semantikken er stadig åben (§9.4).
+
+---
+
+## 9. Tør-kørslen foreslår kun det, der kan afgøres
+
+**Besluttet 2026-09-30 aften (Claude som arkitekt, efter Jonas' ønske «recon, tag en gennemtænkt beslutning og udrul — tænk 360 grader»).** Lukker revnen fra §8.2.
+
+**9.1 Målingen (prod, 30/9 kl. 23:15).** 27 agentforslag på to måneder: 5 godkendt (alle ugens fokus), 6 forkastet, 15 udløbet (56 %). ÉN rådgiver har afgjort alle. **6 af 6 opgaveforslag (`write_company_action`) fra tør-kørsler kunne aldrig godkendes** — motoren (`forslagEngine.UNDERSTOETTEDE_SKRIVEVEJE`) kan kun udføre `update_weekly_focus`, og panelet skrev «Kan endnu ikke godkendes herfra — kun forkastes». Onboardingens opgaveforslag «Upload første rapport» dublerede tilmed nextStep `missing-report` og onboarding-tjeklisten. Rådgiverens forside viste alligevel en pukkellinje for forslag, der «kun kan forkastes» (`forsidensDom.pukkeltekst`, 0b), og virksomhedssiden sagde «Derfor er du her: Afgør agentforslagene» om dem. Live-flowet (rapport committet/anomali → ugens fokus direkte til medlemmet) virker: 6 af 6 ugefokus er set af medlemmet.
+
+**9.2 Beslutningen.** Et forslag, rådgiveren ikke kan sige ja til, er ikke et forslag — det er støj, der lærer rådgiveren at ignorere panelet. Derfor:
+
+1. **Tør-kørsler annoncerer kun godkendbare skrivetools.** `blokeredeVaerktoejer(POOL_BLOCKLIST[trigger], dryRun)` i `_shared/agentToerkoersel.ts` lægger — kun i tør-tilstand — hvert skrivetool uden godkend-vej (i dag `write_chat_message`, `write_company_action`, `notify_advisor`) oven i triggerens egen blokering. Samme liste bærer annonceringen (tools-filtret) OG afvisningen ved eksekvering (kalder modellen alligevel et ikke-annonceret tool, afvises det som blokeret og bliver aldrig en `agent_proposals`-række). Listen over det godkendbare står ÉT sted: `forslagEngine.UNDERSTOETTEDE_SKRIVEVEJE`; udvides den, følger tør-kørslen med af sig selv. I tør-tilstand får systemprompten et tillæg (`toerPromptTillaeg`), fordi `SYSTEM_PROMPT`s arbejdsgang stadig nævner `write_company_action`. Onboarding-promptens punkt 4 («opret én konkret første handlingsopgave») er fjernet — velkomst-headlinen i ugens fokus er kørslens eneste forslag. **Beviset for udrulningen:** alle svar fra `run-company-agent` bærer `annoncerede_vaerktoejer`; en tør `company_review` skal svare med `update_weekly_focus` som eneste skrivetool.
+2. **Kun forslag, der KRÆVER rådgiveren, skaber en linje.** Én dom, `kraeverAfgoerelse` i `src/lib/forslagFlade.ts`: status `proposed` (hentningen) + gyldigt (udløbsdommen, indeværende ISO-uge) + tool med godkend-vej. Begge hentninger (`AdvisorDashboard`, `useVirksomhed`) tæller med den, så `agentforslagVenter` ER det godkendbare. Forsidens pukkel, motorens signal «N agentforslag venter på din afgørelse» og «Derfor er du her: Afgør agentforslagene» kommer derfor kun af noget, der kan afgøres. 0b-feltet `agentforslagMedGodkendVej` og «til orientering»-varianterne af puklens tekst er fjernet — de var en tekst om noget, der ikke burde være en linje. De historiske, ikke-godkendbare forslag står stadig i Agent-loggen på virksomhedssiden, med «Til orientering — denne slags forslag kan ikke godkendes, kun forkastes.» (de kan forkastes for oprydningens skyld).
+3. **Panelet siger, hvad godkendelse gør.** Over et godkendbart ugefokus-forslag: «Godkend, så står det som ugens fokus på {virksomhed}s forside denne uge. Forslaget udløber søndag.» (`ugefokusForklaring`).
+4. **Knappen hedder, hvad den gør:** «Kør agent (tørt)» → «Foreslå ugens fokus». Efter punkt 1 kan den kun give ugens fokus. En kørsel uden noget medlemsrettet at foreslå (et lovligt udfald efter C3) vises som en rolig besked, ikke som «Agent fejlede».
+
+**9.3 Hvad der IKKE er rørt.**
+- Live-kørslerne (`report_committed`, `anomaly_detected` med `dry_run: false`): uændret, inkl. `write_company_action` live.
+- `ReportDebugView` (admin, «Kør agent (tørt)» pr. rapport): knapteksten er uændret — den er et fejlfindingsværktøj; dens tør-kørsel får samme blokering som alle andre.
+- `agent-forslag-afgoer` og `forslagEngine`: uændrede.
+
+**9.4 ÅBNE punkter (ikke besluttet her).**
+- **Dobbelt-skriveren.** `generate-weekly-focus` skriver også ugens fokus og opgaveforslag (gennem `skridtForslag.doemSkrivning`) ved siden af run-company-agents live-kørsler. To skrivere til samme kort og samme skridt-kø — hvem ejer ugens fokus? Ikke afgjort.
+- **De parallelle live-opgaveforslag.** Live-kørslerne (`report_committed`, `anomaly_detected`) opretter stadig skridt med `write_company_action` direkte hos medlemmet — uden om godkendelseslaget, og parallelt med `generate-weekly-focus` og `foreslaa-opgave`. Den gentagelses-semantik, §8.2 nævner, er stadig ikke besluttet; først når den er, kan `write_company_action` komme på `UNDERSTOETTEDE_SKRIVEVEJE` — og så annonceres det i tør-tilstand igen af sig selv.
+- **15 af 27 udløb.** Udløbsvinduet (ISO-ugen, §6.4/7/9) er uændret; om rådgiveren skal have en påmindelse, før et ugefokus-forslag udløber søndag, er ikke besluttet.
+
+**9.5 Udrulning.** Ingen migration. `run-company-agent` ruller IKKE med merge: eksplicit deploy fra build-chatten, derefter én tør `company_review` og læs `annoncerede_vaerktoejer` i svaret (må ikke indeholde `write_company_action`). Frontend (`src/`): Update.
+
+**9.6 Værn.** `agentToerkoersel.test.ts` (tør-tilstand annoncerer kun godkendbare skrivetools for hver trigger; live er uændret; fælles blokering for annoncering og afvisning; beviset i alle fire svar; onboarding-prompten beder ikke om en opgave) og `agentforslagVenter.guard.test.ts` (begge hentninger tæller med `kraeverAfgoerelse` og henter `tool`; dommen selv; panelets linje og knap).
+
+
+**Rådets fund til #1191 (30/9 nat):** (1) den rolige besked «fandt intet» kræver nu `stop_reason === "finish"` — gateway-fejl, timeout og lofter er fejl; (2) onboarding-prompten er FÆLLES for tør og live, så en live onboarding mister også punktet om en opgave — målt: eneste kalder (`useAuth.tsx:315`) kører `dry_run: true`, ingen kalder onboarding live; (3) panelteksten siger «erstatter», fordi godkend overskriver et fokus, som en live-kørsel eller `generate-weekly-focus` allerede har sat (§9.4).

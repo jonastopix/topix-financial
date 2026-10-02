@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge.
+-- KØRT i prod (målt 1/10-2026: filens markørobjekter findes i prod; hovedet vendt efterfølgende). DEPLOY: manuelt i Lovable → SQL editor efter merge.
 -- Rører INGEN tabel, INGEN policy og INGEN funktion — kun cron-jobbets
 -- kommando. Kan køres når som helst; næste kørsel bruger den nye form.
 --

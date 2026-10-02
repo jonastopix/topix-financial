@@ -15,8 +15,9 @@ import { resolve } from "node:path";
 //      listen af companies med contract_start_date og INGEN company_members
 //      (uden om pending-gaten) og giver den til dommen; fladen folder, linker
 //      hvert navn til virksomhedssiden og kvitterer alle.
-//   3. MAIL A følger tjeklisten efter #957: «Din profil — et foto af dig, og
-//      hvad de andre i netværket kan spørge dig om.» i BEGGE kopier.
+//   3. MAIL A følger tjeklisten efter #957: fotoet nævnes («et foto af dig»)
+//      i BEGGE kopier. Fra 2/10 (seks steder) står det i Netværkets linje —
+//      «Fortæl, hvad man kan spørge dig om — og sig hej: et foto af dig, …».
 //   4. UNIKHEDSREGLEN: migration 20260918140000 (delvist unikt indeks på
 //      company_perioder.stripe_reference med STOP-værn), og webhooken fanger
 //      23505 — opretIndgangsPeriode kaster PeriodeFandtesAllerede, begge
@@ -86,11 +87,15 @@ export const forsidelinjenHolder = (dom: string, dash: string, flade: string): b
   flade.includes('input.linje.linje === "boelge" || input.linje.linje === "betalt"') &&
   flade.includes("data-betalt-ikke-oprettet={l.antal}");
 
-/** Dom 3: mail A i begge kopier. */
-const NY_LINJE = '"Din profil — et foto af dig, og hvad de andre i netværket kan spørge dig om.",';
+/** Dom 3: mail A i begge kopier — fotoet nævnes. FLYTTET 2/10 (seks steder): linjen
+    hed «Din profil — et foto af dig, …»; nu bærer Netværkets linje (punkt 5) fotoet.
+    Begge gamle linjer (før og efter 17/9) må ikke komme igen. */
+const NY_LINJE = '"Fortæl, hvad man kan spørge dig om — og sig hej: et foto af dig, hvad de andre i netværket kan spørge dig om, og et opslag om hvem du er.",';
 const GAMMEL_LINJE = '"Din profil — hvad de andre i netværket kan spørge dig om.",';
+const LINJE_17_9 = '"Din profil — et foto af dig, og hvad de andre i netværket kan spørge dig om.",';
 export const mailAHolder = (src: string, deno: string): boolean =>
-  src.includes(NY_LINJE) && deno.includes(NY_LINJE) && !src.includes(GAMMEL_LINJE) && !deno.includes(GAMMEL_LINJE);
+  src.includes(NY_LINJE) && deno.includes(NY_LINJE) && NY_LINJE.includes("et foto af dig") &&
+  !src.includes(GAMMEL_LINJE) && !deno.includes(GAMMEL_LINJE) && !src.includes(LINJE_17_9) && !deno.includes(LINJE_17_9);
 
 /** Dom 4: unikhedsreglen — migration + webhook. */
 export const unikhedenHolder = (sql: string, w: string): boolean =>

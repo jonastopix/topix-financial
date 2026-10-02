@@ -20,7 +20,8 @@ import { resolve } from "node:path";
  *      «… kl. 14:31» (vendt 22/9; var «IKKE KØRT» indtil da); tabellen med RLS og udfald-CHECK
  *      uden SECURITY DEFINER; cron-jobbet på et minut, INGEN anden plan rammer hver time
  *      (målt over alle cron.schedule i migrationerne), kald_edge med 60000/3600000.
- *   9. ALARMEN (princip 1): kun en RIGTIG kørsel med fejlede > 0 kalder skrivAlarm; nøglen
+ *   9. ALARMEN (princip 1): kun en RIGTIG kørsel med fejlede > 0 kalder skrivAlarm (fra 30/9:
+ *      webinarets fejlede + medlemspassets fejlede/læsefejl, klaviyoMedlem.guard); nøglen
  *      bærer den danske DATO (én mail pr. døgn — kbhDato, ikke time); email_send_log slås op
  *      FØR sendManagedEmail; klokken skrives med skrivRaadgiverBesked; svaret bærer «alarm».
  */
@@ -162,7 +163,7 @@ export const alarmenErRigtig = (funktion: string, profil: string): boolean => {
   const f = udenKommentarer(funktion), p = udenKommentarer(profil);
   const koer = f.slice(f.indexOf("export async function koerProfil"), f.indexOf("async function skrivAlarm"));
   const alarm = f.slice(f.indexOf("async function skrivAlarm"), f.indexOf("Deno.serve("));
-  return koer.includes("if (r.fejlede > 0) await skrivAlarm(admin, r.fejlede_liste, a.nu, r);") &&
+  return koer.includes("if (r.fejlede + medlemFejl.length > 0) await skrivAlarm(admin, [...r.fejlede_liste, ...medlemFejl], a.nu, r);") &&
     foer(koer, "if (a.toerKoersel) return r;", "await skrivAlarm(") &&
     (f.match(/skrivAlarm\(/g) ?? []).length === 2 &&
     p.includes("return `${PROFIL_ALARM_NOEGLE_PRAEFIKS}${kbhDato(nu)}`;") &&
@@ -250,7 +251,9 @@ describe("klaviyoProfil.guard — dommene fanger fejlen på en kopi", () => {
   });
   it("9. alarm i tørkørslen, en nøgle med time, mailen sendt uden opslag, eller uden klokke fælder dom 9", () => {
     const f = laes(FUNKTION), p = laes(PROFIL);
-    expect(alarmenErRigtig(f.replace("if (r.fejlede > 0) await skrivAlarm(admin, r.fejlede_liste, a.nu, r);", "await skrivAlarm(admin, r.fejlede_liste, a.nu, r);"), p)).toBe(false);
+    expect(alarmenErRigtig(f.replace("if (r.fejlede + medlemFejl.length > 0) await skrivAlarm(admin, [...r.fejlede_liste, ...medlemFejl], a.nu, r);", "await skrivAlarm(admin, [...r.fejlede_liste, ...medlemFejl], a.nu, r);"), p)).toBe(false);
+    // Medlemsfejlene uden for alarmen (30/9) fælder også.
+    expect(alarmenErRigtig(f.replace("if (r.fejlede + medlemFejl.length > 0) await skrivAlarm(admin, [...r.fejlede_liste, ...medlemFejl], a.nu, r);", "if (r.fejlede > 0) await skrivAlarm(admin, r.fejlede_liste, a.nu, r);"), p)).toBe(false);
     const toer = "if (a.toerKoersel) return r;";
     const i = f.indexOf(toer);
     expect(alarmenErRigtig(f.slice(0, i) + f.slice(i + toer.length).replace("r.ok = r.fejlede === 0;", toer + "\n  r.ok = r.fejlede === 0;"), p)).toBe(false);

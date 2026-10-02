@@ -28,6 +28,11 @@
  * for en forkert konklusion er, at nogen ændrer noget, der virkede.
  *
  * Ren matematik. Ingen imports, ingen IO, ingen datoer.
+ *
+ * SPEJLET i supabase/functions/_shared/marketingStatistik.ts (30/9-2026): webinarets
+ * annoncespor (src/lib/webinar/dashboard.ts) lægger Wilson på fremmødet, og den
+ * dom regnes også af webinar-delt. Kroppen efter filhovedet er BYTE-ENS; låst af
+ * src/lib/__tests__/webinarDashboard.paritet.test.ts.
  */
 
 /** z for 95 % tosidet. Ét sted; ændres det, ændres bredden alle steder. */

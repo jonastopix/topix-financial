@@ -1,11 +1,13 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HbCard } from "@/components/hjemmebane/HbCard";
 import { HbSection } from "@/components/hjemmebane/HbSection";
 import { useWebinarDashboard } from "@/hooks/webinarDashboard";
+import { useAnnonceforbrug } from "@/hooks/annonceforbrug";
+import { MAAL_EYEBROW, MAAL_TITEL, maalstreger, type MaalBar, type Maallinje, type Maalstreger } from "@/lib/webinar/maalstreger";
 import { AnnoncepriserAfsnit } from "@/components/hjemmebane/annoncer/AnnoncepriserAfsnit";
-import { PRIS_EYEBROW, PRIS_TITEL } from "@/lib/webinar/annoncepriser";
+import { PRIS_EYEBROW, PRIS_TITEL, TROVAERDIG_FRA } from "@/lib/webinar/annoncepriser";
 import {
   AFHOLDTE_TOM_TEKST,
   bedoemmelseTekst,
@@ -18,8 +20,15 @@ import {
   pct,
   procentTal,
   SET_GRAENSE_PROCENT,
+  SPOR_FORHOLD_FRA,
   SPOR_MANGLER_TEKST,
   SPOR_TOMT_TEKST,
+  SPOR_HAENDELSER_FOR_AT_SKILLE,
+  SPOR_INGEN_ANDRE_ANNONCER,
+  SPOR_INGEN_ANDRE_I_SPORET,
+  sporForklaring,
+  sporMaerke,
+  sporTal,
   stemmerOrd,
   TID_EYEBROW,
   TID_TITEL,
@@ -34,6 +43,7 @@ import {
   WEBINAR_TOM_TEKST,
   WEBINAR_UNDERLINJE,
   type AfholdtSession,
+  type Andelsdom,
   type Annoncespor,
   type Bedoemmelse,
   type Kampagnelinje,
@@ -169,7 +179,7 @@ const TilmeldtKurve = ({ prDag }: { prDag: TilmeldtPrDag[] }) => {
 const EfterNaeste = ({ sessioner }: { sessioner: readonly KommendeSession[] }) => {
   if (sessioner.length === 0) return null;
   return (
-    <div className="mt-3 grid gap-3 md:mt-4 md:grid-cols-3 md:gap-4" data-webinar-efter-naeste={sessioner.length}>
+    <div className="mt-3 grid grid-cols-1 gap-3 md:mt-4 md:grid-cols-3 md:gap-4" data-webinar-efter-naeste={sessioner.length}>
       {sessioner.map((s) => (
         <HbCard key={s.sessionTid} className="p-4 md:p-5" data-webinar-kommende-session={s.personer}>
           <p className="font-editorial text-3xl font-medium leading-none text-hb-ink md:text-4xl">{s.personer}</p>
@@ -425,6 +435,53 @@ const Tiden = ({ t }: { t: TidTilAnsoegning }) => {
 };
 
 /**
+ * HVOR SIKKERT ER TALLET (30/9-2026): fremmødet og «så færdigt» med Wilson-
+ * intervallet og nævneren — «færdigt 88 % (53–98 %) af 8». Fladen skriver KUN
+ * dommens ord (`sporTal`; under grænsen er det «for få», og intervallet findes
+ * ikke) og dommens mærke i ord («flere så færdigt end resten»); den regner
+ * ingen procent af tællingerne selv. Mærket står i en neutral ramme — ingen
+ * farve for op eller ned. Hvad der er sammenlignet med, står i `title` og i en
+ * `sr-only`-span (en `aria-label` på en `<span>` læses ikke op).
+ */
+const SporAndel = ({ a, hvad, ord, ingenAndre }: { a: Andelsdom; hvad: string; ord: string; ingenAndre: string }) => {
+  const maerke = sporMaerke(a, hvad);
+  const forklaring = sporForklaring(a, hvad, ingenAndre);
+  return (
+    <span className="inline-flex flex-wrap items-baseline gap-x-1" data-spor-udfald={a.udfald} title={forklaring}>
+      <span aria-hidden="true">{ord}</span>
+      <span aria-hidden="true" className={cn("tabular-nums", a.udfald === "for_faa" ? "italic" : "text-hb-ink")}>
+        {sporTal(a)}
+      </span>
+      {maerke !== "" && (
+        <span aria-hidden="true" className="rounded-full border border-hb-line px-1.5 text-[10px] text-hb-ink" data-spor-maerke={a.retning ?? ""}>{maerke}</span>
+      )}
+      <span className="sr-only">{maerke !== "" ? `${maerke}. ` : ""}{forklaring}</span>
+    </span>
+  );
+};
+
+/**
+ * FAIL-SOFT: kører den gamle `webinar-delt` (udrullet før #1184), bærer
+ * delt-svaret ingen `maaling` — så tegnes linjen uden sikkerhedslinjen i
+ * stedet for at /delt/webinar dør. Rækkefølgen: `webinar-delt` FØRST, så
+ * Update (docs/webinaret-og-annoncerne.md §2a).
+ *
+ * Under md går linjen i fuld bredde under hele rækken (`col-span-full`) —
+ * navnekolonnen er kun ~130 px på en 360 px-skærm.
+ */
+const SporSikkerhed = ({ l, indrykket }: { l: Sporlinje; indrykket: boolean }) => {
+  const m = l.maaling as Sporlinje["maaling"] | undefined;
+  if (!m || m.grundlag === 0) return null;
+  const ingenAndre = indrykket ? SPOR_INGEN_ANDRE_ANNONCER : SPOR_INGEN_ANDRE_I_SPORET;
+  return (
+    <span className="col-span-full mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-hb-ink-soft md:col-span-1 md:col-start-1" data-spor-sikkerhed={l.navn}>
+      <SporAndel a={m.fremmoede} hvad="mødte op" ord="mødte" ingenAndre={ingenAndre} />
+      <SporAndel a={m.saaFaerdigt} hvad="så færdigt" ord="færdigt" ingenAndre={ingenAndre} />
+    </span>
+  );
+};
+
+/**
  * Én linje i annoncesporet — samme rytme som de afholdte, plus ansøgerne.
  *
  * FORDELINGSSØJLEN (19/9, efter de rigtige tal): syv rækker med hvert sit
@@ -463,6 +520,7 @@ const SporRaekke = ({ l, indrykket = false, knap }: { l: Sporlinje; indrykket?: 
         {knap.aaben ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
       </button>
     ) : <span />}
+    <SporSikkerhed l={l} indrykket={indrykket} />
   </div>
 );
 
@@ -501,6 +559,7 @@ const Spor = ({ spor }: { spor: Annoncespor }) => {
       </div>
       <p className="mt-3 text-xs text-hb-ink-soft">
         Hver person tælles ved sin FØRSTE tilmelding — annoncen der hentede hende ind.
+        {` Procenterne under navnet er af dem, hvis webinar ER afholdt, med et 95 %-interval i parentes og antallet efter «af»; under ${SPOR_FORHOLD_FRA} står «for få». Et mærke som «flere så færdigt end resten» står kun, når intervallet ikke overlapper resten tilsammen (annoncen mod de andre annoncer i sin kampagne), og når der er mindst ${SPOR_HAENDELSER_FOR_AT_SKILLE}, der gjorde, og ${SPOR_HAENDELSER_FOR_AT_SKILLE}, der ikke gjorde, på begge sider — overlap betyder ikke «ens», kun at vi ikke kan afgøre det. Med mange rækker vil én ofte skille sig ud ved et tilfælde; brug mærket som et spor, ikke en dom.`}
         {spor.flereKilder > 0 ? ` ${spor.flereKilder} ${spor.flereKilder === 1 ? "person" : "personer"} har meldt sig til fra mere end én kilde.` : ""}
         {spor.kunFbclid > 0 ? ` ${spor.kunFbclid} er talt som Facebook på et fbclid alene — annoncen blev klikket, men utm-mærkerne faldt af.` : ""}
       </p>
@@ -520,6 +579,67 @@ const Kobling = ({ dom }: { dom: WebinarDashboardSvar }) => {
     </div>
   );
 };
+
+/**
+ * MÅLSTREGERNE (udkast 1/10-2026) — vores fire mål med en tynd bar og en
+ * målstreg. Fladen skriver KUN dommens ord (`maalOrd`, `vaerdiOrd`,
+ * `udfaldOrd`) og tegner dommens positioner (`bar`, 0–1); den regner ingen
+ * procent og ingen pris selv, og under grænsen står «for få» — der findes da
+ * intet tal at tegne (`bar.vaerdi` er null). Samme komponent på /delt/webinar:
+ * målstregerne er tal, ikke personer.
+ */
+const MaalBarTegning = ({ bar }: { bar: MaalBar }) => (
+  <span className="relative mt-2 block h-1.5 w-full rounded-full bg-hb-line" aria-hidden="true" data-maal-bar>
+    {bar.fra !== null && bar.til !== null && (
+      <span
+        className="absolute inset-y-0 rounded-full bg-hb-sage/35"
+        style={{ left: `${(bar.fra * 100).toFixed(1)}%`, width: `${((bar.til - bar.fra) * 100).toFixed(1)}%` }}
+      />
+    )}
+    {bar.vaerdi !== null && (
+      <span className="absolute inset-y-0 left-0 rounded-full bg-hb-sage" style={{ width: `${(bar.vaerdi * 100).toFixed(1)}%` }} />
+    )}
+    <span className="absolute -top-1 h-3.5 w-0.5 -translate-x-1/2 rounded-full bg-hb-ink" style={{ left: `${(bar.maal * 100).toFixed(1)}%` }} data-maal-streg />
+  </span>
+);
+
+const MaalRaekke = ({ l }: { l: Maallinje }) => (
+  <li className="border-t border-hb-line py-3 last:border-b" data-maal={l.noegle} data-maal-udfald={l.udfald} title={l.forklaring}>
+    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+      <p className="min-w-0 text-sm font-medium text-hb-ink">
+        {l.navn}
+        <span className="ml-2 text-xs font-normal text-hb-ink-soft">mål {l.maalOrd}</span>
+      </p>
+      <p className="flex items-baseline gap-2 text-sm">
+        <span className={cn("tabular-nums", l.vaerdi === "maalt" ? "text-hb-ink" : "italic text-hb-ink-soft")} aria-hidden="true">{l.vaerdiOrd}</span>
+        <span
+          aria-hidden="true"
+          className={cn(
+            "rounded-full border px-1.5 text-[10px]",
+            l.naaet === true ? "border-hb-evergreen/40 text-hb-evergreen" : l.naaet === false ? "border-hb-rust/40 text-hb-rust" : "border-hb-line text-hb-ink-soft",
+          )}
+        >
+          {l.udfaldOrd}
+        </span>
+      </p>
+    </div>
+    <MaalBarTegning bar={l.bar} />
+    <p className="mt-1.5 text-xs text-hb-ink-soft" data-maal-grundlag>{l.grundlagOrd}</p>
+    <span className="sr-only">{`${l.navn}, mål ${l.maalOrd}: ${l.vaerdiOrd} — ${l.udfaldOrd}. Regnet på ${l.grundlagOrd}. ${l.forklaring}`}</span>
+  </li>
+);
+
+/** De fire linjer. Fail-soft: et delt-svar fra den gamle webinar-delt har ingen `maalstreger` — så tegnes intet. */
+const Maalene = ({ m }: { m: Maalstreger }) => (
+  <div data-maalstreger={m.linjer.length}>
+    <ul>{m.linjer.map((l) => <MaalRaekke key={l.noegle} l={l} />)}</ul>
+    <p className="mt-3 text-xs text-hb-ink-soft">
+      Procentmålene er dømt på et 95 %-interval: «nået» eller «ikke nået» kun, når HELE intervallet ligger på den ene side af stregen — ellers «kan ikke afgøres». Priserne er dømt på det viste beløb i hele kroner; en pris lig målet er ikke nået, for målet er «under». Under {SPOR_FORHOLD_FRA} står «for få» i stedet for en procent, og ingen pris sættes på færre end {TROVAERDIG_FRA}. Ansøgninger og medlemmer tæller i priserne kun, når ansøgningen er indsendt efter personens første tilmelding.
+      {` Priserne er regnet over ${m.prisvindueOrd ?? "den periode, forbruget dækker"} (hele perioden — periodevælgeren længere nede flytter ikke målstregerne).`}
+      {" Ansøgninger og især medlemmer kommer dage og uger efter webinaret — de to tal er lavest lige efter en session."}
+    </p>
+  </div>
+);
 
 const Skelet = () => (
   <div className="animate-pulse space-y-4" data-webinar="henter">
@@ -545,10 +665,13 @@ export const WebinarVisning = ({
   tilstand,
   dom,
   priser,
+  maal = null,
 }: {
   tilstand: "henter" | "fejl" | "klar";
   dom: WebinarDashboardSvar | null;
   priser: ReactNode;
+  /** Vores målstreger — samme færdige dom på begge flader. null = ingen (fx gammel webinar-delt). */
+  maal?: Maalstreger | null;
 }) => {
   const [kunNaeste, setKunNaeste] = useState(false);
   const spor = dom === null ? null : kunNaeste && dom.sporNaeste !== null ? dom.sporNaeste : dom.spor;
@@ -567,14 +690,17 @@ export const WebinarVisning = ({
         <p className="mt-8 text-sm text-hb-ink-soft" data-webinar="tom">{WEBINAR_TOM_TEKST}</p>
       ) : (
         <>
-          {/* ØVERST, FØR ALT ANDET (Jonas 19/9, punkt 5): hele historien på én linje. */}
-          <HbSection eyebrow={TRAGT_EYEBROW} title={TRAGT_TITEL} hairline className="mt-8">
-            <Tragten t={dom.tragt} />
-          </HbSection>
-
-          <HbSection eyebrow="Det næste webinar" title="Hvem der venter, og hvornår" hairline className={sektion}>
+          {/* RÆKKEFØLGEN (Jonas 1/10 20:13): «Det næste webinar» ØVERST, så vores
+              mål, så «Afholdt», så tragten «Fra tilmeldt til medlem» — resten som før. */}
+          <HbSection eyebrow="Det næste webinar" title="Hvem der venter, og hvornår" hairline className="mt-8">
             <NaesteAfsnit naeste={dom.naeste} />
           </HbSection>
+
+          {maal && (
+            <HbSection eyebrow={MAAL_EYEBROW} title={MAAL_TITEL} hairline className={sektion}>
+              <Maalene m={maal} />
+            </HbSection>
+          )}
 
           <HbSection eyebrow="Afholdt" title="Session for session" hairline className={sektion}>
             <p className="mb-4 text-sm text-hb-ink-soft">
@@ -582,6 +708,10 @@ export const WebinarVisning = ({
               I alt: {dom.samlet.tilmeldte} tilmeldte · {dom.samlet.moedteOp} mødte op ({pct(dom.samlet.fremmoedeAndel)}) · {dom.samlet.saaFaerdigt} så det færdigt.
             </p>
             <Afholdte dom={dom} />
+          </HbSection>
+
+          <HbSection eyebrow={TRAGT_EYEBROW} title={TRAGT_TITEL} hairline className={sektion}>
+            <Tragten t={dom.tragt} />
           </HbSection>
 
           <HbSection eyebrow="Hvor kom de fra" title="Fra annoncen til ansøgningen" hairline className={sektion}>
@@ -635,16 +765,42 @@ export const WebinarVisning = ({
 };
 
 /** Rådgiverens /webinar: ÉN kilde (useWebinarDashboard), ÉN dom (webinarDashboard) — og visningen ovenfor. */
-export const WebinarView = ({ nu = new Date() }: { nu?: Date }) => {
+export const WebinarView = ({ nu: nuUdefra }: { nu?: Date }) => {
+  // URET (rådets K12): dommene afhænger af `nu` — afholdt/kommende og vinduerne. Som
+  // HbMemberShell og useBoardroomScore tikker det hvert minut, så en session bliver
+  // «afholdt» uden genindlæsning.
+  // Et `nu` udefra (prøverne) står stille.
+  const [nuMs, setNuMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (nuUdefra) return;
+    const id = window.setInterval(() => setNuMs(Date.now()), 60_000);
+    return () => window.clearInterval(id);
+  }, [nuUdefra]);
+  const nu = useMemo(() => nuUdefra ?? new Date(nuMs), [nuUdefra, nuMs]);
   const query = useWebinarDashboard();
+  // Forbruget til målstregernes to priser — samme hook og samme cache som prisafsnittet.
+  const forbrug = useAnnonceforbrug();
   const dom = useMemo<WebinarDashboard | null>(
     () => (query.data ? webinarDashboard(query.data, nu) : null),
     [query.data, nu],
+  );
+  // Venter på forbruget, så «ingen data» ikke blinker, før det er hentet; fejler det, står priserne som «ingen data».
+  const maal = useMemo<Maalstreger | null>(
+    () =>
+      query.data && !forbrug.isPending
+        ? maalstreger({
+            tilmeldinger: query.data.tilmeldinger,
+            ansoegninger: query.data.ansoegninger,
+            forbrug: forbrug.data ? { dage: forbrug.data.dage, annoncer: forbrug.data.annoncer, tilstand: forbrug.data.tilstand, hentetTil: forbrug.data.hentning?.hentet_til ?? null } : null,
+          }, nu)
+        : null,
+    [query.data, forbrug.data, forbrug.isPending, nu],
   );
   return (
     <WebinarVisning
       tilstand={query.isError ? "fejl" : query.isPending ? "henter" : "klar"}
       dom={dom}
+      maal={maal}
       priser={<AnnoncepriserAfsnit tilmeldinger={query.data?.tilmeldinger ?? []} ansoegninger={query.data?.ansoegninger ?? []} nu={nu} />}
     />
   );

@@ -159,7 +159,10 @@ export interface VirksomhedsInput {
   /** Om virksomheden har mindst én committet fact. Modtages; stale-reglen bruger den ikke længere (designets §3.5). */
   harCommittedeTal: boolean;
   /** Agentforslag der venter på afgørelse (agent_proposals med status 'proposed' —
-      ikke «uden decided_at»: 'expired' har også null dér, men kan ikke afgøres; rettet 7/9). */
+      ikke «uden decided_at»: 'expired' har også null dér, men kan ikke afgøres; rettet 7/9).
+      KUN forslag, der kræver rådgiveren: gyldige OG godkendbare — kalderne tæller med
+      kraeverAfgoerelse (@/lib/forslagFlade; 30/9, agent-forslag-design §9). Et forslag,
+      der kun kan forkastes, giver aldrig signalet «venter på din afgørelse». */
   agentforslagVenter: number;
   /** Stamdata til dommen «CVR-opslaget lykkedes ikke ved oprettelsen» (14/9,
       lib/cvrBerigelse.ts). VALGFRI: forsiden (AdvisorDashboard) henter ikke

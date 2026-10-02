@@ -98,6 +98,7 @@ import { sha256Hex } from "../_shared/aftryk.ts";
 import { ukendteFelter, ukendteFelterBesked } from "../_shared/kendteFelter.ts";
 // Afsendelsen til Klaviyo: KUN gennem sendHvisMail (nøglen læses dér, ikke her).
 import { sendHvisMail } from "../_shared/klaviyoAfsendelse.ts";
+import { RING_APP_URL, RING_SECRET, ringOpUrlHvisSecret } from "../_shared/ringToken.ts";
 
 /** Ét sted læses miljøet til eWebinar-klienten, som er Deno-fri (og derfor testbar i vitest). */
 const miljoe = (navn: string): string | undefined => Deno.env.get(navn);
@@ -277,7 +278,10 @@ async function koerImport(admin: SupabaseClient, api: ApiOpsaetning, dryRun: boo
 
     if (fremmoede && fremmoedeRapport && erISessionen(flettet, fremmoede.sessionDato)) {
       fremmoedeRapport.i_sessionen++;
-      const dom = doemFremmoedeForImport(foer, flettet, nu);
+      // «Må vi ringe til dig?» (2/10): samme link som webhooken (fail-soft, null uden
+      // RING_SECRET); byggFremmoede lægger det KUN på en «deltog».
+      const ringOpUrl = await ringOpUrlHvisSecret(Deno.env.get(RING_SECRET), RING_APP_URL, flettet.ewebinar_id);
+      const dom = doemFremmoedeForImport(foer, flettet, nu, ringOpUrl);
       fremmoedeRapport.overgange[dom.overgang]++;
       if (dom.haendelse) fremmoedeDomme.push(dom);
     }

@@ -61,7 +61,11 @@ describe("forloeb.guard — én dom, to flader", () => {
     expect(harEgenDom(forside)).toBe(false);
     expect(harEgenDom(boardroom)).toBe(false);
     // Dommen findes derimod i forloeb.ts — ordret som før flytningen.
-    expect(forloeb).toContain('.sort((a, b) => b.updated_at.localeCompare(a.updated_at))');
+    // Rådets fund 2/10: «Fortsæt hvor du slap» sorterer på medlemmets EGNE stempler — aldrig updated_at,
+    // som rådgiverens markering bumper (koden, kommentarer fraregnet, nævner ikke updated_at).
+    expect(forloeb).toContain(".sort((a, b) => (b.t ?? -Infinity) - (a.t ?? -Infinity))");
+    expect(forloeb).toContain(".map((row) => ({ row, t: medlemmetsSenesteStempel(row) }))");
+    expect(udenKommentarer(forloeb)).not.toContain("updated_at");
     expect(forloeb).toContain('entry.state !== "done"');
     expect(forloeb).toContain('entry.state === "untouched"');
     expect(forloeb).toContain("entry.item.id !== continueEntry?.item.id");
@@ -71,11 +75,9 @@ describe("forloeb.guard — én dom, to flader", () => {
     expect(forloeb).toContain('.some((entry) => erSporetVideo(entry.item) && entry.state !== "untouched")');
   });
 
-  it("3. BoardroomView har ikke «Eller fortsæt dit forløb» som fast streng — linjen rendrer linje.tekst og linje.sti", () => {
+  it("3. BoardroomView har ikke «Eller fortsæt dit forløb» som fast streng — linjen bærer forloebsLinje.tekst og .sti (forside v3: én af linjerne under «Det vigtigste lige nu»)", () => {
     expect(harFastFortsaetTekst(boardroom)).toBe(false);
-    expect(boardroom).toContain("{!loading && linje && (");
-    expect(boardroom).toContain("to={linje.sti}");
-    expect(boardroom).toContain("{linje.tekst}");
+    expect(boardroom).toContain('...(forloebsLinje ? [{ key: "forloeb", tekst: forloebsLinje.tekst, til: "Se", href: forloebsLinje.sti }] : []),');
     expect(boardroom).not.toContain("nextEntry");
   });
 
@@ -85,12 +87,14 @@ describe("forloeb.guard — én dom, to flader", () => {
     expect(forloeb.match(/media_provider === "bunny" && Boolean\(item\.bunny_video_id\)/g) ?? []).toHaveLength(1);
   });
 
-  it("forloeb.ts er ren: ingen react-, tanstack-, supabase- eller hook-imports; kun type-importen og lektionsSti", () => {
+  it("forloeb.ts er ren: ingen react-, tanstack-, supabase- eller hook-imports; kun type-importen, lektionsSti og medlemmetsSenesteStempel (progressState, selv uden imports)", () => {
     const imports = forloeb.match(/^import .*$/gm) ?? [];
     expect(imports).toEqual([
       'import type { ItemProgressState } from "./akademiApi";',
       'import { lektionsSti } from "./lektionerForModul";',
+      'import { medlemmetsSenesteStempel, type EgneStemplerKilde } from "./progressState";',
     ]);
+    expect(udenKommentarer(laes("src/lib/hjemmebane/progressState.ts")).match(/^import /gm) ?? []).toHaveLength(0);
     expect(udenKommentarer(laes("src/lib/hjemmebane/lektionerForModul.ts")).match(/^import /gm) ?? []).toHaveLength(0);
   });
 });

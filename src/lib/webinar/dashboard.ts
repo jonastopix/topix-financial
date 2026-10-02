@@ -77,6 +77,8 @@ import {
 } from "@/lib/webinarDom";
 // Kanalens navn af utm_source bor i annoncekilde.ts (20/9) — ét hjem, spejlet til serveren.
 import { kildeNavn } from "@/lib/webinar/annoncekilde";
+// Lag 6's Wilson (statistik.ts) — ikke en ny formel. Spejlet til serveren som _shared/marketingStatistik.ts.
+import { intervalOrd, sammenlign, wilson, type Interval } from "@/lib/marketing/statistik";
 
 export { SET_GRAENSE_PROCENT };
 
@@ -142,6 +144,28 @@ export interface AnsoegerMail {
   trin: Trin;
   /** companies.contract_end_date gennem company_id — null når ansøgningen ikke blev en betalt virksomhed. */
   virksomhed_slutdato: string | null;
+  /**
+   * WEBINARKOBLINGEN (udkast 1/10-2026): mailen på den webinartilmelding, en
+   * RÅDGIVER har bekræftet hører til ansøgningen (`ansoegning_webinar_kobling`).
+   * Valgfri: uden kobling er den udeladt eller null, og ansøgningen kobles på
+   * sin egen mail som altid. Se `medWebinarKobling`.
+   */
+  webinar_email?: string | null;
+}
+
+/**
+ * En bekræftet kobling tæller SOM OM MAILEN MATCHEDE (Jonas 1/10 08:25,
+ * «forslag + klik»): ansøgningen bærer tilmeldingens mail i stedet for sin
+ * egen — i tragten, sessionerne, tiden, annoncesporet og koblingstallet, alle
+ * på én gang, fordi de alle læser `email`. ERSTATTER, lægger ikke til: én
+ * ansøgning er stadig én ansøger (ellers ville `ansoegereIAlt` tælle hende to
+ * gange). Et forslag når aldrig hertil — kun en række i koblingstabellen.
+ */
+export function medWebinarKobling(ansoegninger: readonly AnsoegerMail[]): AnsoegerMail[] {
+  return ansoegninger.map((a) => {
+    const k = tekst(a.webinar_email ?? null)?.toLowerCase();
+    return k === undefined || k === null ? a : { ...a, email: k };
+  });
 }
 
 // ── Små hjælpere ───────────────────────────────────────────────────────────
@@ -706,6 +730,11 @@ export function sporNoegleAf(r: Tilmelding): SporNoegle {
 /** Tallene for en gruppe i sporet: fra annonce til deltagelse til ansøgning. */
 export interface Sporlinje extends Deltagelse {
   navn: string;
+  /**
+   * Wilson på fremmødet og «så færdigt» (30/9-2026) — se «Hvor sikkert er
+   * tallet» nedenfor. Tal og ord, aldrig en person: går ud gennem delingen.
+   */
+  maaling: Spormaaling;
   /** Rå utm-værdier bag navnet, til folden: «fb · paid». Tom når der ingen er. */
   raa: string[];
   /** Personer i gruppen der har indsendt en ansøgning (koblet på mailen). */
@@ -765,12 +794,217 @@ function foersteTilmeldingPrPerson(raekker: readonly Tilmelding[]): Map<string, 
   return kort;
 }
 
-function byg(navn: string, raekker: Tilmelding[], ansoegte: ReadonlySet<string>, nu: Date, raa: string[], helhed: number): Sporlinje {
+/**
+ * `helhed` er deltagelsen for HELE den helhed linjen hører til (søjlen og
+ * Wilsons «resten» regnes begge af den): alle personer i sporet for kilde og
+ * kampagne, kampagnens egne for annoncen.
+ */
+function byg(navn: string, raekker: Tilmelding[], ansoegte: ReadonlySet<string>, nu: Date, raa: string[], helhed: Deltagelse): Sporlinje {
   const d = taelDeltagelse(raekker, nu);
   const mails = new Set(raekker.map((r) => r.email));
   let a = 0;
   for (const m of mails) if (ansoegte.has(m)) a++;
-  return { navn, raa, ...d, ansoegte: a, ansoegerAndel: andel(a, d.tilmeldte), andelAfHelhed: andel(d.tilmeldte, helhed) };
+  return { navn, raa, ...d, maaling: sporMaaling(d, helhed), ansoegte: a, ansoegerAndel: andel(a, d.tilmeldte), andelAfHelhed: andel(d.tilmeldte, helhed.tilmeldte) };
+}
+
+// ── Hvor sikkert er tallet (30/9-2026) ────────────────────────────────────
+//
+// HVORFOR (marketinganalytikerens værdivurdering 30/9, målt i prod): med to
+// afholdte sessioner kan kun leddet «tilmeldt → mødte op / så færdigt» skille
+// annoncer ad. 22/9: annoncen med 52 af 192 «så færdigt» = 27 % (21–34 %) mod
+// en lille med 7 af 8 = 88 % (53–98 %). Den rå procent alene får 7 af 8 til at
+// ligne en vinder og 1 af 2 til at ligne halvdelen; intervallet siger, hvor
+// meget vi ved. Nicklas vælger annoncer til 13/10 ud fra denne tabel.
+//
+// REGLERNE LÅNER LAG 6'S (src/lib/marketing/statistik.ts, maalingsdom.ts —
+// docs/marketingmotoren.md) — og afviger på to punkter, skrevet her:
+//   · Wilson 95 % (`wilson`), skrevet med `intervalOrd` — «27 % (21–34 %)».
+//   · Under grænsen ERSTATTER «for få» procenten. Intervallet er da null i
+//     dommen, så ingen flade kan komme til at vise tallet alligevel.
+//   · «Skiller sig ud» KUN når linjens interval IKKE overlapper intervallet
+//     for ALLE ANDRE i samme helhed tilsammen (`sammenlign` → «adskilte»),
+//     OG begge grupper har mindst SPOR_HAENDELSER_FOR_AT_SKILLE af HVERT
+//     udfald (se konstanten). Overlap = «kan ikke afgøres», aldrig «ens». Er
+//     resten under grænsen, kan intet afgøres.
+//   AFVIGELSE 1 — skærpet: lag 6's `doemNiveau` kræver ≥ 5 hændelser i den
+//     mindste gruppe (succeser). Her kræves ≥ 5 succeser OG ≥ 5 ikke-succeser
+//     i BÅDE linjen og resten: en andel tæt på 0 % eller 100 % er lige så
+//     ustabil som en lille gruppe (7 af 8 har ÉN, der ikke så færdigt).
+//   AFVIGELSE 2 — ikke overtaget: lag 6's sessionsgrænse
+//     (SESSIONER_FOR_SAMMENLIGNING = 8 webinarer). Lag 6 sammenligner MAILS
+//     på tværs af webinarer, hvor sessionen er enheden; her sammenlignes
+//     personer i SAMME sessioner. Mærket er derfor et spor, ikke en
+//     anbefaling (fodnoten på fladen siger det).
+//
+// NÆVNEREN ER DE AFHOLDTE (tilmeldte − kommende). Tæller og nævner skal dække
+// samme periode, og en periode, der ikke er gået, er ikke en periode: en
+// person tilmeldt 13/10 KAN ikke være mødt op i dag, og talte hun med, ville
+// hver annonce, der kører nu, se ringere ud, jo bedre den virker. Samme regel
+// som tragten («man kan ikke møde op til noget, der ikke har været»). «Ukendt»
+// (sessionen er forbi, ingen hændelse) står i nævneren, som i tragten.
+// Personen tælles ved sin FØRSTE række (`foersteTilmeldingPrPerson`) — ikke
+// den bedste grad over flere sessioner.
+//
+// HELHEDEN ER SØJLENS (`andelAfHelhed`): kilden og kampagnen mod alle andre i
+// sporet, annoncen mod de andre annoncer i SIN EGEN kampagne — samme
+// målgruppe og samme budget, så forskellen er annoncens, ikke kampagnens.
+// En kampagne med én annonce har ingen «andre» og kan ikke afgøres på
+// annonceniveau; kampagnelinjen selv sammenlignes mod resten.
+
+/**
+ * Husets grænse for et forhold: FEM. Samme tal og samme begrundelse som
+ * annoncepriserne (`TROVAERDIG_FRA` i annoncepriser.ts) og lag 6
+ * (`PERSONER_FOR_ET_FORHOLD` i maalingsdom.ts): under fem er usikkerheden
+ * ~1/√n ≈ 45 % eller mere. Kan ikke importeres herfra — annoncepriser.ts
+ * importerer denne fil, og maalingsdom.ts er ikke spejlet til serveren — så
+ * de tre låses til hinanden af en test (webinarWilson.test.ts).
+ */
+export const SPOR_FORHOLD_FRA = 5;
+
+/**
+ * Mindste antal af HVERT udfald i HVER gruppe, før «skiller sig ud» må stå:
+ * lag 6's `HAENDELSER_FOR_SAMMENLIGNING` = 5 (maalingsdom.ts; låst hertil af
+ * en test, som SPOR_FORHOLD_FRA). Regnestykket for «skiller sig ud»:
+ *   linje:  succes ≥ 5  OG  n − succes ≥ 5
+ *   resten: (helhed.succes − succes) ≥ 5  OG  (helhed.n − n) − (helhed.succes − succes) ≥ 5
+ *   OG sammenlign(wilson(linje), wilson(resten)) === "adskilte"
+ * Fx 7 af 8 (én ikke-succes) → 1 < 5 → «kan ikke afgøres», selv om 88 %
+ * (53–98 %) ikke overlapper resten. Under grænsen vises intervallet stadig
+ * (når n ≥ SPOR_FORHOLD_FRA); kun mærket holdes tilbage.
+ */
+export const SPOR_HAENDELSER_FOR_AT_SKILLE = 5;
+
+export type Sporudfald = "ingen_afholdt" | "for_faa" | "kan_ikke_afgoeres" | "skiller_sig_ud";
+
+/** Hvorfor «kan ikke afgøres» — så forklaringen ikke skal regne selv. */
+export type Sporgrund = "ingen_andre" | "resten_for_faa" | "for_faa_haendelser" | "overlapper";
+
+export interface Andelsdom {
+  /** Personer der mødte op / så det færdigt. */
+  succes: number;
+  /** Nævneren: personer hvis session ER afholdt. */
+  n: number;
+  /** Wilson 95 %. null når n er under SPOR_FORHOLD_FRA — «for få» ERSTATTER tallet. */
+  interval: Interval | null;
+  udfald: Sporudfald;
+  /** Kun ved «skiller_sig_ud»: over eller under resten. Ingen farve — et ord. */
+  retning: "hoejere" | "lavere" | null;
+  /** Det, der skal STÅ: «27 % (21–34 %)» · «for få» · «–». */
+  ord: string;
+  /** Resten af helheden i samme form — «28 % (24–33 %)» — eller null, når den er under grænsen. */
+  restenOrd: string | null;
+  /** Kun ved «kan_ikke_afgoeres»: hvorfor. */
+  grund: Sporgrund | null;
+}
+
+export interface Spormaaling {
+  /** Nævneren begge andele deler: tilmeldte minus kommende. */
+  grundlag: number;
+  fremmoede: Andelsdom;
+  saaFaerdigt: Andelsdom;
+}
+
+export const SPOR_FOR_FAA_ORD = "for få";
+export const SPOR_SKILLER_SIG_UD_ORD = "skiller sig ud";
+export const SPOR_KAN_IKKE_ORD = "kan ikke afgøres";
+/** Når resten er tom: annoncen er alene i sin kampagne. */
+export const SPOR_INGEN_ANDRE_ANNONCER = "ingen andre annoncer i kampagnen";
+/** Når resten er tom: kilden/kampagnen er alene i sporet. */
+export const SPOR_INGEN_ANDRE_I_SPORET = "ingen andre i sporet";
+
+/** Nok af begge udfald: `succes` der gjorde og `n − succes` der ikke gjorde. */
+const nokHaendelser = (succes: number, n: number): boolean =>
+  succes >= SPOR_HAENDELSER_FOR_AT_SKILLE && n - succes >= SPOR_HAENDELSER_FOR_AT_SKILLE;
+
+/**
+ * Dommen over én andel mod resten af sin helhed. Regnestykket:
+ *   linje  = wilson(succes, n)                       — kun når n ≥ 5
+ *   resten = wilson(helhed.succes − succes, helhed.n − n) — kun når resten ≥ 5
+ *   nokHaendelser(linje) && nokHaendelser(resten)
+ *     && sammenlign(linje, resten) === "adskilte"  →  skiller sig ud
+ */
+export function andelsdom(succes: number, n: number, helhedSucces: number, helhedN: number): Andelsdom {
+  const s = Math.max(0, Math.floor(succes));
+  const antal = Math.max(0, Math.floor(n));
+  const rN = Math.max(0, Math.floor(helhedN) - antal);
+  const rS = Math.max(0, Math.min(rN, Math.floor(helhedSucces) - s));
+  const resten = rN >= SPOR_FORHOLD_FRA ? wilson(rS, rN) : null;
+  const restenOrd = resten === null ? null : intervalOrd(resten);
+  if (antal === 0) return { succes: 0, n: 0, interval: null, udfald: "ingen_afholdt", retning: null, ord: "–", restenOrd, grund: null };
+  if (antal < SPOR_FORHOLD_FRA) {
+    return { succes: s, n: antal, interval: null, udfald: "for_faa", retning: null, ord: SPOR_FOR_FAA_ORD, restenOrd, grund: null };
+  }
+  const i = wilson(s, antal);
+  const grund: Sporgrund | null =
+    rN === 0 ? "ingen_andre"
+    : resten === null ? "resten_for_faa"
+    : !nokHaendelser(s, antal) || !nokHaendelser(rS, rN) ? "for_faa_haendelser"
+    : sammenlign(i, resten) === "adskilte" ? null
+    : "overlapper";
+  const adskilt = grund === null;
+  return {
+    succes: s,
+    n: antal,
+    interval: i,
+    udfald: adskilt ? "skiller_sig_ud" : "kan_ikke_afgoeres",
+    retning: adskilt && i !== null && resten !== null ? (i.nedre > resten.oevre ? "hoejere" : "lavere") : null,
+    ord: intervalOrd(i),
+    restenOrd,
+    grund,
+  };
+}
+
+/** Nævneren: personer hvis session er afholdt. `kommende` er dem, der venter. */
+const afholdtGrundlag = (d: Deltagelse): number => Math.max(0, d.tilmeldte - d.kommende);
+
+/** Linjens måling mod sin helhed (tallene for HELE helheden, linjen selv medregnet). */
+export function sporMaaling(linje: Deltagelse, helhed: Deltagelse): Spormaaling {
+  const n = afholdtGrundlag(linje);
+  const hN = afholdtGrundlag(helhed);
+  return {
+    grundlag: n,
+    fremmoede: andelsdom(linje.moedteOp, n, helhed.moedteOp, hN),
+    saaFaerdigt: andelsdom(linje.saaFaerdigt, n, helhed.saaFaerdigt, hN),
+  };
+}
+
+/**
+ * Mærket i ord — målet og retningen: «flere så færdigt end resten» ·
+ * «færre mødte op end resten». `hvad` er målet («mødte op», «så færdigt»).
+ * Tom streng når der intet mærke er.
+ */
+export function sporMaerke(a: Andelsdom, hvad: string): string {
+  if (a.udfald !== "skiller_sig_ud") return "";
+  return `${a.retning === "hoejere" ? "flere" : "færre"} ${hvad} end resten`;
+}
+
+/** Tallet med nævneren: «88 % (53–98 %) af 8». Under grænsen: dommens ord alene. */
+export function sporTal(a: Andelsdom): string {
+  return a.udfald === "for_faa" || a.udfald === "ingen_afholdt" ? a.ord : `${a.ord} af ${a.n}`;
+}
+
+/**
+ * Til title og skærmlæser: hvad der er sammenlignet med, så mærket kan
+ * efterprøves. `ingenAndre` er sætningen, når resten er tom
+ * (SPOR_INGEN_ANDRE_ANNONCER for en annonce, SPOR_INGEN_ANDRE_I_SPORET ellers).
+ */
+export function sporForklaring(a: Andelsdom, hvad: string, ingenAndre: string = SPOR_INGEN_ANDRE_I_SPORET): string {
+  if (a.udfald === "ingen_afholdt") return `Ingen af dem er til et afholdt webinar endnu — ${hvad} kan ikke regnes.`;
+  if (a.udfald === "for_faa") return `${a.succes} af ${a.n} ${hvad} — for få til at sige noget (under ${SPOR_FORHOLD_FRA}).`;
+  const foer = `${a.succes} af ${a.n} ${hvad}: ${a.ord}`;
+  if (a.udfald === "skiller_sig_ud") {
+    return `${foer} — resten: ${a.restenOrd}. Intervallerne overlapper ikke, og begge grupper har mindst ${SPOR_HAENDELSER_FOR_AT_SKILLE} af hvert udfald: ${SPOR_SKILLER_SIG_UD_ORD}.`;
+  }
+  switch (a.grund) {
+    case "ingen_andre":
+      return `${foer} — ${ingenAndre}. Kan ikke afgøres.`;
+    case "resten_for_faa":
+      return `${foer} — resten er for få til at sammenligne med (under ${SPOR_FORHOLD_FRA}). Kan ikke afgøres.`;
+    case "for_faa_haendelser":
+      return `${foer} — resten: ${a.restenOrd}. Der skal være mindst ${SPOR_HAENDELSER_FOR_AT_SKILLE}, der gjorde, og ${SPOR_HAENDELSER_FOR_AT_SKILLE}, der ikke gjorde, både her og i resten, før det kan afgøres.`;
+    default:
+      return `${foer} — resten: ${a.restenOrd}. Intervallerne overlapper: det betyder IKKE ens, kun at vi ikke kan afgøre det.`;
+  }
 }
 
 const stoerstFoerst = (a: Sporlinje, b: Sporlinje) => b.tilmeldte - a.tilmeldte || a.navn.localeCompare(b.navn, "da");
@@ -819,7 +1053,7 @@ export function annoncespor(
     return [...set].sort((a, b) => a.localeCompare(b, "da")).slice(0, 4);
   };
 
-  const helhed = foerste.size;
+  const helhed = taelDeltagelse(personRaekker, nu);
   const kilder = [...perKilde.entries()]
     .map(([navn, liste]) => byg(navn, liste, ansoegerMails, nu, raaAf(liste, ["utm_source", "utm_medium"]), helhed))
     .sort(stoerstFoerst);
@@ -829,7 +1063,7 @@ export function annoncespor(
       // Annoncens andel måles mod SIN EGEN kampagne, ikke mod alle: den
       // fortæller hvilken annonce der bar kampagnen, ikke hvor stor
       // kampagnen var — det siger kampagnelinjen selv.
-      const iKampagnen = new Set(liste.map((r) => r.email)).size;
+      const iKampagnen = taelDeltagelse(liste, nu);
       return {
         ...byg(navn, liste, ansoegerMails, nu, raaAf(liste, ["utm_medium"]), helhed),
         annoncer: [...perAnnonce.entries()]
@@ -1205,7 +1439,9 @@ export function udenRaekker(dom: WebinarDashboard): WebinarDashboardSvar {
 
 /** Ét kald, ét svar. Fladen regner intet selv. */
 export function webinarDashboard(ind: DashboardInput, nu: Date): WebinarDashboard {
-  const { tilmeldinger, ansoegninger, sporKolonnerFindes } = ind;
+  const { tilmeldinger, sporKolonnerFindes } = ind;
+  // Webinarkoblingen (1/10): en bekræftet kobling tæller som et mail-match — ÉT sted, før alt andet.
+  const ansoegninger = medWebinarKobling(ind.ansoegninger);
   // TO FORMER AF SAMME MÆNGDE: tragten (§2) skal kende TIDSPUNKTET for at
   // kunne sætte grænsen; annoncesporet (§3) og koblingen (§4) spørger om noget
   // andet og bruger stadig mailene alene — se filhovedet.

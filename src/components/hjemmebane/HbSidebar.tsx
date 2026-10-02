@@ -1,7 +1,7 @@
 import * as React from "react";
 import { Link } from "react-router-dom";
 import { ListChecks, Lock, LogOut, X } from "lucide-react";
-import topixIcon from "@/assets/topix-icon-green.png";
+import topixIcon from "@/assets/topix-icon-green-96.png";
 import { cn } from "@/lib/utils";
 
 /** Nav-struktur. `to` = rigtig route; uden `to` er linket dødt (V0-preview-
@@ -10,7 +10,9 @@ export interface HbNavEntry {
   label: string;
   to?: string;
   active?: boolean;
-  children?: { label: string; to?: string; active?: boolean }[];
+  /** Underpunkter. `maerke` (2/10, seks steder): «Live nu» ved Events, som
+      nu er et barn under Netværket — samme pille som på et toppunkt. */
+  children?: { label: string; to?: string; active?: boolean; maerke?: HbNavEntry["maerke"] }[];
   /** Blok-overskrift (8/9, før: `admin: true` med den faste overskrift
       «Admin»): punkter med samme `blok` læses som én adskilt blok — det
       FØRSTE punkt i blokken får skillelinje og overskriften over sig
@@ -127,19 +129,36 @@ const NavItem = ({ label, active, to, maerke, laast }: { label: string; active?:
   );
 };
 
-const ChildLink = ({ label, to, active }: { label: string; to?: string; active?: boolean }) => {
+const ChildLink = ({ label, to, active, maerke }: { label: string; to?: string; active?: boolean; maerke?: HbNavEntry["maerke"] }) => {
   const className = cn(
     "flex h-9 items-center text-sm transition-colors",
     active ? "font-medium text-hb-ink" : "text-hb-ink-soft hover:text-hb-ink",
   );
-  return to ? (
-    <Link to={to} className={className}>
+  const link = to ? (
+    <Link to={to} className={cn(className, maerke && "min-w-0 flex-1")}>
       {label}
     </Link>
   ) : (
     <a href="#" className={className}>
       {label}
     </a>
+  );
+  if (!maerke) return link;
+  // Samme mærke som NavItem (2/10): Events står nu under Netværket, og
+  // «Live nu» følger med ned — mærket er sit eget link til eventets side.
+  return (
+    <div className="flex items-center gap-2">
+      {link}
+      <Link
+        to={maerke.to}
+        title={maerke.titel}
+        aria-label={maerke.titel ?? maerke.tekst}
+        className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-hb-sage px-2.5 py-1 text-[11px] font-medium text-hb-evergreen transition-colors hover:bg-hb-sage/70"
+      >
+        <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-hb-evergreen" />
+        {maerke.tekst}
+      </Link>
+    </div>
   );
 };
 
@@ -189,7 +208,7 @@ const SidebarContent = ({
                1px-streg direkte på papiret (L97). Tokenen er urørt. */
             <div className="mb-3 ml-4 border-l border-hb-ink/15 pl-4">
               {item.children.map((child) => (
-                <ChildLink key={child.label} label={child.label} to={child.to} active={child.active} />
+                <ChildLink key={child.label} label={child.label} to={child.to} active={child.active} maerke={child.maerke} />
               ))}
             </div>
           )}
@@ -269,7 +288,7 @@ const SidebarContent = ({
     (indholdskolonnen scroller), fordi #root's globale overflow-x-regel gør
     sticky virkningsløs. overflow-y-auto så strukturen ikke klippes på lave skærme. */
 const HbSidebar = (props: HbSidebarProps) => (
-  <aside className="hidden h-screen w-[272px] shrink-0 flex-col overflow-y-auto border-r border-hb-line bg-hb-paper px-7 py-8 lg:flex">
+  <aside className="relative hidden h-screen w-[272px] shrink-0 flex-col overflow-y-auto border-r border-hb-line bg-hb-paper px-7 py-8 lg:flex">
     <SidebarContent {...props} />
   </aside>
 );

@@ -6,18 +6,24 @@ import { resolve } from "node:path";
 // alle»), valg 6: rådgiverens ansigt ved næste skridt og forslag; analyse §5:
 // ansigter i fællesskabet. Fem ting låses:
 //   1. ÉN hentning: get_all_advisor_profiles kaldes præcis én gang på
-//      forsiden (["boardroom","raadgivere"]) og føder pushets afsender
-//      (afsender), «Dit næste skridt» (fokusAnsigt) og forslagene i «Din
-//      plan» — den gamle push-sender-query er væk.
+//      forsiden (["boardroom","raadgivere"]) og føder «Dit næste skridt»
+//      (fokusAnsigt) og forslagene i «Din plan» — den gamle push-sender-query
+//      er væk. (Pushets afsender (afsender) var den tredje aftager til 2/10,
+//      hvor båndet «Fra os til dig» forlod forsiden — seks steder,
+//      seksSteder.guard; forsiden kalder ikke længere afsender.)
 //   2. proposed_by er MED i forsidens company_actions-select — uden den er
 //      der intet at slå op.
 //   3. Dommen er REN: hvem der får et ansigt afgøres i ansigter.raadgiverAnsigt
 //      (kun source_type advisor + kendt proposed_by; AI får intet) — forsiden
 //      bærer ingen egen «advisor»-regel.
-//   4. Fællesskabet: det store kort bruger HbAvatar (72 px) — portræt når det
-//      findes, ellers initialen; avatar-rækken kommer fra aktiveMedlemmer med
-//      Netværkets synlige (get_member_directory, samme nøgle som /medlemmer)
-//      og er fail-closed når Netværket ikke er hentet.
+//   4. Fællesskabet — OMSKREVET 2/10 (seks steder, skridt 2): «Fra
+//      fællesskabet» (det store kort + aktive-rækken) forlod forsiden; det
+//      nyeste opslag står som ÉN række i «Næste i Netværket» med HbAvatar
+//      (portræt når det findes, ellers initialen). Forsiden henter IKKE
+//      Netværket (ingen member-directory-query, intet aktiveMedlemmer-kald)
+//      — dommen aktiveMedlemmer (ansigter.ts) står med sine tests, fail-closed
+//      som før, til Netværket. Var (17/9–2/10): det store kort 72 px +
+//      avatar-rækken fra aktiveMedlemmer med Netværkets synlige.
 //   5. Aldrig et tomt billede: HbAvatar falder tilbage til initialen ved
 //      onError; forsiden har ingen nye rå <img>-avatarer (pushets 40 px-byline er arv).
 // Kildelæsning med selvbevis på kopier (dineMaal.guard-mønstret).
@@ -35,7 +41,7 @@ export const enHentning = (forside: string): boolean =>
   (forside.match(/rpc\("get_all_advisor_profiles"/g) ?? []).length === 1 &&
   forside.includes('queryKey: ["boardroom", "raadgivere"]') &&
   forside.includes('raadgiverOpslag(kraevRaekker(await supabase.rpc("get_all_advisor_profiles" as any), "get_all_advisor_profiles")') &&
-  forside.includes("const pushSender = afsender(pushAuthorUserId, raadgivere);") &&
+  !forside.includes("afsender(") &&
   !forside.includes('"push-sender"');
 
 /** Dom 2: proposed_by i select. */
@@ -44,7 +50,12 @@ export const selectBaererProposedBy = (forside: string): boolean =>
 
 /** Dom 3: dommen er ren. */
 export const dommenErRen = (forside: string, dom: string): boolean =>
-  (forside.match(/ansigt=\{raadgiverAnsigt\(f, raadgivere\)\}/g) ?? []).length === 3 &&
+  // To steder i «Din plan» (FORSIDE V3, 2/10-2026): under målene, og i skridtenes grupper — «Uden mål», «Venter
+  // på jeres ja» (skive 3, fund 7) og «Skridt under andre mål» tegnes nu af ÉN løkke (planGrupper) i samme kort.
+  (forside.match(/ansigt=\{raadgiverAnsigt\(f, raadgivere\)\}/g) ?? []).length === 2 &&
+  forside.includes('["uden", UDEN_MAAL_OVERSKRIFT, plan.udenMaal],') &&
+  forside.includes('["venter", VENTER_PAA_JA_OVERSKRIFT, plan.venterPaaJa],') &&
+  forside.includes('["andre", ANDRE_MAAL_OVERSKRIFT, plan.andre],') &&
   forside.includes("ansigt={fokusAnsigt}") &&
   forside.includes("return raekke ? raadgiverAnsigt(raekke, raadgivere) : null;") &&
   !/"advisor"/.test(forside) &&
@@ -52,16 +63,16 @@ export const dommenErRen = (forside: string, dom: string): boolean =>
   dom.includes("if (!skridt.proposed_by) return null;") &&
   dom.includes("linje: `Fra ${fn}`");
 
-/** Dom 4: fællesskabet. */
+/** Dom 4 (omskrevet 2/10, skridt 2): det nyeste opslag i «Næste i Netværket»
+    bruger HbAvatar; forsiden henter ikke Netværket og kalder ikke
+    aktiveMedlemmer; dommen i ansigter.ts er urørt (fail-closed). */
 export const faellesskabetHolder = (forside: string, dom: string): boolean => {
-  const raekke = forside.indexOf("{aktive.tekst && (");
-  const kort = forside.indexOf("<FremhaevetOpslag traad={forsideOpslag.fremhaevet} />");
-  return forside.includes('<HbAvatar navn={navn} avatarUrl={traad.forfatter_avatar_url} stoerrelse="lg" />') &&
+  const krop = forside.slice(forside.indexOf("export const BoardroomView = () => {"));
+  return krop.length > 0 &&
+    forside.includes("<HbAvatar navn={naesteNetvaerk.opslag.forfatter_navn} avatarUrl={naesteNetvaerk.opslag.forfatter_avatar_url} />") &&
     !/h-\[72px\] w-\[72px\] shrink-0 rounded-full/.test(forside) &&
-    forside.includes("aktiveMedlemmer(communityQuery.data ?? [], directoryQuery.data ? synligeMedlemmer(directoryQuery.data) : null, new Date())") &&
-    forside.includes('queryKey: ["member-directory"]') &&
-    raekke > -1 && kort > raekke &&
-    forside.includes("<HbAvatar navn={traad.forfatter_navn} avatarUrl={traad.forfatter_avatar_url} />") &&
+    !/<FremhaevetOpslag\b|const FremhaevetOpslag\b|aktiveMedlemmer\(|synligeMedlemmer\(|listMemberDirectory|"member-directory"/.test(forside) &&
+    !/<img\b/.test(krop) &&
     dom.includes("if (!synlige) return { medlemmer: [], antal: 0, tekst: null };") &&
     dom.includes("filter((m) => !m.is_advisor)") &&
     dom.includes("export const AKTIVE_DAGE = 7;") && dom.includes("export const AKTIVE_MAKS = 6;");
@@ -81,7 +92,7 @@ describe("forsideAnsigter.guard — PR 4: én hentning, proposed_by, ren dom, f�
   const dom = udenKommentarer(laes(DOM));
   const avatar = udenKommentarer(laes(AVATAR));
 
-  it("dom 1: get_all_advisor_profiles hentes én gang og føder push, næste skridt og planen; push-sender-queryen er væk", () => {
+  it("dom 1: get_all_advisor_profiles hentes én gang og føder næste skridt og planen; push-sender-queryen er væk (og pushets afsender med båndet, 2/10)", () => {
     expect(enHentning(forside)).toBe(true);
   });
   it("dom 2: proposed_by står i forsidens company_actions-select", () => {
@@ -90,7 +101,7 @@ describe("forsideAnsigter.guard — PR 4: én hentning, proposed_by, ren dom, f�
   it("dom 3: ansigtet afgøres i raadgiverAnsigt (advisor + kendt proposed_by; AI intet) — forsiden har ingen egen regel", () => {
     expect(dommenErRen(forside, dom)).toBe(true);
   });
-  it("dom 4: det store kort bruger HbAvatar 72 px; avatar-rækken er aktiveMedlemmer med Netværkets synlige, fail-closed, over kortet", () => {
+  it("dom 4 (omskrevet 2/10): det nyeste opslag i «Næste i Netværket» bruger HbAvatar; forsiden henter ikke Netværket; aktiveMedlemmer er urørt og fail-closed", () => {
     expect(faellesskabetHolder(forside, dom)).toBe(true);
   });
   it("dom 5: HbAvatar falder tilbage til initialen ved onError; ingen nye rå <img>-avatarer på forsiden", () => {
@@ -100,6 +111,7 @@ describe("forsideAnsigter.guard — PR 4: én hentning, proposed_by, ren dom, f�
   it("selvbevis 1: en ekstra rpc-hentning, eller push-sender-queryen tilbage, falder", () => {
     expect(enHentning(forside + '\nawait supabase.rpc("get_all_advisor_profiles" as any);')).toBe(false);
     expect(enHentning(forside.replace('queryKey: ["boardroom", "raadgivere"]', 'queryKey: ["boardroom", "push-sender", pushAuthorUserId]'))).toBe(false);
+    expect(enHentning(forside + "\nconst pushSender = afsender(pushAuthorUserId, raadgivere);")).toBe(false);
   });
   it("selvbevis 2: proposed_by ude af select falder", () => {
     expect(selectBaererProposedBy(forside.replace("source_type, maal_id, proposed_by", "source_type, maal_id"))).toBe(false);
@@ -108,9 +120,9 @@ describe("forsideAnsigter.guard — PR 4: én hentning, proposed_by, ren dom, f�
     expect(dommenErRen(forside.replace("ansigt={fokusAnsigt}", 'ansigt={raekke?.source_type === "advisor" ? fokusAnsigt : null}'), dom)).toBe(false);
     expect(dommenErRen(forside, dom.replace('if (skridt.source_type !== "advisor") return null;', ""))).toBe(false);
   });
-  it("selvbevis 4: det rå 72 px-billede tilbage, avatar-rækken uden Netværkets filter, eller «alle indtil videre» når Netværket mangler, falder", () => {
-    expect(faellesskabetHolder(forside.replace('<HbAvatar navn={navn} avatarUrl={traad.forfatter_avatar_url} stoerrelse="lg" />', '<img src={traad.forfatter_avatar_url!} className="h-[72px] w-[72px] shrink-0 rounded-full" />'), dom)).toBe(false);
-    expect(faellesskabetHolder(forside.replace("directoryQuery.data ? synligeMedlemmer(directoryQuery.data) : null", "new Set(communityQuery.data?.map((t) => t.forfatter_id))"), dom)).toBe(false);
+  it("selvbevis 4: et råt billede i rækken, member-directory-hentningen tilbage på forsiden, eller «alle indtil videre» når Netværket mangler, falder", () => {
+    expect(faellesskabetHolder(forside.replace("<HbAvatar navn={naesteNetvaerk.opslag.forfatter_navn} avatarUrl={naesteNetvaerk.opslag.forfatter_avatar_url} />", '<img src={naesteNetvaerk.opslag.forfatter_avatar_url!} className="h-9 w-9 rounded-full" />'), dom)).toBe(false);
+    expect(faellesskabetHolder(forside.replace("const naesteNetvaerk = useMemo(", 'const directoryQuery = useQuery({ queryKey: ["member-directory"], queryFn: listMemberDirectory });\n  const naesteNetvaerk = useMemo('), dom)).toBe(false);
     expect(faellesskabetHolder(forside, dom.replace("if (!synlige) return { medlemmer: [], antal: 0, tekst: null };", "if (!synlige) synlige = new Set(traade.map((t) => t.forfatter_id));"))).toBe(false);
   });
   it("selvbevis 5: HbAvatar uden onError-fald-tilbage, eller en ny rå avatar på forsiden, falder", () => {

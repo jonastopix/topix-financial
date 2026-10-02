@@ -5,6 +5,8 @@ import { HbItemRow } from "../HbItemRow";
 import { HbProgressBar } from "../HbProgressBar";
 import { progressSummary, useAkademiData } from "../useAkademiData";
 import { sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
+import { oevelseUlaastISamling, oevelserForSamling } from "@/lib/hjemmebane/oevelse";
+import { OevelseKort } from "../OevelseKort";
 
 /** Kursussiden (/akademiet/{area}/{collection-slug}) — samlingen som
     DESTINATION frem for en sektion i områdets rulle. Bygget af
@@ -16,9 +18,11 @@ import { sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
     Ingen covers: ingen samling har et cover_path i dag (målt 12.
     august: 0 af 13), så siden bæres af typografi og struktur. */
 
+/* Et område uden for Akademiet (push, eller et skjult område siden
+   1/10-2026) må hverken nævnes eller linkes: så går linket til /akademiet. */
 const BackLink = ({ areaKey, label }: { areaKey: string; label: string }) => (
   <Link
-    to={`/akademiet/${areaKey}`}
+    to={AREAS.find((a) => a.key === areaKey)?.akademi ? `/akademiet/${areaKey}` : "/akademiet"}
     className="flex items-center gap-2 text-sm text-hb-ink-soft transition-colors hover:text-hb-ink"
   >
     <ArrowLeft className="h-4 w-4" />
@@ -29,7 +33,7 @@ const BackLink = ({ areaKey, label }: { areaKey: string; label: string }) => (
 export const KursusView = ({ areaKey, slug }: { areaKey: string; slug: string }) => {
   const data = useAkademiData();
   const area = AREAS.find((a) => a.key === areaKey);
-  const areaLabel = area?.label ?? areaKey;
+  const areaLabel = area?.akademi ? area.label : "Akademiet";
   const collection = data.collectionBySlug.get(slug);
 
   if (data.loading) return <p className="text-sm text-hb-ink-soft">Henter…</p>;
@@ -73,6 +77,14 @@ export const KursusView = ({ areaKey, slug }: { areaKey: string; slug: string })
     ...children.flatMap((child) => entriesOf(child.id)),
   ];
   const summary = progressSummary(entries);
+  // Samlingens øvelse(r) (handouts i Akademiet, 1/10-2026 nat): de
+  // handout-moduler, samlingens lektioner bærer — Fundamentets Bogholderi,
+  // Administration, Salg og Marketing bærer hver sit. Kortet står under
+  // listen, så lektionerne kommer først; overordnet udelades i dommen.
+  // Låsen regnes PR. MODUL (rådets fund 5, 2/10): ulåst, hvis en lektion,
+  // der bærer modulet, er dryp-ulåst — ikke hvis nogen lektion i samlingen
+  // er det. Ingen afsender: «Tilbage» falder på modulets første lektion.
+  const oevelser = oevelserForSamling(entries);
 
   return (
     <div>
@@ -120,6 +132,14 @@ export const KursusView = ({ areaKey, slug }: { areaKey: string; slug: string })
           </div>
         )}
       </div>
+
+      {oevelser.length > 0 && (
+        <div className="max-w-3xl">
+          {oevelser.map((modul) => (
+            <OevelseKort key={modul} module={modul} unlocked={oevelseUlaastISamling(entries, modul)} />
+          ))}
+        </div>
+      )}
     </div>
   );
 };

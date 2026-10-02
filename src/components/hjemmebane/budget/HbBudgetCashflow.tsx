@@ -138,7 +138,7 @@ export const HbBudgetCashflow = ({ rows, year, companyId }: Props) => {
   return (
     <div className="space-y-5">
       {/* KPI-række */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <HbCard className="p-5">
           <TalStat
             label="Udgangspunkt (banksaldo)"

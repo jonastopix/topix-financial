@@ -20,6 +20,8 @@ import {
   FORKAST_KATEGORI_LABELS,
   FORKAST_KATEGORIER_FLADE,
   UNDERSTOETTEDE_SKRIVEVEJE_FLADE,
+  TIL_ORIENTERING_TEKST,
+  ugefokusForklaring,
 } from "@/lib/forslagFlade";
 
 // ── Agent-log: læsbar gengivelse af agentens forslag ──
@@ -91,9 +93,11 @@ interface ProposalRow {
 
 interface AgentForslagPanelProps {
   companyId: string | null;
+  /** Til linjen over et ugefokus-forslag: «… på {navn}s forside». Uden: «medlemmets forside». */
+  virksomhedsnavn?: string | null;
 }
 
-export default function AgentForslagPanel({ companyId }: AgentForslagPanelProps) {
+export default function AgentForslagPanel({ companyId, virksomhedsnavn }: AgentForslagPanelProps) {
   const [agentRunning, setAgentRunning] = useState<string | null>(null);
   const [showAgentLog, setShowAgentLog] = useState(false);
   // Inline fold-ud pr. forslag (ingen portal/dialog): højst ét åbent ad gangen.
@@ -284,6 +288,18 @@ export default function AgentForslagPanel({ companyId }: AgentForslagPanelProps)
                 },
               });
               if (agentError) throw agentError;
+              if (agentData?.dry_run === true && agentData?.ok === false && agentData?.run_id && agentData?.diagnostics?.produced_output === false && agentData?.diagnostics?.stop_reason === "finish") {
+                // Kun et REGULÆRT slut (modellen kaldte finish) er «intet at foreslå»; en gateway-fejl,
+                // timeout eller et loft er en fejl og går til toast.error nedenfor (rådets fund 1, 30/9).
+                // Et lovligt udfald (design §9): agenten fandt intet medlemsrettet
+                // fokus at foreslå. Kørslen står i loggen — det er ikke en fejl.
+                toast("Agenten fandt ikke et fokus at foreslå denne gang", {
+                  description: "Kørslen og dens overvejelser står i Agent-loggen herunder.",
+                });
+                setShowAgentLog(true);
+                void refetchAgentRuns();
+                return;
+              }
               if (!agentData?.ok) {
                 throw new Error(agentData?.error || "Agenten producerede intet output");
               }
@@ -291,14 +307,14 @@ export default function AgentForslagPanel({ companyId }: AgentForslagPanelProps)
                 // Gammel funktions-version uden dry_run: kørslen var LIVE.
                 throw new Error("Kørslen var IKKE tør — funktionen i prod kender ikke dry_run endnu. Skrivninger kan være udført; verificér deploy.");
               }
-              toast.success("Tør-kørsel gennemført ✓", {
-                description: `${agentData?.proposals ?? 0} forslag registreret — se dem i Agent-loggen herunder.`,
+              toast.success("Forslaget til ugens fokus er klar", {
+                description: "Se det herunder — godkend, redigér eller forkast.",
               });
               setShowAgentLog(true);
               void refetchAgentRuns();
             } catch (err) {
               console.error("Agent error:", err);
-              toast.error("Agent fejlede", { description: err instanceof Error ? err.message : String(err) });
+              toast.error("Forslaget kunne ikke laves", { description: err instanceof Error ? err.message : String(err) });
             } finally {
               setAgentRunning(null);
             }
@@ -307,7 +323,9 @@ export default function AgentForslagPanel({ companyId }: AgentForslagPanelProps)
           className={cn(hbButtonVariants({ variant: "secondary" }), "h-8 gap-1.5 px-3 text-xs")}
         >
           <Sparkles className="h-3 w-3" />
-          {agentRunning === "company" ? "Kører..." : "Kør agent (tørt)"}
+          {/* 30/9 (design §9): tør-kørslen kan kun foreslå ugens fokus —
+              knappen siger, hvad den gør. Intet når medlemmet før en godkendelse. */}
+          {agentRunning === "company" ? "Tænker..." : "Foreslå ugens fokus"}
         </button>
       </div>
       {showAgentLog && (
@@ -367,6 +385,11 @@ export default function AgentForslagPanel({ companyId }: AgentForslagPanelProps)
                               </span>
                             )}
                           </div>
+                          {p.tool === "update_weekly_focus" && kanGodkendes && (
+                            <p className="text-[11px] text-hb-ink-soft mb-0.5">
+                              {ugefokusForklaring(virksomhedsnavn)}
+                            </p>
+                          )}
                           <p className="text-xs text-hb-ink whitespace-pre-line">
                             {agentProposalText(p.tool, p.args)}
                           </p>
@@ -410,15 +433,10 @@ export default function AgentForslagPanel({ companyId }: AgentForslagPanelProps)
                                   <span className="text-[10px] text-hb-ink-soft">
                                     {udloebet && gyldighed
                                       ? gyldighed.grund
-                                      : "Kan endnu ikke godkendes herfra — kun forkastes"}
+                                      : TIL_ORIENTERING_TEKST}
                                   </span>
                                 )}
                               </div>
-                              {p.tool === "update_weekly_focus" && kanGodkendes && (
-                                <p className="text-[10px] text-hb-ink-soft mt-1">
-                                  Godkend erstatter medlemmets fokuskort for indeværende uge med det samme.
-                                </p>
-                              )}
 
                               {foldUd === "forkast" && (
                                 <div className="mt-2 space-y-2">

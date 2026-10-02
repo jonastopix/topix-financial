@@ -1,3 +1,6 @@
+import { retTilGode } from "@/lib/sessionRet";
+import { computeMembershipTier } from "@/lib/membershipTier";
+
 /** Book session-fladens tilstandsmaskine — ren, testbar logik uden IO.
 
     Udtrukket fra BookSession.tsx 13-08-2026 forud for Hb-konverteringen.
@@ -70,8 +73,11 @@ function erBerettiget(
   },
   now: Date,
 ): boolean {
-  const contractEnd = input.company?.contract_end_date ?? null;
-  const contractInFuture = !!contractEnd && new Date(contractEnd) > now;
+  // Kontrakten dømmes af computeMembershipTier — SAMME dom som backendens 403-port (2/10, CTO-rådets fund 5):
+  // slutdatoen er sidste dag med adgang. Før: `new Date(contract_end_date) > now`, som skjulte kortet på
+  // kontraktens sidste dag, mens backenden og forsidens «Til gode» sagde bookbar.
+  const contractInFuture = !!input.company?.contract_end_date &&
+    computeMembershipTier({ contract_end_date: input.company.contract_end_date, subscription_status: null, subscription_current_period_end: null }, now) === "full";
   return (
     !input.isAdvisor &&
     input.membershipTier === "full" &&
@@ -112,7 +118,7 @@ export function afgoerMortenTilstand(
 ): MortenTilstand {
   return afgoerRet(
     erBerettiget(input, now),
-    !!input.company?.intro_session_used_at,
+    input.company ? !retTilGode("morten", { ...input.company, jonas_session_used_at: null }) : false,
     input.mortenBookingLoading,
     input.mortenBooking,
   );
@@ -135,6 +141,8 @@ export interface BookSessionInput {
   company: {
     intro_session_used_at: string | null;
     jonas_session_used_at: string | null;
+    /** companies.jonas_session_tilbudt_at — et tilbud overtrumfer en ældre «brugt» (lib/sessionRet, 2/10). */
+    jonas_session_tilbudt_at?: string | null;
     contract_end_date: string | null;
   } | null;
   /** Q3 (my-inkluderede-bookinger, amount_dkk = 0, begge rådgivere) er ved at hente. */
@@ -162,13 +170,15 @@ export function afgoerBookSession(
   const berettiget = erBerettiget(input, now);
   const morten = afgoerRet(
     berettiget,
-    !!input.company?.intro_session_used_at,
+    input.company ? !retTilGode("morten", { ...input.company, jonas_session_used_at: null }) : false,
     input.inkluderedeLoading,
     input.mortenBooking,
   );
+  // Jonas' ret dømmes af den ENE regel (lib/sessionRet, 2/10): et tilbud overtrumfer en ældre «brugt» —
+  // samme dom som backenden booker efter. Før: `!!jonas_session_used_at`, så et tilbudt medlem så det købte kort.
   const jonasRet = afgoerRet(
     berettiget,
-    !!input.company?.jonas_session_used_at,
+    input.company ? !retTilGode("jonas", input.company) : false,
     input.inkluderedeLoading,
     input.jonasBooking,
   );

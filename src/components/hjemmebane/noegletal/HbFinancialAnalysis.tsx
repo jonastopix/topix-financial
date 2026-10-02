@@ -242,7 +242,7 @@ export const HbFinancialAnalysis = ({
             <div className="space-y-5">
               <div>
                 <p className="text-xs font-medium text-hb-ink">Fokusområder</p>
-                <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {(showAllTrends ? analysis.positive_trends : analysis.positive_trends.slice(0, 3)).map((trend, i) => (
                     <HbTrendCard key={i} trend={trend} type="positive" />
                   ))}
@@ -250,7 +250,7 @@ export const HbFinancialAnalysis = ({
               </div>
               <div>
                 <p className="text-xs font-medium text-hb-ink">Udfordringer</p>
-                <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {(showAllTrends ? analysis.challenges : analysis.challenges.slice(0, 3)).map((trend, i) => (
                     <HbTrendCard key={i} trend={trend} type="challenge" />
                   ))}

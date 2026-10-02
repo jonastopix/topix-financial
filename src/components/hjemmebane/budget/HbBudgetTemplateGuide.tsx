@@ -85,7 +85,7 @@ export const HbBudgetTemplateGuide = ({
           To hurtige spørgsmål — så finder vi den skabelon, der passer bedst.
         </p>
         <p className="mt-4 font-editorial text-xl font-medium text-hb-ink">Hvad sælger du?</p>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
           {Q1_OPTIONS.map((opt) => (
             <button
               key={opt.key}
@@ -115,7 +115,7 @@ export const HbBudgetTemplateGuide = ({
           ← Tilbage
         </button>
         <p className="mt-4 font-editorial text-xl font-medium text-hb-ink">{q2Title}</p>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
           {q2Options.map((opt) => (
             <button
               key={opt.key}
@@ -153,7 +153,7 @@ export const HbBudgetTemplateGuide = ({
           ? "Ud fra dine svar anbefaler vi den øverste — men alle kan vælges."
           : "Vælg den skabelon, der ligner din virksomhed mest."}
       </p>
-      <div className="mt-4 grid gap-4 md:grid-cols-2">
+      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
         {orderedTemplates.map((tmpl) => {
           const groups = GROUP_ORDER.filter((g) => tmpl.categories.some((c) => c.group === g));
           const isRecommended = tmpl.key === recommendedKey;

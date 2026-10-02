@@ -4,10 +4,14 @@ import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { useCommunityGaest } from "@/hooks/communityAdgang";
+import { GAEST_LAESER_TEKST, visComposer, visGaestGraense } from "@/lib/hjemmebane/communityAdgang";
+import { useViewMode } from "@/hooks/useViewMode";
 import { cn } from "@/lib/utils";
 import {
   hentSvar,
   hentTraad,
+  markerSpoergsmaal,
   notificerNaevnelser,
   notificerSvar,
   opretSvar,
@@ -25,12 +29,26 @@ import { CommunityDokument } from "./CommunityDokument";
 import { LikeKnap } from "./LikeKnap";
 import { hentetilstand, sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
 import { UBESVAREDE_OPSLAG_KEY } from "@/hooks/ubesvaredeOpslag";
+import {
+  FJERN_MARKERING_LABEL,
+  MARKER_LABEL,
+  SPOERGSMAAL_TAG,
+  erSpoergsmaal,
+  visMarkerKnap,
+} from "@/lib/hjemmebane/communitySpoergsmaal";
+import { HbTag } from "../HbTag";
 
 /** Trådsiden (/community/:id) — læsning, svar, reaktioner og ret/slet af
     eget indhold (RPC'erne 20260812120000).
     Ikke-fundet håndteres blødt (EventDetailView-mønstret: venlig tekst +
     tilbage-link, ingen throw) — og tom kan også betyde "ingen adgang";
-    de to kan bevidst ikke skelnes (jf. communityApi.hentTraad). */
+    de to kan bevidst ikke skelnes (jf. communityApi.hentTraad).
+
+    RÅDGIVERNES «SPØRGSMÅL» (2/10): et markeret opslag bærer mærket
+    «Spørgsmål» i hovedet, og en rådgiver kan markere sit EGET opslag eller
+    fjerne markeringen på det markerede (visMarkerKnap i
+    communitySpoergsmaal.ts — databasen håndhæver reglen uanset, migration
+    20261002243000). Feedet og tråden hentes igen bagefter. */
 
 const BackLink = () => (
   <Link
@@ -162,7 +180,12 @@ const SvarRaekke = ({
 export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const { user, isAdvisor } = useAuth();
+  const { user, isAdvisor, laeseMarkeringTilladt } = useAuth();
+  /* Gæsten (2/10, Jonas 14/9: læser, skriver ikke): ingen svar-composer, ingen like; grænsen under svarene. */
+  const gaest = useCommunityGaest();
+  /* Markér/fjern «Spørgsmål» kun for en rådgiver, der ikke ser som medlem
+     (rådets fund 2/10) — samme regel som feedet. */
+  const { viewingAsMember } = useViewMode();
 
   const [redigererTraad, setRedigererTraad] = useState(false);
   const [traadTitel, setTraadTitel] = useState("");
@@ -180,9 +203,12 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
   // En visning er en bivirkning af at kigge, ikke en handling — fejl fra
   // registreringen må ALDRIG nå brugeren (RPC'en er selv stille ved
   // manglende adgang; her sluges også netværksfejl).
+  // En tjenestekonto KIGGER (30/9, tjenestekonto.guard dom 6): ingen visning
+  // i trådens tæller. Flaget i afhængighederne: mens opslaget henter, venter
+  // registreringen (RPC'en er idempotent pr. bruger og tråd).
   useEffect(() => {
-    if (traadId) registrerVisning(traadId).catch(() => {});
-  }, [traadId]);
+    if (traadId && laeseMarkeringTilladt) registrerVisning(traadId).catch(() => {});
+  }, [traadId, laeseMarkeringTilladt]);
 
   /* Svar og reaktioner rører både svarlisten, trådens tællere
      (antal_svar/antal_reaktioner står på tråden) og feedets metalinje —
@@ -287,6 +313,16 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
     },
   });
 
+  /* Markeringen (2/10) — eget opslag eller det allerede markerede. Fejlen
+     siges som den er (RPC'ens besked — også «findes ikke» før migrationen). */
+  const markerMutation = useMutation({
+    mutationFn: (markeret: boolean) => markerSpoergsmaal(traadId, markeret),
+    onSuccess: invaliderTraadOgFeed,
+    onError: (fejl: Error) => {
+      toast.error("Markeringen blev ikke ændret", { description: fejl.message });
+    },
+  });
+
   const skjulMutation = useMutation({
     /* Begge retninger: skjul OG vis igen — læse-RPC'erne (20260812180000)
        viser skjulte tråde for rådgivere, så skjul er ikke længere en
@@ -341,6 +377,8 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
   const svarTilstand = hentetilstand(svarQuery, svar.length === 0);
   const erTraadForfatter = user !== null && user.id === traad.forfatter_id;
   const erSkjult = traad.status === "skjult";
+  const erMarkeret = erSpoergsmaal(traad);
+  const visMarker = visMarkerKnap({ erRaadgiver: isAdvisor && !viewingAsMember, erForfatter: erTraadForfatter, erMarkeret, status: traad.status });
 
   return (
     <div>
@@ -361,6 +399,7 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
             <span className="font-medium">{traad.forfatter_navn ?? "Medlem"}</span>
             <span className="text-hb-ink-soft"> · {fmtDato(traad.created_at)}</span>
           </p>
+          {erMarkeret && <HbTag className="bg-hb-rust/10 text-hb-rust">{SPOERGSMAAL_TAG}</HbTag>}
         </div>
 
         {redigererTraad && user ? (
@@ -399,7 +438,7 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
               <LikeKnap
                 antal={traad.antal_reaktioner}
                 harReageret={traad.jeg_har_reageret}
-                disabled={reaktionMutation.isPending}
+                disabled={reaktionMutation.isPending || !visComposer(gaest)}
                 onClick={() => reaktionMutation.mutate({ traadId })}
               />
               {erTraadForfatter && (
@@ -423,6 +462,13 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
                     Slet
                   </TekstKnap>
                 </>
+              )}
+              {/* Rådgivernes «Spørgsmål» (2/10): markér eget opslag, eller
+                  fjern markeringen på det markerede. */}
+              {visMarker && (
+                <TekstKnap disabled={markerMutation.isPending} onClick={() => markerMutation.mutate(!erMarkeret)}>
+                  {erMarkeret ? FJERN_MARKERING_LABEL : MARKER_LABEL}
+                </TekstKnap>
               )}
               {/* Skjul-knappen er tilbage (holdt ude i PR #318, hvor skjul
                   var en envejsdør): læse-RPC'erne viser nu skjulte tråde
@@ -474,7 +520,7 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
               <SvarRaekke
                 key={s.id}
                 svar={s}
-                reagerer={reaktionMutation.isPending}
+                reagerer={reaktionMutation.isPending || !visComposer(gaest)}
                 onLike={() => reaktionMutation.mutate({ svarId: s.id })}
                 erForfatter={user !== null && user.id === s.forfatter_id}
                 redigerer={redigererSvarId === s.id}
@@ -498,7 +544,7 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
         {/* Composeren vises først når brugeren er indlæst — den må ikke
             montere med et tomt brugerId, for så ville en billed-upload
             lande på en ulovlig sti, som motoren bagefter kasserer. */}
-        {user && (
+        {user && visComposer(gaest) && (
           <div className="mt-8">
             <CommunityComposer
               visTitel={false}
@@ -510,6 +556,10 @@ export const CommunityTraadView = ({ traadId }: { traadId: string }) => {
               }
             />
           </div>
+        )}
+        {/* Gæstens grænse — i stedet for svar-composeren, aldrig som en fejl (w13). */}
+        {visGaestGraense(gaest) && (
+          <p className="mt-8 text-sm text-hb-ink-soft" data-gaest-graense>{GAEST_LAESER_TEKST}</p>
         )}
       </section>
     </div>

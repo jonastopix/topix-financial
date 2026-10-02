@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod (målt 1/10-2026: filens markørobjekter findes i prod; hovedet vendt efterfølgende). DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
 -- Kan køres FØR eller EFTER merge: ansoegning-gem skriver sporet i en EGEN
 -- update efter insert'en, fail-soft — mangler kolonnerne, logges det, og
 -- ansøgeren mærker intet. Men uden migrationen gemmes intet spor, så: kør den

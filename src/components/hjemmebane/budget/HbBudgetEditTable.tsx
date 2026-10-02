@@ -436,7 +436,7 @@ export const HbBudgetEditTable = ({
               Skjul
             </button>
           </div>
-          <div className="mt-4 grid gap-4 sm:grid-cols-3">
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
             {[
               { key: "revenue" as const, label: "Omsætningsmål (kr/år)", placeholder: "F.eks. 3.000.000" },
               { key: "payroll" as const, label: "Lønbudget (kr/år)", placeholder: "F.eks. 900.000" },

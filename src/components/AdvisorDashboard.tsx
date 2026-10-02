@@ -10,10 +10,9 @@ import { hentAlleSider } from "@/lib/budgetEngine";
 import type { MaalRaekke } from "@/lib/hjemmebane/planen";
 import { fletKvitteringer, laesKvittering, type Kvittering } from "@/lib/opgaveLukning";
 import { afgoerPulsen, SVAR_VINDUE_DAGE, type PulsSvar } from "@/lib/pulsen";
-import { erForslagGyldigt } from "@/lib/forslagUdloeb";
-// Fase 0b («Én plan»): puklen lover «din afgørelse» kun for forslag med en
-// godkend-vej — fladens spejl af motorens UNDERSTOETTEDE_SKRIVEVEJE.
-import { UNDERSTOETTEDE_SKRIVEVEJE_FLADE } from "@/lib/forslagFlade";
+// 30/9 (design §9): kun forslag, der KRÆVER rådgiveren — gyldige og
+// godkendbare — tælles. Én dom, delt med useVirksomhed.
+import { kraeverAfgoerelse } from "@/lib/forslagFlade";
 import { afgoerFornyelsestilstand, type Fornyelsesbeslutning } from "@/lib/fornyelse";
 import { afgoerBetalingsfrist } from "@/lib/betalingsfrist";
 import { erKunde } from "@/lib/raadgiverensKunder";
@@ -42,7 +41,6 @@ interface ConversationRow {
   id: string;
   company_id: string | null;
   awaiting_reply_from: string | null;
-  assigned_advisor_id: string | null;
   last_member_message_at: string | null;
   last_message_at: string | null;
   /** Seneste menneskebesked fra en rådgiver (trigger, kun message_type 'user') — «venter på velkomst» (10/9). */
@@ -147,6 +145,9 @@ export const ADVISOR_DASHBOARD_QUERY_KEY = (userId: string | undefined) =>
 export const hentAdvisorDashboard = () =>
       Sentry.startSpan({ name: "advisor-dashboard.load", op: "advisor.query" }, async (span) => {
       const svarGraense = new Date(Date.now() - SVAR_VINDUE_DAGE * 86400000).toISOString();
+      // Rådgivernes profiler (get_all_advisor_profiles) og tjenestekontiene
+      // hentes ikke længere her (1/10): de bar KUN bunkernes «tildelt»-navn,
+      // og tildeling af rådgiver er fjernet (Jonas 1/10). Ingen aftager uden for.
       const twoWeeksAgo = new Date(Date.now() - 14 * 86400000).toISOString();
       // Paginerede hentninger (PR 1, 17/9): hentAlleSider kaster den rå fejl;
       // her oversættes den til { data: null, error: { message } }, så
@@ -167,7 +168,7 @@ export const hentAdvisorDashboard = () =>
       const [
         convRes, companiesRes, factsRes,
         pulseRes,
-        milestonesRes, companyMembersRes, advisorProfilesRes,
+        milestonesRes, companyMembersRes,
         companyInvitationsRes,
         agentProposalsRes,
         // Forsidens dom (docs/forsiden-design.md, src/lib/forsidensDom.ts):
@@ -198,7 +199,7 @@ export const hentAdvisorDashboard = () =>
         sider<ConversationRow>((fra, til) =>
           supabase
             .from("conversations")
-            .select("id, company_id, awaiting_reply_from, assigned_advisor_id, last_member_message_at, last_message_at, last_advisor_reply_at")
+            .select("id, company_id, awaiting_reply_from, last_member_message_at, last_message_at, last_advisor_reply_at")
             .order("last_message_at", { ascending: false })
             .order("id")
             .range(fra, til),
@@ -290,7 +291,6 @@ export const hentAdvisorDashboard = () =>
             .order("id")
             .range(fra, til),
         ),
-        supabase.rpc("get_all_advisor_profiles"),
         // Pending-gate: virksomheder med hængende (ikke-accepterede) invitationer.
         (supabase
           .from("company_invitations")
@@ -453,11 +453,6 @@ export const hentAdvisorDashboard = () =>
         .slice(0, 20);
       // 10/9: ingen af forsidens hentninger må fejle stille — dommen får
       // færre linjer, og forsiden ser normal ud. Alt går gennem kraevRaekker.
-      const advisorProfiles = (kraevRaekker(advisorProfilesRes, "get_all_advisor_profiles") as any[]).map((advisor) => ({
-        user_id: advisor.user_id,
-        full_name: advisor.full_name || "Ukendt",
-      }));
-
       const companyMap = new Map(companies.map(c => [c.id, c]));
       const legatCompanyIds = new Set(
         companies
@@ -721,8 +716,6 @@ export const hentAdvisorDashboard = () =>
       type BucketItem = {
         company: { company_id: string; company_name: string; logo_url: string | null };
         subtext: string;
-        assigned_advisor_id: string | null;
-        assigned_advisor_name: string | null;
         sortValue: number;
       };
       const bWaiting: BucketItem[] = [];
@@ -732,20 +725,16 @@ export const hentAdvisorDashboard = () =>
       // Kø 6 (§3.5): agentforslag der venter — læses af den nye forside
       // (RaadgiverForsideView); AdvisorDashboards render kender den ikke.
       const bAgent: BucketItem[] = [];
-      const signalerByCompany = new Map<string, { signaler: Signal[]; agentforslagVenter: number; agentforslagMedGodkendVej: number; senestePeriode: string | null }>();
+      const signalerByCompany = new Map<string, { signaler: Signal[]; agentforslagVenter: number; senestePeriode: string | null }>();
       const agentforslagByCompany = new Map<string, number>();
-      // 0b: hvor mange af de ventende der kan GODKENDES (tool med skrivevej).
-      const godkendbareByCompany = new Map<string, number>();
-      // Kun forslag der stadig kan AFGØRES tælles (besluttet 7/9): udløbne
-      // (passeret ISO-uge) kan kun forkastes, og puklen lover en afgørelse.
-      // Samme dom som AgentForslagPanel og agent-forslag-afgoer, samme «nu»
-      // som resten af queryFn.
+      // Kun forslag der KRÆVER rådgiveren tælles (30/9, design §9):
+      // gyldige (indeværende ISO-uge, besluttet 7/9) OG godkendbare (tool med
+      // skrivevej). Et forslag, der kun kan forkastes, er til orientering i
+      // Agent-loggen og skaber aldrig en linje. Samme dom som useVirksomhed
+      // (kraeverAfgoerelse, @/lib/forslagFlade), samme «nu» som resten af queryFn.
       for (const p of kraevRaekker(agentProposalsRes, "agent_proposals") as { company_id: string; proposed_at: string; tool: string | null }[]) {
-        if (!p.company_id || !erForslagGyldigt(p.proposed_at, now)) continue;
+        if (!p.company_id || !kraeverAfgoerelse(p, now)) continue;
         agentforslagByCompany.set(p.company_id, (agentforslagByCompany.get(p.company_id) || 0) + 1);
-        if (p.tool && UNDERSTOETTEDE_SKRIVEVEJE_FLADE.has(p.tool)) {
-          godkendbareByCompany.set(p.company_id, (godkendbareByCompany.get(p.company_id) || 0) + 1);
-        }
       }
 
       for (const c of investorSummaries) {
@@ -759,8 +748,6 @@ export const hentAdvisorDashboard = () =>
         const conv = convByCompany.get(c.company_id)?.[0];
         const base = {
           company: { company_id: c.company_id, company_name: c.company_name, logo_url: c.logo_url },
-          assigned_advisor_id: conv?.assigned_advisor_id ?? null,
-          assigned_advisor_name: advisorProfiles.find(a => a.user_id === conv?.assigned_advisor_id)?.full_name ?? null,
         };
 
         // ── Bunke 1–4 kommer fra motoren (src/lib/virksomhedsSignaler.ts, #589):
@@ -833,7 +820,7 @@ export const hentAdvisorDashboard = () =>
         const signaler = afgoerVirksomhedsSignaler(signalInput, now);
         // Forsidens dom får motorens udfald uændret (én dom i huset).
         // senestePeriode: talsignalernes grundlag (lukningen) — perioden de er regnet af.
-        signalerByCompany.set(c.company_id, { signaler, agentforslagVenter: signalInput.agentforslagVenter, agentforslagMedGodkendVej: godkendbareByCompany.get(c.company_id) ?? 0, senestePeriode: senesteNoegle ?? null });
+        signalerByCompany.set(c.company_id, { signaler, agentforslagVenter: signalInput.agentforslagVenter, senestePeriode: senesteNoegle ?? null });
         // Pending: signalerne er regnet (til pulsen); bunkerne er fladens.
         if (erPending) continue;
         for (const s of signaler) {
@@ -953,7 +940,6 @@ export const hentAdvisorDashboard = () =>
             navn: c.company_name,
             signaler: sig?.signaler ?? [],
             agentforslagVenter: sig?.agentforslagVenter ?? 0,
-            agentforslagMedGodkendVej: sig?.agentforslagMedGodkendVej ?? 0,
             fornyelse: iFornyelsesUdsnit
               ? afgoerFornyelsestilstand({
                   contract_end_date: row.contract_end_date ?? null,
@@ -1071,7 +1057,7 @@ export const hentAdvisorDashboard = () =>
 
       const svarBytes = [
         convRes, companiesRes, factsRes, pulseRes,
-        milestonesRes, companyMembersRes, advisorProfilesRes,
+        milestonesRes, companyMembersRes,
         companyInvitationsRes, agentProposalsRes,
         fornyelseRes, betalingslinkRes, aktiveOpgaverRes, kvitteringerRes, svarRes, uploadsRes, budgetRes, ansoegningerRes,
       ].reduce((sum, res) => {
@@ -1090,7 +1076,7 @@ export const hentAdvisorDashboard = () =>
 
       return {
         investorSummaries, companyMap, convByCompany, expiredCompanyIds, pendingCompanyIds,
-        buckets, dom, pulsen, advisorProfiles,
+        buckets, dom, pulsen,
         allConversations, companyToUser, companies, legatCompanyIds,
       };
       });

@@ -92,7 +92,7 @@ describe("traekKilde.guard — én betalingsliste pr. virksomhed", () => {
 
   it("1. migrationen: kilde-CHECK med de tre værdier, nøgle-CHECK pr. kilde, nullable Stripe-id'er, delvist UNIQUE på e-conomic, værn før CHECK, UNIQUE på stripe_invoice_id bevaret", () => {
     expect(migrationenHolder(sql)).toBe(true);
-    expect(laes(MIGRATION)).toContain("IKKE KØRT");
+    expect(laes(MIGRATION)).toMatch(/^-- (IKKE KØRT\.|KØRT i prod)/); // hovedet vendes ved kørsel (regelsættet §4c (dd))
   });
   it("2. ingen flade antager et Stripe-id: nøgle = rækkens id, label = traekLabel, link kun via harFakturaLink", () => {
     expect(ingenFladeAntagerStripeId(flade, indstillinger)).toBe(true);

@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge — FØR
+-- KØRT i prod (målt 1/10-2026: filens markørobjekter findes i prod; hovedet vendt efterfølgende). DEPLOY: manuelt i Lovable → SQL editor efter merge — FØR
 -- ewebinar-webhook får trafik (functionen svarer 500 på hver besked indtil
 -- tabellerne findes; eWebinar gensender formentlig, men bevis det ikke).
 --

@@ -140,7 +140,7 @@ describe("ansoegningMotor.guard — de otte domme på repoets filer", () => {
   });
   it("3. migrationen: IKKE KØRT, UNIQUE, ingen SECURITY DEFINER, trin/årsager/kilder = koden, ingen anon, triggeren på egen tabel", () => {
     const raa = laes(MIGRATION);
-    expect(raa.startsWith("-- IKKE KØRT.")).toBe(true);
+    expect(raa).toMatch(/^-- (IKKE KØRT\.|KØRT i prod)/); // hovedet vendes ved kørsel (regelsættet §4c (dd))
     expect(migrationenErRigtig(udenSqlKommentarer(raa))).toBe(true);
     expect([...KILDER]).toEqual([...SKEMA_KILDER]);
   });

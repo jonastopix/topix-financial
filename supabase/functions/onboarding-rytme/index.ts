@@ -55,6 +55,7 @@ import {
   type RytmeTekst,
 } from "../_shared/onboardingRytme.ts";
 import { effektivRapportPeriodeKey } from "../_shared/rapportStatus.ts";
+import { alleSider } from "../_shared/alleSider.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -137,17 +138,24 @@ async function koerRytme(supabase: SupabaseClient, toerKoersel: boolean): Promis
   const nu = new Date();
 
   // 1. Ankeret: første medlemsrække pr. virksomhed (dag 0 + modtager).
-  const { data: medlemmer, error: medlemFejl } = await supabase
-    .from("company_members")
-    .select("company_id, user_id, created_at")
-    .order("created_at", { ascending: true })
-    .limit(5000);
-  if (medlemFejl) {
-    console.error("[onboarding-rytme] company_members-opslag fejlede:", medlemFejl.message);
-    return { ...resultat, ok: false, error: medlemFejl.message };
+  //    alleSider (ingen tavst loft): PostgREST giver højst 1.000 rækker uden fejl, og et
+  //    `.limit(5000)` sorteret ældste først tabte de NYESTE medlemmer — dem rytmen er til for.
+  let medlemmer: { company_id: string; user_id: string; created_at: string }[];
+  try {
+    medlemmer = await alleSider<{ company_id: string; user_id: string; created_at: string }>((fra, til) =>
+      supabase
+        .from("company_members")
+        .select("company_id, user_id, created_at")
+        .order("created_at", { ascending: true })
+        .order("id", { ascending: true })
+        .range(fra, til), "company_members");
+  } catch (e) {
+    const besked = e instanceof Error ? e.message : String(e);
+    console.error("[onboarding-rytme] company_members-opslag fejlede:", besked);
+    return { ...resultat, ok: false, error: besked };
   }
   const foerste = new Map<string, { user_id: string; created_at: string }>();
-  for (const m of (medlemmer ?? []) as { company_id: string; user_id: string; created_at: string }[]) {
+  for (const m of medlemmer) {
     if (!foerste.has(m.company_id)) foerste.set(m.company_id, { user_id: m.user_id, created_at: m.created_at });
   }
   resultat.virksomheder = foerste.size;
@@ -168,32 +176,44 @@ async function koerRytme(supabase: SupabaseClient, toerKoersel: boolean): Promis
   }
 
   // 3. Virksomhederne (legat-flaget), uploads og målte tal for kandidaterne.
-  const [companiesRes, uploadsRes, maalteRes, videoRes] = await Promise.all([
-    supabase.from("companies").select("id, name, is_legat").in("id", kandidatIds),
-    // Uploadenes effektive periode (instruks F, 16/9): motoren tæller kun
-    // AFSLUTTEDE måneder som «begyndt» — samme nøgle som rapporteringssiden
-    // (effektivRapportPeriodeKey: anvendt override vinder over periode-teksten).
-    supabase
-      .from("financial_reports")
-      .select("company_id, report_period, manual_report_period_key, manual_override_status")
-      .in("company_id", kandidatIds)
-      .is("deleted_at", null),
-    // data_basis-undtagelse: filtreret på measured — eksistens-check, ingen talværdier læses
-    supabase.from("financial_report_facts").select("company_id").in("company_id", kandidatIds).eq("data_basis", "measured"),
-    supabase.from("app_config").select("config_value").eq("config_key", "velkomstvideo_guid").maybeSingle(),
-  ]);
-  const fejl = [companiesRes, uploadsRes, maalteRes].find((r) => r.error)?.error;
-  if (fejl) {
-    console.error("[onboarding-rytme] opslag fejlede:", fejl.message);
-    return { ...resultat, ok: false, error: fejl.message };
+  //    Alle tre går gennem alleSider — også de opslag, der aldrig havde et `.limit`, klippes
+  //    stille ved 1.000 rækker.
+  let companiesRaekker: { id: string; name: string; is_legat: boolean }[];
+  let uploadsRaekker: { company_id: string; report_period: string | null; manual_report_period_key: string | null; manual_override_status: string | null }[];
+  let maalteRaekker: { company_id: string }[];
+  let videoRes: { data: { config_value?: string | null } | null };
+  try {
+    [companiesRaekker, uploadsRaekker, maalteRaekker, videoRes] = await Promise.all([
+      alleSider<{ id: string; name: string; is_legat: boolean }>((fra, til) =>
+        supabase.from("companies").select("id, name, is_legat").in("id", kandidatIds).order("id").range(fra, til), "companies"),
+      // Uploadenes effektive periode (instruks F, 16/9): motoren tæller kun
+      // AFSLUTTEDE måneder som «begyndt» — samme nøgle som rapporteringssiden
+      // (effektivRapportPeriodeKey: anvendt override vinder over periode-teksten).
+      alleSider<{ company_id: string; report_period: string | null; manual_report_period_key: string | null; manual_override_status: string | null }>((fra, til) =>
+        supabase
+          .from("financial_reports")
+          .select("company_id, report_period, manual_report_period_key, manual_override_status")
+          .in("company_id", kandidatIds)
+          .is("deleted_at", null)
+          .order("id")
+          .range(fra, til), "financial_reports"),
+      // data_basis-undtagelse: filtreret på measured — eksistens-check, ingen talværdier læses
+      alleSider<{ company_id: string }>((fra, til) =>
+        supabase.from("financial_report_facts").select("company_id").in("company_id", kandidatIds).eq("data_basis", "measured").order("id").range(fra, til), "financial_report_facts (measured)"),
+      supabase.from("app_config").select("config_value").eq("config_key", "velkomstvideo_guid").maybeSingle(),
+    ]);
+  } catch (e) {
+    const besked = e instanceof Error ? e.message : String(e);
+    console.error("[onboarding-rytme] opslag fejlede:", besked);
+    return { ...resultat, ok: false, error: besked };
   }
   const virksomheder = new Map<string, { name: string; is_legat: boolean }>();
-  for (const c of (companiesRes.data ?? []) as { id: string; name: string; is_legat: boolean }[]) virksomheder.set(c.id, c);
+  for (const c of companiesRaekker) virksomheder.set(c.id, c);
   const uploadPerioder = new Map<string, (string | null)[]>();
-  for (const r of (uploadsRes.data ?? []) as { company_id: string; report_period: string | null; manual_report_period_key: string | null; manual_override_status: string | null }[]) {
+  for (const r of uploadsRaekker) {
     uploadPerioder.set(r.company_id, [...(uploadPerioder.get(r.company_id) ?? []), effektivRapportPeriodeKey(r)]);
   }
-  const maalt = new Set(((maalteRes.data ?? []) as { company_id: string }[]).map((f) => f.company_id));
+  const maalt = new Set(maalteRaekker.map((f) => f.company_id));
   // Uden video udgår punktet «Se velkomsten» (Jonas 2/9: vi viser ikke tomt indhold).
   const harVelkomstvideo = ((videoRes.data as { config_value?: string | null } | null)?.config_value ?? "").trim() !== "";
 

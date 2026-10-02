@@ -9,6 +9,7 @@ import {
   listRecordingCandidates,
 } from "@/lib/hjemmebane/adminContentApi";
 import { isEventPast } from "@/lib/hjemmebane/eventPhase";
+import { adminListeTekst } from "@/lib/hjemmebane/adminListeTekst";
 import { HbAdminSplit } from "../HbAdminShell";
 import { HbTreeList, type HbListRow } from "../HbTreeList";
 import { useAdminHotkeys } from "../useAdminHotkeys";
@@ -150,11 +151,10 @@ export const EventsView = () => {
               <Plus className="h-3.5 w-3.5" /> Event
             </button>
           }
-          emptyText={
-            eventsQuery.isLoading
-              ? "Henter…"
-              : "Ingen events endnu. Opret det første — Live sparring bor her."
-          }
+          emptyText={adminListeTekst(eventsQuery, {
+            hvad: "events",
+            tom: "Ingen events endnu. Opret det første — Live sparring bor her.",
+          })}
         />
       }
       editor={

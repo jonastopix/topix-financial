@@ -14,7 +14,7 @@ describe("importAdvarsel — teksten før «Importér og send invitation»", () 
     expect(a.andenVej).toBe(IMPORT_ADVARSEL_ANDEN_VEJ);
   });
 
-  it("siger de tre ting der adskiller import fra Monday-vejen", () => {
+  it("siger de tre ting der adskiller import fra ansøgningsvejen", () => {
     expect(IMPORT_ADVARSEL_LINJER).toHaveLength(3);
     const [datoer, betaling, adgang] = IMPORT_ADVARSEL_LINJER;
     expect(datoer).toMatch(/kontraktdatoerne fra regnearket/);
@@ -24,10 +24,11 @@ describe("importAdvarsel — teksten før «Importér og send invitation»", () 
     expect(adgang).toMatch(/adgang med det samme/);
   });
 
-  it("peger på den anden vej — Godkendt i Monday", () => {
+  it("peger på den anden vej — underskriften i platformen (Monday nedlagt 2/10-2026, mondayVaek.guard)", () => {
     expect(IMPORT_ADVARSEL_ANDEN_VEJ).toBe(
-      "Skal de betale først, sker det automatisk når ansøgningen sættes til Godkendt i Monday.",
+      "Skal de betale først, sker det automatisk når ansøgningen underskrives i platformen.",
     );
+    expect(IMPORT_ADVARSEL_ANDEN_VEJ).not.toMatch(/monday/i);
   });
 
   it("er roligt sprog — ingen udråbstegn, ingen advarselsord", () => {

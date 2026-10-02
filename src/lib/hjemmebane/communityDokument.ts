@@ -21,7 +21,7 @@ export type CommunityNode =
   | { type: "paragraph"; content: CommunityNode[] }
   | { type: "heading"; level: 2; content: CommunityNode[] }
   | { type: "bulletList"; content: CommunityNode[] }
-  | { type: "orderedList"; content: CommunityNode[] }
+  | { type: "orderedList"; content: CommunityNode[]; start?: number }
   | { type: "listItem"; content: CommunityNode[] }
   | { type: "blockquote"; content: CommunityNode[] }
   | { type: "hardBreak" }
@@ -242,6 +242,7 @@ function sikkertUuid(raw: unknown): string | null {
     Listen spejler content_items' area-CHECK minus push og minus
     'ugens_video', 'redaktionelt', 'evergreen' — de tre sidste er
     forsidens egne områder uden element-rute. */
+// 'quick_wins' udgik 1/10-2026 (skjult for medlemmer, jf. MEDLEM_SKJULTE_OMRAADER).
 // 'talks' og 'skabeloner' udgik 13-08-2026: talks er indholdsbeholder uden
 // medlemsflade (optagelser vises på deres event), og skabeloner er nedlagt
 // som område (vedhæftninger på lektionen i stedet). Eksisterende
@@ -250,7 +251,6 @@ export const TILLADTE_OMRAADER: ReadonlySet<string> = new Set([
   "classroom",
   "academy",
   "rabataftaler",
-  "quick_wins",
   "start_her",
 ]);
 
@@ -273,6 +273,20 @@ function sikkertSlug(raw: unknown): string | null {
   if (trimmet.length === 0) return null;
   if (!SLUG_MOENSTER.test(trimmet)) return null;
   return trimmet;
+}
+
+/** Højeste startnummer, en nummereret liste må bære. En chatbesked eller et
+    opslag har ikke tusindvis af punkter; loftet holder et håndlavet tal som
+    1e9 ude af markupen. */
+export const MAKS_LISTESTART = 9999;
+
+/** En nummereret listes startnummer: et helt tal 2..MAKS_LISTESTART, ellers
+    null (= standarden 1). Tiptap gemmer det som tal; HTML som tekst. */
+export function listeStart(raw: unknown): number | null {
+  const tal = typeof raw === "string" && /^\d{1,4}$/.test(raw.trim()) ? Number(raw.trim()) : raw;
+  if (typeof tal !== "number" || !Number.isInteger(tal)) return null;
+  if (tal < 2 || tal > MAKS_LISTESTART) return null;
+  return tal;
 }
 
 /** Oversæt ét content-array rekursivt i en given kontekst. Noder uden for
@@ -315,6 +329,15 @@ function oversaetNode(raw: unknown, kontekst: Kontekst, dybde: number): Communit
     case "orderedList": {
       const content = oversaetIndhold(raw.content, "liste", dybde + 1);
       if (content.length === 0) return null;
+      if (raw.type === "orderedList") {
+        // Startnummeret (1/10-2026, «1. 1. 1.»): Tiptaps input-regel «2. »
+        // laver en NY liste med attrs.start = 2, når der står et afsnit mellem
+        // punkterne. Uden feltet tegnes hver af dem fra 1. Kun et helt tal
+        // 2..MAKS_LISTESTART bæres med — 1 (standarden) og alt andet udelades,
+        // så et træ uden start er tegn for tegn som før.
+        const start = listeStart(erObjekt(raw.attrs) ? raw.attrs.start : undefined);
+        return start === null ? { type: "orderedList", content } : { type: "orderedList", content, start };
+      }
       return { type: raw.type, content };
     }
 

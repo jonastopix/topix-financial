@@ -1,4 +1,5 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
+import { retTilGode } from "../_shared/sessionRet.ts";
 import { SENDER_FROM, sendManagedEmail } from "../_shared/managedEmail.ts";
 import { introPaamindelseModen, introPaamindelseTekst, type RytmeTekst } from "../_shared/onboardingRytme.ts";
 import { authenticateServiceRole, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
@@ -85,6 +86,8 @@ ${afsnit}
 interface IntroPaamindelsesResultat {
   ok: boolean;
   dry_run: boolean;
+  /** Beviset for udrulningen af den ene 1:1-regel (_shared/sessionRet, 2/10): kun den nye kode svarer med feltet. */
+  session_regel: "skive-1";
   /** Raekker fra maalgruppe-query'en (foer per-virksomhed-filtre). */
   kandidater: number;
   /** Enqueuede mails (altid 0 i toerkoersel). */
@@ -104,12 +107,13 @@ interface IntroPaamindelsesResultat {
 }
 
 async function koerIntroPaamindelser(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient<any, any, any, any, any>,
   toerKoersel: boolean,
 ): Promise<IntroPaamindelsesResultat> {
   const resultat: IntroPaamindelsesResultat = {
     ok: true,
     dry_run: toerKoersel,
+    session_regel: "skive-1",
     kandidater: 0,
     sendte: 0,
     ville_sende: 0,
@@ -132,7 +136,7 @@ async function koerIntroPaamindelser(
     .from("companies")
     // jonas_session_used_at (14/9): mailen siger «to sessioner» kun når
     // Jonas-retten ikke er brugt — 14 af 25 kandidater havde brugt den.
-    .select("id, name, contract_start_date, created_at, intro_reminder_last_sent_at, jonas_session_used_at")
+    .select("id, name, contract_start_date, created_at, intro_reminder_last_sent_at, jonas_session_used_at, jonas_session_tilbudt_at")
     .gt("contract_end_date", nowIso)          // aktiv kontrakt = tier full
     .is("intro_session_used_at", null)         // har ikke booket endnu
     .or(`intro_reminder_last_sent_at.is.null,intro_reminder_last_sent_at.lt.${thirtyDaysAgo}`);
@@ -202,7 +206,10 @@ async function koerIntroPaamindelser(
 
       // Jonas-retten: brugt = feltet er sat. Mailen maa ikke love en session
       // de ikke har (review 14/9); teksten afgoer selv ordlyden.
-      const jonasRetBrugt = (company as { jonas_session_used_at?: string | null }).jonas_session_used_at != null;
+      // DEN ENE REGEL (_shared/sessionRet, 2/10): et tilbud overtrumfer en ældre «brugt» — samme dom som
+      // create-free-intro-booking booker efter, så mailen siger «to sessioner» til en tilbudt.
+      const c = company as { jonas_session_used_at?: string | null; jonas_session_tilbudt_at?: string | null };
+      const jonasRetBrugt = !retTilGode("jonas", { intro_session_used_at: null, jonas_session_used_at: c.jonas_session_used_at, jonas_session_tilbudt_at: c.jonas_session_tilbudt_at });
 
       if (toerKoersel) {
         // Toerkoersel: kandidaten er fundet og logget — intet sendes, intet skrives.

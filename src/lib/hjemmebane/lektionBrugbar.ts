@@ -52,7 +52,8 @@ export const BRUGBAR_TAK = "Tak for svaret.";
 export interface SkalSpoergeInput {
   /** isTrackedItem/isTrackedEntry — kun Bunny-videoer spores. */
   tracked: boolean;
-  /** itemProgressState — "done" er acknowledged_at sat. */
+  /** itemProgressState — "done" er medlemmets EGET acknowledged_at (F0, 2/10:
+      rådgiverens markering, markeret_at, giver aldrig "done"). */
   state: ItemProgressState;
   /** member_progress.brugbar — null/undefined = ikke besvaret. */
   brugbar: boolean | null | undefined;
@@ -132,24 +133,42 @@ export function optaelBrugbarPrLektion(
 export interface UdelukMedlem {
   userId: string;
   companyErKunde: boolean;
+  /** companies.is_legat === true — et legat-medlemskab er ikke et
+      kunde-medlemskab (30/9, m16-brugbar-er-kunde). Udeladt = false. */
+  companyErLegat?: boolean;
+}
+
+/** Tæller medlemskabet som et kunde-medlemskab? Kun en kunde (erKunde) og
+    ikke et legat. Ren; brugt af udelukFraBrugbar. */
+export function erKundeMedlemskab(m: UdelukMedlem): boolean {
+  return m.companyErKunde && m.companyErLegat !== true;
 }
 
 /** user_id'er der ikke tæller i «Svar pr. lektion»: rådgiverne ∪ brugere
-    hvis ALLE medlemskaber er ikke-kunder. En bruger uden rækker i
-    medlemmer udelukkes kun hvis hun er rådgiver. Rører ikke input. */
+    hvis ALLE medlemskaber er ikke-kunder eller legater. En bruger uden
+    rækker i medlemmer udelukkes kun hvis hun er rådgiver. Rører ikke input.
+    Legat (30/9, m16-brugbar-er-kunde): før filtrerede listMembers legat-
+    medlemskaberne fra, FØR udelukkelsen så dem — så en legatmodtagers
+    svar talte med. Nu kommer de med, markeret, og holdes ude her. */
 export function udelukFraBrugbar(
   raadgiverUserIds: Iterable<string>,
   medlemmer: readonly UdelukMedlem[],
 ): Set<string> {
   const ud = new Set<string>();
   for (const id of raadgiverUserIds) if (id) ud.add(id);
-  // Pr. bruger: mindst ét kunde-medlemskab holder brugeren inde.
+  // Pr. bruger: mindst ét kunde-medlemskab (ikke legat) holder brugeren inde.
   const harKundeMedlemskab = new Map<string, boolean>();
   for (const m of medlemmer) {
-    harKundeMedlemskab.set(m.userId, (harKundeMedlemskab.get(m.userId) ?? false) || m.companyErKunde);
+    harKundeMedlemskab.set(m.userId, (harKundeMedlemskab.get(m.userId) ?? false) || erKundeMedlemskab(m));
   }
   for (const [userId, erKunde] of harKundeMedlemskab) if (!erKunde) ud.add(userId);
   return ud;
+}
+
+/** Fremdrift-fanens liste: medlemskaberne uden legat — det, listMembers
+    gav før 30/9, i samme rækkefølge. Rører ikke input. */
+export function synligeMedlemmer<T extends { companyErLegat?: boolean }>(medlemmer: readonly T[]): T[] {
+  return medlemmer.filter((m) => m.companyErLegat !== true);
 }
 
 /** Rådgiverens linje pr. lektion (ProgressView-overblikket). Tre grene:

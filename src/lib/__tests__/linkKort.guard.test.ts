@@ -167,7 +167,7 @@ describe("linkKort.guard — link-kort og #opslag i Community", () => {
   });
   it("6. område-hvidlisten er ens i motor, composer og kort", () => {
     expect(spejleneErEns(dokmotor, composer, kort)).toBe(true);
-    expect(omraaderIMotoren(dokmotor)).toEqual(["academy", "classroom", "quick_wins", "rabataftaler", "start_her"]);
+    expect(omraaderIMotoren(dokmotor)).toEqual(["academy", "classroom", "rabataftaler", "start_her"]);
   });
   it("7. opslaghenvisning kendes i motor, renderer, composer og migration", () => {
     expect(opslagsnodenKendesOveralt({ dokmotor, dok, composer, migration })).toBe(true);
@@ -208,7 +208,7 @@ describe("linkKort.guard — VÆRNET VIRKER på kopier med fejlen indsat", () =>
   it("6. et område kun ét sted fælder dom 6", () => {
     expect(spejleneErEns(dokmotor.replace('"start_her",', '"start_her",\n  "push",'), composer, kort)).toBe(false);
     expect(spejleneErEns(dokmotor, composer.replace('  start_her: "Start her",\n', ""), kort)).toBe(false);
-    expect(spejleneErEns(dokmotor, composer, kort.replace('  quick_wins: "Quick win",\n', ""))).toBe(false);
+    expect(spejleneErEns(dokmotor, composer, kort.replace('  rabataftaler: "Rabataftale",\n', ""))).toBe(false);
   });
   it("7. nodetypen fjernet ét sted fælder dom 7", () => {
     expect(opslagsnodenKendesOveralt({ dokmotor: dokmotor.replace('    "opslaghenvisning",\n  ]),', "  ]),"), dok, composer, migration })).toBe(false);

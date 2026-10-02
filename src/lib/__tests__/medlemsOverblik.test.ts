@@ -4,8 +4,10 @@ import {
   erNytMedlem,
   IKKE_OMFATTET_FRA,
   iUniverset,
+  jonasRetEfterTilbud,
   MANGLER_STATUSSER,
   manglerAtBooke,
+  omfattetAfJonas,
   sessionStatus,
   type OverbliksKilder,
   type SessionDom,
@@ -86,12 +88,12 @@ describe("erNytMedlem — Jonas-sessionen gælder medlemmer fra 14/9-2026", () =
 
 const KILDER: OverbliksKilder = {
   companies: [
-    { id: "aktiv", name: "Aktiv ApS", status: "active", is_legat: false, er_kunde: true, is_demo: false, intro_session_used_at: dageFoer(20), jonas_session_used_at: "2026-09-13T20:52:00Z" },
-    { id: "tom_status", status: null, is_legat: null, er_kunde: null, is_demo: null, intro_session_used_at: null, jonas_session_used_at: null },
-    { id: "legat", status: "active", is_legat: true, er_kunde: true, is_demo: false, intro_session_used_at: null, jonas_session_used_at: null },
-    { id: "udloebet", status: "expired", is_legat: false, er_kunde: true, is_demo: false, intro_session_used_at: null, jonas_session_used_at: null },
-    { id: "os_selv", status: "active", is_legat: false, er_kunde: false, is_demo: false, intro_session_used_at: null, jonas_session_used_at: null },
-    { id: "ny", name: null, status: "active", is_legat: false, er_kunde: true, is_demo: false, intro_session_used_at: null, jonas_session_used_at: null },
+    { id: "aktiv", name: "Aktiv ApS", status: "active", is_legat: false, er_kunde: true, is_demo: false, intro_session_used_at: dageFoer(20), jonas_session_used_at: "2026-09-13T20:52:00Z", jonas_session_tilbudt_at: null },
+    { id: "tom_status", status: null, is_legat: null, er_kunde: null, is_demo: null, intro_session_used_at: null, jonas_session_used_at: null, jonas_session_tilbudt_at: null },
+    { id: "legat", status: "active", is_legat: true, er_kunde: true, is_demo: false, intro_session_used_at: null, jonas_session_used_at: null, jonas_session_tilbudt_at: null },
+    { id: "udloebet", status: "expired", is_legat: false, er_kunde: true, is_demo: false, intro_session_used_at: null, jonas_session_used_at: null, jonas_session_tilbudt_at: null },
+    { id: "os_selv", status: "active", is_legat: false, er_kunde: false, is_demo: false, intro_session_used_at: null, jonas_session_used_at: null, jonas_session_tilbudt_at: null },
+    { id: "ny", name: null, status: "active", is_legat: false, er_kunde: true, is_demo: false, intro_session_used_at: null, jonas_session_used_at: null, jonas_session_tilbudt_at: null },
   ],
   medlemmer: [
     { company_id: "aktiv", user_id: "u1", created_at: dageFoer(200) }, { company_id: "aktiv", user_id: "u2", created_at: dageFoer(100) },
@@ -113,6 +115,7 @@ describe("byggOverblik — sammenkoblingen på et fast datasæt", () => {
       companyId: "aktiv",
       navn: "Aktiv ApS",
       medlemSiden: dageFoer(200), // det FØRSTE medlem, uanset rækkefølge
+      jonasTilbudtAt: null,
       sessioner: {
         morten: { raadgiver: "morten", status: "afholdt", retAt: dageFoer(20), tid: { start: dageFoer(5), slut: dageFoer(5) } },
         jonas: { raadgiver: "jonas", status: "link_sendt", retAt: "2026-09-13T20:52:00Z", tid: null },
@@ -140,7 +143,7 @@ describe("byggOverblik — universet, og demo-virksomheden (29/9)", () => {
   });
 
   it("demo-virksomheden (is_demo) er ude — også for en admin, som RLS ikke skjuler den for", () => {
-    const demo = { id: "a0de0000-0000-4000-8000-000000000001", status: "active", is_legat: false, er_kunde: true, is_demo: true, intro_session_used_at: null, jonas_session_used_at: null };
+    const demo = { id: "a0de0000-0000-4000-8000-000000000001", status: "active", is_legat: false, er_kunde: true, is_demo: true, intro_session_used_at: null, jonas_session_used_at: null, jonas_session_tilbudt_at: null };
     expect(byggOverblik({ ...KILDER, companies: [...KILDER.companies, demo] }, NU).has(demo.id)).toBe(false);
   });
 });
@@ -148,8 +151,8 @@ describe("byggOverblik — universet, og demo-virksomheden (29/9)", () => {
 describe("manglerAtBooke — hvem mangler at booke (Jonas 29/9)", () => {
   const ALLE: SessionDom["status"][] = ["ikke_brugt", "link_sendt", "booket", "afholdt", "aflyst", "markeret_uden_booking", "ikke_omfattet"];
   const dom = (raadgiver: "morten" | "jonas", status: SessionDom["status"]): SessionDom => ({ raadgiver, status, tid: null, retAt: null });
-  const raekke = (m: SessionDom["status"], j: SessionDom["status"], medlemSiden: string | null) =>
-    ({ sessioner: { morten: dom("morten", m), jonas: dom("jonas", j) }, medlemSiden });
+  const raekke = (m: SessionDom["status"], j: SessionDom["status"], medlemSiden: string | null, jonasTilbudtAt: string | null = null) =>
+    ({ sessioner: { morten: dom("morten", m), jonas: dom("jonas", j) }, medlemSiden, jonasTilbudtAt });
   const NY = "2026-09-20T10:00:00Z";      // medlem fra efter IKKE_OMFATTET_FRA
   const GAMMEL = "2026-06-01T10:00:00Z";  // medlem fra før
 
@@ -189,6 +192,65 @@ describe("manglerAtBooke — hvem mangler at booke (Jonas 29/9)", () => {
   it("grænsen er IKKE_OMFATTET_FRA: præcis dér er man ny, et sekund før er man det ikke", () => {
     expect(manglerAtBooke(raekke("booket", "ikke_brugt", IKKE_OMFATTET_FRA)).jonas).toBe(true);
     expect(manglerAtBooke(raekke("booket", "ikke_brugt", "2026-09-13T23:59:59Z")).jonas).toBe(false);
+  });
+
+  // 1/10-2026 (ANLA GLAS A/S, medlem fra maj; Jonas 10:35 «ja tilbudt»):
+  // companies.jonas_session_tilbudt_at åbner porten for et ældre medlem.
+  const TILBUDT = "2026-10-01T08:40:00Z";
+
+  it("JONAS, gammelt medlem + tilbudt + ikke brugt: mangler", () => {
+    expect(manglerAtBooke(raekke("booket", "ikke_brugt", GAMMEL, TILBUDT)).jonas).toBe(true);
+    expect(manglerAtBooke(raekke("booket", "link_sendt", GAMMEL, TILBUDT)).jonas).toBe(true);
+    expect(manglerAtBooke(raekke("booket", "aflyst", GAMMEL, TILBUDT)).jonas).toBe(true);
+    // Uden startdato, men tilbudt: også mangler — tilbuddet er rådgiverens ord.
+    expect(manglerAtBooke(raekke("booket", "ikke_brugt", null, TILBUDT)).jonas).toBe(true);
+  });
+
+  it("JONAS, gammelt medlem + tilbudt + brugt (booket, afholdt, markeret, ikke_omfattet): mangler ikke", () => {
+    for (const status of ["booket", "afholdt", "markeret_uden_booking", "ikke_omfattet"] as const) {
+      expect(manglerAtBooke(raekke("booket", status, GAMMEL, TILBUDT)).jonas, status).toBe(false);
+    }
+  });
+
+  it("JONAS, gammelt medlem UDEN tilbudt: mangler ikke (uændret)", () => {
+    expect(manglerAtBooke(raekke("booket", "ikke_brugt", GAMMEL, null)).jonas).toBe(false);
+  });
+
+  it("JONAS, nyt medlem: uændret af tilbuddet", () => {
+    for (const status of ALLE) {
+      expect(manglerAtBooke(raekke("booket", status, NY, TILBUDT)).jonas, status).toBe(manglerAtBooke(raekke("booket", status, NY, null)).jonas);
+    }
+  });
+
+  it("omfattetAfJonas: nyt ELLER tilbudt", () => {
+    expect(omfattetAfJonas({ medlemSiden: NY, jonasTilbudtAt: null })).toBe(true);
+    expect(omfattetAfJonas({ medlemSiden: GAMMEL, jonasTilbudtAt: TILBUDT })).toBe(true);
+    expect(omfattetAfJonas({ medlemSiden: GAMMEL, jonasTilbudtAt: null })).toBe(false);
+    expect(omfattetAfJonas({ medlemSiden: null })).toBe(false);
+  });
+
+  it("byggOverblik bærer jonas_session_tilbudt_at videre som jonasTilbudtAt", () => {
+    const k = { ...KILDER, companies: KILDER.companies.map((c) => (c.id === "aktiv" ? { ...c, jonas_session_tilbudt_at: TILBUDT } : c)) };
+    expect(byggOverblik(k, NU).get("aktiv")!.jonasTilbudtAt).toBe(TILBUDT);
+    expect(byggOverblik(KILDER, NU).get("ny")!.jonasTilbudtAt).toBeNull();
+  });
+
+  // 1/10 13:46 (Jonas): de fem tilbudte talte ikke — alle havde «brugt» sat fra FØR tilbuddet.
+  it("jonasRetEfterTilbud: tilbuddet overtrumfer en ældre «brugt»; kun en brug EFTER tilbuddet tæller", () => {
+    expect(jonasRetEfterTilbud("2026-09-13T20:52:00Z", TILBUDT)).toBeNull(); // gammel markering (ikke omfattet)
+    expect(jonasRetEfterTilbud(TILBUDT, TILBUDT)).toBeNull(); // samme øjeblik (begge flueben krydset, ANLA)
+    expect(jonasRetEfterTilbud("2026-10-05T09:00:00Z", TILBUDT)).toBe("2026-10-05T09:00:00Z"); // brugt efter tilbuddet
+    expect(jonasRetEfterTilbud("2026-09-13T20:52:00Z", null)).toBe("2026-09-13T20:52:00Z"); // uden tilbud: uændret
+    expect(jonasRetEfterTilbud(null, TILBUDT)).toBeNull();
+  });
+
+  it("byggOverblik: et tilbudt ældre medlem med «brugt» fra 13/9 mangler at booke (målt i prod 1/10)", () => {
+    const k = { ...KILDER, companies: KILDER.companies.map((c) => (c.id === "aktiv" ? { ...c, jonas_session_tilbudt_at: TILBUDT } : c)) };
+    const r = byggOverblik(k, NU).get("aktiv")!;
+    expect(r.sessioner.jonas.status).not.toBe("ikke_omfattet");
+    expect(manglerAtBooke(r).jonas).toBe(true);
+    // Uden tilbuddet tæller det ældre medlem ikke (uændret).
+    expect(manglerAtBooke(byggOverblik(KILDER, NU).get("aktiv")!).jonas).toBe(false);
   });
 
   it("de to domme er uafhængige", () => {

@@ -77,6 +77,49 @@ Før en opgave bygges, skriver Claude en VÆRDIVURDERING. Det er ikke en byggepl
 
 Fejlen, der gav reglen (29/9 aften): «Spørg din rådgiver» (#1144) og «systembeskeder ud af chatten» (#1145) blev valgt, fordi de stod som «gør det» og «Lille». Ingen målte først, om medlemmerne bruger Nøgletal eller skriver i chatten, eller hvad chatten faktisk fyldes med. #1145 skjulte til sidst kun én type og blev lukket.
 
+## 4b. Det tekniske råd — ingen merge uden uafhængigt gennemsyn (Jonas 30/9 08:05)
+
+Jonas: «Lav et teknisk råd: Lav en CTO og en der kigger på UX og design på platformen. De skal kigge på fejl inden noget rulles ud.»
+
+- **CTO:** en agent, der IKKE har set arbejdet blive lavet, læser hver kode-PR før merge. Den følger dataflowet på tværs af filer, sikkerheden, driften og deploy-rækkefølgen, og den tjekker, at værnene faktisk fælder. Dommen er **MERGE / RET FØRST / STOP**.
+  - Instruksen står i en fast skabelon, så alle gennemsyn stiller de samme spørgsmål.
+  - Den største model (Fable) bruges, når PR'en rører penge, mails til rigtige mennesker, adgang eller offentlige endpoints. Ellers bruges Opus.
+- **UX og design:** gennemgår alt, hvad medlemmer og rådgivere ser: designsprog, mobil, tekster og tilgængelighed. Den ser helst den udrullede side i Claude-browseren (tjenestekontoen claude@topix.dk).
+- **RET FØRST** rettes af en anden agent end den, der byggede. Høje fund rettes altid før merge. Lave fund rettes eller bogføres som åbne.
+- **Ren dokumentation** går ikke gennem rådet.
+- **Efter HVER publicering af `src/` (Jonas 30/9 20:57: «Husk altid at tjekke design og opsætning grundigt efter publicering. UX agent og designagent skal være på opgaven … De må også gerne være naturligt kritiske ift. UX og et naturligt flow i opbygning visuelt»):** Claude ser de ændrede flader i drift som claude@ — som rådgiver og som medlem («Visning som»: vælg virksomhed på /kpis, så klientnavigation) — på 1440×900 og 375×812 og måler `scrollHeight` = `innerHeight` og ingen vandret scroll. Skærmbillederne gives til en uafhængig design-/UX-agent, der læser `docs/hjemmebane-designsprog.md` (designguiden: farver, typografi, mikrolabels, luft, kort, tone) og fladens eget designpapir, og som skal være kritisk på flow, hierarki, gentagelser og tekst — ikke kun regelbrud. Fundene markeres RET NU / SENERE; RET NU rettes i en lille PR samme dag, SENERE bogføres i fladens designpapir. Første gang 1/10 ~02: ti fund, fem rettet (#1193).
+- **Første dag (30/9) fandt rådet reelle fejl i alle PR'er**, bl.a.:
+  - en Klaviyo-skrivning til alle medlemsprofiler uden lås
+  - en streak, der straffede rettelser
+  - en tjenestekonto, der ville markere medlemmers beskeder som læst
+  - en offentlig tilmelding, der kunne flytte andres tilmelding
+  - en rettighed, der gav skriveadgang til cron
+
+## 4c. Lærestreger 30/9
+
+- **(y) Et afbrudt agentkald kan køre videre i baggrunden og dø halvvejs.** Før en opgave startes igen, tjekkes `git worktree list` for en halvfærdig udgave. Udkastet gemmes, og der arbejdes videre derfra. Der må aldrig køre to agenter på samme gren.
+- **(z) Migrationernes tidsstempler kolliderede tre gange på én dag** (20260930090000, 100000 og 120000), fordi parallelle grene valgte «næste rigtige tid». Før en migration får et navn, tjekkes alle åbne PR'er: `git ls-remote` + `git show origin/<gren>:supabase/migrations`.
+- **(æ) Bed aldrig Jonas teste noget, før forudsætningerne er læst.** Testen af «Online nu» med kontakt@topix.dk kunne aldrig vise noget, fordi testvirksomheden er sorteret fra med vilje. Det stod i bogføringen fra 16/9.
+- **(ø) At se er ikke altid at læse.** Når en side åbnes, kan den skrive, fx `read_at`, `last_seen` og `log_user_login`. En konto, der kun skal se, skal springe de skrivninger over.
+- **(å) `gh` findes ikke i skyen.** PR-nummeret gives eksplicit til merge.sh.
+- **(bb) Læs grenens hoved med `git ls-remote`, ikke den lokale tracking-ref, før en migration køres fra en gren.** Målt 30/9: en forældet `origin/<gren>` gav den forkerte udgave af `drift_agent_laes` (`left(return_message,300)` i stedet for 160); funktionen måtte genskabes ordret fra PR-hovedet i én transaktion og måles igen.
+- **(cc) Push aldrig i samme kæde som en rebase, der kan fejle — brug `&&` hele vejen.** Målt 30/9: en kæde med `;` pushede main's commit til en PR-gren efter en fejlet rebase, og GitHub lukkede #1174 (0 commits). Den blev genåbnet via API'et; intet gik tabt.
+- **(dd) Kør `npx vitest run guard` efter hvert header-flip.** Samme fejl to gange 30/9: kildeværn (`driftDom.guard` dom 5, `webinarMail.guard` dom 19) krævede «IKKE KØRT» som første linje og fældede CI, da hovedet blev vendt til KØRT. Værnene tillader nu «IKKE KØRT|KØRT i prod».
+- **(ee) En søgning i en bundle skal følge dynamiske imports rekursivt — ellers er «fundet ikke» ikke et fund.** Målt 30/9: søgningen efter score-kode i `app.theboardroom.dk`s 232 chunks ~19:15 hentede index-filens statiske kæde, men ikke `BoardroomView`-chunken (hentes via dynamisk import); konklusionen «deploy_project ≠ Update» blev bogført som målt og måtte rettes. Det holdbare var kun, at index-hashen var uændret efter 8 minutter. Gælder enhver «findes ikke i bundlen»: følg `import(...)`-kæden fra index, eller søg i alle chunks i manifestet, og skriv hvad der er søgt.
+
+- **(ff) Build-chatten ændrer kode, selv når beskeden siger «Rør ingen kode, og commit intet».** Målt to gange: 29/9 (en pakke) og 1/10 01:26 (`bun add pdf-lib@1.17.1`, commits `93a94306` og `ce94ba1e`, for at få sit deno-tjek igennem). Efter HVER deploy: `list_edits` + `get_diff` på de nye commits; en ændring meldes til Jonas samme nat og bogføres — den rulles kun tilbage, hvis den kan skade.
+- **(gg) Underagenter overtræder forbud, også når de er skrevet ud.** 1/10: designagenten kørte `git log/status/branch` trods «ingen git» (kun læsning, ufarligt) og sagde det selv. Forbud mod skrivning håndhæves derfor ved, hvad agenten HAR adgang til, når det er muligt (fx skærmbilleder i stedet for browseren), og hver agentrapport læses for «brud».
+- **(ii) Én observation er ikke en regel.** 1/10 ~02 skrev Claude «`deploy_project` publicerer med forsinkelse» efter ét vellykket kald-par og bogførte det som afgjort; de næste to kald virkede ikke. En påstand om et værktøjs adfærd kræver mindst to uafhængige målinger, før den står som «afgjort» — ellers «set én gang».
+- **(hh) En agents researchpåstand er ikke et fund, før én bærende påstand er stikprøvet mod kilden.** 1/10: podcast-papiret påstod, at Riversides Magic Clips kun kan fem sprog — kilden viste hjælpecentrets sprogvalg, ikke funktionens. Rettet i papiret. Omvendt holdt prod-hjem-papirets påstand om legacy-nøglerne (stikprøvet i Supabases changelog). Regel: stikprøv den påstand, konklusionen hviler på, før papiret lander.
+- **(jj) Mål en udrulning i en FRISK fane.** 1/10 ~06 målte Claude bundlen i en fane, der havde stået åben siden før nattens `deploy_project`-kald, og konkluderede «uden virkning — upålidelig». En åben fane viser den `index-*.js`, den blev indlæst med; en `fetch` derfra kan ramme cache. Mål altid i en ny fane (`preview_start`) eller med `cache: "no-store"`, og skriv fanens oprindelse ved målingen. Målt rigtigt 1/10 14:37: `index-BwUVZgTc.js` i en frisk fane, 248 chunks, alle fem markører.
+
+## 4d. Lærestreger 2/10
+
+- **(kk) Tørkør en migration i prod i en DO-blok, der slutter med `RAISE EXCEPTION`.** Alle sætninger kører, og intet bliver tilbage. RLS kan prøves i samme blok med `SET LOCAL ROLE authenticated` og `request.jwt.claims` sat til en rigtig bruger. Målt 2/10 på skive 3 (`20261002100000`): blokken gav 42501 som forventet, før migrationen blev kørt for alvor.
+- **(ll) En ukørt migration må aldrig sortere før en kørt.** Omdøb den ukørte og lad indholdet være uændret. Lad den ikke stå. 2/10 sorterede `20261001200000_kald_edge_apikey` og `20261002090000_milestones_with_check` før den kørte `20261002100000`. De blev omdøbt til `20261002290000` og `20261002280000`, og grunden står i filhovedet (`metaSend.guard` dom 11; forsiden var nede i 12 timer 19/9).
+- **(mm) pg_net-svar lever cirka 6 timer.** En driftshændelse skal tilskrives samme dag, ellers kan den ikke tilskrives. Målt 2/10 06:18: timeouten 1/10 kl. 17:00 kunne ikke længere kobles til et job. Det ældste svar i `net._http_response` var fra 00:19, og vagtens række bærer ikke jobnavnet. Kort `a02-vagt-jobnavn`.
+- **(nn) Et valg på en liste er ikke grønt lys til en SECURITY DEFINER-ændring, der giver mere end valget beskrev.** STOP og vis sandhedstabellen: hvem der får hvad før og efter. Eksempel fra 2/10: aftenlistens gæst-«(b)» ville også give skriveadgang, Akademi og events til alle uden slutdato, i strid med 14/9 «En gæst ser Community, men skriver ikke». Ikke bygget; tre muligheder ligger hos Jonas (kort `w13`).
+
 ## 5. Modelvalg
 
 Den største model bruges kun, hvor den gør forskel.
@@ -86,7 +129,8 @@ Den største model bruges kun, hvor den gør forskel.
 | Bogføring, recon med KUN fund, målinger, opsummeringer | lille (haiku) |
 | Almindelig kode, tests, værn, mindre flader | mellem (sonnet) |
 | Svær eller detaljeret kode: motorer, penge, adgang, migrationer med data, spejl og paritet | stor (opus/fable) |
-| Gennemsyn af diffs før merge | mellem eller stor efter risiko |
+| Gennemsyn af diffs før merge | det tekniske råd (§4b): Opus, Fable ved penge/mails/adgang/offentlige endpoints |
+| Det sværeste, hvor en fejl koster penge eller data (bogføringsmotor, score-arkitektur) | største (fable) |
 
 Morgenrapporten nævner, hvilken model der fik hvad.
 
@@ -95,7 +139,23 @@ Morgenrapporten nævner, hvilken model der fik hvad.
 - **Skyklonen:** `/home/claude/topix-financial`. Lovables lockfil peger på Lovables pakke-mirror (`europe-west1-npm.pkg.dev`), som ikke kan nås herfra. Installér præcis de samme versioner ved at omskrive URL'erne til `registry.npmjs.org` i en KOPI af `bun.lock` (aldrig i repoet), køre `bun install --frozen-lockfile` dér og flytte `node_modules` ind. Kontrollér bagefter: `@supabase/supabase-js` skal være 2.97.0.
 - **GitHub:** push, PR og merge virker gennem sessionens proxy. Det gør sletning af grene ikke («Write access to this GitHub API path is not permitted through this proxy»). JSON-kald kræver `Content-Type: application/json`.
 - **Jonas' Mac:** mappen `topix-financial` er forbundet til en isoleret Linux-VM uden `gh`, `bun` og GitHub-login. Den bruges kun til at LÆSE og til at hente filer ind med stage.
-- **Produktion:** Supabase-forbindelsen ser kun `boardroom-2-prod`, IKKE Lovables prod (`loiavmastgeieqyiwyyr`). SQL, deploy og Update går gennem Lovable i browseren på Jonas' Mac, som kun kan bruges, når Mac'en er tændt, og Claude-appen er åben.
+- **Produktion:** Supabase-forbindelsen ser kun `boardroom-2-prod`, IKKE Lovables prod (`loiavmastgeieqyiwyyr`). Prod nås gennem Lovables egen MCP-forbindelse (§6a), forbundet af Jonas 30/9 kl. 16:40.
+- **Arbejdsmiljøets netværk** når IKKE `*.supabase.co`, `api.supabase.com` eller Lovable (målt 30/9 16:35: CONNECT 403). Al prod-adgang går gennem MCP-forbindelsen.
+
+## 6a. Lovable-forbindelsen (MCP, fra 30/9 16:40)
+
+Jonas forbandt Lovables officielle MCP-server (`https://mcp.lovable.dev`, [dokumentation](https://docs.lovable.dev/integrations/lovable-mcp-server)) til Claude 30/9 kl. 16:40 med sin egen Lovable-konto («Jeg er klar til, at vi får forbundet dig direkte, så du kan køre SQL og deploys i Lovable også … Men bliv ved med at være grundig!»). Forbindelsen har HELE hans kontos adgang — fire workspaces og alle projekter. Derfor:
+
+- **Kun ét projekt:** «Boardroom Compass», `project_id = 0bcda7a6-4154-4a81-9f82-fcdf623eb7ea`, workspace «Topix / The Boardroom» (`RQtkhlPP9ZEYYWj32M66`). Målt 30/9 16:41 med `query_database`: `current_user = postgres`, Postgres 17.6, 52 virksomheder, 30 cron-jobs, `net._http_response` max id 26455 — samme database som SQL editoren. Andre projekter og workspaces (SnowWave, Dansk Løn Service, Jonas' workspace, Topix Reimagined, The Boardroom Elevated) røres ALDRIG uden en særskilt besked fra Jonas.
+- **`query_database` kører som `postgres`** (`bypassrls = t`, `createrole = t`, målt 30/9): den ser alt og kan alt. Reglerne i §2 og §3 gælder uændret — forbindelsen flytter kun HÆNDERNE, ikke beslutningerne:
+  - SELECT frit. Aldrig `SELECT *` på de ti tabeller med nøgle-/tokenkolonner (målt 30/9: `aftale_underskrift`, `ansoegninger`, `company_betalingslink`, `company_invitations`, `email_unsubscribe_tokens`, `webinar_delinger`, `kanoniske_noegler`, `planlagte_haendelser`, `webinar_haendelser`, `backfill_log_kanoniske_noegler_20260918`) — vælg kolonnerne. Aldrig `vault`, aldrig secrets.
+  - Skrivning: SELECT før → skrivning guardet på den forventede nuværende værdi → SELECT efter. FØR-værdierne skrives i chatten/rapporten, så de kan rulles tilbage.
+  - Migrationer kun fra en fil på main (eller en PR-gren, der merges straks efter) med «IKKE KØRT» i hovedet; kør filens krop ordret, mål, og vend hovedet til KØRT i samme PR/opfølgning.
+  - `kald_edge(...)` (tørkørsler, beviser) er en skrivning i `net`-køen, men ikke af data: må uden at spørge, når body er en tørkørsel eller functionen er godkendt i drift.
+- **`send_message` til build-chatten** bruges KUN til deploy af edge functions og kun med den faste tekst: «Rør ingen kode, og commit intet. Kør deploy-værktøjet for …, og vis mig værktøjets resultat ordret.» Svaret læses med `get_message`, og `get_diff` på beskeden skal være TOM (ingen kodeændring). Viser diffen en ændring: stop og meld til Jonas. Deployen er først bevist ved et kald, der svarer med noget kun den nye kode kan (CLAUDE.md, «Deployment af edge functions»). `send_message` koster credits — én besked pr. deploy-runde, ikke én pr. function.
+- **`deploy_project`: virkningen er UAFKLARET (rettet tredje gang 1/10 eftermiddag).** Historikken: 30/9 «ikke Update» (ikke-rekursiv søgning, lærestreg (ee)) → 1/10 ~02 «publicerer med forsinkelse» (én observation, (ii)) → 1/10 ~06 «UPÅLIDELIG» (kaldene 02:20 og 05:35 «uden virkning»). Den sidste konklusion holdt heller ikke: målingen ~06 blev taget i en fane, der var åbnet FØR kaldene, og fanens `script[src]` er den bundle, siden blev indlæst med — ikke den, serveren udleverer nu. #1193 viste sig at være i drift, og Jonas' Lovable stod kl. 08:08 på «Published, up to date», før han havde klikket. Det peger på, at et af nattens kald publicerede, men hvilket er ikke målt. Regel: `deploy_project` må forsøges; en frontendændring er først ude, når bundlen er målt rekursivt i en FRISK fane; Update hos Jonas er den sikre vej, og Claude skriver aldrig «i drift» om `src/` uden måling. Lærestreg (jj).
+- **Underagenter arver Lovable-MCP'en (målt 30/9):** en recon-agent kørte en SELECT i prod. Derfor skal HVER agent-prompt udtrykkeligt forbyde skrivning i prod og `send_message`/`deploy_project` — at en agent «plejer» kun at læse er ikke et værn.
+- **Aldrig:** `create_project`, `remix_project`, `enable_database`, `set_project_visibility`, `set_*_knowledge`, workspace-skills, connectors — uden Jonas' særskilte ja.
 
 ## 7. Arbejdsgangen for én opgave
 

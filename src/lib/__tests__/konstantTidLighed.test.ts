@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { erKonstantTidLig } from "../../../supabase/functions/_shared/konstantTidLighed.ts";
 
-// Hjælperen bag monday-webhookens URL-vej (_shared/mondayVaern.ts, 14/9-2026).
+// Konstant-tids-sammenligning af hemmeligheder (14/9-2026; født til den
+// nedlagte monday-webhook, lever videre i aftale-underskrift, webhookSignatur,
+// ewebinarSignatur og delingstokenAuth).
 // Den importeres direkte fra Deno-kopien — der findes ingen frontend-kopi, og
 // funktionen har hverken IO eller Deno-afhængighed. Testene låser DOMMEN
 // (lig/ulig); at tiden er konstant kan ikke måles pålideligt i en test og

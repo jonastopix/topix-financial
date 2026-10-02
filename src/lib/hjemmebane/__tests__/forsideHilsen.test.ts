@@ -29,7 +29,9 @@ describe("nyeTingTekst", () => {
 describe("hilsenLinje", () => {
   it("dag 1 (tjeklisten ikke færdig): den faste sætning — uanset nyt", () => {
     expect(hilsenLinje({ nu: TORSDAG, nyeTing: 3, dag1: true })).toBe(DAG1_LINJE);
-    expect(DAG1_LINJE).toBe("Du er inde. Her er de tre ting der giver mest den første uge.");
+    expect(DAG1_LINJE).toBe("Du er inde. Herunder er det, der giver mest den første uge.");
+    // Intet antal i linjen: «Kom godt i gang» skifter antal punkter (seks siden 2/10).
+    expect(DAG1_LINJE).not.toMatch(/\b(tre|fire|fem|seks|\d+) ting\b/);
   });
   it("etableret: dagen · nye ting; uden nyt kun dagen", () => {
     expect(hilsenLinje({ nu: TORSDAG, nyeTing: 3, dag1: false })).toBe("Torsdag 17. september · 3 nye ting siden sidst");

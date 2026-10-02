@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge, FØR
+-- KØRT i prod (målt 1/10-2026: filens markørobjekter findes i prod; hovedet vendt efterfølgende). DEPLOY: manuelt i Lovable → SQL editor efter merge, FØR
 -- klaviyo-motor udrulles. Uden tabellen kan motoren ikke skrive sit spor, og
 -- en skrivning uden spor er præcis det, tabellen findes for at forhindre.
 --

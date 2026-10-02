@@ -40,8 +40,9 @@ export const headerenErSmalPaaMobil = (raa: string): boolean => {
   return (
     raekkeStart !== -1 &&
     menu !== -1 &&
-    // Navnet kan krympe og afkortes.
-    k.includes('<div className="flex-1 min-w-0" data-samtale-navn>') &&
+    // Navnet kan krympe og afkortes — men aldrig til 0 px (rådets fund 1/10:
+    // en fast minimumsbredde; truncate klarer resten).
+    k.includes('<div className="flex-1 min-w-[6rem]" data-samtale-navn>') &&
     k.includes('<p className="text-sm font-medium text-hb-ink truncate">') &&
     // «Se tal» findes kun INDE i mobilhandlingerne i ⋯-menuen, ikke i rækken.
     seTalKnap > menu &&
@@ -65,8 +66,9 @@ describe("rådgiverens samtaleheader på mobil", () => {
     expect(headerenErSmalPaaMobil(raa)).toBe(true);
   });
   it("mutationer fælder dommen", () => {
-    // Navnet mister min-w-0 eller truncate.
-    expect(headerenErSmalPaaMobil(erstat(raa, '<div className="flex-1 min-w-0" data-samtale-navn>', '<div className="flex-1" data-samtale-navn>'))).toBe(false);
+    // Navnet mister sin minimumsbredde (eller får 0) eller truncate.
+    expect(headerenErSmalPaaMobil(erstat(raa, '<div className="flex-1 min-w-[6rem]" data-samtale-navn>', '<div className="flex-1" data-samtale-navn>'))).toBe(false);
+    expect(headerenErSmalPaaMobil(erstat(raa, '<div className="flex-1 min-w-[6rem]" data-samtale-navn>', '<div className="flex-1 min-w-0" data-samtale-navn>'))).toBe(false);
     expect(headerenErSmalPaaMobil(erstat(raa, '<p className="text-sm font-medium text-hb-ink truncate">', '<p className="text-sm font-medium text-hb-ink">'))).toBe(false);
     // «Se tal» tilbage i rækken (en ekstra knap med teksten).
     expect(headerenErSmalPaaMobil(erstat(raa, "{/* Primary contextual action", '{isMobile && <button type="button"><span>Se tal\n</span></button>}\n{/* Primary contextual action'))).toBe(false);
@@ -85,7 +87,7 @@ describe("rådgiverens samtaleheader på mobil", () => {
 export const boksenErVaekFraChattenPaaMobil = (skal: string): boolean => {
   const k = udenKommentarer(skal);
   return (
-    k.includes('import { onboardingBoksMonteres, pillenTraekkerSig } from "@/lib/hjemmebane/ankomst";') &&
+    k.includes('import { erErfarentMedlem, onboardingBoksMonteres, pillenTraekkerSig } from "@/lib/hjemmebane/ankomst";') &&
     k.includes("const boksMonteres = onboardingBoksMonteres(active, erMobil);") &&
     // Selve monteringen, bund-luften (pb-[72vh]) og menupunktet følger dommen.
     k.includes("{!isAdvisor && boksMonteres && (\n        <HbOnboardingTjekliste") &&

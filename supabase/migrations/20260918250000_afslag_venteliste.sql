@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge. Forudsætter
+-- KØRT i prod (målt 1/10-2026: filens markørobjekter findes i prod; hovedet vendt efterfølgende). DEPLOY: manuelt i Lovable → SQL editor efter merge. Forudsætter
 -- C's 20260918240000 (ventelisten) — KØRT i prod 18/9 (#989) — se «unionen».
 --
 -- AFSLAGET BLIVER TIL NOGET (Jonas 17/9 nat, 18/9): et nej bærer en grund —

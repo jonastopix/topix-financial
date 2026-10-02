@@ -127,7 +127,7 @@ export const PartnerEditor = forwardRef<EditorHandle, PartnerEditorProps>(
           />
         }
       >
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <HbField label="Navn" htmlFor="partner-name">
             <HbInput
               id="partner-name"
@@ -220,7 +220,7 @@ export const PartnerEditor = forwardRef<EditorHandle, PartnerEditorProps>(
           </div>
         </HbField>
 
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <HbField label="Website" htmlFor="partner-website">
             <HbInput
               id="partner-website"

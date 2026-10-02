@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Menu } from "lucide-react";
-import topixIcon from "@/assets/topix-icon-green.png";
+import topixIcon from "@/assets/topix-icon-green-96.png";
 
 interface HbNavProps {
   onMenuClick?: () => void;

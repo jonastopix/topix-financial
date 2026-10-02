@@ -767,6 +767,48 @@ export type Database = {
           },
         ]
       }
+      ansoegning_webinar_kobling: {
+        Row: {
+          ansoegning_id: string
+          grund: string | null
+          id: string
+          koblet_af: string
+          koblet_at: string
+          tilmelding_id: string
+        }
+        Insert: {
+          ansoegning_id: string
+          grund?: string | null
+          id?: string
+          koblet_af?: string
+          koblet_at?: string
+          tilmelding_id: string
+        }
+        Update: {
+          ansoegning_id?: string
+          grund?: string | null
+          id?: string
+          koblet_af?: string
+          koblet_at?: string
+          tilmelding_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ansoegning_webinar_kobling_ansoegning_id_fkey"
+            columns: ["ansoegning_id"]
+            isOneToOne: true
+            referencedRelation: "ansoegninger"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ansoegning_webinar_kobling_tilmelding_id_fkey"
+            columns: ["tilmelding_id"]
+            isOneToOne: true
+            referencedRelation: "webinar_tilmeldinger"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ansoegninger: {
         Row: {
           afslagsgrund: string | null
@@ -1165,6 +1207,7 @@ export type Database = {
           kilde_item_id: string | null
           kilde_type: string | null
           sidste_svar_at: string | null
+          spoergsmaal_markeret_at: string | null
           status: string
           titel: string
           updated_at: string
@@ -1182,6 +1225,7 @@ export type Database = {
           kilde_item_id?: string | null
           kilde_type?: string | null
           sidste_svar_at?: string | null
+          spoergsmaal_markeret_at?: string | null
           status?: string
           titel: string
           updated_at?: string
@@ -1199,6 +1243,7 @@ export type Database = {
           kilde_item_id?: string | null
           kilde_type?: string | null
           sidste_svar_at?: string | null
+          spoergsmaal_markeret_at?: string | null
           status?: string
           titel?: string
           updated_at?: string
@@ -1277,6 +1322,7 @@ export type Database = {
           intro_session_used_at: string | null
           is_demo: boolean | null
           is_legat: boolean
+          jonas_session_tilbudt_at: string | null
           jonas_session_used_at: string | null
           logo_url: string | null
           name: string
@@ -1325,6 +1371,7 @@ export type Database = {
           intro_session_used_at?: string | null
           is_demo?: boolean | null
           is_legat?: boolean
+          jonas_session_tilbudt_at?: string | null
           jonas_session_used_at?: string | null
           logo_url?: string | null
           name?: string
@@ -1373,6 +1420,7 @@ export type Database = {
           intro_session_used_at?: string | null
           is_demo?: boolean | null
           is_legat?: boolean
+          jonas_session_tilbudt_at?: string | null
           jonas_session_used_at?: string | null
           logo_url?: string | null
           name?: string
@@ -2176,6 +2224,78 @@ export type Database = {
           svar?: Json | null
           udfald?: string
           visning?: Json | null
+        }
+        Relationships: []
+      }
+      drift_agent_jobs: {
+        Row: {
+          foerst_set: string
+          jobid: number
+          jobname: string
+        }
+        Insert: {
+          foerst_set?: string
+          jobid: number
+          jobname: string
+        }
+        Update: {
+          foerst_set?: string
+          jobid?: number
+          jobname?: string
+        }
+        Relationships: []
+      }
+      drift_agent_koersler: {
+        Row: {
+          aftryk: string
+          alarm_klokke: string
+          alarm_mail: string
+          alarm_valg: string
+          alvor: string
+          fund: Json
+          gul_mail: string
+          gule: number
+          id: number
+          laas_aktiv: boolean
+          laesefejl: string[]
+          roede: number
+          tal: Json | null
+          tid: string
+          varighed_ms: number | null
+        }
+        Insert: {
+          aftryk?: string
+          alarm_klokke?: string
+          alarm_mail?: string
+          alarm_valg?: string
+          alvor: string
+          fund?: Json
+          gul_mail?: string
+          gule?: number
+          id?: number
+          laas_aktiv: boolean
+          laesefejl?: string[]
+          roede?: number
+          tal?: Json | null
+          tid?: string
+          varighed_ms?: number | null
+        }
+        Update: {
+          aftryk?: string
+          alarm_klokke?: string
+          alarm_mail?: string
+          alarm_valg?: string
+          alvor?: string
+          fund?: Json
+          gul_mail?: string
+          gule?: number
+          id?: number
+          laas_aktiv?: boolean
+          laesefejl?: string[]
+          roede?: number
+          tal?: Json | null
+          tid?: string
+          varighed_ms?: number | null
         }
         Relationships: []
       }
@@ -3089,9 +3209,15 @@ export type Database = {
           email: string
           forsoegt_at: string
           grund: string | null
+          medlem_forsoegt_at: string | null
+          medlem_grund: string | null
+          medlem_status: number | null
+          medlem_udfald: string | null
           skrevet_at: string | null
           status: number | null
           svar: string | null
+          tb_medlem: boolean | null
+          tb_medlem_skrevet_at: string | null
           tb_naeste_webinar: string | null
           tb_naeste_webinar_tekst: string | null
           udfald: string
@@ -3101,9 +3227,15 @@ export type Database = {
           email: string
           forsoegt_at?: string
           grund?: string | null
+          medlem_forsoegt_at?: string | null
+          medlem_grund?: string | null
+          medlem_status?: number | null
+          medlem_udfald?: string | null
           skrevet_at?: string | null
           status?: number | null
           svar?: string | null
+          tb_medlem?: boolean | null
+          tb_medlem_skrevet_at?: string | null
           tb_naeste_webinar?: string | null
           tb_naeste_webinar_tekst?: string | null
           udfald: string
@@ -3113,9 +3245,15 @@ export type Database = {
           email?: string
           forsoegt_at?: string
           grund?: string | null
+          medlem_forsoegt_at?: string | null
+          medlem_grund?: string | null
+          medlem_status?: number | null
+          medlem_udfald?: string | null
           skrevet_at?: string | null
           status?: number | null
           svar?: string | null
+          tb_medlem?: boolean | null
+          tb_medlem_skrevet_at?: string | null
           tb_naeste_webinar?: string | null
           tb_naeste_webinar_tekst?: string | null
           udfald?: string
@@ -3413,6 +3551,77 @@ export type Database = {
           },
         ]
       }
+      maal_kvartalstjek: {
+        Row: {
+          company_id: string
+          id: string
+          kvartal: number
+          milestone_id: string
+          valg: string
+          valgt_af: string
+          valgt_at: string
+        }
+        Insert: {
+          company_id: string
+          id?: string
+          kvartal: number
+          milestone_id: string
+          valg: string
+          valgt_af?: string
+          valgt_at?: string
+        }
+        Update: {
+          company_id?: string
+          id?: string
+          kvartal?: number
+          milestone_id?: string
+          valg?: string
+          valgt_af?: string
+          valgt_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maal_kvartalstjek_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maal_kvartalstjek_milestone_id_fkey"
+            columns: ["milestone_id"]
+            isOneToOne: false
+            referencedRelation: "milestones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      maaned_foerste_godkendelse: {
+        Row: {
+          company_id: string
+          foerst_godkendt_at: string
+          period_key: string
+        }
+        Insert: {
+          company_id: string
+          foerst_godkendt_at?: string
+          period_key: string
+        }
+        Update: {
+          company_id?: string
+          foerst_godkendt_at?: string
+          period_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maaned_foerste_godkendelse_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       member_profiles: {
         Row: {
           ask_me_about: string | null
@@ -3455,6 +3664,8 @@ export type Database = {
           created_at: string
           id: string
           last_position_seconds: number | null
+          markeret_af: string | null
+          markeret_at: string | null
           seen_at: string | null
           skipped_at: string | null
           updated_at: string
@@ -3468,6 +3679,8 @@ export type Database = {
           created_at?: string
           id?: string
           last_position_seconds?: number | null
+          markeret_af?: string | null
+          markeret_at?: string | null
           seen_at?: string | null
           skipped_at?: string | null
           updated_at?: string
@@ -3481,6 +3694,8 @@ export type Database = {
           created_at?: string
           id?: string
           last_position_seconds?: number | null
+          markeret_af?: string | null
+          markeret_at?: string | null
           seen_at?: string | null
           skipped_at?: string | null
           updated_at?: string
@@ -3784,7 +3999,10 @@ export type Database = {
       }
       milestones: {
         Row: {
+          art: string | null
           baseline: string | null
+          bekraeftet_af: string | null
+          bekraeftet_at: string | null
           category: string
           company_id: string
           completed_at: string | null
@@ -3793,6 +4011,7 @@ export type Database = {
           deadline: string | null
           description: string | null
           id: string
+          maal_noegle: string | null
           progress: number
           progress_updated_at: string | null
           source: string
@@ -3800,12 +4019,17 @@ export type Database = {
           status: string
           target_value: number | null
           title: string
+          udgangspunkt: number | null
+          udgangspunkt_dato: string | null
           unit: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          art?: string | null
           baseline?: string | null
+          bekraeftet_af?: string | null
+          bekraeftet_at?: string | null
           category?: string
           company_id: string
           completed_at?: string | null
@@ -3814,6 +4038,7 @@ export type Database = {
           deadline?: string | null
           description?: string | null
           id?: string
+          maal_noegle?: string | null
           progress?: number
           progress_updated_at?: string | null
           source?: string
@@ -3821,12 +4046,17 @@ export type Database = {
           status?: string
           target_value?: number | null
           title: string
+          udgangspunkt?: number | null
+          udgangspunkt_dato?: string | null
           unit?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          art?: string | null
           baseline?: string | null
+          bekraeftet_af?: string | null
+          bekraeftet_at?: string | null
           category?: string
           company_id?: string
           completed_at?: string | null
@@ -3835,6 +4065,7 @@ export type Database = {
           deadline?: string | null
           description?: string | null
           id?: string
+          maal_noegle?: string | null
           progress?: number
           progress_updated_at?: string | null
           source?: string
@@ -3842,6 +4073,8 @@ export type Database = {
           status?: string
           target_value?: number | null
           title?: string
+          udgangspunkt?: number | null
+          udgangspunkt_dato?: string | null
           unit?: string | null
           updated_at?: string
           user_id?: string
@@ -3912,6 +4145,272 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      nyhed_agent_koersel: {
+        Row: {
+          dry_run: boolean
+          hentet: number
+          id: string
+          input_tokens: number
+          kilder: Json
+          llm_kald: number
+          model: string | null
+          nye: number
+          output_tokens: number
+          relevante: number
+          skriver: boolean
+          sluttet_at: string
+          startet_at: string
+          status: string
+          stop_grund: string | null
+          svar: Json | null
+          udkast_id: string | null
+          uge: string | null
+          vurderet: number
+        }
+        Insert: {
+          dry_run: boolean
+          hentet?: number
+          id?: string
+          input_tokens?: number
+          kilder?: Json
+          llm_kald?: number
+          model?: string | null
+          nye?: number
+          output_tokens?: number
+          relevante?: number
+          skriver?: boolean
+          sluttet_at?: string
+          startet_at: string
+          status: string
+          stop_grund?: string | null
+          svar?: Json | null
+          udkast_id?: string | null
+          uge?: string | null
+          vurderet?: number
+        }
+        Update: {
+          dry_run?: boolean
+          hentet?: number
+          id?: string
+          input_tokens?: number
+          kilder?: Json
+          llm_kald?: number
+          model?: string | null
+          nye?: number
+          output_tokens?: number
+          relevante?: number
+          skriver?: boolean
+          sluttet_at?: string
+          startet_at?: string
+          status?: string
+          stop_grund?: string | null
+          svar?: Json | null
+          udkast_id?: string | null
+          uge?: string | null
+          vurderet?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nyhed_agent_koersel_udkast_id_fkey"
+            columns: ["udkast_id"]
+            isOneToOne: false
+            referencedRelation: "nyhed_udkast"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      nyhed_emne: {
+        Row: {
+          begrundelse: string | null
+          brugt_i_udkast_id: string | null
+          handling: string | null
+          hentet_at: string
+          hvem: string | null
+          id: string
+          kilde: string
+          model: string | null
+          relevant: boolean | null
+          resume: string | null
+          score: number | null
+          titel: string
+          udgivet_at: string | null
+          url: string
+          url_hash: string
+          vurderet_at: string | null
+        }
+        Insert: {
+          begrundelse?: string | null
+          brugt_i_udkast_id?: string | null
+          handling?: string | null
+          hentet_at?: string
+          hvem?: string | null
+          id?: string
+          kilde: string
+          model?: string | null
+          relevant?: boolean | null
+          resume?: string | null
+          score?: number | null
+          titel: string
+          udgivet_at?: string | null
+          url: string
+          url_hash: string
+          vurderet_at?: string | null
+        }
+        Update: {
+          begrundelse?: string | null
+          brugt_i_udkast_id?: string | null
+          handling?: string | null
+          hentet_at?: string
+          hvem?: string | null
+          id?: string
+          kilde?: string
+          model?: string | null
+          relevant?: boolean | null
+          resume?: string | null
+          score?: number | null
+          titel?: string
+          udgivet_at?: string | null
+          url?: string
+          url_hash?: string
+          vurderet_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nyhed_emne_brugt_i_udkast_id_fkey"
+            columns: ["brugt_i_udkast_id"]
+            isOneToOne: false
+            referencedRelation: "nyhed_udkast"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      nyhed_udkast: {
+        Row: {
+          afgjort_af: string | null
+          afgjort_at: string | null
+          afvist_grund: string | null
+          created_at: string
+          id: string
+          indhold_json: Json
+          kilder: Json
+          model: string | null
+          status: string
+          titel: string
+          traad_id: string | null
+          uaendret: boolean | null
+          uge: string
+          updated_at: string
+        }
+        Insert: {
+          afgjort_af?: string | null
+          afgjort_at?: string | null
+          afvist_grund?: string | null
+          created_at?: string
+          id?: string
+          indhold_json: Json
+          kilder?: Json
+          model?: string | null
+          status?: string
+          titel: string
+          traad_id?: string | null
+          uaendret?: boolean | null
+          uge: string
+          updated_at?: string
+        }
+        Update: {
+          afgjort_af?: string | null
+          afgjort_at?: string | null
+          afvist_grund?: string | null
+          created_at?: string
+          id?: string
+          indhold_json?: Json
+          kilder?: Json
+          model?: string | null
+          status?: string
+          titel?: string
+          traad_id?: string | null
+          uaendret?: boolean | null
+          uge?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nyhed_udkast_traad_id_fkey"
+            columns: ["traad_id"]
+            isOneToOne: false
+            referencedRelation: "community_traade"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      online_hjerteslag: {
+        Row: {
+          sidst_set: string
+          user_id: string
+        }
+        Insert: {
+          sidst_set?: string
+          user_id: string
+        }
+        Update: {
+          sidst_set?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      opkaldsanmodninger: {
+        Row: {
+          id: string
+          ip_hash: string | null
+          navn: string
+          oprettet_at: string
+          ringet_af: string | null
+          ringet_at: string | null
+          runde_id: string
+          samtykke_at: string
+          samtykke_ordlyd: string
+          sidst_indsendt_at: string
+          telefon: string
+          tilmelding_id: string
+        }
+        Insert: {
+          id?: string
+          ip_hash?: string | null
+          navn: string
+          oprettet_at?: string
+          ringet_af?: string | null
+          ringet_at?: string | null
+          runde_id?: string
+          samtykke_at?: string
+          samtykke_ordlyd: string
+          sidst_indsendt_at?: string
+          telefon: string
+          tilmelding_id: string
+        }
+        Update: {
+          id?: string
+          ip_hash?: string | null
+          navn?: string
+          oprettet_at?: string
+          ringet_af?: string | null
+          ringet_at?: string | null
+          runde_id?: string
+          samtykke_at?: string
+          samtykke_ordlyd?: string
+          sidst_indsendt_at?: string
+          telefon?: string
+          tilmelding_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "opkaldsanmodninger_tilmelding_id_fkey"
+            columns: ["tilmelding_id"]
+            isOneToOne: true
+            referencedRelation: "webinar_tilmeldinger"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       partners: {
         Row: {
@@ -4447,6 +4946,24 @@ export type Database = {
         }
         Relationships: []
       }
+      tjenestekonti: {
+        Row: {
+          formaal: string
+          oprettet_at: string
+          user_id: string
+        }
+        Insert: {
+          formaal: string
+          oprettet_at?: string
+          user_id: string
+        }
+        Update: {
+          formaal?: string
+          oprettet_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_login_log: {
         Row: {
           id: string
@@ -4872,6 +5389,32 @@ export type Database = {
         }
         Relationships: []
       }
+      webinar_video_klik: {
+        Row: {
+          id: string
+          klikket_at: string
+          mail_id: string
+        }
+        Insert: {
+          id?: string
+          klikket_at?: string
+          mail_id: string
+        }
+        Update: {
+          id?: string
+          klikket_at?: string
+          mail_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webinar_video_klik_mail_id_fkey"
+            columns: ["mail_id"]
+            isOneToOne: false
+            referencedRelation: "webinar_mails"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       weekly_focus: {
         Row: {
           actions_generated: number
@@ -4961,7 +5504,16 @@ export type Database = {
         }
       }
       community_json_til_tekst: { Args: { p_doc: Json }; Returns: string }
+      community_mest_laest_uge: {
+        Args: never
+        Returns: {
+          laesere: number
+          traad_id: string
+        }[]
+      }
       compute_facts_metrics_hash: { Args: { _metrics: Json }; Returns: string }
+      drift_agent_kerne: { Args: { p_indhold: string }; Returns: Json }
+      drift_agent_laes: { Args: never; Returns: Json }
       event_svar_grupper: {
         Args: { p_event_id: string }
         Returns: {
@@ -4982,6 +5534,7 @@ export type Database = {
         Returns: {
           antal_reaktioner: number
           antal_svar: number
+          antal_svarere: number
           antal_visninger: number
           created_at: string
           fastgjort: boolean
@@ -4992,11 +5545,13 @@ export type Database = {
           indhold: string
           indhold_json: Json
           jeg_har_reageret: boolean
+          jeg_har_svaret: boolean
           kilde_event_id: string
           kilde_item_id: string
           kilde_type: string
           seneste_aktivitet_at: string
           sidste_svar_at: string
+          spoergsmaal_markeret_at: string
           status: string
           titel: string
           updated_at: string
@@ -5033,6 +5588,7 @@ export type Database = {
         Returns: {
           antal_reaktioner: number
           antal_svar: number
+          antal_svarere: number
           antal_visninger: number
           created_at: string
           fastgjort: boolean
@@ -5043,11 +5599,13 @@ export type Database = {
           indhold: string
           indhold_json: Json
           jeg_har_reageret: boolean
+          jeg_har_svaret: boolean
           kilde_event_id: string
           kilde_item_id: string
           kilde_type: string
           seneste_aktivitet_at: string
           sidste_svar_at: string
+          spoergsmaal_markeret_at: string
           status: string
           titel: string
           updated_at: string
@@ -5220,6 +5778,7 @@ export type Database = {
       }
       kald_edge_loft_ms: { Args: never; Returns: number }
       kald_edge_standard_ms: { Args: never; Returns: number }
+      kan_laese_community: { Args: { _user_id: string }; Returns: boolean }
       legat_day: { Args: { _user_id: string }; Returns: number }
       legat_unlocked_modules: { Args: { _user_id: string }; Returns: string[] }
       log_user_login: { Args: never; Returns: undefined }
@@ -5236,6 +5795,7 @@ export type Database = {
         Args: { _sti: string; _user_id: string }
         Returns: boolean
       }
+      maal_pladser_kun_bekraeftede: { Args: never; Returns: boolean }
       mark_messages_read: {
         Args: { p_conversation_id: string }
         Returns: number
@@ -5245,7 +5805,17 @@ export type Database = {
         Returns: boolean
       }
       mark_notifications_seen: { Args: never; Returns: number }
+      marker_community_spoergsmaal: {
+        Args: { p_markeret: boolean; p_traad_id: string }
+        Returns: undefined
+      }
       meta_hentning_vagt: { Args: never; Returns: string }
+      online_hjerteslag_friske: {
+        Args: { vindue_sekunder: number }
+        Returns: {
+          user_id: string
+        }[]
+      }
       opret_community_svar: {
         Args: { p_indhold: string; p_indhold_json?: Json; p_traad_id: string }
         Returns: string
