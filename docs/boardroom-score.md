@@ -201,17 +201,26 @@ budget       =  25 hvis budget_targets har mindst én værdirække i base-scenar
 maal         =  25 hvis mindst ét mål på DINE MÅL tæller (skive 3, 2/10-2026 — Jonas 1/10: «flyt Score-pointet til Dine mål»)
 ```
 
-**Målpointets definition (skive 3, `lib/hjemmebane/maalBekraeft.ts:taellerSomScoreMaal`):** et mål
-tæller, når det er **aktivt** (`status = 'active'`), **bekræftet af medlemmet** (`bekraeftet_at`
-sat — et forslag fra rådgiver/agent/handout tæller først, når medlemmet har sagt «Det er vores
-mål»), **har en art** (`tal` eller `begivenhed` — et mål fra før designet uden art tæller ikke; «Gør
-målet skarpt» er vejen), **har en frist** (`deadline`), og for et tal-mål **både måltal og
-udgangspunkt** (`target_value`, `udgangspunkt`). Regnestykket: `maal = 25 × [∃ mål: aktivt ∧
-bekræftet ∧ art ∧ frist ∧ (art ≠ tal ∨ (måltal ∧ udgangspunkt))]`. Hooken (`useBoardroomScore.hentHarMaal`)
-læser `milestones` med `status, bekraeftet_at, art, deadline, target_value, udgangspunkt`; mangler
-kolonnen `bekraeftet_at` (migration `20261002100000` ikke kørt), læses `kpi_targets` som før —
-fail-soft, aldrig en score uden grund. Løfteren «Sæt dit første mål.» peger på `/milestones` (ikke
-`/kpis`, hvor KPI-målene nu hedder **pejlemærker**).
+**Målpointets definition (skive 3, `lib/hjemmebane/maalBekraeft.ts:taellerSomScoreMaal`; beslutning
+2/10-2026 efter rådets fund 4):** et mål tæller, når det er **aktivt** (`status = 'active'`),
+**bekræftet af medlemmet** (`bekraeftet_at` sat — et forslag fra rådgiver/agent/handout tæller
+først, når medlemmet har sagt «Det er vores mål»), **har en frist** (`deadline`, «YYYY-MM-DD»), og
+for et **tal-mål** (`art = 'tal'`) desuden et **måltal** (`target_value`). **`art` kræves IKKE:**
+målt i prod 2/10 kl. ~03:45 har **0** af de aktive manual-mål en art (kolonnen kom 1/10), og kun
+**2** virksomheder har et aktivt manual-mål med frist — et krav om art ville tage pointet fra alle
+gamle mål med frist, og løfteren ville lyve. Udgangspunktet kræves heller ikke (sporet regner uden).
+Regnestykket:
+
+```
+maal = 25 × [∃ mål: status = 'active' ∧ bekraeftet_at ≠ null ∧ deadline ∧ (art ≠ 'tal' ∨ target_value er et tal)]
+```
+
+Hooken (`useBoardroomScore.hentHarMaal`) læser `milestones` med `status, bekraeftet_at, art,
+deadline, target_value, udgangspunkt`; mangler kolonnen `bekraeftet_at` (migration `20261002100000`
+ikke kørt), læses `kpi_targets` som før (målt 2/10: kun 3 af 43 kundevirksomheder har en række) —
+fail-soft, aldrig en score uden grund. Løfteren siger **«Sæt et mål med en frist.»** (det, der
+faktisk giver pointet) og peger på `/milestones` (ikke `/kpis`, hvor KPI-målene nu hedder
+**pejlemærker**).
 
 «Ikke nok data» når vinduet er tomt (starten så ny, at ingen hel måneds
 frist er passeret).
@@ -307,7 +316,7 @@ likviditet, indtjening, vækst).
 
 | Søjle | Handling | Point regnes som |
 |---|---|---|
-| Disciplin | «Godkend {åben måned} senest {frist}» når den åbne måned mangler; ellers «Godkend {måned} — måneden mangler» for den seneste med passeret frist; ellers «Læg et budget for {år}» / «Sæt dit første mål» | Dommen kørt igen med handlingen simuleret (måneden målt og rettidig; budget/mål = true) − dommen uden. For den åbne måned regnes begge sider ved fristens udløb, så gevinsten er det, der står på spil. Kun disciplinsøjlen simuleres; de tre tal-søjler holdes som nu. Simuleringen, ikke en tabel: så tallet er sandt, når vinduet flytter. null når scoren ikke findes på nogen af siderne. |
+| Disciplin | «Godkend {åben måned} senest {frist}» når den åbne måned mangler; ellers «Godkend {måned} — måneden mangler» for den seneste med passeret frist; ellers «Læg et budget for {år}» / «Sæt et mål med en frist.» | Dommen kørt igen med handlingen simuleret (måneden målt og rettidig; budget/mål = true) − dommen uden. For den åbne måned regnes begge sider ved fristens udløb, så gevinsten er det, der står på spil. Kun disciplinsøjlen simuleres; de tre tal-søjler holdes som nu. Simuleringen, ikke en tabel: så tallet er sandt, når vinduet flytter. null når scoren ikke findes på nogen af siderne. |
 | Likviditet | «Én måneds omkostninger mere i banken ({beløb})» | point(runway + 1) − point(runway) |
 | Indtjening | «Ét procentpoint mere i resultatmargin» | point(margin + 0,01) − point(margin) |
 | Vækst | «Fem procent mere omsætning end sammenligningen» | point(vækst + 0,05) − point(vækst) |

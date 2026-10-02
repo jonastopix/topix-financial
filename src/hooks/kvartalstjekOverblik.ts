@@ -10,7 +10,12 @@
  *   - milestones: de AKTIVE, BEKRÆFTEDE mål (id, title, company_id, status,
  *     bekraeftet_at) — side for side (hentAlleSider), aldrig et tavst loft.
  *   - maal_kvartalstjek: milestone_id + kvartal — side for side.
- *   - companies: id + name KUN for de virksomheder, der har et ventende tjek.
+ *   - companies: id + name + universets kolonner KUN for de virksomheder, der
+ *     har et ventende tjek — og linjen tæller KUN virksomheder i husets
+ *     univers (medlemsOverblik.iUniverset: kunde, ikke demo, ikke legat,
+ *     aktiv/status-løs) og ikke slettede (data_slettet_at IS NULL) — som
+ *     «Mangler at booke» (rådets fund 5). Et tjek i en demo-, legat- eller
+ *     slettet virksomhed tælles ikke med.
  *
  * FAIL-SOFT på migrationen (20261002100000 ikke kørt): mangler kolonnen
  * bekraeftet_at (42703/PGRST204) eller tabellen (PGRST205/42P01), svarer
@@ -26,6 +31,31 @@ import { kraevRaekker } from "@/lib/kraevRaekker";
 import { hentAlleSider } from "@/lib/budgetEngine";
 import { erManglendeKolonne, erManglendeTabel } from "@/lib/manglendeTabel";
 import { kvartalstjekPrVirksomhed, ventendeKvartalstjekAlle, type KvartalstjekPrVirksomhed, type KvartalstjekRaekke, type MaalTilKvartalstjek } from "@/lib/hjemmebane/maalBekraeft";
+import { iUniverset } from "@/lib/medlemsOverblik";
+
+/** Det af companies-rækken linjen læser: navnet + universets dom + sletning. */
+export interface VirksomhedTilKvartalstjek {
+  id: string;
+  name: string | null;
+  status: string | null;
+  is_legat: boolean | null;
+  er_kunde: boolean | null;
+  is_demo: boolean | null;
+  data_slettet_at: string | null;
+}
+export const KVARTALSTJEK_VIRKSOMHED_KOLONNER = "id, name, status, is_legat, er_kunde, is_demo, data_slettet_at";
+
+/** Ren (fund 5): kun virksomheder i universet og ikke slettede tæller; en ukendt virksomhed (ikke i svaret) tæller ikke. */
+export function filtrerTilUniverset(pr: readonly KvartalstjekPrVirksomhed[], virksomheder: readonly VirksomhedTilKvartalstjek[]): (KvartalstjekPrVirksomhed & { navn: string })[] {
+  const af = new Map(virksomheder.map((c) => [c.id, c]));
+  const ud: (KvartalstjekPrVirksomhed & { navn: string })[] = [];
+  for (const p of pr) {
+    const c = af.get(p.companyId);
+    if (!c || c.data_slettet_at !== null || !iUniverset(c)) continue;
+    ud.push({ ...p, navn: c.name ?? "Uden navn" });
+  }
+  return ud;
+}
 
 export const KVARTALSTJEK_OVERBLIK_QUERY_KEY = ["kvartalstjek-overblik"] as const;
 
@@ -55,15 +85,16 @@ export async function hentKvartalstjekOverblik(nu: Date = new Date()): Promise<K
   const ventende = ventendeKvartalstjekAlle(maal, tjek, nu);
   const pr = kvartalstjekPrVirksomhed(ventende);
   if (pr.length === 0) return { tilstand: "klar", antal: 0, virksomheder: [] };
-  const navne = kraevRaekker(
-    (await supabase.from("companies").select("id, name").in("id", pr.map((p) => p.companyId))) as unknown as Svar<{ id: string; name: string | null }>,
+  const raekker = kraevRaekker(
+    (await supabase.from("companies").select(KVARTALSTJEK_VIRKSOMHED_KOLONNER).in("id", pr.map((p) => p.companyId))) as unknown as Svar<VirksomhedTilKvartalstjek>,
     "companies",
   );
-  const navnAf = new Map(navne.map((c) => [c.id, c.name ?? "Uden navn"]));
+  // Fund 5: universet (kunde, ikke demo, ikke legat) og ikke slettet — tallet er summen over de virksomheder, der tæller.
+  const virksomheder = filtrerTilUniverset(pr, raekker);
   return {
     tilstand: "klar",
-    antal: ventende.length,
-    virksomheder: pr.map((p) => ({ ...p, navn: navnAf.get(p.companyId) ?? "Uden navn" })),
+    antal: virksomheder.reduce((n, v) => n + v.antal, 0),
+    virksomheder,
   };
 }
 

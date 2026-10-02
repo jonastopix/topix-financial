@@ -176,7 +176,7 @@ describe("boardroomScore — kanter", () => {
     const d2 = boardroomScore(grundlag([...keys("2026-03", 6).map((k) => sund(k)), sund("2026-09")], { harBudgetForAaret: false }), NU);
     expect(d2.handlinger.find((h) => h.soejle === "disciplin")?.tekst).toBe("Læg et budget for 2026.");
     const d3 = boardroomScore(grundlag([...keys("2026-03", 6).map((k) => sund(k)), sund("2026-09")], { harMaal: false }), NU);
-    expect(d3.handlinger.find((h) => h.soejle === "disciplin")).toMatchObject({ tekst: "Sæt dit første mål.", gevinst: 25, sti: "/milestones" });
+    expect(d3.handlinger.find((h) => h.soejle === "disciplin")).toMatchObject({ tekst: "Sæt et mål med en frist.", gevinst: 25, sti: "/milestones" });
     const d4 = boardroomScore(grundlag([...keys("2026-03", 6).map((k) => sund(k)), sund("2026-09")]), NU);
     expect(d4.handlinger.find((h) => h.soejle === "disciplin")).toBeUndefined();
   });

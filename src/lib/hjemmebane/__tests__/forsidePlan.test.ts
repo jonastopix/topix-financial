@@ -86,6 +86,22 @@ describe("forsidePlanDom — grupperne", () => {
     expect(d.tom).toBe(false);
     expect(d.ingenAktive).toBe(true);
   });
+  it("skive 3 (fund 7): et UBEKRÆFTET mål er ikke «ingen aktive», og dets skridt står under «Venter på jeres ja» — ikke «Uden mål»", () => {
+    const skridt = [s({ id: "sv", maal_id: "u" }), s({ id: "fv", maal_id: "u", status: "proposed" }), s({ id: "løst", maal_id: null })];
+    const d = forsidePlanDom(dineMaalDom([maal({ id: "u", bekraeftet_at: null }), maal({ id: "p", status: "parked", bekraeftet_at: "2026-08-01T00:00:00Z" })], tilDine(skridt), NU), skridt, NU);
+    expect(d.ingenAktive).toBe(false);
+    expect(d.maal).toEqual([]);
+    expect(d.venterPaaJa.aktive.map((x) => x.id)).toEqual(["sv"]);
+    expect(d.venterPaaJa.forslag.map((x) => x.id)).toEqual(["fv"]);
+    expect(d.udenMaal.aktive.map((x) => x.id)).toEqual(["løst"]);
+    expect(d.andre.aktive).toEqual([]);
+    expect(d.ventende).toBe(1);
+    expect(planHarIndhold(d)).toBe(true);
+    // Kolonnen ulæst (undefined): som i dag — målet er aktivt og vises.
+    const foer = forsidePlanDom(dineMaalDom([maal({ id: "u" })], tilDine(skridt), NU), skridt, NU);
+    expect(foer.maal.map((x) => x.plan.plan.maal.id)).toEqual(["u"]);
+    expect(foer.venterPaaJa.aktive).toEqual([]);
+  });
   it("udløbne forslag udelades; et skridt hvis mål ikke findes regnes som uden mål", () => {
     const skridt = [
       s({ id: "udl", maal_id: "m", status: "proposed", expires_at: "2026-09-01T00:00:00Z" }),

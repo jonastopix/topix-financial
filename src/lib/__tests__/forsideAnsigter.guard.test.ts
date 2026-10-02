@@ -44,7 +44,8 @@ export const selectBaererProposedBy = (forside: string): boolean =>
 
 /** Dom 3: dommen er ren. */
 export const dommenErRen = (forside: string, dom: string): boolean =>
-  (forside.match(/ansigt=\{raadgiverAnsigt\(f, raadgivere\)\}/g) ?? []).length === 3 &&
+  // Fire steder i «Din plan»: under målene, «Venter på jeres ja» (skive 3, fund 7), «Uden mål», «Skridt under andre mål».
+  (forside.match(/ansigt=\{raadgiverAnsigt\(f, raadgivere\)\}/g) ?? []).length === 4 &&
   forside.includes("ansigt={fokusAnsigt}") &&
   forside.includes("return raekke ? raadgiverAnsigt(raekke, raadgivere) : null;") &&
   !/"advisor"/.test(forside) &&

@@ -17,6 +17,7 @@ import {
   DINE_MAAL_OVERSKRIFT,
   eyebrowTekst,
   hovedLinje,
+  KVARTALSTJEK_FEJLEDE_TEKST,
   PROEV_IGEN,
   REJSEN_ORD,
   statusChips,
@@ -35,7 +36,7 @@ import { Rejsen } from "./Rejsen";
 import { SaetMaalGuide, type GuideTilstand } from "./SaetMaalGuide";
 import { RedigerMaalDialog } from "./RedigerMaalDialog";
 import { BekraeftMaalKort, type BekraeftHandling, type KvartalHandling } from "./BekraeftMaalKort";
-import { BEKRAEFT_ORD, KVARTAL_ORD, type Kvartal } from "@/lib/hjemmebane/maalBekraeft";
+import { aktiverFelter, BEKRAEFT_ORD, KVARTAL_ORD, type Kvartal } from "@/lib/hjemmebane/maalBekraeft";
 
 /**
  * «Dine mål» — /milestones (fladen 1/10-2026; designet Jonas sagde ja til kl.
@@ -80,14 +81,24 @@ import { BEKRAEFT_ORD, KVARTAL_ORD, type Kvartal } from "@/lib/hjemmebane/maalBe
  * ØVERST — før hovedet — står BekraeftMaalKort: nye forslag («Det er vores
  * mål» / «Ikke nu»), de gamle mål («Er det stadig jeres mål?» — Behold / Slip)
  * og kvartalstjekkene (Behold · Justér tal og dato · Parkér · Nået).
- * Skrivningerne er hookets (skriv.bekraeft/slip/registrerKvartalstjek —
- * medlemmets klientvej, samme RLS); «Nået» går gennem useMilestones'
- * markerNaaet (fejringen som altid); «Justér» åbner RedigerMaalDialog, og
- * tjekket registreres som 'justeret' FØRST når dialogen har gemt (kvartalEfterGem).
+ * Skrivningerne er hookets (skriv.bekraeft/slip/markerNaaet/registrerKvartalstjek
+ * — medlemmets klientvej, samme RLS); kvartalstjekkets «Nået» går gennem
+ * hookets GUARDEDE markerNaaet (ok/grund — som forsiden; rådets fund 1:
+ * useMilestones.markerNaaet svarer void og sluger fejlen, så rækken ville
+ * blive skrevet efter en fejlet handling), og rækken registreres KUN efter ok;
+ * målkortets «Markér som nået» går stadig gennem useMilestones (fejringen).
+ * «Justér» åbner RedigerMaalDialog, og tjekket registreres som 'justeret'
+ * FØRST når dialogen har gemt (kvartalEfterGem). Fejler kvartalstjek-
+ * hentningen (kvartalstjekFejlede — ikke «tabellen mangler»), tegnes INTET
+ * tjek (fund 6: uden de registrerede rækker ville et taget tjek vises igen),
+ * og siden siger det med KVARTALSTJEK_FEJLEDE_TEKST.
+ * «Aktivér» under Parkeret (fund 13): er målet ubekræftet, er klikket også
+ * bekræftelsen — aktiverFelter skriver bekraeftet_at/bekraeftet_af med status.
  * Rådgiveren læser kortene (kanKlikke = !rawAdvisor — som retningen).
  * Kortene (g.kort) er KUN de bekræftede aktive mål; pladsen dømmes af
  * databasens tælling, og «Plads, når I har taget stilling» står, når de
- * ubekræftede fylder (dom.pladsOptagetAfUbekraeftede).
+ * ubekræftede fylder (dom.pladsOptagetAfUbekraeftede). Hovedlinjen tæller
+ * databasens aktive: «N mål … · M venter på jeres ja · pladsen» (fund 3).
  *
  * Rådets runde 2: (2) «kan rette retningen» dømmes af den RÅ rådgiverrolle
  * (useAuth's isAdvisor, som HbMemberShell's hjerteslag) — ikke af «Se som
@@ -262,7 +273,9 @@ export const DineMaalView = () => {
       const s = await skriv.slip({ maalId: h.maalId });
       if (s.ok === false) return s.grund;
     } else if (h.valg === "naaet") {
-      await markerNaaetOgRyd(h.maalId);
+      // Fund 1: den GUARDEDE skriver (ok/grund, status 'active' → 'completed', nul rækker = fejl) — rækken kun efter ok.
+      const s = await skriv.markerNaaet({ maalId: h.maalId });
+      if (s.ok === false) return s.grund;
     }
     return registrerKvartal(h.maalId, h.kvartal, h.valg);
   };
@@ -305,7 +318,8 @@ export const DineMaalView = () => {
         onNaaet={() => void markerNaaetOgRyd(ms.id)}
         // Genåbn/aktivér: status active — det fjerde aktive afvises af databasen (husets tekst via maalFejlTekst).
         onGenaabn={() => void opdaterMaalFelt(ms.id, { status: "active" })}
-        onAktiver={() => void opdaterMaalFelt(ms.id, { status: "active" })}
+        // Fund 13: «Aktivér» er også et klik — et ubekræftet mål bekræftes i samme skrivning (medlemmet; rådgiveren får kun status).
+        onAktiver={() => void opdaterMaalFelt(ms.id, aktiverFelter(ms, rawAdvisor ? null : (user?.id ?? null), new Date()))}
         onParker={() => void opdaterMaalFelt(ms.id, { status: "parked" })}
         onSlet={() => setSletId(ms.id)}
         onSkridtGjort={(id) => gjortMutation.mutate(id)}
@@ -320,7 +334,7 @@ export const DineMaalView = () => {
       {!henter && !g.isError && (
         <BekraeftMaalKort
           bekraeftelser={g.bekraeftelser}
-          kvartalstjek={g.kvartalstjek}
+          kvartalstjek={g.kvartalstjekFejlede ? [] : g.kvartalstjek}
           kanKlikke={kanBekraefte}
           onBekraeft={bekraeftHandling}
           onKvartal={kvartalHandling}
@@ -329,13 +343,16 @@ export const DineMaalView = () => {
         />
       )}
 
+      {/* Fund 6: kvartalstjek-hentningen fejlede — ingen tjek tegnes (ovenfor), og det siges. */}
+      {!henter && !g.isError && g.kvartalstjekFejlede && <p className="mb-6 text-sm text-hb-rust" data-kvartalstjek-fejlede>{KVARTALSTJEK_FEJLEDE_TEKST}</p>}
+
       {/* ── 1. Hovedet ── */}
       <section className="max-w-3xl">
         <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">{eyebrowTekst(nu)}</p>
         <h1 className="mt-3 font-editorial text-4xl font-medium leading-[1.1] tracking-tight text-hb-ink md:text-5xl">{DINE_MAAL_OVERSKRIFT}</h1>
         {!henter && !g.isError && (
           <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-            <p className={cn("text-sm", dom.overGraensen ? "font-medium text-hb-rust" : "text-hb-ink-soft")} data-hoved-linje>{hovedLinje(kort.length)}</p>
+            <p className={cn("text-sm", dom.overGraensen ? "font-medium text-hb-rust" : "text-hb-ink-soft")} data-hoved-linje>{hovedLinje(kort.length, dom.ubekraeftede.length)}</p>
             {chips.length > 0 && (
               <ul className="flex flex-wrap gap-1.5" aria-label="Status på målene">
                 {chips.map((c) => (

@@ -29,29 +29,52 @@
  *
  * 4. KVARTALSTJEKKET («Medlemmet selv»; rådgiverne får en linje på forsiden):
  *    pr. mål i måned 3, 6 og 9 efter bekræftelsen. REGNESTYKKET:
- *      anker  = bekraeftet_at som DANSK dato
+ *      anker  = max(bekraeftet_at som DANSK dato, KVARTALSTJEK_FRA)
+ *               — KVARTALSTJEK_FRA = 2026-10-02 (dagen, modellen gik i luften):
+ *               migrationen backfiller bekraeftet_at = created_at for medlemmets
+ *               egne mål, og MÅLT i prod 2/10 ~03:45 er 6 aktive manual-mål
+ *               ældre end 3 måneder — uden ankeret ville de få et kvartalstjek
+ *               på DAG 1, før nogen har set modellen. Med ankeret er deres
+ *               første tjek 2/1-2027 (2/10 + 3 måneder). Et mål bekræftet efter
+ *               2/10 ankrer som før på sin egen dato. Rådets fund 9; samme
+ *               udtryk i migrationens INSERT-policy (greatest(bekraeftet_at,
+ *               '2026-10-02')) — dineMaalSkive3.guard dom 7 holder dem ens.
  *      dato_k = laegMaanederTilDato(anker, 3·k), k = 1, 2, 3
  *      slut   = laegMaanederTilDato(anker, 12)  — måned 12 er årsbrevets, ikke et tjek
  *      tjek k VENTER, når dato_k ≤ i dag < slut, målet er aktivt og bekræftet,
  *      og ingen registreret række har kvartal ≥ k. Er flere forfaldne
  *      (k=1 og k=2 uden svar), venter kun det SENESTE — ét kort, og svaret
  *      dækker de tidligere (databasen: UNIQUE (milestone_id, kvartal)).
- *    Eksempel (prøvet i maalBekraeft.test.ts): bekræftet 15/1-2026 12:00Z →
- *    anker 2026-01-15; dato_1 = 2026-04-15, dato_2 = 2026-07-15, dato_3 =
- *    2026-10-15, slut = 2027-01-15. I dag 2/10-2026 uden rækker → kvartal 2
- *    venter (måned 6). Bekræftet 31/8 → dato_1 = 30/11 (dagen klippes til
- *    månedens længde, laegMaanederTilDato).
+ *    Eksempel (prøvet i maalBekraeft.test.ts): bekræftet 15/10-2026 12:00Z →
+ *    anker 2026-10-15; dato_1 = 2027-01-15, dato_2 = 2027-04-15, dato_3 =
+ *    2027-07-15, slut = 2027-10-15. I dag 20/4-2027 uden rækker → kvartal 2
+ *    venter (måned 6). Backfillet 15/1-2026 → anker 2026-10-02 → dato_1 =
+ *    2027-01-02. Bekræftet 31/8-2027 → dato_1 = 30/11 (dagen klippes til
+ *    månedens længde, laegMaanederTilDato — som Postgres' date + interval).
  *    Fire valg: behold · justeret (åbner redigering; registreres EFTER gemt) ·
  *    parkeret (status 'parked') · naaet (status 'completed' — KUN ved klik,
  *    som altid). Handlingen skrives FØR rækken: fejler rækken, står kortet
  *    igen næste gang (harmløst); fejler handlingen, skrives ingen række.
+ *    DATABASENS DOM (migrationens INSERT-policy, rådets fund 11) er den samme
+ *    som klientens — maaRegistrereKvartalstjek: målet er bekræftet, kvartalet
+ *    er forfaldent (dato_k ≤ i dag < slut, samme anker), ingen række med
+ *    kvartal ≥ k, og målets status passer til valget: behold/justeret kræver
+ *    'active'; parkeret tillader 'active' eller 'parked', naaet 'active' eller
+ *    'completed' — fordi handlingen skrives FØR rækken, og rækken må aldrig
+ *    sige noget, målet ikke er.
  *
  * SCORE (punkt 3, «flyt Score-pointet til Dine mål»): disciplinens 25
  * «mål»-point gives, når virksomheden har mindst ét mål, der
- * taellerSomScoreMaal: aktivt · bekræftet · med art (tal eller begivenhed —
- * et mål fra før designet uden art tæller ikke: «tal/frist» er designets) ·
- * med frist · og for et tal-mål både måltal og udgangspunkt. Et
- * begivenhedsmål har måltal 1/udgangspunkt 0 pr. konstruktion (doemNytMaal).
+ * taellerSomScoreMaal. REGNESTYKKET (beslutning 2/10, rådets fund 4):
+ *   tæller = status 'active' ∧ bekræftet ∧ frist («YYYY-MM-DD»)
+ *            ∧ (art ≠ 'tal' ∨ måltal er et tal)
+ *   `art` kræves IKKE: målt i prod 2/10 ~03:45 har 0 af de aktive manual-mål
+ *   en art (kolonnen kom 1/10) — et krav om art ville tage pointet fra alle
+ *   gamle mål med frist, og «Sæt et mål med en frist» ville lyve. Et tal-mål
+ *   (art 'tal') skal desuden have et måltal; udgangspunktet kræves ikke
+ *   (sporet regner uden — maalTal). Et begivenhedsmål har måltal 1 pr.
+ *   konstruktion. Før migrationen (kolonnen bekraeftet_at ulæst): hooken
+ *   falder tilbage på kpi_targets som før — dommen her kaldes ikke.
  */
 import { kbhDato, laegMaanederTilDato } from "@/lib/hverdage";
 import { erMarkeretNaaet } from "@/lib/milepaelDom";
@@ -115,14 +138,17 @@ export const BEKRAEFT_ORD = {
     medlem: "Et mål venter på jeres ja",
     ukendt: "Et mål blev foreslået",
   } satisfies Record<MaalKilde | "ukendt", string>,
-  forslagTekst: "Tæller først som jeres mål, når I siger ja. Indtil da tæller det hverken i pladserne eller i jeres score.",
+  /** Rådets fund 2: pladserne tælles af databasen (triggeren tæller også forslag) — så ordene lover kun det, der er sandt. */
+  forslagTekst: "Tæller først som jeres mål, når I siger ja. Indtil da tæller det ikke i jeres score.",
   detErVoresMaal: "Det er vores mål",
   ikkeNu: "Ikke nu",
   gamleOverskrift: "Er det stadig jeres mål?",
+  /** Rådets fund 8: et gammelt 'manual'-mål er ubekræftet, netop fordi den, der skrev det, ikke længere er medlem
+      (backfillen kræver medlemskab) — derfor «eller af en, der ikke længere er medlem». */
   gamleTekst: (antal: number) =>
     antal === 1
-      ? "Et af jeres mål blev skrevet af en rådgiver, et handout eller AI. Behold det, hvis det stadig er jeres — ellers slip det. Det tæller først, når I har svaret."
-      : `${antal} af jeres mål blev skrevet af en rådgiver, et handout eller AI. Behold dem, der stadig er jeres — slip resten. De tæller først, når I har svaret.`,
+      ? "Et af jeres mål blev skrevet af en rådgiver, et handout, AI — eller af en, der ikke længere er medlem. Behold det, hvis det stadig er jeres — ellers slip det. Det tæller først, når I har svaret."
+      : `${antal} af jeres mål blev skrevet af en rådgiver, et handout, AI — eller af en, der ikke længere er medlem. Behold dem, der stadig er jeres — slip resten. De tæller først, når I har svaret.`,
   behold: "Behold",
   slip: "Slip",
   /** Ordet efter titlen på et gammelt mål: hvem skrev det. */
@@ -131,14 +157,16 @@ export const BEKRAEFT_ORD = {
     ai: "skrevet af AI",
     handout: "fra et handout",
     legat: "fra forløbet",
-    medlem: "skrevet af jer",
+    /** Et ubekræftet 'manual'-mål fra før skillelinjen: backfillen sprang det over, fordi user_id ikke (længere) er medlem (fund 8). */
+    medlem: "skrevet gennem jeres konto af en, der ikke længere er medlem",
     ukendt: "",
   } satisfies Record<MaalKilde | "ukendt", string>,
   /** Den stiplede plads, når de ubekræftede fylder databasens tre (dineMaal.pladsOptagetAfUbekraeftede). */
   pladsOptaget: "Plads til et mål mere, når I har taget stilling til forslagene ovenfor.",
   /** Rådgiveren læser — bekræftelsen er medlemmets (RLS: rådgiveren har kun SELECT). */
   kunMedlemmet: "Kun virksomheden kan sige ja til et mål.",
-  slippet: "Målet er parkeret — I kan aktivere det igen under «Parkeret».",
+  /** Fund 13: «Aktivér» under Parkeret er også et klik — målet bekræftes i samme skrivning (aktiverFelter). */
+  slippet: "Målet er parkeret — aktiverer I det igen under «Parkeret», tæller det som jeres.",
   bekraeftet: "Målet er jeres",
 } as const;
 
@@ -168,6 +196,18 @@ export function skrevetAfTekst(source: unknown): string {
   return BEKRAEFT_ORD.skrevetAf[maalKilde(source) ?? "ukendt"];
 }
 
+/**
+ * Felterne, «Aktivér» (et parkeret mål → 'active') skriver (rådets fund 13):
+ * er målet UBEKRÆFTET (null — kolonnen læst), er klikket også bekræftelsen:
+ * bekraeftet_at = nu, bekraeftet_af = medlemmet. Kolonnen ulæst (undefined)
+ * eller allerede bekræftet → kun status. `userId` null (rådgiveren eller
+ * ingen bruger) → kun status: bekræftelsen er medlemmets.
+ */
+export function aktiverFelter(m: Pick<MaalTilBekraeftelse, "bekraeftet_at">, userId: string | null, nu: Date): Record<string, unknown> {
+  if (m.bekraeftet_at === null && userId) return { status: "active", bekraeftet_at: nu.toISOString(), bekraeftet_af: userId };
+  return { status: "active" };
+}
+
 // ── Score ──────────────────────────────────────────────────────────────────
 
 /** Det af milestones-rækken Score læser (useBoardroomScore). */
@@ -183,17 +223,16 @@ export interface MaalTilScore {
 const tal = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 
 /**
- * Tæller målet i Score's disciplin («mål», 25 point)? Aktivt · bekræftet ·
- * med art · med frist · og for et tal-mål både måltal og udgangspunkt
- * (regnestykket i filhovedet). Et gammelt mål uden art tæller IKKE — «Gør
- * målet skarpt» er vejen til pointet.
+ * Tæller målet i Score's disciplin («mål», 25 point)? Regnestykket i
+ * filhovedet (beslutning 2/10, rådets fund 4):
+ *   aktivt ∧ bekræftet ∧ frist ∧ (art ≠ 'tal' ∨ måltal)
+ * `art` kræves ikke (0 af prods aktive manual-mål har en, målt 2/10); et
+ * tal-mål skal have et måltal. «Sæt et mål med en frist.» er løfteren.
  */
 export function taellerSomScoreMaal(m: MaalTilScore): boolean {
   if (m.status !== "active" || !erBekraeftet(m)) return false;
-  const art = laesArt(m.art);
-  if (art === null) return false;
   if (typeof m.deadline !== "string" || !/^\d{4}-\d{2}-\d{2}/.test(m.deadline)) return false;
-  if (art === "tal") return tal(m.target_value) && tal(m.udgangspunkt);
+  if (laesArt(m.art) === "tal") return tal(m.target_value);
   return true;
 }
 
@@ -240,11 +279,21 @@ export interface VentendeKvartalstjek {
   dato: string;
 }
 
-/** Ankeret: bekraeftet_at som dansk dato; null uden (læseligt) stempel. */
+/**
+ * Dagen, kvartalstjekket gik i luften (DANSK dato) — ankeret er aldrig før den
+ * (regnestykket i filhovedet, rådets fund 9): 2/10 + 3 måneder = 2/1-2027 er
+ * det første tjek for de backfillede. ÉT sted; migrationens policy bærer den
+ * samme dato ordret (dineMaalSkive3.guard dom 7).
+ */
+export const KVARTALSTJEK_FRA = "2026-10-02";
+
+/** Ankeret: max(bekraeftet_at som dansk dato, KVARTALSTJEK_FRA); null uden (læseligt) stempel. */
 export function kvartalAnker(bekraeftetAt: string | null | undefined): string | null {
   if (typeof bekraeftetAt !== "string" || !bekraeftetAt.trim()) return null;
   const t = new Date(bekraeftetAt);
-  return Number.isNaN(t.getTime()) ? null : kbhDato(t);
+  if (Number.isNaN(t.getTime())) return null;
+  const dato = kbhDato(t);
+  return dato < KVARTALSTJEK_FRA ? KVARTALSTJEK_FRA : dato;
 }
 
 /** De tre tjekdatoer og slutdatoen for et anker (regnestykket i filhovedet). */
@@ -272,6 +321,34 @@ export function ventendeKvartalstjek(maal: MaalTilKvartalstjek, tjek: readonly K
   const seneste = forfaldne[forfaldne.length - 1];
   if (!seneste) return null;
   return { maalId: maal.id, maalTitel: maal.title, companyId: maal.company_id ?? null, kvartal: seneste.kvartal, maaned: seneste.maaned, dato: seneste.dato };
+}
+
+/**
+ * Klientens spejl af databasens INSERT-policy på maal_kvartalstjek (rådets
+ * fund 11; filhovedet «DATABASENS DOM»). Ren; prøvet mod policyens udtryk i
+ * dineMaalSkive3.guard dom 7. Målet gives som det STÅR, når rækken skrives —
+ * efter handlingen (parkeret → 'parked', naaet → 'completed').
+ */
+export function maaRegistrereKvartalstjek(
+  maal: Pick<MaalTilKvartalstjek, "id" | "status" | "bekraeftet_at">,
+  tjek: readonly KvartalstjekRaekke[],
+  kvartal: Kvartal,
+  valg: KvartalValg,
+  nu: Date,
+): boolean {
+  const statusOk =
+    valg === "parkeret" ? maal.status === "active" || maal.status === "parked"
+    : valg === "naaet" ? maal.status === "active" || maal.status === "completed"
+    : maal.status === "active";
+  if (!statusOk) return false;
+  if (maal.bekraeftet_at === undefined || !erBekraeftet(maal)) return false;
+  const anker = kvartalAnker(maal.bekraeftet_at);
+  if (!anker) return false;
+  const idag = kbhDato(nu);
+  const dato = laegMaanederTilDato(anker, KVARTAL_MAANEDER * kvartal);
+  const slut = laegMaanederTilDato(anker, TIDSLINJE_MAANEDER);
+  if (!(dato <= idag && idag < slut)) return false;
+  return !tjek.some((t) => t.milestone_id === maal.id && (laesKvartal(t.kvartal) ?? 0) >= kvartal);
 }
 
 /** Alle ventende kvartalstjek — ældste forfaldsdato først, så målets titel. */

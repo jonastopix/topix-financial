@@ -71,7 +71,7 @@ import { maaskeRelevant, MAASKE_RELEVANT_PRAEFIKS } from "@/lib/hjemmebane/maask
 import { afgoerMilepael } from "@/lib/milepaelDom";
 import { ALLE_SKRIDT_GJORT_TEKST, dineMaalDom, DINE_MAAL_FEJL_TEKST, DINE_SKRIDT_FEJL_TEKST, TILFOEJ_SKRIDT_FEJL_TEKST, TILFOEJ_SKRIDT_KNAP_TEKST, TILFOEJ_SKRIDT_OK_TEKST, udskudtToastTekst, type SkridtTilDineMaal } from "@/lib/hjemmebane/dineMaal";
 import {
-  ANDRE_MAAL_OVERSKRIFT, FEJRING_VARIGHED_MS, fejring as lavFejring, forsidePlanDom, MAAL_UDEN_SKRIDT_TEKST, PLAN_INGEN_AKTIVE_TEKST, PLAN_TOM_BOOK, PLAN_TOM_SAET_MAAL, PLAN_TOM_TEKST, SE_HELE_PLANEN, UDEN_MAAL_OVERSKRIFT,
+  ANDRE_MAAL_OVERSKRIFT, FEJRING_VARIGHED_MS, fejring as lavFejring, forsidePlanDom, MAAL_UDEN_SKRIDT_TEKST, PLAN_INGEN_AKTIVE_TEKST, PLAN_TOM_BOOK, PLAN_TOM_SAET_MAAL, PLAN_TOM_TEKST, SE_HELE_PLANEN, UDEN_MAAL_OVERSKRIFT, VENTER_PAA_JA_OVERSKRIFT,
   type Fejring, type PlanSkridt,
 } from "@/lib/hjemmebane/forsidePlan";
 import { TilfoejSkridtForm } from "../milestones/HbMaalRaekke";
@@ -2673,6 +2673,20 @@ export const BoardroomView = () => {
                   <PlanSkridtRaekke key={a.id} skridt={a} slags="aktiv" busy={planBusy} maalFrist={maalFristFor(a)} onKald={(kald) => opgaveMutation.mutate(kald)} />
                 ))}
                 {plan.udenMaal.forslag.map((f) => (
+                  <PlanSkridtRaekke key={f.id} skridt={f} slags="forslag" ansigt={raadgiverAnsigt(f, raadgivere)} busy={planBusy} maalFrist={maalFristFor(f)} onKald={(kald) => opgaveMutation.mutate(kald)} />
+                ))}
+              </ul>
+            </div>
+          )}
+          {/* Skive 3 (rådets fund 7): skridt under et UBEKRÆFTET mål venter med målet — kortet øverst — ikke «Uden mål». */}
+          {(plan.venterPaaJa.aktive.length > 0 || plan.venterPaaJa.forslag.length > 0) && (
+            <div className="mt-6" data-plan-venter-paa-ja>
+              <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{VENTER_PAA_JA_OVERSKRIFT}</p>
+              <ul className="mt-2">
+                {plan.venterPaaJa.aktive.map((a) => (
+                  <PlanSkridtRaekke key={a.id} skridt={a} slags="aktiv" busy={planBusy} maalFrist={maalFristFor(a)} onKald={(kald) => opgaveMutation.mutate(kald)} />
+                ))}
+                {plan.venterPaaJa.forslag.map((f) => (
                   <PlanSkridtRaekke key={f.id} skridt={f} slags="forslag" ansigt={raadgiverAnsigt(f, raadgivere)} busy={planBusy} maalFrist={maalFristFor(f)} onKald={(kald) => opgaveMutation.mutate(kald)} />
                 ))}
               </ul>

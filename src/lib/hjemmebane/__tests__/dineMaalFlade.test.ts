@@ -11,6 +11,7 @@ import {
   flereSkridtTekst,
   guideKort,
   hovedLinje,
+  TAG_STILLING_TEKST,
   kraeverTekst,
   skridtFremdrift,
   statusChips,
@@ -53,6 +54,15 @@ describe("hovedet", () => {
     expect(hovedLinje(2)).toBe("2 mål for de næste 12 måneder · 1 plads ledig");
     expect(hovedLinje(3)).toBe("3 mål for de næste 12 måneder · ingen plads ledig");
     expect(hovedLinje(5)).toBe("5 mål for de næste 12 måneder · flere end de 3, der er plads til");
+  });
+  it("hovedlinjen med ubekræftede (skive 3, fund 3): «N venter på jeres ja», pladsen er databasens, og fyldte pladser lover ingen plads", () => {
+    expect(hovedLinje(1, 1)).toBe("1 mål for de næste 12 måneder · 1 venter på jeres ja · 1 plads ledig");
+    expect(hovedLinje(0, 2)).toBe("Ingen mål endnu · 2 venter på jeres ja · 1 plads ledig");
+    expect(hovedLinje(0, 3)).toBe(`Ingen mål endnu · 3 venter på jeres ja · ${TAG_STILLING_TEKST}`);
+    expect(hovedLinje(2, 1)).toBe(`2 mål for de næste 12 måneder · 1 venter på jeres ja · ${TAG_STILLING_TEKST}`);
+    expect(hovedLinje(3, 0)).toBe("3 mål for de næste 12 måneder · ingen plads ledig");
+    expect(hovedLinje(2, 2)).toBe("2 mål for de næste 12 måneder · 2 venter på jeres ja · flere end de 3, der er plads til");
+    expect(hovedLinje(1, 0)).toBe(hovedLinje(1));
   });
   it("chips: én pr. status blandt TAL-målene, bagud først, motorens ord med lille forbogstav", () => {
     const paaSporet = maalKort(maal(), [], TRE, NU); // 1,44 mio. af vejen 1 → 2 mio., forventet ≈ 0,5 → på sporet

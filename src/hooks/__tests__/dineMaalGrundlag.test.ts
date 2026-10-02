@@ -364,8 +364,10 @@ describe("byggDineMaal", () => {
     expect(b.tidslinje.start).toBe("2026-05-15");
   });
 
-  it("skive 3: et ubekræftet aktivt mål er et FORSLAG, ikke et kort; et bekræftet får kvartalstjek", () => {
+  it("skive 3: et ubekræftet aktivt mål er et FORSLAG, ikke et kort; et bekræftet får kvartalstjek (ankeret er aldrig før 2/10-2026)", () => {
     const tom = { art: null, maal_noegle: null, udgangspunkt: null, udgangspunkt_dato: null };
+    // Bekræftet (backfillet) 15/1-2026 → anker 2/10-2026 → tjek 2/1, 2/4, 2/7-2027; i dag 20/4-2027 → kvartal 2.
+    const NU_2027 = new Date("2027-04-20T10:00:00Z");
     const b = byggDineMaal(
       {
         maal: [
@@ -380,12 +382,12 @@ describe("byggDineMaal", () => {
         afventerMigration: false,
         bekraeftelseAfventer: false,
       },
-      NU,
+      NU_2027,
     );
     expect(b.kort.map((k) => k.id)).toEqual(["m1"]);
     expect(b.bekraeftelser.forslag.map((m) => m.id)).toEqual(["forslag"]);
     expect(b.bekraeftelser.gamle.map((m) => m.id)).toEqual(["gammelt"]);
-    expect(b.kvartalstjek).toEqual([{ maalId: "m1", maalTitel: "Mål", companyId: null, kvartal: 2, maaned: 6, dato: "2026-07-15" }]);
+    expect(b.kvartalstjek).toEqual([{ maalId: "m1", maalTitel: "Mål", companyId: null, kvartal: 2, maaned: 6, dato: "2027-04-02" }]);
   });
 });
 

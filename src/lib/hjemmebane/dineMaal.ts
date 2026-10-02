@@ -102,7 +102,7 @@ export interface DineMaalDom {
   /** Pladserne er ledige blandt de bekræftede, men de ubekræftede fylder databasens tre: fladen siger
       «Plads, når I har taget stilling» (BEKRAEFT_ORD.pladsOptaget) i stedet for «Sæt et mål». */
   pladsOptagetAfUbekraeftede: boolean;
-  /** Grænsen på tre i klart sprog — altid én sætning. Tæller de bekræftede. */
+  /** Grænsen på tre i klart sprog — altid én sætning. Tæller databasens aktive: bekræftede + «N venter på jeres ja» (fund 3). */
   graenseTekst: string;
   /** Flere end tre aktive (mål fra før grænsen) — databasens tælling (planen.gennemgang). */
   overGraensen: boolean;
@@ -141,13 +141,24 @@ export function skridtLinjer(skridt: readonly SkridtTilDineMaal[]): SkridtLinje[
   });
 }
 
-/** Grænsen på tre i klart sprog. */
-export function graenseTekst(antalAktive: number): string {
+/** Skive 3, rådets fund 3: pladserne er fyldt af forslag — lov ingen plads. */
+export const GRAENSE_TAG_STILLING_TEKST = "Tag stilling til forslagene for at få plads til jeres eget mål.";
+
+/**
+ * Grænsen på tre i klart sprog. Tæller DATABASENS aktive — bekræftede +
+ * ubekræftede (triggeren tæller begge, rådets fund 3); de ubekræftede nævnes
+ * som «N venter på jeres ja», og fylder de pladserne, siger teksten «Tag
+ * stilling …» i stedet for «plads til N mere».
+ */
+export function graenseTekst(antalBekraeftede: number, antalUbekraeftede = 0): string {
+  const antalAktive = antalBekraeftede + antalUbekraeftede;
+  const venter = antalUbekraeftede > 0 ? ` · ${antalUbekraeftede === 1 ? "1 venter på jeres ja" : `${antalUbekraeftede} venter på jeres ja`}` : "";
   if (antalAktive <= 0) return `Du kan have op til ${MAX_AKTIVE_MAAL} aktive mål ad gangen.`;
   if (antalAktive < MAX_AKTIVE_MAAL) {
     const plads = MAX_AKTIVE_MAAL - antalAktive;
-    return `${antalAktive} af ${MAX_AKTIVE_MAAL} aktive mål — plads til ${plads} mere.`;
+    return `${antalBekraeftede} af ${MAX_AKTIVE_MAAL} aktive mål${venter} — plads til ${plads} mere.`;
   }
+  if (antalUbekraeftede > 0) return `${antalBekraeftede} af ${MAX_AKTIVE_MAAL} aktive mål${venter} — ${GRAENSE_TAG_STILLING_TEKST}`;
   if (antalAktive === MAX_AKTIVE_MAAL) return `Du har ${MAX_AKTIVE_MAAL} aktive mål — det er det højeste. Parkér eller markér et som nået for at få plads til et nyt.`;
   return `Du har ${antalAktive} aktive mål — flere end de ${MAX_AKTIVE_MAAL} der er plads til. Parkér eller markér nogle som nået, så I står med højst ${MAX_AKTIVE_MAAL}.`;
 }
@@ -185,7 +196,7 @@ export function dineMaalDom(maal: readonly MaalRaekke[], skridt: readonly Skridt
     tom: maal.length === 0,
     kanOprette: plads,
     pladsOptagetAfUbekraeftede: !plads && kanOpretteMaal(bekraeftede.length),
-    graenseTekst: graenseTekst(bekraeftede.length),
+    graenseTekst: graenseTekst(bekraeftede.length, ubekraeftede.length),
     overGraensen: plan.gennemgang,
   };
 }

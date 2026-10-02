@@ -295,6 +295,10 @@ export function useMilestones({ userId, companyId, isAdvisor }: Args) {
       dbFields.status = fields.status;
       localFields.dbStatus = fields.status;
     }
+    // Skive 3, rådets fund 13: «Aktivér» af et ubekræftet mål bærer bekræftelsen i samme skrivning
+    // (maalBekraeft.aktiverFelter) — kolonnerne findes kun, når de er læst (bekraeftet_at !== undefined).
+    if ("bekraeftet_at" in fields) { dbFields.bekraeftet_at = fields.bekraeftet_at; localFields.bekraeftet_at = fields.bekraeftet_at; }
+    if ("bekraeftet_af" in fields) dbFields.bekraeftet_af = fields.bekraeftet_af;
     // Fase 3: genåbning af et mål nået på 100 % uden skridt nulstiller fremdriften (som skiftFuldfoert gjorde).
     if ("progress" in fields && typeof fields.progress === "number") {
       dbFields.progress = fields.progress;

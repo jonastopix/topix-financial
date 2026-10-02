@@ -363,7 +363,8 @@ export function useDineMaalGrundlag(overrideCompanyId?: string): DineMaalSvar {
     grundlag,
     kort: bygget?.kort ?? [],
     bekraeftelser: bygget?.bekraeftelser ?? { forslag: [], gamle: [] },
-    kvartalstjek: bygget?.kvartalstjek ?? [],
+    // Fund 6: fejlede hentningen af de registrerede tjek, tegnes INTET tjek — et taget tjek ville ellers stå igen.
+    kvartalstjek: kvartalstjek.isError ? [] : (bygget?.kvartalstjek ?? []),
     bekraeftelseAfventer: maal.data?.bekraeftelseAfventer ?? false,
     kvartalstjekFejlede: kvartalstjek.isError,
     tidslinje: bygget?.tidslinje ?? null,

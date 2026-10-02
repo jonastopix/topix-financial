@@ -118,7 +118,9 @@ function handlingerFor(g: ScoreGrundlag, nu: Date, soejler: Soejler): Handling[]
   } else if (!g.harMaal) {
     const med = alleSoejler({ ...g, harMaal: true }, nu);
     // Skive 3 (2/10-2026): målet bor på Dine mål (/milestones) — ikke KPI-pejlemærkerne på /kpis.
-    ud.push({ soejle: "disciplin", tekst: "Sæt dit første mål.", gevinst: gevinstVed(soejler, med.disciplin), sti: "/milestones" });
+    // Ordene er sande (rådets fund 4): pointet gives for et aktivt, bekræftet mål MED FRIST (taellerSomScoreMaal) —
+    // en virksomhed kan have mål uden frist og stadig mangle pointet, så «dit første mål» ville lyve.
+    ud.push({ soejle: "disciplin", tekst: "Sæt et mål med en frist.", gevinst: gevinstVed(soejler, med.disciplin), sti: "/milestones" });
   }
 
   // ── Likviditet: én måneds omkostninger mere i banken ──

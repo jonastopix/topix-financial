@@ -25,7 +25,7 @@
  *     (base-scenariet, period «YYYY-base-idx»; markører har ikke den form.)
  *   - milestones (skive 3, 2/10-2026 — Jonas 1/10: «flyt Score-pointet til Dine
  *     mål»): findes mindst ét mål, der taellerSomScoreMaal (aktivt · bekræftet ·
- *     med art · med frist · tal-mål med måltal og udgangspunkt —
+ *     med frist · et tal-mål med måltal; art kræves ikke —
  *     lib/hjemmebane/maalBekraeft.ts)? FAIL-SOFT: mangler kolonnen
  *     bekraeftet_at (42703/PGRST204 — migration 20261002100000 ikke kørt),
  *     læses kpi_targets som før («opfør dig som i dag»).

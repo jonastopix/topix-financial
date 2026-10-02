@@ -24,6 +24,15 @@ import { resolve } from "node:path";
 //      NOT EXISTS, ingen ALTER/DROP POLICY på eksisterende tabeller, ingen
 //      SECURITY DEFINER, backfillen guardet på bekraeftet_at IS NULL, første
 //      linje «IKKE KØRT».
+//   7. Rådets fund 9 + 11 (2/10): ankeret KVARTALSTJEK_FRA står ÉT sted i
+//      motoren og ORDRET i migrationens INSERT-policy (greatest(…, date
+//      '2026-10-02')), og policyens dom er klientens maaRegistrereKvartalstjek:
+//      bekræftet, forfaldent (3·kvartal og 12 måneder fra ankeret), ingen række
+//      med kvartal ≥ k, og status efter valget (parkeret → parked, naaet →
+//      completed, ellers active).
+//   8. Rådets fund 1 (2/10): kvartalstjekkets «Nået» på Dine mål går gennem
+//      hookets GUARDEDE skriv.markerNaaet (ok/grund), og rækken registreres
+//      KUN efter ok — aldrig useMilestones' void-skriver.
 // Selvbevis på kopier: hver regel falder, når kilden ændres tilbage.
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -54,7 +63,7 @@ export const ubekraeftedeTaellerIkke = (dom: string, fokus: string, hook: string
   return (
     /const bekraeftede = plan\.aktive\.filter\(\(x\) => erBekraeftet\(x\.maal\)\);/.test(d) &&
     /aktive: bekraeftede\.map\(til\)/.test(d) &&
-    /graenseTekst: graenseTekst\(bekraeftede\.length\)/.test(d) &&
+    /graenseTekst: graenseTekst\(bekraeftede\.length, ubekraeftede\.length\)/.test(d) &&
     /afgoerMilepael\(m, nu\)\.aktiv && erBekraeftet\(m\)/.test(f) &&
     /g\.maal\.filter\(\(m\) => m\.status === "active" && erBekraeftet\(m\)\)/.test(h) &&
     /\.some\(taellerSomScoreMaal\)/.test(s) &&
@@ -155,6 +164,44 @@ export const migrationenTilfoejer = (migration: string): boolean => {
   );
 };
 
+/** Dom 7: ankeret og INSERT-policyens dom = klientens. */
+export const ankerOgPolicyHolder = (motor: string, migration: string): boolean => {
+  const m = udenKommentarer(motor);
+  const sql = udenSqlKommentarer(migration);
+  const fra = /export const KVARTALSTJEK_FRA = "(\d{4}-\d{2}-\d{2})";/.exec(m)?.[1];
+  if (!fra) return false;
+  const policy = sql.slice(sql.indexOf('CREATE POLICY "Company members can insert company kvartalstjek"'), sql.indexOf('DROP POLICY IF EXISTS "Advisors can view all kvartalstjek"'));
+  const greatest = `greatest((m.bekraeftet_at AT TIME ZONE 'Europe/Copenhagen')::date, date '${fra}')`;
+  return (
+    // Klienten: ankeret klippes til KVARTALSTJEK_FRA, og spejlet dømmer status efter valget.
+    /return dato < KVARTALSTJEK_FRA \? KVARTALSTJEK_FRA : dato;/.test(m) &&
+    /valg === "parkeret" \? maal\.status === "active" \|\| maal\.status === "parked"/.test(m) &&
+    /valg === "naaet" \? maal\.status === "active" \|\| maal\.status === "completed"/.test(m) &&
+    /: maal\.status === "active";/.test(m) &&
+    /\(laesKvartal\(t\.kvartal\) \?\? 0\) >= kvartal/.test(m) &&
+    // Policyen: samme anker to gange (forfald og slut), samme statusdom, samme «ingen række ≥ k».
+    policy.split(greatest).length === 3 &&
+    policy.includes("make_interval(months => 3 * maal_kvartalstjek.kvartal)") &&
+    policy.includes("make_interval(months => 12)") &&
+    policy.includes("m.bekraeftet_at IS NOT NULL") &&
+    policy.includes("WHEN 'parkeret' THEN m.status IN ('active', 'parked')") &&
+    policy.includes("WHEN 'naaet'    THEN m.status IN ('active', 'completed')") &&
+    policy.includes("ELSE                 m.status = 'active'") &&
+    policy.includes("AND t.kvartal >= maal_kvartalstjek.kvartal") &&
+    policy.includes("(now() AT TIME ZONE 'Europe/Copenhagen')::date")
+  );
+};
+
+/** Dom 8: «Nået» i kvartalstjekket på Dine mål = hookets guardede skriver, rækken kun efter ok. */
+export const naaetGuardet = (view: string): boolean => {
+  const v = udenKommentarer(view);
+  const blok = v.slice(v.indexOf("const kvartalHandling"), v.indexOf("const aabnJuster"));
+  return (
+    /else if \(h\.valg === "naaet"\) \{\s*const s = await skriv\.markerNaaet\(\{ maalId: h\.maalId \}\);\s*if \(s\.ok === false\) return s\.grund;\s*\}/.test(blok) &&
+    !/markerNaaetOgRyd/.test(blok)
+  );
+};
+
 describe("dineMaalSkive3.guard", () => {
   it("dom 1: ubekræftede mål tæller ikke — kort, pladser, forsidens fokus og Score", () => {
     const dom = laes(DINE_MAAL_DOM);
@@ -211,5 +258,20 @@ describe("dineMaalSkive3.guard", () => {
     expect(migrationenTilfoejer(migration.replace("WHERE m.bekraeftet_at IS NULL\n", "WHERE true\n"))).toBe(false);
     expect(migrationenTilfoejer(migration + "\nALTER POLICY \"x\" ON public.milestones USING (true);")).toBe(false);
     expect(migrationenTilfoejer(migration.replace("-- IKKE KØRT.", "-- KØRT."))).toBe(false);
+  });
+
+  it("dom 7: KVARTALSTJEK_FRA står ét sted og ordret i INSERT-policyen; policyens dom = klientens maaRegistrereKvartalstjek", () => {
+    const motor = laes(MOTOR);
+    const migration = laes(MIGRATION);
+    expect(ankerOgPolicyHolder(motor, migration)).toBe(true);
+    expect(ankerOgPolicyHolder(motor.replace('export const KVARTALSTJEK_FRA = "2026-10-02";', 'export const KVARTALSTJEK_FRA = "2026-10-03";'), migration)).toBe(false);
+    expect(ankerOgPolicyHolder(motor, migration.replace("WHEN 'parkeret' THEN m.status IN ('active', 'parked')", "WHEN 'parkeret' THEN true"))).toBe(false);
+    expect(ankerOgPolicyHolder(motor, migration.replace("AND t.kvartal >= maal_kvartalstjek.kvartal", "AND t.kvartal = maal_kvartalstjek.kvartal"))).toBe(false);
+  });
+
+  it("dom 8: kvartalstjekkets «Nået» på Dine mål er hookets guardede skriver — rækken kun efter ok", () => {
+    const view = laes(VIEW);
+    expect(naaetGuardet(view)).toBe(true);
+    expect(naaetGuardet(view.replace("const s = await skriv.markerNaaet({ maalId: h.maalId });\n      if (s.ok === false) return s.grund;", "await markerNaaetOgRyd(h.maalId);"))).toBe(false);
   });
 });

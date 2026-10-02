@@ -11,7 +11,7 @@ import type { ScoreMaaned } from "@/lib/boardroomScore";
 import { byggDineMaal, type DineMaalGrundlag } from "@/hooks/dineMaalGrundlag";
 import { retningFraHandout } from "@/lib/hjemmebane/maalRetning";
 import type { MaalMedTal } from "@/lib/hjemmebane/maalTal";
-import { DINE_MAAL_OVERSKRIFT, KORT_ORD, REJSEN_ORD } from "@/lib/hjemmebane/dineMaalFlade";
+import { DINE_MAAL_OVERSKRIFT, KORT_ORD, KVARTALSTJEK_FEJLEDE_TEKST, REJSEN_ORD, TAG_STILLING_TEKST } from "@/lib/hjemmebane/dineMaalFlade";
 import { RETNING_IKKE_SKREVET_TEKST, RETNING_INVITATION, RETNING_RET, RETNING_SKREVET_AF_ANDEN } from "../JeresRetning";
 import { BEKRAEFT_ORD, KVARTAL_ORD } from "@/lib/hjemmebane/maalBekraeft";
 
@@ -49,6 +49,11 @@ const tilstand = vi.hoisted(() => ({
   /** Skive 3: hookets skrivere — kaldene registreres. */
   skriv: { bekraeft: vi.fn(), slip: vi.fn(), markerNaaet: vi.fn(), registrerKvartalstjek: vi.fn() },
   markerNaaet: vi.fn(),
+  opdaterFelt: vi.fn(),
+  /** Fund 6: kvartalstjek-hentningen fejlede. */
+  kvartalstjekFejlede: false,
+  /** Hookets ur — kvartalstjek-prøverne flytter det forbi ankeret (KVARTALSTJEK_FRA = 2/10-2026). */
+  nu: new Date("2026-10-01T10:00:00Z"),
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { functions: { invoke: vi.fn() } } }));
@@ -60,14 +65,15 @@ vi.mock("@/hooks/dineMaalGrundlag", async (importOriginal) => {
     ...orig,
     useDineMaalGrundlag: () => {
       const g = tilstand.grundlag;
-      const bygget = g ? orig.byggDineMaal(g, NU) : null;
+      const bygget = g ? orig.byggDineMaal(g, tilstand.nu) : null;
       return {
         grundlag: g ?? undefined,
         kort: bygget?.kort ?? [],
         bekraeftelser: bygget?.bekraeftelser ?? { forslag: [], gamle: [] },
-        kvartalstjek: bygget?.kvartalstjek ?? [],
+        // Som hooken (fund 6): fejlede hentningen, tegnes intet tjek.
+        kvartalstjek: tilstand.kvartalstjekFejlede ? [] : (bygget?.kvartalstjek ?? []),
         bekraeftelseAfventer: false,
-        kvartalstjekFejlede: false,
+        kvartalstjekFejlede: tilstand.kvartalstjekFejlede,
         tidslinje: bygget?.tidslinje ?? null,
         afventerMigration: false,
         tallenFejlede: false,
@@ -77,7 +83,7 @@ vi.mock("@/hooks/dineMaalGrundlag", async (importOriginal) => {
         retning: tilstand.retning,
         retningFejlede: false,
         retningHenter: tilstand.retningHenter,
-        nu: NU,
+        nu: tilstand.nu,
       };
     },
     useDineMaalSkrivning: () => ({ opret: vi.fn(), goerSkarpt: vi.fn(), gemRetning: vi.fn(), ...tilstand.skriv }),
@@ -94,7 +100,7 @@ vi.mock("../useMilestones", () => ({
     loading: false,
     markerNaaet: tilstand.markerNaaet,
     slet: vi.fn(),
-    opdaterFelt: vi.fn(),
+    opdaterFelt: tilstand.opdaterFelt,
     genhent: vi.fn(),
   }),
 }));
@@ -120,6 +126,9 @@ beforeEach(() => {
   tilstand.retning = retningFraHandout(null);
   tilstand.skriv = { bekraeft: vi.fn(async () => ({ ok: true, id: "x" })), slip: vi.fn(async () => ({ ok: true, id: "x" })), markerNaaet: vi.fn(async () => ({ ok: true, id: "x" })), registrerKvartalstjek: vi.fn(async () => ({ ok: true, id: "k" })) };
   tilstand.markerNaaet = vi.fn(async () => undefined);
+  tilstand.opdaterFelt = vi.fn(async () => ({ ok: true }));
+  tilstand.kvartalstjekFejlede = false;
+  tilstand.nu = NU;
   tilstand.grundlag = {
     maal: [maal(), maal({ id: "m2", title: "Et gammelt mål", art: null, maal_noegle: null, udgangspunkt: null })],
     skridt: [{ id: "s1", title: "Ring til kunden", status: "done", due_date: null, maal_id: "m1", closed_at: "2026-09-10T00:00:00Z" }],
@@ -144,7 +153,8 @@ describe("DineMaalView — skive 3: forslag, gamle mål, kvartalstjek", () => {
     tilstand.grundlag!.maal = [maal({ bekraeftet_at: "2026-05-01T00:00:00Z" }), maal({ id: "f1", title: "Rådgiverens forslag", created_at: "2026-10-05T00:00:00Z", bekraeftet_at: null, source: "advisor" })];
     vis();
     expect(document.querySelectorAll("[data-maal-kort]")).toHaveLength(1);
-    expect(document.querySelector("[data-hoved-linje]")!.textContent).toBe("1 mål for de næste 12 måneder · 2 pladser ledige");
+    // Fund 3: hovedlinjen tæller databasens aktive — forslaget står som «venter på jeres ja», og pladsen er 3 − 2.
+    expect(document.querySelector("[data-hoved-linje]")!.textContent).toBe("1 mål for de næste 12 måneder · 1 venter på jeres ja · 1 plads ledig");
     const forslag = document.querySelector('[data-maal-forslag="f1"]')!;
     expect(forslag.textContent).toContain(BEKRAEFT_ORD.forslagOverskrift.raadgiver);
     expect(forslag.textContent).toContain("Rådgiverens forslag");
@@ -173,10 +183,25 @@ describe("DineMaalView — skive 3: forslag, gamle mål, kvartalstjek", () => {
     vis();
     expect(document.querySelector("[data-maal-tom-plads]")).toBeNull();
     expect(document.querySelector("[data-maal-plads-optaget]")!.textContent).toBe(BEKRAEFT_ORD.pladsOptaget);
+    // Fund 3: aldrig «3 pladser ledige» — databasen ville afvise det fjerde.
+    expect(document.querySelector("[data-hoved-linje]")!.textContent).toBe(`Ingen mål endnu · 3 venter på jeres ja · ${TAG_STILLING_TEKST}`);
   });
 
-  it("kvartalstjek: måned 6 venter for et mål bekræftet i januar; «Parkér» parkerer FØRST, så registreres rækken; «Nået» går gennem useMilestones", async () => {
-    tilstand.grundlag!.maal = [maal({ bekraeftet_at: "2026-01-15T12:00:00Z" })];
+  it("fund 13: «Aktivér» af et parkeret, UBEKRÆFTET mål bekræfter i samme skrivning; et bekræftet får kun status", async () => {
+    tilstand.grundlag!.maal = [maal({ id: "p1", status: "parked", bekraeftet_at: null, source: "advisor" }), maal({ id: "p2", status: "parked", bekraeftet_at: "2026-05-01T00:00:00Z" })];
+    vis();
+    fireEvent.click(document.querySelector('[data-dine-maal-parkerede] summary')!);
+    fireEvent.click(document.querySelector('[data-dine-maal-parkerede] [data-maal-id="p1"] [data-handling="aktiver"]')!);
+    await vent();
+    expect(tilstand.opdaterFelt).toHaveBeenLastCalledWith("p1", expect.objectContaining({ status: "active", bekraeftet_af: "u1", bekraeftet_at: expect.any(String) }));
+    fireEvent.click(document.querySelector('[data-dine-maal-parkerede] [data-maal-id="p2"] [data-handling="aktiver"]')!);
+    await vent();
+    expect(tilstand.opdaterFelt).toHaveBeenLastCalledWith("p2", { status: "active" });
+  });
+
+  it("kvartalstjek: måned 6 venter for et mål bekræftet 15/10-2026 (i dag 20/4-2027); «Parkér» parkerer FØRST, så registreres rækken; «Nået» går gennem hookets GUARDEDE markerNaaet (fund 1), aldrig useMilestones", async () => {
+    tilstand.grundlag!.maal = [maal({ bekraeftet_at: "2026-10-15T12:00:00Z" })];
+    tilstand.nu = new Date("2027-04-20T10:00:00Z");
     vis();
     const kort = document.querySelector('[data-kvartalstjek-kort="m1"]')!;
     expect(kort.getAttribute("data-kvartal")).toBe("2");
@@ -189,12 +214,36 @@ describe("DineMaalView — skive 3: forslag, gamle mål, kvartalstjek", () => {
     expect(tilstand.skriv.slip.mock.invocationCallOrder[0]).toBeLessThan(tilstand.skriv.registrerKvartalstjek.mock.invocationCallOrder[0]);
     fireEvent.click(kort.querySelector('[data-handling="kvartal-naaet"]')!);
     await vent();
-    expect(tilstand.markerNaaet).toHaveBeenCalledWith("m1");
+    expect(tilstand.skriv.markerNaaet).toHaveBeenCalledWith({ maalId: "m1" });
+    expect(tilstand.markerNaaet).not.toHaveBeenCalled();
     expect(tilstand.skriv.registrerKvartalstjek).toHaveBeenLastCalledWith(expect.objectContaining({ valg: "naaet" }));
+    expect(tilstand.skriv.markerNaaet.mock.invocationCallOrder[0]).toBeLessThan(tilstand.skriv.registrerKvartalstjek.mock.invocationCallOrder[1]);
+  });
+
+  it("kvartalstjek: fejler «Nået» (nul rækker), skrives INGEN række, og grunden står på kortet (fund 1)", async () => {
+    tilstand.grundlag!.maal = [maal({ bekraeftet_at: "2026-10-15T12:00:00Z" })];
+    tilstand.nu = new Date("2027-04-20T10:00:00Z");
+    tilstand.skriv.markerNaaet = vi.fn(async () => ({ ok: false, grund: "Målet blev ikke markeret som nået", afventerMigration: false }));
+    vis();
+    const kort = document.querySelector('[data-kvartalstjek-kort="m1"]')!;
+    fireEvent.click(kort.querySelector('[data-handling="kvartal-naaet"]')!);
+    await vent();
+    expect(tilstand.skriv.registrerKvartalstjek).not.toHaveBeenCalled();
+    expect(kort.querySelector("[data-bekraeft-fejl]")!.textContent).toBe("Målet blev ikke markeret som nået");
+  });
+
+  it("kvartalstjek: fejlede hentningen af de registrerede tjek, tegnes INTET tjek, og siden siger det (fund 6)", () => {
+    tilstand.grundlag!.maal = [maal({ bekraeftet_at: "2026-10-15T12:00:00Z" })];
+    tilstand.nu = new Date("2027-04-20T10:00:00Z");
+    tilstand.kvartalstjekFejlede = true;
+    vis();
+    expect(document.querySelector("[data-kvartalstjek-kort]")).toBeNull();
+    expect(document.querySelector("[data-kvartalstjek-fejlede]")!.textContent).toBe(KVARTALSTJEK_FEJLEDE_TEKST);
   });
 
   it("kvartalstjek: «Justér tal og dato» åbner redigeringen — rækken skrives IKKE, før der er gemt; «Behold» skriver kun rækken", async () => {
-    tilstand.grundlag!.maal = [maal({ bekraeftet_at: "2026-01-15T12:00:00Z" })];
+    tilstand.grundlag!.maal = [maal({ bekraeftet_at: "2026-10-15T12:00:00Z" })];
+    tilstand.nu = new Date("2027-04-20T10:00:00Z");
     vis();
     const kort = document.querySelector('[data-kvartalstjek-kort="m1"]')!;
     fireEvent.click(kort.querySelector('[data-handling="kvartal-juster"]')!);
@@ -205,7 +254,7 @@ describe("DineMaalView — skive 3: forslag, gamle mål, kvartalstjek", () => {
     await vent();
     expect(tilstand.skriv.registrerKvartalstjek).toHaveBeenCalledWith(expect.objectContaining({ valg: "behold" }));
     expect(tilstand.skriv.slip).not.toHaveBeenCalled();
-    expect(tilstand.markerNaaet).not.toHaveBeenCalled();
+    expect(tilstand.skriv.markerNaaet).not.toHaveBeenCalled();
   });
 
   it("rådgiveren læser: knapperne er låst, og et klik skriver intet", async () => {

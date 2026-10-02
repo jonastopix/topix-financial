@@ -420,7 +420,9 @@ eller slip ved næste login» · **3** «Kald dem pejlemærker, og flyt Score-po
 maalBekraeft.ts` (ren, `maalBekraeft.test.ts`); hentning/skrivning: `src/hooks/dineMaalGrundlag.ts`;
 flade: `components/hjemmebane/milestones/BekraeftMaalKort.tsx` (SAMME komponent på /milestones og
 forsidens «Din plan»); rådgiverens forside: `hooks/kvartalstjekOverblik.ts` + `forside/KvartalstjekVenter.tsx`.
-Værn: `dineMaalSkive3.guard.test.ts` (seks domme).
+Værn: `dineMaalSkive3.guard.test.ts` (otte domme — 7: ankeret og INSERT-policyen = klientens dom; 8:
+«Nået» guardet). **Rettet 2/10 efter det tekniske råds fund** (1–11, 13, 14 — bogført ved hvert punkt
+herunder).
 
 ### 1. Bekræftelsen («Ja, ét klik»)
 
@@ -445,9 +447,15 @@ Værn: `dineMaalSkive3.guard.test.ts` (seks domme).
   mål, en rådgiver skrev). Rådgiveren læser kortene (`kanKlikke = !rawAdvisor`, som retningen).
 - **Pladserne og databasen:** triggeren `milestones_hoejst_tre_aktive` tæller stadig ALLE `status =
   'active'` — også ubekræftede (migrationen rører den ikke). `dineMaalDom.kanOprette` er derfor
-  databasens tælling, hovedlinjen tæller de bekræftede, og når de ubekræftede fylder triggerens tre,
-  siger den stiplede plads «Plads til et mål mere, når I har taget stilling til forslagene ovenfor»
-  (`pladsOptagetAfUbekraeftede`) — fladen lover aldrig en plads, databasen afviser. Se åbne punkter.
+  databasens tælling, og når de ubekræftede fylder triggerens tre, siger den stiplede plads «Plads til
+  et mål mere, når I har taget stilling til forslagene ovenfor» (`pladsOptagetAfUbekraeftede`) — fladen
+  lover aldrig en plads, databasen afviser. **Rådets fund 2 + 3 (2/10):** hovedlinjen og
+  `graenseTekst` tæller DATABASENS aktive — «N mål for de næste 12 måneder · M venter på jeres ja ·
+  pladsen», og er pladserne fyldt af forslag: «Tag stilling til forslagene for at få plads til jeres
+  eget mål» (`dineMaalFlade.hovedLinje(bekraeftede, ubekraeftede)`, `TAG_STILLING_TEKST`) — aldrig
+  «3 pladser ledige», som databasen ville afvise (målt 2/10: 3 virksomheder har 3 aktive, mest
+  maskinskrevne). Forslagskortets tekst siger kun «tæller ikke i jeres score» — ikke «i pladserne»
+  (`forslagTekst`), for det ville lyve. Se åbne punkter.
 
 ### 2. De gamle mål («Bekræft eller slip ved næste login»)
 
@@ -467,7 +475,13 @@ Værn: `dineMaalSkive3.guard.test.ts` (seks domme).
 - **Kortet** «Er det stadig jeres mål?» — ÉT samlet kort (på Dine mål og i «Din plan») med hvert gammelt
   mål (ubekræftet, aktivt, oprettet før skillelinjen), «skrevet af din rådgiver / AI / fra et handout»
   efter kilden, «Behold» (= `bekraeftMaal`) / «Slip» (= `slipMaal`, parkér). Samme to skrivninger som
-  forslaget — kun ordene er forskellige.
+  forslaget — kun ordene er forskellige. **Rådets fund 8:** et gammelt `manual`-mål, der er
+  ubekræftet, er det, NETOP fordi backfillen kræver medlemskab — teksten dækker det: «skrevet gennem
+  jeres konto af en, der ikke længere er medlem» (`skrevetAf.medlem`), og kortets tekst nævner «eller af
+  en, der ikke længere er medlem». **Rådets fund 13:** «Aktivér» under Parkeret er også et klik — er
+  målet ubekræftet, skriver `aktiverFelter` bekræftelsen i samme UPDATE som status (medlemmet; rådgiveren
+  får kun status), og «slippet»-teksten siger det («aktiverer I det igen under «Parkeret», tæller det
+  som jeres»).
 
 ### 3. Pejlemærker og Score-pointet
 
@@ -477,48 +491,82 @@ Værn: `dineMaalSkive3.guard.test.ts` (seks domme).
   «Gem pejlemærker og benchmarks»; `StandardmaalMaerke` siger «Standardpejlemærke»). Tabel- og
   kolonnenavne (`kpi_targets`, `target`) er uændrede. Rådgiverens visninger af de samme tal
   (`VirksomhedView`, `CompanyChatPane` «· mål 80.000») er IKKE omdøbt — Jonas' valg gjaldt /kpis.
-- **Score:** disciplinens 25 «mål»-point læses af Dine mål — `taellerSomScoreMaal` (aktivt · bekræftet ·
-  art · frist · tal-mål med måltal og udgangspunkt); regnestykket og fail-soft'en (kpi_targets, når
-  kolonnen mangler) står i `docs/boardroom-score.md` §2.4. Løfteren «Sæt dit første mål.» peger på
-  `/milestones`. Værnene flyttet, ikke svækket: `boardroomScoreFlade.guard` dom 4 (kilderne: milestones
-  ind, kpi_targets kun bag `erManglendeKolonne`), `score.test` (stien), `kpiMaal.test` (ordene).
+- **Score:** disciplinens 25 «mål»-point læses af Dine mål — `taellerSomScoreMaal`. **MÅLT I PROD
+  2/10-2026 kl. ~03:45** (hovedsessionen): 43 kundevirksomheder (er_kunde, ikke demo, ikke slettet);
+  KUN 3 har `kpi_targets`; 36 aktive mål: agent 15 · handout 9 · ai 5 · manual 7; 2 virksomheder har et
+  aktivt manual-mål med frist; **0 manual-mål har `art`**; 6 aktive manual-mål er ældre end 3 måneder;
+  3 virksomheder har 3 aktive mål. **Beslutning (rådets fund 4):** et mål tæller, når det er aktivt,
+  bekræftet og har en FRIST; `art` kræves IKKE (gamle mål har art NULL — et krav ville tage pointet
+  fra alle); et tal-mål (art 'tal') skal desuden have et måltal. Regnestykket: `25 × [∃ mål: active ∧
+  bekraeftet_at ∧ deadline ∧ (art ≠ 'tal' ∨ target_value)]` — står i motorens filhoved og i
+  `docs/boardroom-score.md` §2.4; fail-soft'en (kpi_targets, når kolonnen mangler) er uændret. Løfteren
+  siger det sande: **«Sæt et mål med en frist.»** og peger på `/milestones`. Værnene flyttet, ikke
+  svækket: `boardroomScoreFlade.guard` dom 4 (kilderne: milestones ind, kpi_targets kun bag
+  `erManglendeKolonne`), `score.test` (stien og ordene), `kpiMaal.test` (ordene).
 
 ### 4. Kvartalstjekket («Medlemmet selv» + rådgiverens linje)
 
-- **Regnestykket** (`maalBekraeft.ts`, prøvet): `anker = bekraeftet_at` som dansk dato; `dato_k =
-  laegMaanederTilDato(anker, 3·k)`, k = 1, 2, 3 (måned 3, 6, 9); `slut = anker + 12 måneder`. Et tjek k
-  VENTER, når `dato_k ≤ i dag < slut`, målet er aktivt og bekræftet, og ingen registreret række har
-  `kvartal ≥ k`; er flere forfaldne, venter kun det SENESTE (ét kort), og svaret dækker de tidligere
-  (`UNIQUE (milestone_id, kvartal)`). Eks.: bekræftet 15/1-2026 → 15/4, 15/7, 15/10; i dag 2/10 → kvartal 2
-  (måned 6). Bekræftet 31/8 → 30/11 (dagen klippes). Backfillede mål (bekræftet = oprettet) får derfor
-  deres tjek straks efter migrationen — det er Jonas' ønske (3/6/9 fra «aktivt»).
+- **Regnestykket** (`maalBekraeft.ts`, prøvet): `anker = max(bekraeftet_at som dansk dato,
+  KVARTALSTJEK_FRA)`, **`KVARTALSTJEK_FRA = 2026-10-02`** (ét sted i motoren, ordret i migrationens
+  policy — værn dom 7); `dato_k = laegMaanederTilDato(anker, 3·k)`, k = 1, 2, 3 (måned 3, 6, 9); `slut =
+  anker + 12 måneder`. Et tjek k VENTER, når `dato_k ≤ i dag < slut`, målet er aktivt og bekræftet, og
+  ingen registreret række har `kvartal ≥ k`; er flere forfaldne, venter kun det SENESTE (ét kort), og
+  svaret dækker de tidligere (`UNIQUE (milestone_id, kvartal)`). Eks.: bekræftet 15/10-2026 → 15/1,
+  15/4, 15/7-2027; i dag 20/4-2027 → kvartal 2 (måned 6). Bekræftet 31/8 → 30/11 (dagen klippes — som
+  Postgres' `date + interval`). **Ankeret (beslutning 2/10, rådets fund 9):** backfillen sætter
+  `bekraeftet_at = created_at` (beholdt — bekræftelsen er historik), og målt 2/10 er 6 aktive manual-mål
+  ældre end 3 måneder: uden ankeret fik de et kvartalstjek på DAG 1, før nogen havde set modellen. Med
+  ankeret er deres første tjek 2/10 + 3 mdr. = **2/1-2027**; et mål bekræftet efter 2/10 ankrer på sin
+  egen dato. Jonas' «3/6/9 fra aktivt» gælder dermed fra den dag, modellen findes.
 - **Tabellen** `maal_kvartalstjek` (milestone_id FK cascade, company_id FK cascade, kvartal 1|2|3,
   valg behold|justeret|parkeret|naaet, valgt_af default auth.uid(), valgt_at). RLS: medlem SELECT/INSERT
   company-scoped (+ `valgt_af = auth.uid()` + målet hører til virksomheden), rådgiver SELECT; ingen
   UPDATE/DELETE (append-only). Ordforrådet `KVARTALER`/`KVARTAL_VALG` står ORDRET i CHECK'ene (værn dom 4).
+  **INSERT-policyen dømmer det samme som klienten (rådets fund 11):** målet er bekræftet, kvartalet er
+  forfaldent (`greatest(bekraeftet_at dansk dato, date '2026-10-02') + 3·kvartal mdr. ≤ i dag < anker +
+  12 mdr.`), ingen række med `kvartal ≥` det nye, og status passer til valget — `behold`/`justeret`
+  kræver `active`; `parkeret` tillader `active`/`parked`; `naaet` `active`/`completed` — fordi klienten
+  skriver handlingen FØR rækken. Klientens spejl er `maaRegistrereKvartalstjek` (prøvet), og
+  `dineMaalSkive3.guard` dom 7 holder konstanten og udtrykkene ens. Et afvist INSERT (42501) viser
+  klienten som «Valget er gemt, men kvartalstjekket blev ikke registreret».
 - **Kortet** (Dine mål + «Din plan»): «Måned 6: Er målet stadig det rigtige?» med **Behold** (kun rækken) ·
   **Justér tal og dato** (på Dine mål: åbner `RedigerMaalDialog`, og rækken skrives som 'justeret' FØRST
   når dialogen har gemt — `kvartalEfterGem`; på forsiden: et link til `/milestones#kvartalstjek`) ·
-  **Parkér** (`slipMaal` → række) · **Nået** (KUN ved klik — på Dine mål gennem `useMilestones.markerNaaet`
-  med fejringen; på forsiden gennem `hooks/maalNaaetKlik.ts`, fordi `dineMaalGrundlag` aldrig må skrive
-  'completed' — `maalTal.guard` dom 7). **Handlingen FØR rækken:** fejler rækken, står kortet igen
-  næste gang (harmløst); fejler handlingen, skrives ingen række.
+  **Parkér** (`slipMaal` → række) · **Nået** (KUN ved klik — i BEGGE flader gennem den guardede
+  `hooks/maalNaaetKlik.ts` (`skriv.markerNaaet`, ok/grund, status `active` → `completed`, nul rækker =
+  fejl); rådets fund 1 (2/10): `useMilestones.markerNaaet` svarer void og sluger fejlen, så rækken ville
+  blive skrevet efter en fejlet handling — nu registreres rækken KUN efter ok (værn dom 8). Målkortets
+  eget «Markér som nået» går stadig gennem `useMilestones` med fejringen. `dineMaalGrundlag` skriver
+  stadig aldrig 'completed' — `maalTal.guard` dom 7). **Handlingen FØR rækken:** fejler rækken, står
+  kortet igen næste gang (harmløst); fejler handlingen, skrives ingen række. **Fejler hentningen af de
+  registrerede tjek** (`kvartalstjekFejlede`, ikke «tabellen mangler»), tegnes INTET tjek i nogen af
+  fladerne, og Dine mål siger det (`KVARTALSTJEK_FEJLEDE_TEKST`) — rådets fund 6: uden rækkerne ville
+  et taget tjek stå igen.
 - **Forsidens fokus:** `nextStep.ts` slot (e2) «Kvartalstjek, måned 6: <mål>» for det ældste forfaldne —
   SAMME plads som målets (2)/(3): under det sidste hastende skridt, ellers før (f); CTA «Tag
   kvartalstjekket» → `/milestones#kvartalstjek`. Input `kvartalstjek` (tom/null = intet punkt).
 - **Rådgiverens forside** («I dag», under «Mangler at booke»): ÉN linje «N kvartalstjek venter hos
   medlemmerne», foldbar med virksomhederne (link + «2 tjek»); nul → «Ingen kvartalstjek venter.»;
   migrationen ikke kørt → «Kvartalstjekkene er på vej». Hentningen er rådgiverbred (milestones aktive +
-  bekræftede, maal_kvartalstjek, companies-navne for de ramte) side for side; fail-soft kun på
-  migrationen, enhver anden fejl siges med `raadgiverHentefejlTekst` (kilden «kvartalstjekkene»).
+  bekræftede, maal_kvartalstjek, companies for de ramte) side for side; **kun virksomheder i husets
+  univers tæller** (`medlemsOverblik.iUniverset`: kunde, ikke demo, ikke legat, aktiv/status-løs — og
+  `data_slettet_at IS NULL`), som «Mangler at booke» (rådets fund 5; `filtrerTilUniverset`, prøvet);
+  fail-soft kun på migrationen, enhver anden fejl siges med `raadgiverHentefejlTekst` (kilden
+  «kvartalstjekkene»).
 
 ### 5. Rækkefølgen
 
 1. Merge. 2. FØR-SQL (migrationens filhoved; sektion 3 = source-fordelingen, 5–6 = backfillens
 størrelse). 3. KØR `20261002100000` i Lovable → SQL editor. 4. EFTER-SQL. 5. MÅL over REST:
 `milestones?select=bekraeftet_at,bekraeftet_af&limit=0` → 200 og `maal_kvartalstjek?select=id&limit=0`
-→ 200. 6. Update. Klienten er fail-soft i begge retninger (før migrationen: som i dag; efter: modellen
-tændt), så rækkefølgen migration → Update er den sikre, ikke den eneste.
+→ 200. Svarer målingen 42703/PGRST204/PGRST205, EFTER at EFTER-SQL'en viste kolonnerne: det er
+PostgRESTs schema-cache — vent og mål igen; **klik ikke Update før 200** (rådets fund 10; i mellemtiden
+ville `opretMaalMedTal` falde tilbage til en insert UDEN bekræftelsen, og medlemmets eget mål ville
+«vente på jeres ja»). 5b. Manuel prøve: sæt et mål som et kundemedlem og se `bekraeftet_at`/`bekraeftet_af`
+på rækken — beviset for, at REST tager imod INSERT med de nye kolonner (beskrevet i migrationens
+filhoved, køres ikke som del af migrationen). 6. Update. Klienten er fail-soft i begge retninger (før
+migrationen: som i dag; efter: modellen tændt), så rækkefølgen migration → Update er den sikre, ikke
+den eneste.
 
 ### 6. Ikke bygget / åbne punkter (skive 3)
 
@@ -538,3 +586,10 @@ tændt), så rækkefølgen migration → Update er den sikre, ikke den eneste.
 19. **pg_policy er ikke målt** for de politikker, bekræftelsen hviler på («Company members can update
     company milestones») — kodelæst (20260224222456:196), målt indirekte af EFTER-SQL'en i 20261001190000
     («10 politikker uændret»). Migrationens FØR-SQL sektion 7 måler dem igen.
+20. **`opgave-accepter` kræver et AKTIVT mål — og et ubekræftet mål ER `status = 'active'`** (rådets
+    fund 14, 2/10): et skridt foreslået under et forslag kan accepteres af medlemmet, før målet er
+    bekræftet. Forsiden viser skridtene under «Venter på jeres ja» (rådets fund 7: `forsidePlan.venterPaaJa`
+    — aldrig «Uden mål», og `ingenAktive` er først sand, når hverken bekræftede eller ubekræftede
+    findes), men functionen dømmer ikke på bekræftelsen. Ikke rettet: det kræver, at `opgave-accepter`
+    (og `skridt-tilfoej`) lærer `bekraeftet_at` at kende — en function-ændring med udrulning. Bogført
+    som åbent punkt.

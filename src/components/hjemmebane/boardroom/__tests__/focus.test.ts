@@ -229,7 +229,7 @@ describe("deriveFocus — hver kilde for sig", () => {
     expect(deriveFocus(base({ maalPlan: null }))).toEqual([]);
   });
 
-  it("(e) én stemme med Score-kortet: målets punkt siger aldrig Score-løfterens «Sæt dit første mål.» og peger aldrig på /kpis", () => {
+  it("(e) én stemme med Score-kortet: målets punkt siger aldrig Score-løfterens «Sæt et mål med en frist.» og peger aldrig på /kpis", () => {
     for (const maalPlan of [
       { maal: [maalRaekke({})], skridt: [] },
       { maal: [maalRaekke({})], skridt: [skridtRaekke({})] },
@@ -237,7 +237,7 @@ describe("deriveFocus — hver kilde for sig", () => {
     ]) {
       const [punkt] = deriveFocus(base({ maalPlan }));
       expect(punkt.kind).toBe("maal");
-      expect(punkt.title).not.toMatch(/Sæt dit første mål/);
+      expect(punkt.title).not.toMatch(/Sæt (dit første mål|et mål med en frist)/);
       expect(punkt.ctaHref).not.toBe("/kpis");
     }
   });

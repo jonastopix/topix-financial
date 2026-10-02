@@ -31,7 +31,7 @@ export interface ScoreGrundlag {
   kontraktStart: string | null;
   /** Mindst én værdirække i budget_targets for indeværende år. */
   harBudgetForAaret: boolean;
-  /** Mindst ét mål på Dine mål, der tæller (maalBekraeft.taellerSomScoreMaal: aktivt · bekræftet · art · frist · tal-mål med måltal og udgangspunkt). Før skive 3-migrationen: mindst én række i kpi_targets. */
+  /** Mindst ét mål på Dine mål, der tæller (maalBekraeft.taellerSomScoreMaal: aktivt · bekræftet · frist · et tal-mål med måltal; art kræves ikke). Før skive 3-migrationen: mindst én række i kpi_targets. */
   harMaal: boolean;
 }
 
@@ -107,7 +107,7 @@ export interface Handling {
   tekst: string;
   /** Gevinst i SAMLET score (0–1000-skalaen); null når den ikke kan regnes (søjlen mangler data). */
   gevinst: number | null;
-  /** Skive 3 (2/10-2026): «Sæt dit første mål» peger på Dine mål (/milestones); /kpis er pejlemærkerne og bruges ikke længere af en løfter. */
+  /** Skive 3 (2/10-2026): «Sæt et mål med en frist.» peger på Dine mål (/milestones); /kpis er pejlemærkerne og bruges ikke længere af en løfter. */
   sti: "/reports" | "/budget" | "/milestones" | null;
 }
 
