@@ -96,6 +96,14 @@
 -- RUL TILBAGE:
 --   DROP TRIGGER IF EXISTS member_progress_markering_vaern ON public.member_progress;
 --   DROP FUNCTION IF EXISTS public.member_progress_markering_vaern();
+--
+-- FORUDSÆTNINGEN, MÅLT FØR ALT ANDET (rådets fund 2/10): værnets krop læser
+-- markeret_at/markeret_af. Er 20261002260000 ikke kørt, ville CREATE FUNCTION
+-- gå igennem (plpgsql løser kolonnerne først ved kørsel), og den FØRSTE
+-- skrivning på member_progress — også medlemmets egne — ville vælte med 42703.
+-- Derfor stopper filen her, før noget er oprettet.
+
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='member_progress' AND column_name='markeret_at') THEN RAISE EXCEPTION 'Kør 20261002260000 først'; END IF; END $$;
 
 CREATE OR REPLACE FUNCTION public.member_progress_markering_vaern()
 RETURNS trigger

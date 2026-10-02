@@ -85,6 +85,30 @@ export function egetStempel(
 /** Medlemmets eget «set»-stempel (ElementView: skriv seen_at ved første
     visning, når hun ikke SELV har et — rådgiverens stempel tæller ikke, så et
     besøg på en batch-række efterlader nu et spor; akademi-grundlag §6). */
+/** Det medlemmetsSenesteStempel læser — medlemmets fire stempler og markeringen (til «eget»). */
+export type EgneStemplerKilde = Partial<Pick<MemberProgress, "seen_at" | "acknowledged_at" | "skipped_at" | "brugbar_at" | "markeret_at">>;
+
+/** Medlemmets seneste EGNE stempel på rækken som tid (ms) — null uden noget (rådets fund 2/10,
+    forloeb.ts «Fortsæt hvor du slap»). seen_at og acknowledged_at gennem egetStempel (en
+    backfillet batch-række, hvor stemplet = markeret_at, er rådgiverens); skipped_at og
+    brugbar_at skrives kun af medlemmet (værnet 20261002261000). updated_at læses ALDRIG —
+    rådgiverens markering bumper den. */
+export function medlemmetsSenesteStempel(r: EgneStemplerKilde): number | null {
+  const egne = [
+    egetStempel(r.seen_at, r.markeret_at),
+    egetStempel(r.acknowledged_at, r.markeret_at),
+    r.skipped_at ?? null,
+    r.brugbar_at ?? null,
+  ];
+  let senest: number | null = null;
+  for (const t of egne) {
+    if (!t) continue;
+    const ms = Date.parse(t);
+    if (Number.isFinite(ms) && (senest === null || ms > senest)) senest = ms;
+  }
+  return senest;
+}
+
 export function egetSeenAt(
   progress: Pick<MemberProgress, "seen_at" | "markeret_at"> | undefined,
 ): string | null {

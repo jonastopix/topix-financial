@@ -14,8 +14,10 @@ import {
   START_PRAEFIKS,
   type ForloebEntry,
   type ForloebOmraade,
+  type ForloebProgressRaekke,
 } from "@/lib/hjemmebane/forloeb";
 import { lektionsSti } from "@/lib/hjemmebane/lektionerForModul";
+import { medlemmetsSenesteStempel } from "@/lib/hjemmebane/progressState";
 
 // useAkademiData er en React-hook-fil (react-query, useAuth, supabase-klient);
 // kun prædikatet isTrackedItem hentes, og klient/auth mockes til ingenting.
@@ -41,7 +43,8 @@ const OMRAADER: readonly ForloebOmraade[] = [
   { key: "push", akademi: false },
 ];
 
-const raekke = (id: string, updated_at: string) => ({ content_item_id: id, updated_at });
+/** En progress-række med medlemmets eget seen_at (sorteringsnøglen) — og updated_at, som dommen IKKE må læse. */
+const raekke = (id: string, seen_at: string, over: Partial<ForloebProgressRaekke> & { updated_at?: string } = {}) => ({ content_item_id: id, seen_at, updated_at: seen_at, ...over });
 
 /** Tre lektioner i start_her (a1, a2, a3), to i classroom (c1, c2), én i push (p1). */
 const katalog = (over: Record<string, Over> = {}) =>
@@ -51,7 +54,7 @@ const katalog = (over: Record<string, Over> = {}) =>
     ["push", [lektion("p1", "push", over.p1)]],
   ]);
 
-const doem = (orderedByArea: Map<string, Entry[]>, progressRows: { content_item_id: string; updated_at: string }[] = []) =>
+const doem = (orderedByArea: Map<string, Entry[]>, progressRows: ForloebProgressRaekke[] = []) =>
   afgoerForloeb({ orderedByArea, progressRows, areas: OMRAADER });
 
 describe("afgoerForloeb — tilstandene", () => {
@@ -110,19 +113,44 @@ describe("afgoerForloeb — tilstandene", () => {
     expect(d.started).toBe(true);
   });
 
-  it("flere påbegyndte: continue = den med højeste updated_at, ikke den første i rækkefølgen", () => {
+  it("flere påbegyndte: continue = den med nyeste EGNE stempel, ikke den første i rækkefølgen", () => {
     const d = doem(katalog({ a1: { state: "started" }, c2: { state: "started" } }), [
       raekke("a1", "2026-09-10T10:00:00Z"),
       raekke("c2", "2026-09-15T10:00:00Z"),
     ]);
     expect(d.continueEntry?.item.id).toBe("c2");
     expect(d.nextEntry?.item.id).toBe("a2");
-    // Rækkefølgen i progressRows er ligegyldig — sorteringen er updated_at.
+    // Rækkefølgen i progressRows er ligegyldig — sorteringen er medlemmets egne stempler.
     const omvendt = doem(katalog({ a1: { state: "started" }, c2: { state: "started" } }), [
       raekke("c2", "2026-09-15T10:00:00Z"),
       raekke("a1", "2026-09-10T10:00:00Z"),
     ]);
     expect(omvendt.continueEntry?.item.id).toBe("c2");
+  });
+
+  it("rådets fund 2/10: rådgiverens markering (nyeste updated_at) flytter IKKE medlemmets sted — sorteringen er hendes egne stempler", () => {
+    const stater = { a1: { state: "started" as const }, c2: { state: "started" as const } };
+    // a1: medlemmet åbnede den 10/9; rådgiveren markerede den 2/10 (updated_at + markeret_at bumpet).
+    // c2: medlemmet åbnede den 15/9 — hendes seneste egne handling.
+    const d = doem(katalog(stater), [
+      raekke("a1", "2026-09-10T10:00:00Z", { markeret_at: "2026-10-02T08:00:00Z", updated_at: "2026-10-02T08:00:00Z" }),
+      raekke("c2", "2026-09-15T10:00:00Z"),
+    ]);
+    expect(d.continueEntry?.item.id).toBe("c2");
+  });
+
+  it("rådets fund 2/10: en backfillet batch-række (seen_at = acknowledged_at = markeret_at) er rådgiverens stempel og tæller ikke; skipped_at og brugbar_at er hendes egne", () => {
+    const stater = { a1: { state: "skipped" as const }, c2: { state: "started" as const } };
+    const batch = "2026-08-12T09:00:00Z";
+    const d = doem(katalog(stater), [
+      { content_item_id: "a1", skipped_at: "2026-09-01T10:00:00Z", seen_at: batch, acknowledged_at: batch, markeret_at: batch },
+      raekke("c2", "2026-08-20T10:00:00Z"),
+    ]);
+    // a1's nyeste EGNE stempel er skipped_at 1/9 (batch-stemplet 12/8 er rådgiverens) > c2's 20/8.
+    expect(d.continueEntry?.item.id).toBe("a1");
+    expect(medlemmetsSenesteStempel({ seen_at: batch, acknowledged_at: batch, markeret_at: batch })).toBeNull();
+    expect(medlemmetsSenesteStempel({ seen_at: "2026-09-01T10:00:00Z", brugbar_at: "2026-09-03T10:00:00Z" })).toBe(Date.parse("2026-09-03T10:00:00Z"));
+    expect(medlemmetsSenesteStempel({})).toBeNull();
   });
 
   it("alle gennemført: begge undefined, started false, harBegyndt true — og linjen null", () => {

@@ -432,7 +432,9 @@ og `markeret_af` (hvilken rådgiver) — og medlemmets egne felter er **urørte*
 `markeret_at = acknowledged_at` på de rækker, fingeraftrykket (§6: ≥ 2 rækker med samme
 `(user_id, acknowledged_at)`) kender som batch, og intet andet: ingen rename, ingen `NULL`-sætning.
 Det er reversibelt (`SET markeret_at = NULL` + `DROP COLUMN`), og `updated_at` bevares (triggeren slås
-fra under backfillen, fordi forløbslinjen sorterer «fortsæt hvor du slap» på den).
+fra under backfillen, fordi forløbslinjen sorterede «fortsæt hvor du slap» på den — efter rådets fund
+2/10 sorterer den på medlemmets egne stempler; `updated_at` bevares stadig, fordi `run-company-agent`
+sorterer sin liste på den).
 
 **Dommen (`src/lib/hjemmebane/progressState.ts`, ren):** et tidsstempel, der er **lig** `markeret_at`,
 er rådgiverens stempel (`erRaadgiverensStempel`) — `acknowledged_at` og `seen_at` tæller kun som
@@ -486,3 +488,15 @@ medlemmet». Kontrollen (§4, F0): §6-forespørgslen senere — 0 nye batch-gru
 - De ~131 «egne» rækker er et LOFT (§7): enkelt-rækkes rådgiverkvitteringer fra før 2/10 kan ikke
   skelnes og står som medlemmets. Fremover findes den klasse ikke.
 - `markeret_af` er null på de backfillede rækker — hvem der trykkede 5/8 og 12/8 er umålt.
+- (Præciseret efter rådets fund 2/10) `run-company-agent/index.ts:454` (`get_member_progress`) dømmer
+  `state` af det rå `acknowledged_at` og henter ikke `markeret_at`. Rettes med samme regel som
+  `progressState` ved functionens næste eksplicitte udrulning — IKKE i dag.
+
+**Bevidste valg efter rådets fund 2/10:**
+- Enhver rådgiver kan fortryde en anden rådgivers markering: `fortrydMarkering` læser ikke
+  `markeret_af`, og værnet dømmer kun ejer mod anden bruger. Rådgiverne er sammen om alle medlemmer
+  (Jonas 1/10), og de backfillede rækker har ingen `markeret_af` at sammenligne med.
+- «Fortsæt hvor du slap» (`forloeb.ts`) sorterer på medlemmets egne stempler
+  (`progressState.medlemmetsSenesteStempel`), ikke `updated_at` — rådgiverens markering må ikke flytte
+  medlemmets sted. En gemt afspilningsposition (intet eget stempel) flytter det heller ikke.
+- `20261002261000` stopper med «Kør 20261002260000 først», hvis kolonnen `markeret_at` mangler.

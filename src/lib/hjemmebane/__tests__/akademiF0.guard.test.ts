@@ -277,6 +277,10 @@ describe("akademiF0.guard — kilden", () => {
   it("10. migrationen er reversibel og backfiller kun fingeraftrykket; værnet låser medlemmets felter uden SECURITY DEFINER", () => {
     expect(migrationenErReversibel(migration)).toBe(true);
     expect(vaernetLaaserMedlemmetsFelter(vaern)).toBe(true);
+    // Rådets fund 2/10: forudsætningen (20261002260000 kørt) dømmes FØR funktionen oprettes.
+    const forud = "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='member_progress' AND column_name='markeret_at') THEN RAISE EXCEPTION 'Kør 20261002260000 først'; END IF; END $$;";
+    expect(vaern.indexOf(forud)).toBeGreaterThan(-1);
+    expect(vaern.indexOf(forud)).toBeLessThan(vaern.indexOf("CREATE OR REPLACE FUNCTION public.member_progress_markering_vaern()"));
   });
 
   it("VÆRNET VIRKER: kopier med fejlen indsat fanges (filerne er ikke rørt)", () => {
