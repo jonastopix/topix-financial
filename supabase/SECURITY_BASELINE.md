@@ -215,6 +215,29 @@ to the entire access-control model.
   `20261002242000` (gate `kan_laese_community`), otherwise STOP
 - `get_community_svar` untouched
 
+### `community_mest_laest_uge() → TABLE (traad_id uuid, laesere bigint)` (Community «Mest læst denne uge» 2/10-2026, migration `20261002300000` — IKKE KØRT, KRÆVER JONAS' GRØNNE LYS)
+- Why DEFINER: `community_visninger` is self-only SELECT for members (RLS), so a member
+  cannot count other people's views. The function returns ONLY aggregates (a count per
+  thread — the same kind of number as `antal_visninger`, which the feed already shows);
+  never a user id
+- Gate FIRST (before `RETURN QUERY`): `auth.uid() IS NOT NULL AND
+  (kan_laese_community(auth.uid()) OR has_role(auth.uid(), 'advisor'))` — otherwise an
+  empty result, not an error (get_community_feed shape). SQL editor/service role:
+  `auth.uid()` NULL → empty
+- Counts DISTINCT `bruger_id` with `set_at >= mandag 00:00 Europe/Copenhagen` of the
+  current ISO week (`date_trunc('week', now() AT TIME ZONE 'Europe/Copenhagen') AT TIME
+  ZONE 'Europe/Copenhagen'`), only threads with `status = 'aktiv'`, the thread's author
+  and service accounts (`public.tjenestekonti`) excluded; at most 20 rows, most first.
+  `set_at` is the FIRST view (`registrer_community_visning` inserts `ON CONFLICT DO
+  NOTHING`), so «readers this week» = first-time readers this week
+- plpgsql, STABLE, SECURITY DEFINER with `search_path = public, pg_temp`; no writes, no
+  other DDL; `REVOKE ALL FROM PUBLIC` and `FROM anon`; `GRANT EXECUTE TO authenticated,
+  service_role`. Client: `communityApi.hentMestLaestUge` (fail-soft on 42883/PGRST202)
+  + pure `communityMestLaest.vaelgMestLaest` (threshold 3, a tie = no badge). Source
+  guard `communityMestLaest.guard`. Not exercised in a real Postgres in the draft — the
+  header carries FØR/EFTER SQL (one result set) and a transaction-and-rollback probe;
+  rollback = `DROP FUNCTION IF EXISTS public.community_mest_laest_uge();`
+
 ### Cron-vagten: `vagt_cron()`, `get_cron_vagt()`, table `cron_vagt_log` (migration `20260909234500_cron_vagten.sql`)
 - Background (9/9): `vault.secrets` was emptied (~06:52, Lovable's mail update); all nine cron jobs sent `Bearer ` with no key and got 401 for ~17 hours while `cron.job_run_details` said "succeeded" (that only means `net.http_post` was enqueued). Nobody noticed until 23:39.
 - `vagt_cron()`: SECURITY DEFINER, `search_path = public`, run hourly by pg_cron (`vagt-cron`, `7 * * * *`) as `postgres`. **Pure SQL — no `net.http_post`, no decryption of any secret** (it only `count(*)`s `vault.secrets` by name), so it works precisely when everything else is down. Reads `vault.secrets`, `net._http_response`, `cron.job_run_details`, `cron.job`, `notifications`; writes `cron_vagt_log` and, when red, one `advisor_notifications` row per advisor (`type = 'drift'`, deduped on unread same title within 24 h). EXECUTE revoked from PUBLIC, anon and authenticated — only the cron runner calls it.
