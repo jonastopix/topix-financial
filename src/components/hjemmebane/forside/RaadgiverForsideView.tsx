@@ -46,6 +46,8 @@ import { cn } from "@/lib/utils";
 import { raadgiverHentefejlTekst } from "@/lib/raadgiverHentefejl";
 import { useMedlemsOverblik } from "@/hooks/medlemsOverblik";
 import { ManglerAtBooke } from "./ManglerAtBooke";
+import { KvartalstjekVenter } from "./KvartalstjekVenter";
+import { useKvartalstjekOverblik } from "@/hooks/kvartalstjekOverblik";
 import { SVARTID_KEY, hentSvartid } from "@/hooks/svartid";
 import { SvartidsUret } from "./SvartidsUret";
 import { EYEBROW, Fremdrift, KORT, Maerke, MIKRO, TalFelt, type FeltTilstand } from "./HoejreKolonne";
@@ -551,6 +553,8 @@ export const RaadgiverForsideView = () => {
   // hentning og nøgle — en fejl her lader forsiden stå. Hook i topblokken,
   // før nogen betinget return (React #310).
   const overblikQuery = useMedlemsOverblik(!!user);
+  // Skive 3 (2/10): kvartalstjekkene — egen nøgle, fail-soft på migrationen (hooks/kvartalstjekOverblik).
+  const kvartalstjekQuery = useKvartalstjekOverblik(!!user);
   // Svartids-uret (30/9, hooks/svartid + lib/svartid): median svartid i
   // chatten, ældste ubesvarede og «Intet venter»-streaken. KUN rådgivere:
   // query'en kører kun med rollen, og kortet tegner intet uden den
@@ -932,6 +936,12 @@ export const RaadgiverForsideView = () => {
             første man skal se. Dommen er motorens manglerAtBooke. */}
         <div className="mt-5 border-t border-hb-line pt-4">
         <ManglerAtBooke hentning={overblikQuery} virksomhedsLink={virksomhedsLink} linkKlasse={TEKSTLINK} />
+        </div>
+        {/* KVARTALSTJEK (skive 3, 2/10 — Jonas 1/10: «rådgiverne skal have som en linje på
+            forsiden»): «N kvartalstjek venter hos medlemmerne», foldbar med
+            virksomhederne (KvartalstjekVenter.tsx). Tjekket sker hos medlemmet. */}
+        <div className="mt-5 border-t border-hb-line pt-4">
+        <KvartalstjekVenter hentning={kvartalstjekQuery} virksomhedsLink={virksomhedsLink} linkKlasse={TEKSTLINK} />
         </div>
         </div>
         </aside>

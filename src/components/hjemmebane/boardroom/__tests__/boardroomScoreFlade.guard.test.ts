@@ -69,7 +69,7 @@ export const placering = (forside: string): boolean => {
 };
 
 /** Motorens handlingstekster (score.ts:handlingerFor) — må ikke stå i fladen. */
-const MOTORENS_TEKSTER = ["— måneden mangler", "Godkend flere måneder", "Læg et budget", "Sæt dit første mål", "Én måneds omkostninger", "Ét procentpoint", "Fem procent mere", "Upload en rapport med banksaldo"];
+const MOTORENS_TEKSTER = ["— måneden mangler", "Godkend flere måneder", "Læg et budget", "Sæt et mål med en frist", "Sig ja til et af jeres mål", "Én måneds omkostninger", "Ét procentpoint", "Fem procent mere", "Upload en rapport med banksaldo"];
 
 /** Dom 3. */
 export const ingenHaardkodetHandling = (kort: string, ord: string): boolean => {
@@ -80,14 +80,19 @@ export const ingenHaardkodetHandling = (kort: string, ord: string): boolean => {
     !/\.gevinst\s*[-+*/]/.test(k);
 };
 
-/** Dom 4. */
+/** Dom 4. Skive 3 (2/10-2026): «mål» læses af milestones (Dine mål) — kpi_targets står KUN som fail-soft
+    tilbagefald, når kolonnen bekraeftet_at mangler (erManglendeKolonne, én gang). */
 export const kendteKilder = (hook: string): boolean => {
   const k = udenKommentarer(hook);
   const tabeller = [...k.matchAll(/\.from\("([a-z_]+)"/g)].map((m) => m[1]).sort();
-  const forventet = ["budget_targets", "companies", "financial_report_facts", "kpi_targets", "maaned_foerste_godkendelse"];
+  const forventet = ["budget_targets", "companies", "financial_report_facts", "kpi_targets", "maaned_foerste_godkendelse", "milestones"];
   const failSoft = (k.match(/erManglendeTabel\(/g) ?? []).length;
-  return JSON.stringify(tabeller) === JSON.stringify(forventet) && !/\.rpc\(/.test(k) && failSoft === 1 &&
-    /hukommelseRes\?\.error && erManglendeTabel\(hukommelseRes\.error\)\) return \{ tilstand: "afventer_migration" \}/.test(k);
+  const kolonneFailSoft = (k.match(/erManglendeKolonne\(/g) ?? []).length;
+  return JSON.stringify(tabeller) === JSON.stringify(forventet) && !/\.rpc\(/.test(k) && failSoft === 1 && kolonneFailSoft === 1 &&
+    /hukommelseRes\?\.error && erManglendeTabel\(hukommelseRes\.error\)\) return \{ tilstand: "afventer_migration" \}/.test(k) &&
+    // kpi_targets kun inde i tilbagefaldet, og milestones dømmes af motorens taellerSomScoreMaal — ingen egen regel i hooken.
+    /if \(maal\.error && erManglendeKolonne\(maal\.error\)\) \{\s*const kpi = await supabase\.from\("kpi_targets"\)/.test(k) &&
+    /\.some\(taellerSomScoreMaal\)/.test(k);
 };
 
 /** Dom 5. */

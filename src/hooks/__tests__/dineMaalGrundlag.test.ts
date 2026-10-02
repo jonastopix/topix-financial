@@ -42,6 +42,13 @@ import {
   MAAL_FINDES_IKKE_TEKST,
   MAAL_KOLONNER_GAMLE,
   MAAL_KOLONNER_NYE,
+  MAAL_KOLONNER_SKIVE3,
+  bekraeftMaal,
+  BEKRAEFT_NUL_RAEKKER_TEKST,
+  hentKvartalstjek,
+  registrerKvartalstjek,
+  KVARTALSTJEK_IKKE_GEMT_TEKST,
+  slipMaal,
   maalSkrivningNoegler,
   opretMaalMedTal,
   alleRetningssvarTomme,
@@ -53,6 +60,7 @@ import {
   skarpPayload,
 } from "../dineMaalGrundlag";
 import { MAAL_ORD } from "@/lib/hjemmebane/maalTal";
+import { KVARTALSTJEK_GRUND } from "@/lib/hjemmebane/maalBekraeft";
 import type { ScoreMaaned } from "@/lib/boardroomScore";
 
 const NU = new Date("2026-10-01T10:00:00Z");
@@ -64,20 +72,36 @@ beforeEach(() => {
 });
 
 describe("hentMaalMedTal", () => {
-  it("læser de nye kolonner", async () => {
+  it("læser skive 3-kolonnerne (bekraeftet_at, source) — bekraeftet_at null er UBEKRÆFTET, ikke undefined", async () => {
+    koe.push({ data: [{ ...raekke, art: "tal", maal_noegle: "db_grad", udgangspunkt: 30, udgangspunkt_dato: "2026-04-01", bekraeftet_at: null, bekraeftet_af: null, source: "advisor" }], error: null });
+    const h = await hentMaalMedTal("c1");
+    expect(kald[0].select).toBe(MAAL_KOLONNER_SKIVE3);
+    expect(h.afventerMigration).toBe(false);
+    expect(h.bekraeftelseAfventer).toBe(false);
+    expect(h.maal[0]).toMatchObject({ art: "tal", maal_noegle: "db_grad", udgangspunkt: 30, source: "advisor" });
+    expect("bekraeftet_at" in h.maal[0]).toBe(true);
+    expect(h.maal[0].bekraeftet_at).toBeNull();
+  });
+
+  it("42703 på skive 3 → skive 2-kolonnerne; bekraeftet_at er UNDEFINED (modellen slået fra), bekraeftelseAfventer", async () => {
+    koe.push({ data: null, error: { code: "42703", message: "column milestones.bekraeftet_at does not exist" } });
     koe.push({ data: [{ ...raekke, art: "tal", maal_noegle: "db_grad", udgangspunkt: 30, udgangspunkt_dato: "2026-04-01" }], error: null });
     const h = await hentMaalMedTal("c1");
-    expect(kald[0].select).toBe(MAAL_KOLONNER_NYE);
+    expect(kald.map((k) => k.select)).toEqual([MAAL_KOLONNER_SKIVE3, MAAL_KOLONNER_NYE]);
     expect(h.afventerMigration).toBe(false);
+    expect(h.bekraeftelseAfventer).toBe(true);
+    expect("bekraeftet_at" in h.maal[0]).toBe(false);
     expect(h.maal[0]).toMatchObject({ art: "tal", maal_noegle: "db_grad", udgangspunkt: 30 });
   });
 
-  it("42703 (kolonnen findes ikke) → de gamle kolonner, nye felter null, afventerMigration", async () => {
+  it("42703 på begge (kolonnen findes ikke) → de gamle kolonner, nye felter null, afventerMigration", async () => {
+    koe.push({ data: null, error: { code: "42703", message: "column milestones.bekraeftet_at does not exist" } });
     koe.push({ data: null, error: { code: "42703", message: "column milestones.art does not exist" } });
     koe.push({ data: [raekke], error: null });
     const h = await hentMaalMedTal("c1");
-    expect(kald.map((k) => k.select)).toEqual([MAAL_KOLONNER_NYE, MAAL_KOLONNER_GAMLE]);
+    expect(kald.map((k) => k.select)).toEqual([MAAL_KOLONNER_SKIVE3, MAAL_KOLONNER_NYE, MAAL_KOLONNER_GAMLE]);
     expect(h.afventerMigration).toBe(true);
+    expect(h.bekraeftelseAfventer).toBe(true);
     expect(h.maal[0]).toMatchObject({ id: "m1", art: null, maal_noegle: null, udgangspunkt: null, udgangspunkt_dato: null });
   });
 
@@ -88,8 +112,21 @@ describe("hentMaalMedTal", () => {
 
   it("fejl også i tilbagefaldet kaster", async () => {
     koe.push({ data: null, error: { code: "42703", message: "x" } });
+    koe.push({ data: null, error: { code: "42703", message: "x" } });
     koe.push({ data: null, error: { message: "netværk" } });
     await expect(hentMaalMedTal("c1")).rejects.toThrow(/netværk/);
+  });
+});
+
+describe("hentKvartalstjek (skive 3)", () => {
+  it("læser rækkerne; tabellen mangler (PGRST205) → tom; anden fejl kaster", async () => {
+    koe.push({ data: [{ milestone_id: "m1", kvartal: 1, valg: "behold", valgt_at: "2026-09-01T00:00:00Z" }], error: null });
+    expect(await hentKvartalstjek("c1")).toEqual([{ milestone_id: "m1", kvartal: 1, valg: "behold", valgt_at: "2026-09-01T00:00:00Z" }]);
+    expect(kald[0].tabel).toBe("maal_kvartalstjek");
+    koe.push({ data: null, error: { code: "PGRST205", message: "Could not find the table" } });
+    expect(await hentKvartalstjek("c1")).toEqual([]);
+    koe.push({ data: null, error: { code: "42501", message: "permission denied" } });
+    await expect(hentKvartalstjek("c1")).rejects.toThrow(/maal_kvartalstjek/);
   });
 });
 
@@ -130,10 +167,14 @@ describe("hentSkridtTilMaal (fund 12)", () => {
 });
 
 describe("samlGrundlag (fund 7)", () => {
-  const maalH = { maal: [], afventerMigration: false };
+  const maalH = { maal: [], afventerMigration: false, bekraeftelseAfventer: false };
   it("Score fejlede → grundlaget står, månederne er null (tallene «kan ikke læses endnu»)", () => {
     const g = samlGrundlag(maalH, [], { data: undefined, isError: true });
-    expect(g).toEqual({ maal: [], skridt: [], maaneder: null, kontraktStart: null, afventerMigration: false });
+    expect(g).toEqual({ maal: [], skridt: [], kvartalstjek: [], maaneder: null, kontraktStart: null, afventerMigration: false, bekraeftelseAfventer: false });
+  });
+  it("skive 3: kvartalstjekkene venter, mens de henter; en fejlet hentning giver en tom liste", () => {
+    expect(samlGrundlag(maalH, [], { data: undefined, isError: true }, { data: undefined, isError: false })).toBeUndefined();
+    expect(samlGrundlag(maalH, [], { data: undefined, isError: true }, { data: undefined, isError: true })?.kvartalstjek).toEqual([]);
   });
   it("Score henter endnu → intet grundlag; mål eller skridt mangler → intet grundlag", () => {
     expect(samlGrundlag(maalH, [], { data: undefined, isError: false })).toBeUndefined();
@@ -142,7 +183,7 @@ describe("samlGrundlag (fund 7)", () => {
   });
   it("et tal-mål med Score-fejl siger «Tallet kan ikke læses endnu» — siden vælter ikke", () => {
     const tm = { ...raekke, art: "tal", maal_noegle: "omsaetning_aarstakt", udgangspunkt: 1, udgangspunkt_dato: "2026-04-01" };
-    const g = samlGrundlag({ maal: [tm], afventerMigration: false }, [], { data: undefined, isError: true })!;
+    const g = samlGrundlag({ maal: [tm], afventerMigration: false, bekraeftelseAfventer: false }, [], { data: undefined, isError: true })!;
     const b = byggDineMaal(g, NU);
     expect(b.kort[0].tal).toEqual({ status: "mangler", grund: MAAL_ORD.grund.intet_tal });
   });
@@ -163,16 +204,78 @@ describe("skrivning", () => {
     expect(kald).toHaveLength(0);
   });
 
-  it("opret: ét insert med de dømte felter + ejerskab, aktiv, kilde manual", async () => {
+  it("opret: ét insert med de dømte felter + ejerskab, aktiv, kilde manual — og (skive 3) bekræftet fra fødslen", async () => {
     koe.push({ data: { id: "ny" }, error: null });
     const s = await opretMaalMedTal({ companyId: "c1", userId: "u1", input, nu: NU, maaneder: null });
     expect(s).toEqual({ ok: true, id: "ny" });
-    expect(kald[0].insert).toMatchObject({ title: "Første ansatte", art: "begivenhed", target_value: 1, udgangspunkt: 0, udgangspunkt_dato: "2026-10-01", deadline: "2027-03-01", company_id: "c1", user_id: "u1", status: "active", source: "manual", progress: 0 });
+    expect(kald[0].insert).toMatchObject({ title: "Første ansatte", art: "begivenhed", target_value: 1, udgangspunkt: 0, udgangspunkt_dato: "2026-10-01", deadline: "2027-03-01", company_id: "c1", user_id: "u1", status: "active", source: "manual", progress: 0, bekraeftet_at: NU.toISOString(), bekraeftet_af: "u1" });
   });
 
-  it("opret før migrationen (PGRST204) → afventerMigration med husets tekst", async () => {
+  it("opret før skive 3-migrationen (PGRST204 på bekraeftet_at) → insert igen UDEN bekræftelsen — som i dag", async () => {
+    koe.push({ data: null, error: { code: "PGRST204", message: "Could not find the 'bekraeftet_at' column of 'milestones' in the schema cache" } });
+    koe.push({ data: { id: "ny" }, error: null });
+    expect(await opretMaalMedTal({ companyId: "c1", userId: "u1", input, nu: NU, maaneder: null })).toEqual({ ok: true, id: "ny" });
+    expect(kald).toHaveLength(2);
+    expect(kald[0].insert).toHaveProperty("bekraeftet_at");
+    expect(kald[1].insert).not.toHaveProperty("bekraeftet_at");
+  });
+
+  it("opret før skive 2-migrationen (PGRST204 to gange) → afventerMigration med husets tekst", async () => {
+    koe.push({ data: null, error: { code: "PGRST204", message: "Could not find the 'bekraeftet_at' column of 'milestones' in the schema cache" } });
     koe.push({ data: null, error: { code: "PGRST204", message: "Could not find the 'art' column of 'milestones' in the schema cache" } });
     expect(await opretMaalMedTal({ companyId: "c1", userId: "u1", input, nu: NU, maaneder: null })).toEqual({ ok: false, grund: AFVENTER_MIGRATION_TEKST, afventerMigration: true });
+  });
+
+  it("bekraeft (skive 3): UPDATE guardet på bekraeftet_at null + status active; nul rækker er en fejl", async () => {
+    koe.push({ data: [{ id: "m1" }], error: null });
+    expect(await bekraeftMaal({ maalId: "m1", userId: "u1", nu: NU })).toEqual({ ok: true, id: "m1" });
+    expect(kald[0].update).toEqual({ bekraeftet_at: NU.toISOString(), bekraeftet_af: "u1" });
+    expect(kald[0].filtre).toEqual(['eq:["id","m1"]', 'is:["bekraeftet_at",null]', 'eq:["status","active"]']);
+    koe.push({ data: [], error: null });
+    expect(await bekraeftMaal({ maalId: "m1", userId: "u1", nu: NU })).toEqual({ ok: false, grund: BEKRAEFT_NUL_RAEKKER_TEKST, afventerMigration: false });
+    koe.push({ data: null, error: { code: "PGRST204", message: "bekraeftet_at" } });
+    expect(await bekraeftMaal({ maalId: "m1", userId: "u1", nu: NU })).toMatchObject({ ok: false, afventerMigration: true });
+  });
+
+  it("slip (skive 3): status parked, guardet på active — aldrig delete", async () => {
+    koe.push({ data: [{ id: "m1" }], error: null });
+    expect(await slipMaal({ maalId: "m1" })).toEqual({ ok: true, id: "m1" });
+    expect(kald[0].update).toEqual({ status: "parked" });
+    expect(kald[0].filtre).toContain('eq:["status","active"]');
+  });
+
+  it("registrerKvartalstjek: én række med valgt_af; en fejl er «ikke gemt» (kortet står igen); ugyldigt valg når aldrig databasen", async () => {
+    // Målet bekræftet 15/10-2026, i dag 20/4-2027 → kvartal 2 er forfaldent (anker 2026-10-15 + 6 mdr. = 2027-04-15 ≤ i dag).
+    const maal = { id: "m1", status: "active", bekraeftet_at: "2026-10-15T12:00:00Z" };
+    const nu = new Date("2027-04-20T10:00:00Z");
+    const args = { maalId: "m1", companyId: "c1", userId: "u1", kvartal: 2 as const, valg: "behold" as const, maal, tjek: [], nu };
+    koe.push({ data: { id: "k1" }, error: null });
+    expect(await registrerKvartalstjek(args)).toEqual({ ok: true, id: "k1" });
+    expect(kald[0]).toMatchObject({ tabel: "maal_kvartalstjek", insert: { milestone_id: "m1", company_id: "c1", kvartal: 2, valg: "behold", valgt_af: "u1" } });
+    koe.push({ data: null, error: { code: "23505", message: "dublet" } });
+    expect(await registrerKvartalstjek(args)).toEqual({ ok: false, grund: KVARTALSTJEK_IKKE_GEMT_TEKST, afventerMigration: false });
+    expect(await registrerKvartalstjek({ ...args, valg: "slettet" as never })).toMatchObject({ ok: false });
+    expect(kald).toHaveLength(2);
+  });
+
+  it("registrerKvartalstjek (runde 2, fund 9): klientens dom FØR INSERT'en — grunden vises, databasen kaldes ikke; målet ukendt (null) → ingen fordom", async () => {
+    const maal = { id: "m1", status: "active", bekraeftet_at: "2026-10-15T12:00:00Z" };
+    const basis = { maalId: "m1", companyId: "c1", userId: "u1", kvartal: 2 as const, valg: "behold" as const, maal, tjek: [] as const, nu: new Date("2027-04-20T10:00:00Z") };
+    // Ikke forfaldent: i dag 1/2-2027 < 15/4-2027.
+    expect(await registrerKvartalstjek({ ...basis, nu: new Date("2027-02-01T10:00:00Z") })).toEqual({ ok: false, grund: KVARTALSTJEK_GRUND.ikkeForfaldent, afventerMigration: false });
+    // Allerede svaret: en række med kvartal ≥ 2.
+    expect(await registrerKvartalstjek({ ...basis, tjek: [{ milestone_id: "m1", kvartal: 2 }] })).toEqual({ ok: false, grund: KVARTALSTJEK_GRUND.alleredeSvaret, afventerMigration: false });
+    // Ikke bekræftet.
+    expect(await registrerKvartalstjek({ ...basis, maal: { ...maal, bekraeftet_at: null } })).toEqual({ ok: false, grund: KVARTALSTJEK_GRUND.ubekraeftet, afventerMigration: false });
+    // Status passer ikke til valget: «behold» på et parkeret mål.
+    expect(await registrerKvartalstjek({ ...basis, maal: { ...maal, status: "parked" } })).toEqual({ ok: false, grund: KVARTALSTJEK_GRUND.status, afventerMigration: false });
+    // Året gået: i dag 20/10-2027 ≥ 15/10-2027.
+    expect(await registrerKvartalstjek({ ...basis, nu: new Date("2027-10-20T10:00:00Z") })).toEqual({ ok: false, grund: KVARTALSTJEK_GRUND.aaretGaaet, afventerMigration: false });
+    expect(kald).toHaveLength(0);
+    // Målet ukendt → databasen dømmer.
+    koe.push({ data: { id: "k1" }, error: null });
+    expect(await registrerKvartalstjek({ ...basis, maal: null })).toEqual({ ok: true, id: "k1" });
+    expect(kald).toHaveLength(1);
   });
 
   it("opret: «højst tre aktive» oversættes af maalFejlTekst", async () => {
@@ -259,8 +362,8 @@ describe("invalidering (fund 17)", () => {
   it("dine-maal, virksomhedssiden og pulsens mål", async () => {
     const noegler: unknown[] = [];
     await invaliderEfterMaalSkrivning({ invalidateQueries: (f: { queryKey: unknown }) => (noegler.push(f.queryKey), Promise.resolve()) } as never, "c1");
-    expect(noegler).toEqual([["dine-maal"], ["virksomhed", "c1"], ["pulse-milestones", "c1"]]);
-    expect(maalSkrivningNoegler("c1")).toHaveLength(3);
+    expect(noegler).toEqual([["dine-maal"], ["virksomhed", "c1"], ["pulse-milestones", "c1"], ["boardroom"], ["boardroom-score"]]);
+    expect(maalSkrivningNoegler("c1")).toHaveLength(5);
   });
 });
 
@@ -273,15 +376,43 @@ describe("byggDineMaal", () => {
           { ...raekke, id: "m2", status: "parked", art: null, maal_noegle: null, udgangspunkt: null, udgangspunkt_dato: null },
         ],
         skridt: [],
+        kvartalstjek: [],
         maaneder: [],
         kontraktStart: "2026-05-15",
         afventerMigration: false,
+        bekraeftelseAfventer: false,
       },
       NU,
     );
     expect(b.kort.map((k) => k.id)).toEqual(["m1"]);
     expect(b.kort[0].goerSkarpt).toBe(true);
     expect(b.tidslinje.start).toBe("2026-05-15");
+  });
+
+  it("skive 3: et ubekræftet aktivt mål er et FORSLAG, ikke et kort; et bekræftet får kvartalstjek (ankeret er aldrig før 2/10-2026)", () => {
+    const tom = { art: null, maal_noegle: null, udgangspunkt: null, udgangspunkt_dato: null };
+    // Bekræftet (backfillet) 15/1-2026 → anker 2/10-2026 → tjek 2/1, 2/4, 2/7-2027; i dag 20/4-2027 → kvartal 2.
+    const NU_2027 = new Date("2027-04-20T10:00:00Z");
+    const b = byggDineMaal(
+      {
+        maal: [
+          { ...raekke, ...tom, bekraeftet_at: "2026-01-15T12:00:00Z", source: "manual" },
+          { ...raekke, ...tom, id: "forslag", created_at: "2026-10-05T00:00:00Z", bekraeftet_at: null, source: "advisor" },
+          { ...raekke, ...tom, id: "gammelt", created_at: "2026-06-01T00:00:00Z", bekraeftet_at: null, source: "agent" },
+        ],
+        skridt: [],
+        kvartalstjek: [{ milestone_id: "m1", kvartal: 1 }],
+        maaneder: [],
+        kontraktStart: null,
+        afventerMigration: false,
+        bekraeftelseAfventer: false,
+      },
+      NU_2027,
+    );
+    expect(b.kort.map((k) => k.id)).toEqual(["m1"]);
+    expect(b.bekraeftelser.forslag.map((m) => m.id)).toEqual(["forslag"]);
+    expect(b.bekraeftelser.gamle.map((m) => m.id)).toEqual(["gammelt"]);
+    expect(b.kvartalstjek).toEqual([{ maalId: "m1", maalTitel: "Mål", companyId: null, kvartal: 2, maaned: 6, dato: "2027-04-02" }]);
   });
 });
 

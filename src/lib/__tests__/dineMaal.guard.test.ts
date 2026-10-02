@@ -149,7 +149,8 @@ export const skyderenHolder = (raekke: string, dom: string): boolean =>
     stadig medlemmets egen RLS. Nået/parkér/slet er stadig useMilestones' (markerNaaet, opdaterFelt, slet),
     pakket ind med invalidering af motorens nøgler (markerNaaetOgRyd/opdaterMaalFelt). */
 export const medlemmetEjer = (view: string, migrationer: readonly string[]): boolean =>
-  /const \{ milestones, loading, markerNaaet, slet, opdaterFelt, genhent \} = useMilestones\(/.test(view) &&
+  // Skive 3 (runde 2, fund 7): fejringen (fejr) er også useMilestones' — kvartalstjekkets «Nået» kalder den efter ok.
+  /const \{ milestones, loading, markerNaaet, slet, opdaterFelt, genhent, fejr \} = useMilestones\(/.test(view) &&
   view.includes("const skriv = useDineMaalSkrivning({ companyId, efter: genhent });") &&
   view.includes("await markerNaaet(id);") &&
   view.includes("onNaaet={() => void markerNaaetOgRyd(ms.id)}") &&
@@ -209,7 +210,8 @@ export const forsidenHolder = (forside: string): boolean =>
   forside.includes("dineMaalDom(milestonesQuery.data, skridtQuery.data, new Date())") &&
   forside.includes("forsidePlanDom(dineMaal, aftaleRaekker, new Date())") &&
   forside.includes('kraevRaekker(skridtRes, "company_actions")') &&
-  forside.includes('kraevRaekker(res, "milestones") as MaalRaekke[]') &&
+  // Skive 3 (2/10-2026): hentningen læser også bekraeftet_at (fail-soft) — svaret er typet som planens form FØR kraevRaekker.
+  forside.includes('kraevRaekker(res, "milestones")') && forside.includes("type Svar = { data: MaalRaekke[] | null;") && forside.includes("if (res.error && erManglendeKolonne(res.error)) res = await hent(gamle);") &&
   /id="din-plan"/.test(forside) &&
   /id="dine-maal"/.test(forside) && /id="dine-skridt"/.test(forside) && !/id="dine-aftaler"/.test(forside);
 

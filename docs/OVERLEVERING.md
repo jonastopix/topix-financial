@@ -11496,7 +11496,7 @@ Grundlag: målt i prod 1/10 — 36 aktive mål hos 14 af 30 kunder, 0 med både 
 | #1206 | Dine mål: «Gjort» lukker ikke målet; skridtets frist ≤ målets | Update 14:35 + `skridt-tilfoej` udrullet 14:3x («Successfully deployed edge functions: skridt-tilfoej, webinar-delt»). **Kald-bevis mangler:** den nye 400 nås kun af et medlem af virksomheden, og Claude har ingen medlemskonto. Formularen afviser det samme før kaldet |
 | #1208 | Talrækker i chatten («1. 1. 1.») | Update 14:35 |
 | #1209 | Webinarkoblingen: forslag + klik | Update 14:35 + `webinar-delt` udrullet. Set på Zanco: mailen matcher (81 %), intet forslag, ingen hentefejl. **Kald-bevis for `webinar-delt` (`koblinger_talt`) afventer** delingslinket til Nicklas |
-| #1207 | Fase 3a trin 1 (kald_edge + sb_secret) | Merget 14:31 (`c69be02f`). Migrationen `20261001200000` **IKKE KØRT** (kræver Jonas' ja + vault-post). `_shared/edgeFunctionAuth.ts` er ændret: næste udrulning af en hvilken som helst function tager den med (legacy-nøglen virker uændret) |
+| #1207 | Fase 3a trin 1 (kald_edge + sb_secret) | Merget 14:31 (`c69be02f`). Migrationen `20261002200000` **IKKE KØRT** (kræver Jonas' ja + vault-post). `_shared/edgeFunctionAuth.ts` er ændret: næste udrulning af en hvilken som helst function tager den med (legacy-nøglen virker uændret) |
 | #1211 | /engagement: sandt sprog, mobilvisning (stablede kort under `sm`), trofænavne brækkes ikke midt i ordet | Merget `98db936c`. **Venter på Update** |
 | #1213 | Docs: Mortens bogholderagent (§7) + `docs/mailplan-14-dage-og-sms.md` | Kun docs |
 

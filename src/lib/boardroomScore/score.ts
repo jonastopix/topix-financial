@@ -33,6 +33,7 @@
  */
 import { kbhDato, kbhDele, kbhTilUtc, laegMaanederTilDato } from "@/lib/hverdage";
 import { maanedsnavn } from "@/lib/maanedsnoegle";
+import { MAX_AKTIVE_MAAL } from "@/lib/hjemmebane/maal";
 import { interpoler } from "./kurve";
 import { alleSoejler, INDTJENING_KNAEK, LIKVIDITET_KNAEK, VAEKST_KNAEK } from "./soejler";
 import { aabenMaaned, erMaalt, frist, fristDato, maalteEfterNoegle, senesteMaanedMedPasseretFrist, streakDom } from "./streak";
@@ -40,6 +41,10 @@ import type { Handling, ScoreDom, ScoreGrundlag, ScoreMaaned, Soejler, SoejleDom
 
 export const MIN_SOEJLER_MED_DATA = 2;
 export const SCORE_MAX = 1000;
+
+/** Mål-løfterens to ord (skive 3): «Sæt …» når der er plads; «Sig ja …» når ubekræftede fylder pladserne (vejen er «Behold»). */
+export const LOEFTER_SAET_MAAL_TEKST = "Sæt et mål med en frist.";
+export const LOEFTER_SIG_JA_TEKST = "Sig ja til et af jeres mål med en frist.";
 
 const RAEKKEFOELGE: SoejleNavn[] = ["disciplin", "likviditet", "indtjening", "vaekst"];
 
@@ -117,7 +122,14 @@ function handlingerFor(g: ScoreGrundlag, nu: Date, soejler: Soejler): Handling[]
     ud.push({ soejle: "disciplin", tekst: `Læg et budget for ${kbhDele(nu).aar}.`, gevinst: gevinstVed(soejler, med.disciplin), sti: "/budget" });
   } else if (!g.harMaal) {
     const med = alleSoejler({ ...g, harMaal: true }, nu);
-    ud.push({ soejle: "disciplin", tekst: "Sæt dit første mål.", gevinst: gevinstVed(soejler, med.disciplin), sti: "/kpis" });
+    // Skive 3 (2/10-2026): målet bor på Dine mål (/milestones) — ikke KPI-pejlemærkerne på /kpis.
+    // Ordene er sande (rådets fund 4): pointet gives for et aktivt, bekræftet mål MED FRIST (taellerSomScoreMaal) —
+    // en virksomhed kan have mål uden frist og stadig mangle pointet, så «dit første mål» ville lyve.
+    // Runde 2, fund 1: fylder de UBEKRÆFTEDE databasens pladser (≥ MAX_AKTIVE_MAAL — triggeren tæller dem),
+    // afviser databasen «Sæt et mål», og vejen er «Behold»/«Det er vores mål» på et mål med frist.
+    const pladserneFuldeAfUbekraeftede = (g.ubekraeftedeMaal ?? 0) >= MAX_AKTIVE_MAAL;
+    const tekst = pladserneFuldeAfUbekraeftede ? LOEFTER_SIG_JA_TEKST : LOEFTER_SAET_MAAL_TEKST;
+    ud.push({ soejle: "disciplin", tekst, gevinst: gevinstVed(soejler, med.disciplin), sti: "/milestones" });
   }
 
   // ── Likviditet: én måneds omkostninger mere i banken ──

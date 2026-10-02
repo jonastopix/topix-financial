@@ -30,6 +30,10 @@ export interface MaalRaekke {
   progress_updated_at: string | null;
   completed_at: string | null;
   created_at: string;
+  /** Skive 3 (2/10-2026, migration 20261002100000): hvornår medlemmet bekræftede målet. undefined = kolonnen
+      ikke læst (fail-soft: tæller som i dag); null = ubekræftet forslag (maalBekraeft.erBekraeftet). Planen
+      (rådgiverens) dømmer IKKE på den — den viser alle aktive; dineMaalDom (medlemmets) skiller dem. */
+  bekraeftet_at?: string | null;
 }
 
 /** Det af company_actions-rækken Planen læser. */

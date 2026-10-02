@@ -50,7 +50,7 @@ tallene eller i disciplinen (`docs/data-basis-kontrakt.md`).
 | Likviditet | `cash` (bank), omkostningerne via `omkostningerIAlt(CANONICAL)` | `cash` kun når rapporten bærer balancen — mange saldobalancer gør; PDF-resultatopgørelser gør ikke. **Ikke målt i prod** hvor mange rækker der har `cash`; motoren siger «ikke nok data» når den mangler. |
 | Indtjening | `revenue`, `ebt` (ellers `ebtRegnet(gross_profit, m, CANONICAL)`) | Ja — omsætning og resultat er kernen i hver rapport. |
 | Vækst | `revenue` over 12+ måneder | Ja, når historikken er der. |
-| Disciplin | `period_key`, `data_basis`, `created_at`, hukommelsen `maaned_foerste_godkendelse` (§4a); `budget_targets` (findes for året?), `kpi_targets` (findes mindst ét mål?) | Ja. |
+| Disciplin | `period_key`, `data_basis`, `created_at`, hukommelsen `maaned_foerste_godkendelse` (§4a); `budget_targets` (findes for året?), `milestones` (findes mindst ét mål på Dine mål, der tæller? — skive 3, 2/10; før: `kpi_targets`) | Ja. |
 
 **Alle omkostningssummer går gennem `src/lib/omkostningsnoegler.ts`**
 (husets regel, 17/9): motoren har ingen lokal liste. Omkostninger er
@@ -198,8 +198,44 @@ godkendelserne — sæt den, hvor den mangler, så dommen ikke skal gætte.
 rytme        = 150 × (målte måneder i vinduet / måneder i vinduet)
 rettidighed  =  50 × (målte måneder godkendt senest fristen / målte måneder i vinduet)   — 0 når ingen målt
 budget       =  25 hvis budget_targets har mindst én værdirække i base-scenariet for indeværende år (period «YYYY-base-idx»)
-maal         =  25 hvis kpi_targets har mindst én række
+maal         =  25 hvis mindst ét mål på DINE MÅL tæller (skive 3, 2/10-2026 — Jonas 1/10: «flyt Score-pointet til Dine mål»)
 ```
+
+**Målpointets definition (skive 3, `lib/hjemmebane/maalBekraeft.ts:taellerSomScoreMaal`; beslutning
+2/10-2026 efter rådets fund 4):** et mål tæller, når det er **aktivt** (`status = 'active'`),
+**bekræftet af medlemmet** (`bekraeftet_at` sat — et forslag fra rådgiver/agent/handout tæller
+først, når medlemmet har sagt «Det er vores mål»), **har en frist** (`deadline`, «YYYY-MM-DD»), og
+for et **tal-mål** (`art = 'tal'`) desuden et **måltal** (`target_value`). **`art` kræves IKKE:**
+målt i prod 2/10 kl. ~03:45 har **0** af de aktive manual-mål en art (kolonnen kom 1/10), og kun
+**2** virksomheder har et aktivt manual-mål med frist — et krav om art ville tage pointet fra alle
+gamle mål med frist, og løfteren ville lyve. Udgangspunktet kræves heller ikke (sporet regner uden).
+Regnestykket:
+
+```
+maal = 25 × [∃ mål: status = 'active' ∧ bekraeftet_at ≠ null ∧ deadline ∧ (art ≠ 'tal' ∨ target_value er et tal)]
+```
+
+Hooken (`useBoardroomScore.hentHarMaal`) læser `milestones` med `status, bekraeftet_at, art,
+deadline, target_value, udgangspunkt`; mangler kolonnen `bekraeftet_at` (migration `20261002100000`
+ikke kørt), læses `kpi_targets` som før (målt 2/10: kun 3 af 43 kundevirksomheder har en række) —
+fail-soft, aldrig en score uden grund. Løfteren siger **«Sæt et mål med en frist.»** (det, der
+faktisk giver pointet) og peger på `/milestones` (ikke `/kpis`, hvor KPI-målene nu hedder
+**pejlemærker**). **Rådets runde 2, fund 1:** fylder de UBEKRÆFTEDE aktive mål databasens pladser
+(`ubekraeftedeMaal ≥ MAX_AKTIVE_MAAL` = 3 — triggeren `milestones_hoejst_tre_aktive` tæller også
+dem), ville «Sæt et mål» blive afvist af databasen; så siger løfteren **«Sig ja til et af jeres mål
+med en frist.»** — vejen er «Behold»/«Det er vores mål» på Dine mål. Tallet kommer fra samme
+hentning (`hentHarMaal` → `{ harMaal, ubekraeftede }`), 0 i kpi_targets-tilbagefaldet.
+
+**Tabet ved skiftet — bogført eksplicit (rådets runde 2, fund 6):** et medlem, der i dag får
+mål-pointet gennem `kpi_targets`, men IKKE har et bekræftet, aktivt mål med frist på Dine mål, går
+fra **25 til 0** mål-point i det øjeblik migration `20261002100000` er kørt OG Update er klikket
+(hooken skifter kilde, når kolonnen `bekraeftet_at` findes). Målt i prod 2/10-2026 kl. ~03:45: **3**
+kundevirksomheder har `kpi_targets`; **2** virksomheder har et aktivt manual-mål med frist, som
+backfillen bekræfter (`source = 'manual'` + medlem) — de beholder pointet; tabet rammer altså
+**højst 3** virksomheder (dem med kpi_targets, der ikke er blandt de 2 — det præcise snit er ikke
+målt). `forrige` (retningen én måned tilbage) regner budget og mål SOM NU (§2.5-begrænsningen),
+så kortet viser **ingen nedgang** — tallet falder stille. Vejen tilbage til pointet for de ramte
+er «Sæt et mål med en frist» på Dine mål; bevidst ingen overgangsregel (pejlemærkerne er ikke mål).
 
 «Ikke nok data» når vinduet er tomt (starten så ny, at ingen hel måneds
 frist er passeret).
@@ -276,7 +312,7 @@ søjler»). En score på 750 med to søjler er ikke det samme som 750 med fire.~
   uden kendt godkendelse var der ikke). En måned godkendt 15/9 påvirker
   ikke «forrige» set 30/8 — retningen er den, medlemmet faktisk gik.
   Fladen kan sige «op fra 612» — uden at noget gemmes. **Begrænsning:**
-  `budget_targets` og `kpi_targets` bærer intet tidspunkt i grundlaget
+  `budget_targets` og målene (`harMaal`, skive 3: Dine mål) bærer intet tidspunkt i grundlaget
   (kun «findes der?»), så budget- og målpoint regnes som NU også i
   `forrige`; et budget lagt i går kan derfor ikke ses som en stigning. Og
   en erstattet måneds TAL er de nuværende, mens godkendelsen er den første
@@ -295,7 +331,7 @@ likviditet, indtjening, vækst).
 
 | Søjle | Handling | Point regnes som |
 |---|---|---|
-| Disciplin | «Godkend {åben måned} senest {frist}» når den åbne måned mangler; ellers «Godkend {måned} — måneden mangler» for den seneste med passeret frist; ellers «Læg et budget for {år}» / «Sæt dit første mål» | Dommen kørt igen med handlingen simuleret (måneden målt og rettidig; budget/mål = true) − dommen uden. For den åbne måned regnes begge sider ved fristens udløb, så gevinsten er det, der står på spil. Kun disciplinsøjlen simuleres; de tre tal-søjler holdes som nu. Simuleringen, ikke en tabel: så tallet er sandt, når vinduet flytter. null når scoren ikke findes på nogen af siderne. |
+| Disciplin | «Godkend {åben måned} senest {frist}» når den åbne måned mangler; ellers «Godkend {måned} — måneden mangler» for den seneste med passeret frist; ellers «Læg et budget for {år}» / «Sæt et mål med en frist.» | Dommen kørt igen med handlingen simuleret (måneden målt og rettidig; budget/mål = true) − dommen uden. For den åbne måned regnes begge sider ved fristens udløb, så gevinsten er det, der står på spil. Kun disciplinsøjlen simuleres; de tre tal-søjler holdes som nu. Simuleringen, ikke en tabel: så tallet er sandt, når vinduet flytter. null når scoren ikke findes på nogen af siderne. |
 | Likviditet | «Én måneds omkostninger mere i banken ({beløb})» | point(runway + 1) − point(runway) |
 | Indtjening | «Ét procentpoint mere i resultatmargin» | point(margin + 0,01) − point(margin) |
 | Vækst | «Fem procent mere omsætning end sammenligningen» | point(vækst + 0,05) − point(vækst) |

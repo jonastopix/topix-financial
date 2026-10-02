@@ -6,6 +6,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, ChevronDown, ChevronUp, ExternalLink, Play } from "lucide-react";
 import { toast } from "sonner";
 import { HentningsFejl, kraevRaekker } from "@/lib/kraevRaekker";
+import { erManglendeKolonne } from "@/lib/manglendeTabel";
+import { dineMaalKvartalstjekKey, hentKvartalstjek, useDineMaalSkrivning } from "@/hooks/dineMaalGrundlag";
+import { BEKRAEFT_ORD, delBekraeftelser, KVARTAL_ORD, statusEfterKvartalValg, ventendeKvartalstjekAlle, type Kvartal } from "@/lib/hjemmebane/maalBekraeft";
+import { BekraeftMaalKort, type BekraeftHandling, type KvartalHandling } from "@/components/hjemmebane/milestones/BekraeftMaalKort";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useOnboardingTjekliste } from "@/hooks/useOnboardingTjekliste";
@@ -67,7 +71,7 @@ import { maaskeRelevant, MAASKE_RELEVANT_PRAEFIKS } from "@/lib/hjemmebane/maask
 import { afgoerMilepael } from "@/lib/milepaelDom";
 import { ALLE_SKRIDT_GJORT_TEKST, dineMaalDom, DINE_MAAL_FEJL_TEKST, DINE_SKRIDT_FEJL_TEKST, TILFOEJ_SKRIDT_FEJL_TEKST, TILFOEJ_SKRIDT_KNAP_TEKST, TILFOEJ_SKRIDT_OK_TEKST, udskudtToastTekst, type SkridtTilDineMaal } from "@/lib/hjemmebane/dineMaal";
 import {
-  ANDRE_MAAL_OVERSKRIFT, FEJRING_VARIGHED_MS, fejring as lavFejring, forsidePlanDom, MAAL_UDEN_SKRIDT_TEKST, PLAN_INGEN_AKTIVE_TEKST, PLAN_TOM_BOOK, PLAN_TOM_SAET_MAAL, PLAN_TOM_TEKST, SE_HELE_PLANEN, UDEN_MAAL_OVERSKRIFT,
+  ANDRE_MAAL_OVERSKRIFT, FEJRING_VARIGHED_MS, fejring as lavFejring, forsidePlanDom, MAAL_UDEN_SKRIDT_TEKST, PLAN_INGEN_AKTIVE_TEKST, PLAN_TOM_BOOK, PLAN_TOM_SAET_MAAL, PLAN_TOM_TEKST, SE_HELE_PLANEN, UDEN_MAAL_OVERSKRIFT, VENTER_PAA_JA_OVERSKRIFT,
   type Fejring, type PlanSkridt,
 } from "@/lib/hjemmebane/forsidePlan";
 import { TilfoejSkridtForm } from "../milestones/HbMaalRaekke";
@@ -1617,15 +1621,40 @@ export const BoardroomView = () => {
       // anerkendelseslinjen og «Dine mål» læser begge listen. Fase 3 («Én
       // plan»): planens kolonner (lib/hjemmebane/planen.MaalRaekke), så
       // forsiden og /milestones dømmer ens; fokusmotoren læser dem ikke mere.
-      const res = await supabase
-        .from("milestones")
-        .select("id, title, deadline, progress, status, category, source, progress_updated_at, completed_at, created_at")
-        .eq("company_id", companyId!);
-      return kraevRaekker(res, "milestones") as MaalRaekke[];
+      // SKIVE 3 (2/10): også bekraeftet_at — et ubekræftet mål er et forslag
+      // (ikke i «Din plan», ikke i fokus). FAIL-SOFT: mangler kolonnen
+      // (42703/PGRST204, migration 20261002100000 ikke kørt), læses de gamle
+      // kolonner, bekraeftet_at er undefined, og alt tæller som i dag.
+      const gamle = "id, title, deadline, progress, status, category, source, progress_updated_at, completed_at, created_at";
+      type Svar = { data: MaalRaekke[] | null; error: { code?: string; message: string } | null };
+      // bekraeftet_at står ikke i types.ts før Lovables typegenerering — svaret læses som planens form.
+      const hent = async (kolonner: string): Promise<Svar> => (await supabase.from("milestones").select(kolonner).eq("company_id", companyId!)) as unknown as Svar;
+      let res = await hent(`${gamle}, bekraeftet_at`);
+      if (res.error && erManglendeKolonne(res.error)) res = await hent(gamle);
+      return kraevRaekker(res, "milestones");
     },
     enabled: !!companyId,
     staleTime: 3 * 60_000,
   });
+
+  // Skive 3: de registrerede kvartalstjek (fail-soft: tabellen mangler → tom). Nøglen er «dine-maal»s,
+  // så /milestones og forsiden deler cachen og invalideres sammen.
+  const kvartalstjekQuery = useQuery({
+    queryKey: dineMaalKvartalstjekKey(companyId),
+    queryFn: () => hentKvartalstjek(companyId!),
+    enabled: !!companyId,
+    staleTime: 60_000,
+  });
+  const ventendeKvartalstjek = useMemo(
+    () => (milestonesQuery.data && kvartalstjekQuery.data ? ventendeKvartalstjekAlle(milestonesQuery.data, kvartalstjekQuery.data, new Date()) : []),
+    [milestonesQuery.data, kvartalstjekQuery.data],
+  );
+  // Skive 3: medlemmets skrivninger (bekræft/slip/nået/kvartalstjek) — hookets, med invalidering af alle kilder.
+  const maalSkriv = useDineMaalSkrivning({ companyId });
+  // Skive 3: de ubekræftede aktive mål (forslag + gamle) — kortet i «Din plan» OG forsidens fokuspunkt
+  // «N mål venter på jeres ja» (runde 2, fund 5) læser samme deling.
+  const bekraeftelser = useMemo(() => (milestonesQuery.data ? delBekraeftelser(milestonesQuery.data) : { forslag: [], gamle: [] }), [milestonesQuery.data]);
+  const ubekraeftedeMaal = bekraeftelser.forslag.length + bekraeftelser.gamle.length;
 
   const pulseQuery = useQuery({
     queryKey: ["boardroom", "pulse", companyId],
@@ -2026,8 +2055,12 @@ export const BoardroomView = () => {
       maalPlan: milestonesQuery.data && skridtQuery.data
         ? { maal: milestonesQuery.data, skridt: skridtQuery.data as (SkridtTilDineMaal & { expires_at?: string | null })[] }
         : null,
+      // Skive 3 (2/10): kvartalstjekket som fokuspunkt under hastende skridt — dømt ovenfor.
+      kvartalstjek: ventendeKvartalstjek,
+      // Skive 3 (runde 2, fund 5): «N mål venter på jeres ja» → Dine mål — ét punkt under hastende skridt.
+      ubekraeftedeMaal,
     });
-  }, [companyId, processedQuery.data, committedKeys, pulseQuery.data, unreadQuery.data, weeklyFocusQuery.data, actionsQuery.data, leversQuery.data, akademi.orderedByArea, ownProfileQuery.data, contractStartQuery.data, tjeklisteData.tjekliste, tjeklisteData.medlemSiden, milestonesQuery.data, skridtQuery.data]);
+  }, [companyId, processedQuery.data, committedKeys, pulseQuery.data, unreadQuery.data, weeklyFocusQuery.data, actionsQuery.data, leversQuery.data, akademi.orderedByArea, ownProfileQuery.data, contractStartQuery.data, tjeklisteData.tjekliste, tjeklisteData.medlemSiden, milestonesQuery.data, skridtQuery.data, ventendeKvartalstjek, ubekraeftedeMaal]);
 
   // Markér ugens fokus som SET når punktet faktisk vises — samme mekanik
   // som DashboardActionCenter:87-98 (mutation + engangs-ref).
@@ -2261,6 +2294,43 @@ export const BoardroomView = () => {
   );
   const plan = useMemo(() => (dineMaal ? forsidePlanDom(dineMaal, aftaleRaekker, new Date()) : null), [dineMaal, aftaleRaekker]);
   const maalTitler = milestonesQuery.data ?? [];
+
+  // SKIVE 3 (2/10-2026): forslag, gamle mål og kvartalstjek øverst i «Din plan» —
+  // SAMME komponent og SAMME skrivninger som /milestones (BekraeftMaalKort →
+  // dineMaalGrundlag). «Nået» her går gennem hookets markerMaalNaaet (ingen
+  // useMilestones på forsiden — fejringen hører /milestones til); «Justér» er
+  // et link til /milestones (redigeringen bor dér). Rådgiveren læser (isAdvisor).
+  const bekraeftHandling = async (maalId: string, handling: BekraeftHandling): Promise<string | null> => {
+    if (!user || !companyId) return "Du er ikke logget ind";
+    if (isAdvisor) return BEKRAEFT_ORD.kunMedlemmet;
+    const s = handling === "bekraeft" ? await maalSkriv.bekraeft({ maalId, userId: user.id, nu: new Date() }) : await maalSkriv.slip({ maalId });
+    if (s.ok === false) return s.grund;
+    toast.success(handling === "bekraeft" ? BEKRAEFT_ORD.bekraeftet : BEKRAEFT_ORD.slippet);
+    return null;
+  };
+  const kvartalHandling = async (h: KvartalHandling): Promise<string | null> => {
+    if (!user || !companyId) return "Du er ikke logget ind";
+    if (isAdvisor) return BEKRAEFT_ORD.kunMedlemmet;
+    // Handlingen FØR rækken (dineMaalGrundlag.registrerKvartalstjek).
+    if (h.valg === "parkeret") {
+      const s = await maalSkriv.slip({ maalId: h.maalId });
+      if (s.ok === false) return s.grund;
+    } else if (h.valg === "naaet") {
+      const s = await maalSkriv.markerNaaet({ maalId: h.maalId });
+      if (s.ok === false) return s.grund;
+    }
+    // Runde 2, fund 9: klientens dom (= policyens) FØR INSERT'en — grunden vises i stedet for en generisk fejl.
+    const maal = (milestonesQuery.data ?? []).find((m) => m.id === h.maalId);
+    const r = await maalSkriv.registrerKvartalstjek({
+      maalId: h.maalId, companyId, userId: user.id, kvartal: h.kvartal as Kvartal, valg: h.valg,
+      maal: maal ? { id: maal.id, status: statusEfterKvartalValg(maal.status, h.valg), bekraeftet_at: maal.bekraeftet_at } : null,
+      tjek: kvartalstjekQuery.data ?? [],
+      nu: new Date(),
+    });
+    if (r.ok === false) return r.grund;
+    toast.success(KVARTAL_ORD.registreret);
+    return null;
+  };
 
   // FEJRINGEN (PR 3, analyse §5 «intet bliver fejret»): når et skridt lukkes
   // som gjort, står det kort med ✓ og «Godt gået — {mål} er nu {N} %» under
@@ -2530,6 +2600,8 @@ export const BoardroomView = () => {
               <HbMaalForklaring udenOverskrift className="mt-3" />
             </details>
           )}
+          {/* SKIVE 3: forslag, gamle mål og kvartalstjek — kræver medlemmets klik, før de tæller. */}
+          <BekraeftMaalKort bekraeftelser={bekraeftelser} kvartalstjek={ventendeKvartalstjek} kanKlikke={!isAdvisor} onBekraeft={bekraeftHandling} onKvartal={kvartalHandling} className="mb-6" />
           {/* FEJRINGEN øverst i sektionen — ét sted, uanset om målet stadig er
               blandt de aktive (ved 100 % er det nået i planens dom og rykker ud). */}
           {fejring && (
@@ -2613,6 +2685,20 @@ export const BoardroomView = () => {
                   <PlanSkridtRaekke key={a.id} skridt={a} slags="aktiv" busy={planBusy} maalFrist={maalFristFor(a)} onKald={(kald) => opgaveMutation.mutate(kald)} />
                 ))}
                 {plan.udenMaal.forslag.map((f) => (
+                  <PlanSkridtRaekke key={f.id} skridt={f} slags="forslag" ansigt={raadgiverAnsigt(f, raadgivere)} busy={planBusy} maalFrist={maalFristFor(f)} onKald={(kald) => opgaveMutation.mutate(kald)} />
+                ))}
+              </ul>
+            </div>
+          )}
+          {/* Skive 3 (rådets fund 7): skridt under et UBEKRÆFTET mål venter med målet — kortet øverst — ikke «Uden mål». */}
+          {(plan.venterPaaJa.aktive.length > 0 || plan.venterPaaJa.forslag.length > 0) && (
+            <div className="mt-6" data-plan-venter-paa-ja>
+              <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{VENTER_PAA_JA_OVERSKRIFT}</p>
+              <ul className="mt-2">
+                {plan.venterPaaJa.aktive.map((a) => (
+                  <PlanSkridtRaekke key={a.id} skridt={a} slags="aktiv" busy={planBusy} maalFrist={maalFristFor(a)} onKald={(kald) => opgaveMutation.mutate(kald)} />
+                ))}
+                {plan.venterPaaJa.forslag.map((f) => (
                   <PlanSkridtRaekke key={f.id} skridt={f} slags="forslag" ansigt={raadgiverAnsigt(f, raadgivere)} busy={planBusy} maalFrist={maalFristFor(f)} onKald={(kald) => opgaveMutation.mutate(kald)} />
                 ))}
               </ul>

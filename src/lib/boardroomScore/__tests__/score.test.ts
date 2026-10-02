@@ -176,7 +176,12 @@ describe("boardroomScore — kanter", () => {
     const d2 = boardroomScore(grundlag([...keys("2026-03", 6).map((k) => sund(k)), sund("2026-09")], { harBudgetForAaret: false }), NU);
     expect(d2.handlinger.find((h) => h.soejle === "disciplin")?.tekst).toBe("Læg et budget for 2026.");
     const d3 = boardroomScore(grundlag([...keys("2026-03", 6).map((k) => sund(k)), sund("2026-09")], { harMaal: false }), NU);
-    expect(d3.handlinger.find((h) => h.soejle === "disciplin")).toMatchObject({ tekst: "Sæt dit første mål.", gevinst: 25, sti: "/kpis" });
+    expect(d3.handlinger.find((h) => h.soejle === "disciplin")).toMatchObject({ tekst: "Sæt et mål med en frist.", gevinst: 25, sti: "/milestones" });
+    // Runde 2, fund 1: fylder de ubekræftede databasens pladser (3), afviser databasen «Sæt» — vejen er «Behold».
+    const d3b = boardroomScore(grundlag([...keys("2026-03", 6).map((k) => sund(k)), sund("2026-09")], { harMaal: false, ubekraeftedeMaal: 3 }), NU);
+    expect(d3b.handlinger.find((h) => h.soejle === "disciplin")).toMatchObject({ tekst: "Sig ja til et af jeres mål med en frist.", gevinst: 25, sti: "/milestones" });
+    const d3c = boardroomScore(grundlag([...keys("2026-03", 6).map((k) => sund(k)), sund("2026-09")], { harMaal: false, ubekraeftedeMaal: 2 }), NU);
+    expect(d3c.handlinger.find((h) => h.soejle === "disciplin")?.tekst).toBe("Sæt et mål med en frist.");
     const d4 = boardroomScore(grundlag([...keys("2026-03", 6).map((k) => sund(k)), sund("2026-09")]), NU);
     expect(d4.handlinger.find((h) => h.soejle === "disciplin")).toBeUndefined();
   });

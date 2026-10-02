@@ -154,6 +154,45 @@ describe("deriveFocus — hver kilde for sig", () => {
     expect(frist.filter((i) => i.kind === "maal")).toHaveLength(1);
   });
 
+  it("(e) skive 3: et UBEKRÆFTET mål (bekraeftet_at null) giver intet målpunkt; undefined (kolonnen ulæst) tæller som i dag", () => {
+    expect(deriveFocus(base({ maalPlan: { maal: [maalRaekke({ bekraeftet_at: null })], skridt: [] } }))).toEqual([]);
+    expect(deriveFocus(base({ maalPlan: { maal: [maalRaekke({ bekraeftet_at: "2026-07-01T00:00:00Z" })], skridt: [] } }))).toHaveLength(1);
+    expect(deriveFocus(base({ maalPlan: { maal: [maalRaekke({})], skridt: [] } }))).toHaveLength(1);
+  });
+
+  it("(e2) skive 3: kvartalstjekket — ét punkt for det første ventende; under hastende skridt, ellers før (f); efter målets eget punkt", () => {
+    const tjek = [{ maalId: "m1", maalTitel: "Ny sælger", companyId: "c1", kvartal: 2 as const, maaned: 6, dato: "2026-07-01" }, { maalId: "m2", maalTitel: "Andet", companyId: "c1", kvartal: 1 as const, maaned: 3, dato: "2026-08-01" }];
+    const alene = deriveFocus(base({ kvartalstjek: tjek }));
+    expect(alene).toEqual([expect.objectContaining({ kind: "kvartalstjek", key: "kvartalstjek:m1:2", priority: 5, title: "Kvartalstjek, måned 6: Ny sælger", ctaHref: "/milestones#kvartalstjek", sourceId: "m1" })]);
+    // Under et hastende skridt, efter målets (2)-punkt.
+    const loest = (id: string, due_date: string) => ({ id, title: `Løst ${id}`, priority: "high", status: "active", due_date });
+    const under = deriveFocus(base({ maalPlan: { maal: [maalRaekke({})], skridt: [] }, openActions: [loest("x", "2026-08-12"), loest("y", "2026-09-30")], kvartalstjek: tjek }));
+    expect(under.map((i) => i.key)).toEqual(["action:x", "maal:foerste:m1", "kvartalstjek:m1:2", "action:y"]);
+    expect(under.map((i) => i.priority)).toEqual([6, 6, 6, 6]);
+    // Uden hastende: før (f), efter målpunktet.
+    const foer = deriveFocus(base({ maalPlan: { maal: [maalRaekke({})], skridt: [] }, openActions: [loest("y", "2026-09-30")], kvartalstjek: tjek }));
+    expect(foer.map((i) => i.key)).toEqual(["maal:foerste:m1", "kvartalstjek:m1:2", "action:y"]);
+    // Tom/null → intet punkt.
+    expect(deriveFocus(base({ kvartalstjek: [] }))).toEqual([]);
+    expect(deriveFocus(base({ kvartalstjek: null }))).toEqual([]);
+  });
+
+  it("(e3) skive 3 (runde 2, fund 5): «N mål venter på jeres ja» — ét punkt → /milestones; under hastende skridt, ellers før (f); efter målets punkt og kvartalstjekket", () => {
+    const alene = deriveFocus(base({ ubekraeftedeMaal: 2 }));
+    expect(alene).toEqual([expect.objectContaining({ kind: "maal-venter", key: "maal-venter", priority: 5, title: "2 mål venter på jeres ja", ctaHref: "/milestones" })]);
+    expect(deriveFocus(base({ ubekraeftedeMaal: 1 }))[0].title).toBe("1 mål venter på jeres ja");
+    const tjek = [{ maalId: "m1", maalTitel: "Ny sælger", companyId: "c1", kvartal: 2 as const, maaned: 6, dato: "2026-07-01" }];
+    const loest = (id: string, due_date: string) => ({ id, title: `Løst ${id}`, priority: "high", status: "active", due_date });
+    const under = deriveFocus(base({ maalPlan: { maal: [maalRaekke({})], skridt: [] }, openActions: [loest("x", "2026-08-12"), loest("y", "2026-09-30")], kvartalstjek: tjek, ubekraeftedeMaal: 1 }));
+    expect(under.map((i) => i.key)).toEqual(["action:x", "maal:foerste:m1", "kvartalstjek:m1:2", "maal-venter", "action:y"]);
+    expect(under.map((i) => i.priority)).toEqual([6, 6, 6, 6, 6]);
+    const foer = deriveFocus(base({ maalPlan: { maal: [maalRaekke({})], skridt: [] }, openActions: [loest("y", "2026-09-30")], kvartalstjek: tjek, ubekraeftedeMaal: 1 }));
+    expect(foer.map((i) => i.key)).toEqual(["maal:foerste:m1", "kvartalstjek:m1:2", "maal-venter", "action:y"]);
+    // 0/null/udeladt → intet punkt.
+    expect(deriveFocus(base({ ubekraeftedeMaal: 0 }))).toEqual([]);
+    expect(deriveFocus(base({ ubekraeftedeMaal: null }))).toEqual([]);
+  });
+
   it("(e) (2)/(3) står OVER (f), når intet (f)-skridt haster — 8 dage, forslag og arve-open tæller ikke", () => {
     const items = deriveFocus(base({
       maalPlan: { maal: [maalRaekke({})], skridt: [] },
@@ -206,7 +245,7 @@ describe("deriveFocus — hver kilde for sig", () => {
     expect(deriveFocus(base({ maalPlan: null }))).toEqual([]);
   });
 
-  it("(e) én stemme med Score-kortet: målets punkt siger aldrig Score-løfterens «Sæt dit første mål.» og peger aldrig på /kpis", () => {
+  it("(e) én stemme med Score-kortet: målets punkt siger aldrig Score-løfterens «Sæt et mål med en frist.» og peger aldrig på /kpis", () => {
     for (const maalPlan of [
       { maal: [maalRaekke({})], skridt: [] },
       { maal: [maalRaekke({})], skridt: [skridtRaekke({})] },
@@ -214,7 +253,7 @@ describe("deriveFocus — hver kilde for sig", () => {
     ]) {
       const [punkt] = deriveFocus(base({ maalPlan }));
       expect(punkt.kind).toBe("maal");
-      expect(punkt.title).not.toMatch(/Sæt dit første mål/);
+      expect(punkt.title).not.toMatch(/Sæt (dit første mål|et mål med en frist)/);
       expect(punkt.ctaHref).not.toBe("/kpis");
     }
   });

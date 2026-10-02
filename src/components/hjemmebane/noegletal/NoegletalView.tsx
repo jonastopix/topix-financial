@@ -52,7 +52,7 @@ import {
 } from "@/lib/dataGrundlag";
 import { ESTIMAT_FORKLARING, EstimatMaerke } from "../EstimatMaerke";
 import { StandardmaalMaerke } from "../StandardmaalMaerke";
-import { erStandardMaal, type ResolvedTargets } from "@/lib/kpiMaal";
+import { erStandardMaal, PEJLEMAERKE_ORD, type ResolvedTargets } from "@/lib/kpiMaal";
 import { bygNoegletalChip, maaSpoergeRaadgiver, spoergRaadgiverRejse } from "@/lib/noegletalChip";
 
 /** Nøgletal (/noegletal → /kpis ved GO) — FULD PARITET + trend/AI
@@ -631,11 +631,13 @@ export const NoegletalView = () => {
           <section id="goals" className="mt-8 scroll-mt-24">
             <HbCard className="p-6">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">Dine mål</p>
+                {/* SKIVE 3 (2/10-2026, Jonas 1/10 punkt 3): KPI-målene hedder PEJLEMÆRKER i al tekst på /kpis —
+                    «mål» er Dine mål (/milestones), og Score's målpoint læses dér. Ordene: lib/kpiMaal.PEJLEMAERKE_ORD. */}
+                <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">{PEJLEMAERKE_ORD.eyebrow}</p>
                 <div className="flex items-baseline gap-4">
                   {avgProgress != null && (
                     <p className="text-sm text-hb-ink-soft">
-                      Samlet målopfyldelse:{" "}
+                      {PEJLEMAERKE_ORD.samletOpfyldelse}{" "}
                       <span className="font-editorial text-lg font-medium text-hb-ink">{Math.round(avgProgress)} %</span>
                     </p>
                   )}
@@ -648,12 +650,12 @@ export const NoegletalView = () => {
                     onClick={() => (showAdvanced ? setShowAdvanced(false) : openAdvanced())}
                     className="text-sm text-hb-rust underline-offset-4 hover:underline"
                   >
-                    {showAdvanced ? "Skjul" : aftalte.length === 0 ? "Sæt mål" : "Ret mål"}
+                    {showAdvanced ? PEJLEMAERKE_ORD.skjul : aftalte.length === 0 ? PEJLEMAERKE_ORD.saet : PEJLEMAERKE_ORD.ret}
                   </button>
                 </div>
               </div>
               {withTargets.length === 0 ? (
-                <p className="mt-3 text-sm text-hb-ink-soft">Ingen mål sat endnu.</p>
+                <p className="mt-3 text-sm text-hb-ink-soft">{PEJLEMAERKE_ORD.ingen} {PEJLEMAERKE_ORD.dineMaalHenvisning}</p>
               ) : (
                 <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {heroEntries.map(({ def, actual, target, tone }) => (
@@ -667,7 +669,7 @@ export const NoegletalView = () => {
                           </span>
                           {tone.state !== "no_target" && (
                             <span className={cn("ml-1.5", tone.tone === "quiet" ? "text-hb-ink-soft" : "text-hb-rust")}>
-                              mål {target.label}
+                              {PEJLEMAERKE_ORD.foranTal} {target.label}
                             </span>
                           )}
                           {/* Standardmål mærkes (Jonas 7/9) — samme form og
@@ -959,7 +961,7 @@ export const NoegletalView = () => {
                         ingen linje (samme regel som målene, #832). */}
                     {(harMaal || benchLabel || harMoM) && (
                       <p className="mt-0.5 text-xs">
-                        {harMaal && <span className={toneCls}>{`mål ${metric.target}`}</span>}
+                        {harMaal && <span className={toneCls}>{`${PEJLEMAERKE_ORD.foranTal} ${metric.target}`}</span>}
                         {harMaal && metric.maalKilde === "standard" && <StandardmaalMaerke kompakt className="ml-1" />}
                         {benchLabel && (
                           <span className="text-hb-ink-soft">
@@ -1178,7 +1180,7 @@ export const NoegletalView = () => {
           forwarder ikke ref). ── */}
       {showAdvanced && editingReady && (
         <div ref={advancedRef} className="scroll-mt-24">
-        <HbSection eyebrow="Mål og benchmarks" className="mt-10">
+        <HbSection eyebrow={PEJLEMAERKE_ORD.panelEyebrow} className="mt-10">
           <HbCard className="p-6">
             <HbField
               label="Brancheskabelon"
@@ -1215,11 +1217,11 @@ export const NoegletalView = () => {
                     : undefined;
                 // Feltet er forudfyldt med standardmålet når intet er aftalt —
                 // sig det, så rådgiveren ikke tror tallet er virksomhedens.
-                const standardHelp = erStandardMaal(getTarget(def.key)) ? "standardmål — ikke aftalt endnu" : undefined;
+                const standardHelp = erStandardMaal(getTarget(def.key)) ? PEJLEMAERKE_ORD.standardHelp : undefined;
                 const benchHelp = [standardHelp, brancheHelp].filter(Boolean).join(" · ") || undefined;
                 return (
                 <div key={def.key} className="grid gap-3 sm:grid-cols-2">
-                  <HbField label={`${def.label} · mål`} htmlFor={`target-${def.key}`} help={benchHelp}>
+                  <HbField label={`${def.label} ${PEJLEMAERKE_ORD.feltSuffiks}`} htmlFor={`target-${def.key}`} help={benchHelp}>
                     <div className="flex gap-2">
                       <HbInput
                         id={`target-${def.key}`}
@@ -1236,7 +1238,7 @@ export const NoegletalView = () => {
                           setEditValues((prev) => ({ ...prev, [def.key]: { ...prev[def.key], label: e.target.value } }))
                         }
                         placeholder="Visningslabel"
-                        aria-label={`${def.label} mål-label`}
+                        aria-label={`${def.label} ${PEJLEMAERKE_ORD.feltLabelAria}`}
                         className="text-sm"
                       />
                     </div>
@@ -1266,7 +1268,7 @@ export const NoegletalView = () => {
 
             <div className="mt-6 flex items-center gap-4 border-t border-hb-line pt-4">
               <HbButton onClick={() => void saveAdvanced()} disabled={saving} className="h-9 px-5 text-sm">
-                {saving ? "Gemmer…" : "Gem mål og benchmarks"}
+                {saving ? "Gemmer…" : PEJLEMAERKE_ORD.gem}
               </HbButton>
               <p className="text-xs text-hb-ink-soft">
                 {saveError ? <span className="text-hb-rust">{saveError}</span> : savedNote}

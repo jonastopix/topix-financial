@@ -7,6 +7,7 @@ import {
   MAAL_FOKUS_MAAL_CTA, MAAL_FOKUS_SKRIDT_CTA, MAAL_FOKUS_STI, MAAL_FOKUS_TILFOEJ_CTA,
   type MaalFokusMaal, type MaalFokusSkridt,
 } from "@/lib/hjemmebane/maalFokus";
+import { BEKRAEFT_ORD, KVARTAL_ORD, type VentendeKvartalstjek } from "@/lib/hjemmebane/maalBekraeft";
 
 /** FOKUS-MOTOREN (forside PR 1, hb-forside-recon §D/§G): ÉN samlet,
     testbar prioriteringsdom for forsidens lag 1 — nu som PRIORITERET
@@ -54,6 +55,8 @@ import {
           (forfaldent eller frist inden for 7 danske dage; rådets fund 6,
           1/10). (Fra 16/9 til 1/10 var slottet UDGÅET — målet stod kun i
           «Din plan» længere nede.)
+          (e2) kvartalstjekket og (e3) «N mål venter på jeres ja» (skive 3)
+          deler målets plads — under hastende (f)-skridt, ellers før (f).
       (f) åbne company_actions (kalderens prioritetsorden)
       (g) pulse-nudge                  (h) løftestang uden milestone
       (i) tom netværksprofil (ask_me_about mangler) — LAVEST: en tom
@@ -164,6 +167,16 @@ export interface FocusInputs extends NextStepInputs {
       en af de to hentninger fejlede — et halvt billede må ikke give et
       forkert «tilføj det første skridt»). */
   maalPlan?: { maal: readonly MaalFokusMaal[]; skridt: readonly MaalFokusSkridt[] } | null;
+  /** Skive 3 (2/10-2026, Jonas 1/10: kvartalstjekket sker hos «medlemmet selv» — og som fokuspunkt
+      på forsiden UNDER hastende skridt): de ventende kvartalstjek, dømt af maalBekraeft.
+      ventendeKvartalstjekAlle (ren, tiden = `now`). Kun det FØRSTE (ældste forfaldne) bliver et punkt —
+      ét kort, aldrig en liste. Valgfri: udeladt/null/tom = intet punkt (også når tabellen ikke findes). */
+  kvartalstjek?: readonly VentendeKvartalstjek[] | null;
+  /** Skive 3 (runde 2, fund 5): antal AKTIVE mål, der venter på medlemmets ja (bekraeftet_at null —
+      maalBekraeft.delBekraeftelser: forslag + gamle). ÉT punkt «N mål venter på jeres ja» → Dine mål,
+      på samme plads som kvartalstjekket (under hastende skridt, ellers før (f)), efter det. Valgfri:
+      udeladt/null/0 = intet punkt (også før migrationen, hvor kolonnen er ulæst). */
+  ubekraeftedeMaal?: number | null;
 }
 
 export type FocusKind =
@@ -174,6 +187,8 @@ export type FocusKind =
   | "unread-agent"
   | "weekly-focus"
   | "maal"
+  | "kvartalstjek"
+  | "maal-venter"
   | "company-action"
   | "pulse"
   | "unlinked-lever"
@@ -538,6 +553,46 @@ export function deriveFocus(inputs: FocusInputs): FocusItem[] {
   if (ventendeMaalItem) {
     if (sidsteHastende >= 0) items.splice(sidsteHastende + 1, 0, { ...ventendeMaalItem, priority: 6 });
     else items.splice(fStart, 0, ventendeMaalItem);
+  }
+  // (e2) KVARTALSTJEKKET (skive 3, 2/10-2026): ét punkt for det ældste
+  // forfaldne tjek — SAMME plads som (2)/(3): under det sidste hastende
+  // (f)-skridt (så en aftale, der forfalder, ikke skubbes ned af et tjek),
+  // ellers før (f); altid EFTER målets eget punkt, når det står dér.
+  const tjek = inputs.kvartalstjek?.[0] ?? null;
+  if (tjek) {
+    const punkt: FocusItem = {
+      key: `kvartalstjek:${tjek.maalId}:${tjek.kvartal}`,
+      kind: "kvartalstjek",
+      priority: 5,
+      title: KVARTAL_ORD.fokusTitel(tjek.maalTitel, tjek.maaned),
+      description: KVARTAL_ORD.fokusTekst,
+      ctaLabel: KVARTAL_ORD.fokusCta,
+      ctaHref: KVARTAL_ORD.fokusSti,
+      sourceId: tjek.maalId,
+    };
+    const efterHastende = sidsteHastende >= 0 ? sidsteHastende + 1 + (ventendeMaalItem ? 1 : 0) : -1;
+    if (efterHastende >= 0) items.splice(efterHastende, 0, { ...punkt, priority: 6 });
+    else items.splice(fStart + (ventendeMaalItem ? 1 : 0), 0, punkt);
+  }
+  // (e3) MÅL, DER VENTER PÅ JERES JA (skive 3, runde 2 fund 5): ét punkt
+  // «N mål venter på jeres ja» → Dine mål, når der er ubekræftede aktive mål.
+  // SAMME plads som (2)/(3) og kvartalstjekket — under det sidste hastende
+  // (f)-skridt, ellers før (f) — og EFTER målets punkt og kvartalstjekket:
+  // et svar på et forslag haster mindre end en aftale, der forfalder.
+  const venter = inputs.ubekraeftedeMaal ?? 0;
+  if (venter > 0) {
+    const punkt: FocusItem = {
+      key: "maal-venter",
+      kind: "maal-venter",
+      priority: 5,
+      title: BEKRAEFT_ORD.fokusTitel(venter),
+      description: BEKRAEFT_ORD.fokusTekst,
+      ctaLabel: BEKRAEFT_ORD.fokusCta,
+      ctaHref: BEKRAEFT_ORD.fokusSti,
+    };
+    const forrest = (ventendeMaalItem ? 1 : 0) + (tjek ? 1 : 0);
+    if (sidsteHastende >= 0) items.splice(sidsteHastende + 1 + forrest, 0, { ...punkt, priority: 6 });
+    else items.splice(fStart + forrest, 0, punkt);
   }
 
   // (g) Pulse-nudgen — GATED bag committed rapport (ActionCenter:166-176:
