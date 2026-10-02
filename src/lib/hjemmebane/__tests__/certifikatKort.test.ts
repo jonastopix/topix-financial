@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { certifikatDom, type CertifikatInput } from "@/lib/certifikat/dom";
-import { CERTIFIKAT_KORT, certifikatKort, laastLinje, omDage } from "@/lib/hjemmebane/certifikatKort";
+import { CERTIFIKAT_KORT, certifikatKort, certifikatLinje, certifikatTilScore, laastLinje, omDage } from "@/lib/hjemmebane/certifikatKort";
 
 // Kortet læser HUSETS dom — tiden gives ind til dommen (certifikatDom(input, nu)).
 const medlem = (kontraktStart: string | null, over: Partial<CertifikatInput> = {}): CertifikatInput => ({
@@ -91,5 +91,30 @@ describe("certifikatKort — intet kort (fail-closed)", () => {
     const dom = certifikatDom(medlem("2025-10-22"), nu);
     if (dom.synlig !== true) throw new Error("forventede synlig");
     expect(certifikatKort({ loading: false, fejl: null, dom: { synlig: true, status: { ...dom.status, daysUntilUnlock: 0 } } })).toBeNull();
+  });
+});
+
+describe("certifikatLinje — Score-kortets ene linje på forsiden (docs/forside-v3.md §3)", () => {
+  it("låst: «om N dage», «om 1 dag», «i dag»", () => {
+    expect(certifikatLinje({ dageTil: 13 })).toEqual({ tilstand: "laast", tekst: "Certifikatet åbner om 13 dage" });
+    expect(certifikatLinje({ dageTil: 1 })).toEqual({ tilstand: "laast", tekst: "Certifikatet åbner om 1 dag" });
+    expect(certifikatLinje({ dageTil: 0 })).toEqual({ tilstand: "laast", tekst: "Certifikatet åbner i dag" });
+  });
+  it("klar: «Dit certifikat er klar» med certifikatsidens sti", () => {
+    expect(certifikatLinje({ klar: true })).toEqual({ tilstand: "klar", tekst: "Dit certifikat er klar", sti: CERTIFIKAT_KORT.sti });
+    expect(CERTIFIKAT_KORT.sti).toBe("/certifikat");
+  });
+  it("fail-closed: null, udeladt, negativt eller ikke-heltal → ingen linje", () => {
+    expect(certifikatLinje(null)).toBeNull();
+    expect(certifikatLinje(undefined)).toBeNull();
+    expect(certifikatLinje({ dageTil: -1 })).toBeNull();
+    expect(certifikatLinje({ dageTil: 1.5 })).toBeNull();
+    expect(certifikatLinje({ dageTil: Number.NaN })).toBeNull();
+  });
+  it("husets dom hele vejen: låst 2/10 → 13 dage; åbent fra 15/10 → klar; skjult → ingen linje", () => {
+    expect(certifikatLinje(certifikatTilScore(kort(medlem("2025-10-22"), new Date("2026-10-02T10:00:00Z"))))).toEqual({ tilstand: "laast", tekst: "Certifikatet åbner om 13 dage" });
+    expect(certifikatLinje(certifikatTilScore(kort(medlem("2025-10-22"), new Date("2026-10-15T10:00:00Z"))))?.tilstand).toBe("klar");
+    expect(certifikatLinje(certifikatTilScore(kort(medlem("2025-10-22", { isAdvisor: true }), new Date("2026-10-02T10:00:00Z"))))).toBeNull();
+    expect(certifikatTilScore(null)).toBeNull();
   });
 });

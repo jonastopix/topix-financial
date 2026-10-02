@@ -128,7 +128,13 @@ export function pillenTraekkerSig(
   medlemSiden: string | null = null,
   nu: Date = new Date(),
 ): boolean {
-  return active === "boardroom" && tjeklistenStyrerForsiden(tjekliste, medlemSiden, nu);
+  // FORSIDE V3 (2/10-2026 aften, docs/forside-v3.md §1): «Det vigtigste lige nu» bærer listen for ALLE med en
+  // ufærdig liste — enten som det primære punkt (nye, tjeklistenStyrerForsiden) eller som linjen «Kom godt i
+  // gang · N af M — næste: …» (erfarne). Pillen trækker sig derfor på forsiden, så længe listen ikke er færdig;
+  // «Se listen» folder boksen ud (TJEKLISTE_HASH). medlemSiden/nu bevares i signaturen for kalderne.
+  void medlemSiden;
+  void nu;
+  return active === "boardroom" && Boolean(tjekliste) && !tjekliste!.faerdig;
 }
 
 /**
@@ -196,7 +202,7 @@ export const VELKOMST_INDLEDNING = "Her er en kort gennemgang af, hvordan du få
 
 export function velkomstTekst(pilleTraekkerSig: boolean): string {
   const hvor = pilleTraekkerSig
-    ? "Tjeklisten står under «Dit næste skridt» her på forsiden og følger med dig, indtil alt er på plads."
+    ? "Tjeklisten står øverst her på forsiden under «Det vigtigste lige nu» og følger med dig, indtil alt er på plads."
     : "Tjeklisten ligger nederst på skærmen og følger med dig, indtil alt er på plads.";
   return `${VELKOMST_INDLEDNING} ${hvor}`;
 }

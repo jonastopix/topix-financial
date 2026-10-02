@@ -205,6 +205,9 @@ export interface FocusItem {
   ctaLabel: string;
   ctaHref: string;
   sourceId?: string;
+  /** «YYYY-MM» — kun rapport-punkterne (a)/(b): måneden, punktet gælder. Forsidens «Det vigtigste lige nu»
+      siger fristen og streaken ud fra den (lib/hjemmebane/vigtigst.rapportFristTekst, forside v3 2/10). */
+  periodKey?: string;
 }
 
 export interface NextStep {
@@ -309,6 +312,7 @@ function rapportPunkt(
       key: "missing-report",
       kind: "missing-report",
       priority: 1,
+      periodKey: m.key,
       title: `Upload dine ${m.navn}-tal`,
       description: `Så er ${m.navn} ${m.aar} med, og din rådgiver kan se fremad med dig.`,
       ctaLabel: "Upload tallene",
@@ -320,6 +324,7 @@ function rapportPunkt(
       key: "pending-approval",
       kind: "pending-approval",
       priority: 2,
+      periodKey: m.key,
       title: `Godkend dine ${m.navn}-tal`,
       description: `Tallene for ${m.navn} ${m.aar} er uploadet, men ikke godkendt endnu — godkend dem, så de kommer i drift.`,
       ctaLabel: "Godkend tallene",

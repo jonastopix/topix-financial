@@ -75,11 +75,9 @@ describe("forloeb.guard — én dom, to flader", () => {
     expect(forloeb).toContain('.some((entry) => erSporetVideo(entry.item) && entry.state !== "untouched")');
   });
 
-  it("3. BoardroomView har ikke «Eller fortsæt dit forløb» som fast streng — linjen rendrer linje.tekst og linje.sti", () => {
+  it("3. BoardroomView har ikke «Eller fortsæt dit forløb» som fast streng — linjen bærer forloebsLinje.tekst og .sti (forside v3: én af linjerne under «Det vigtigste lige nu»)", () => {
     expect(harFastFortsaetTekst(boardroom)).toBe(false);
-    expect(boardroom).toContain("{!loading && linje && (");
-    expect(boardroom).toContain("to={linje.sti}");
-    expect(boardroom).toContain("{linje.tekst}");
+    expect(boardroom).toContain('...(forloebsLinje ? [{ key: "forloeb", tekst: forloebsLinje.tekst, til: "Se", href: forloebsLinje.sti }] : []),');
     expect(boardroom).not.toContain("nextEntry");
   });
 

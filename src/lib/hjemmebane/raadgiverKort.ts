@@ -26,6 +26,8 @@
 import { renTekst } from "@/lib/hjemmebane/richtext";
 import { chatAfsendelse, tekstTilContent } from "@/lib/chatDokument";
 import { MAX_MESSAGE_LENGTH } from "@/lib/chatShared";
+import { kortDato } from "@/lib/hjemmebane/forsideDato";
+import { kbhDato } from "@/lib/hverdage";
 
 export const TIDSZONE = "Europe/Copenhagen";
 /** Uddragets loft i tegn («…» medregnet). */
@@ -42,7 +44,9 @@ export const RAADGIVER_KORT = {
   ukendtAfsender: "Rådgiver",
   foersteBesked: "Skriv din første besked til dine rådgivere",
   ingenSamtale: "Din samtale med dine rådgivere er ikke klar endnu. Åbn chatten for at se den.",
-  hentefejl: "Din seneste besked kunne ikke hentes.",
+  hentefejl: "Rådgivernes seneste besked kunne ikke hentes.",
+  /** Medlemmet har skrevet, ingen rådgiver har svaret endnu (forside v3). */
+  venterPaaSvar: "Din besked er sendt — svaret kommer her og i chatten.",
   sendefejl: "Beskeden blev ikke sendt. Prøv igen.",
   udloebet: "Dit medlemskab er udløbet — beskeder kan ikke sendes.",
   forLang: `Beskeden er for lang (højst ${MAX_MESSAGE_LENGTH} tegn).`,
@@ -156,4 +160,62 @@ export function kortetsContent(tekst: string): string | null {
   const t = tekst.trim();
   if (!t || t.length > MAX_MESSAGE_LENGTH) return null;
   return chatAfsendelse(t, `<p>${tekstTilContent(t)}</p>`, null).content;
+}
+
+// ── Forside v3 (docs/forside-v3.md §5, 2/10-2026 aften) ────────────────────
+/**
+ * Kortet viser den seneste besked FRA EN RÅDGIVER — aldrig medlemmets egen (mockup v3: «Den seneste besked
+ * FRA EN RÅDGIVER (aldrig medlemmets egen)»). Rådgiverne er den SYNLIGE rådgiverliste
+ * (hentSynligeRaadgiverProfiler — tjenestekontoen står aldrig der); en afsender, der ikke er på listen, er
+ * ikke en rådgiver. FAIL-CLOSED: uden liste vælges ingen besked (kalderen siger fejlen).
+ */
+export interface RaadgiverProfil {
+  user_id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+}
+
+export interface KortBesked {
+  id: string;
+  sender_id: string;
+  content: string | null;
+  created_at: string;
+  context_meta?: unknown;
+}
+
+/** Den nyeste besked (beskederne kommer nyeste først) fra en på rådgiverlisten — ellers null. */
+export function senesteFraRaadgiver<B extends KortBesked>(beskeder: readonly B[], raadgivere: readonly RaadgiverProfil[]): B | null {
+  const ids = new Set(raadgivere.map((r) => r.user_id));
+  return beskeder.find((b) => ids.has(b.sender_id)) ?? null;
+}
+
+/** Afsenderens fornavn fra rådgiverlisten («Jonas»); ukendt → «Rådgiver». */
+export function raadgiverFornavn(senderId: string, raadgivere: readonly RaadgiverProfil[]): string {
+  const navn = raadgivere.find((r) => r.user_id === senderId)?.full_name?.trim();
+  return navn ? navn.split(/\s+/)[0]! : RAADGIVER_KORT.ukendtAfsender;
+}
+
+/**
+ * Beskedens linje i kortet. En video (context_meta.video.guid — laesChatVideo, ét sted) og en besked uden
+ * læsbar tekst siges i kursiv som det, der skete — aldrig «🎥 Video» eller en tom linje.
+ */
+export const SENDTE_EN_VIDEO = "Sendte en video";
+export const SENDTE_EN_FIL = "Sendte en vedhæftning";
+export function beskedLinje(b: Pick<KortBesked, "content" | "context_meta">, erVideo: (contextMeta: unknown) => boolean): { tekst: string; kursiv: boolean } {
+  if (erVideo(b.context_meta)) return { tekst: SENDTE_EN_VIDEO, kursiv: true };
+  const tekst = beskedForhaandsvisning(b.content);
+  return tekst ? { tekst, kursiv: false } : { tekst: SENDTE_EN_FIL, kursiv: true };
+}
+
+/** Kvitteringen efter en afsendelse fra kortet (beskeden står i chatten — kortet viser kun rådgivernes). */
+export function sendtKvittering(navne: readonly (string | null | undefined)[]): string {
+  return `Sendt. ${raadgiverAdresse(navne)} svarer i chatten.`;
+}
+
+/** Beskedens tid i forsidens ene datoformat: «tirs. 29. sep. kl. 19.38» (kortDato + dansk klokke). Ugyldig → "". */
+export function beskedTid(iso: string | null | undefined, nu: Date): string {
+  if (!iso) return "";
+  const t = new Date(iso);
+  if (Number.isNaN(t.getTime())) return "";
+  return `${kortDato(kbhDato(t), nu)} kl. ${danskKlokke(t)}`;
 }

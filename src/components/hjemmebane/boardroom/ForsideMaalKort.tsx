@@ -4,8 +4,7 @@ import { cn } from "@/lib/utils";
 import type { MaalKort as MaalKortDom } from "@/lib/hjemmebane/maalTal";
 import { bane, chipTone, KORT_ORD, skridtFremdrift, stregTekst, talUndertekst } from "@/lib/hjemmebane/dineMaalFlade";
 import { FORSIDE_MAAL_ORD } from "@/lib/hjemmebane/forsideMaal";
-import { HbCard } from "../HbCard";
-import { HbButton } from "../HbButton";
+import { fristKort } from "@/lib/hjemmebane/forsideDato";
 import { Chip } from "../milestones/MaalKort";
 
 /**
@@ -37,6 +36,8 @@ type Props = {
   fristForfalden: boolean;
   /** Guiden «Gør målet skarpt» for dette mål (forsideMaal.skarptSti). */
   skarptHref: string;
+  /** Målets frist («YYYY-MM-DD») — FORSIDE V3: fristen står i forsidens ene datoformat (fristKort). */
+  fristDato?: string | null;
   children: React.ReactNode;
 };
 
@@ -46,7 +47,7 @@ const SkridtBar = ({ pct, stille = false }: { pct: number; stille?: boolean }) =
   </div>
 );
 
-const Venstre = ({ kort, titel, fremdrift, fristTekst, fristForfalden, skarptHref }: Omit<Props, "children">) => {
+const Venstre = ({ kort, titel, fremdrift, fristTekst, fristForfalden, skarptHref, fristDato = null }: Omit<Props, "children">) => {
   if (!kort) {
     return (
       <div data-forside-maal-venstre="uden-motor">
@@ -57,9 +58,12 @@ const Venstre = ({ kort, titel, fremdrift, fristTekst, fristForfalden, skarptHre
       </div>
     );
   }
-  const forfalden = kort.sporet.dageTilbage !== null && kort.sporet.dageTilbage < 0;
+  // FORSIDE V3 (docs/forside-v3.md §0): fristen i forsidens ENE datoformat («frist 30. mar. 2027», «frist i
+  // dag» i rust). Uden dato: motorens ord («Ingen frist»).
+  const fk = fristDato ? fristKort(fristDato, new Date()) : null;
+  const forfalden = fk ? fk.forfalden || fk.iDag : kort.sporet.dageTilbage !== null && kort.sporet.dageTilbage < 0;
   const fristLinje = (
-    <span className={cn("text-xs", forfalden ? "font-medium text-hb-rust" : "text-hb-ink-soft")} data-maal-frist-tekst>{kort.fristTekst}</span>
+    <span className={cn("text-xs", forfalden ? "font-medium text-hb-rust" : "text-hb-ink-soft")} data-maal-frist-tekst>{fk ? fk.tekst : kort.fristTekst}</span>
   );
 
   if (kort.goerSkarpt) {
@@ -68,29 +72,27 @@ const Venstre = ({ kort, titel, fremdrift, fristTekst, fristForfalden, skarptHre
     // (aldrig en bar uden forklaring — Jonas' skærm 2/10 19:29: «2 mio. i omsætning» så næsten nået ud)
     // og gør «Sæt et tal på» til kortets ENE handling: guiden «Gør målet skarpt» for præcis dette mål.
     const sf = skridtFremdrift(kort);
+    // FORSIDE V3 (mockup v3, §4): chip + frist, serif-titlen, den STILLE bar og ÉN linje «N af M skridt gjort ·
+    // Sæt et tal på →» — handlingen er linket i linjen, ikke en boks (kortet står i en liste af mål).
     return (
       <div data-forside-maal-venstre="gammel">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <Chip tone="neutral" data-maal-chip>{FORSIDE_MAAL_ORD.udenTal}</Chip>
           {fristLinje}
         </div>
-        <h3 className="mt-3 font-editorial text-xl font-medium leading-snug text-hb-ink md:text-[22px]">{kort.titel}</h3>
+        <h3 className="mt-2 font-editorial text-lg font-medium leading-snug text-hb-ink">{kort.titel}</h3>
         {sf.alle > 0 && (
-          <div className="mt-4" data-maal-skridt-fremdrift={`${sf.gjorte}/${sf.alle}`}>
+          <div className="mt-2" data-maal-skridt-fremdrift={`${sf.gjorte}/${sf.alle}`}>
             {/* STILLE bar: skridtene, ikke målet — må ikke ligne «næsten nået» (Jonas' skærm 2/10). */}
             <SkridtBar pct={Math.round(sf.andel * 1000) / 10} stille />
-            <p className="mt-1.5 text-[11px] text-hb-ink-soft">{sf.tekst}</p>
           </div>
         )}
-        <div className="mt-4 rounded-[12px] bg-hb-sage/40 px-4 py-3" data-maal-saet-tal>
-          <p className="text-sm leading-relaxed text-hb-ink">{FORSIDE_MAAL_ORD.saetTalTekst}</p>
-          <Link to={skarptHref} className="mt-3 inline-block" data-handling="saet-tal-paa">
-            <HbButton className="h-9 gap-1.5 px-4 text-sm">
-              {FORSIDE_MAAL_ORD.saetTalPaa}
-              <ArrowRight className="h-4 w-4" aria-hidden />
-            </HbButton>
+        <p className="mt-1.5 text-xs text-hb-ink-soft" data-maal-saet-tal>
+          {sf.alle > 0 && <>{sf.tekst} · </>}
+          <Link to={skarptHref} className={cn("font-medium text-hb-evergreen underline-offset-4 hover:underline", fokus)} data-handling="saet-tal-paa">
+            {FORSIDE_MAAL_ORD.saetTalPaa} →
           </Link>
-        </div>
+        </p>
       </div>
     );
   }
@@ -138,16 +140,18 @@ const Venstre = ({ kort, titel, fremdrift, fristTekst, fristForfalden, skarptHre
   );
 };
 
+/* FORSIDE V3 (2/10-2026, docs/forside-v3.md §4 — mockup v3): målet er en RÆKKE i «Din plan»s ene kort
+   (kalderen giver kortet og listen) — venstre målet, højre mikro «Skridt» og skridtene. Mobil: stablet. */
 export const ForsideMaalKort = (p: Props) => (
-  <HbCard className="p-5 md:p-6" data-forside-maal-kort={p.kort?.id ?? "uden-motor"}>
-    <div className="grid grid-cols-1 gap-5 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] md:gap-8">
-      <Venstre kort={p.kort} titel={p.titel} fremdrift={p.fremdrift} fristTekst={p.fristTekst} fristForfalden={p.fristForfalden} skarptHref={p.skarptHref} />
-      <div className="min-w-0 border-t border-hb-line pt-4 md:border-l md:border-t-0 md:pl-8 md:pt-0" data-forside-maal-skridt>
-        <p className={mikro}>{KORT_ORD.naesteSkridt}</p>
-        {p.children}
-      </div>
+  <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] md:gap-6" data-forside-maal-kort={p.kort?.id ?? "uden-motor"}>
+    <div className="min-w-0">
+      <Venstre kort={p.kort} titel={p.titel} fremdrift={p.fremdrift} fristTekst={p.fristTekst} fristForfalden={p.fristForfalden} skarptHref={p.skarptHref} fristDato={p.fristDato} />
     </div>
-  </HbCard>
+    <div className="min-w-0" data-forside-maal-skridt>
+      <p className={mikro}>{FORSIDE_MAAL_ORD.skridt}</p>
+      <div className="mt-1">{p.children}</div>
+    </div>
+  </div>
 );
 
 /** Linjen over kortene, når der OGSÅ venter forslag eller kvartalstjek (tilstand A). */

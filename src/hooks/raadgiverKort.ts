@@ -3,15 +3,13 @@
  * (2/10-2026 eftermiddag). Ordene og tiden bor i lib/hjemmebane/raadgiverKort.ts.
  *
  * TRE LÆSNINGER, INGEN SKRIVNING, INGEN LÆSEMARKERING:
- *   1. Samtalen: medlemmets virksomhedssamtale som MemberChatPane vælger den
+ *   1. Rådgiverne: hentSynligeRaadgiverProfiler (tjenestekontoen filtreret fra
+ *      — tjenestekonto.guard) — navne, portrætter, og HVEM der er rådgiver.
+ *   2. Samtalen: medlemmets virksomhedssamtale som MemberChatPane vælger den
  *      (company-scoped, nyeste last_message_at først — panelets auto-valg).
- *   2. Den seneste menneskelige besked i den (message_type «user»).
- *   3. Afsenderens navn: get_conversation_sender_profiles (samme RPC som
- *      panelet og banneret «har lige skrevet til dig») — fail-soft: uden navn
- *      står «Rådgiver»/«Medlem».
- * Rådgivernes fornavne til pladsholderen kommer fra hentSynligeRaadgiverProfiler
- * (tjenestekontoen filtreret fra — tjenestekonto.guard) — fail-soft: «dine
- * rådgivere». assigned_advisor_id læses ALDRIG (ingen tildeling, 1/10).
+ *   3. De seneste menneskelige beskeder i den (message_type «user»); kortet
+ *      viser den nyeste fra en rådgiver (forside v3, nedenfor).
+ * assigned_advisor_id læses ALDRIG (ingen tildeling, 1/10).
  *
  * FEJL ER IKKE TOM: fejler samtale- eller beskedopslaget, KASTER queryFn, og
  * kortet siger det — en fejlet hentning må ikke ligne «Skriv din første
@@ -20,35 +18,48 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { hentSynligeRaadgiverProfiler } from "@/hooks/tjenestekonti";
-import type { AfsenderProfil } from "@/lib/hjemmebane/raadgiverKort";
+import { senesteFraRaadgiver, type KortBesked, type RaadgiverProfil } from "@/lib/hjemmebane/raadgiverKort";
 
 export const RAADGIVER_KORT_KEY = ["forside", "raadgiver-kort"] as const;
 
-export interface SenesteBesked {
-  id: string;
-  sender_id: string;
-  content: string | null;
-  created_at: string;
-}
+export type SenesteBesked = KortBesked;
 
 export interface RaadgiverKortData {
   /** null = medlemmet har ingen samtale endnu. */
   samtaleId: string | null;
-  /** null = ingen menneskelige beskeder endnu. */
+  /** Den seneste besked FRA EN RÅDGIVER (forside v3) — null = ingen endnu. */
   seneste: SenesteBesked | null;
-  profiler: AfsenderProfil[];
+  /** De synlige rådgivere (navn + portræt) — ansigterne i kortets top. */
+  raadgivere: RaadgiverProfil[];
+  /** Står der en besked fra en, der IKKE er rådgiver (medlemmet selv eller en kollega), blandt de læste? */
+  harSkrevet: boolean;
 }
 
 export function raadgiverKortKey(companyId: string | null | undefined, userId: string | null | undefined) {
   return [...RAADGIVER_KORT_KEY, companyId ?? null, userId ?? null] as const;
 }
 
+/** Så mange beskeder læses for at finde den seneste fra en rådgiver (en lang tråd fra medlemmet skubber den ned). */
+export const BESKEDER_LAEST = 50;
+
+/**
+ * FORSIDE V3 (2/10-2026 aften, docs/forside-v3.md §5): kortet viser den seneste besked FRA EN RÅDGIVER —
+ * aldrig medlemmets egen. Rådgiverne er den synlige rådgiverliste (hentSynligeRaadgiverProfiler —
+ * tjenestekontoen filtreret fra), hentet i SAMME queryFn: fejler den, KASTER hentningen (fail-closed — uden
+ * listen kan vi ikke vide, hvem der er rådgiver, og kortet siger fejlen). De seneste BESKEDER_LAEST
+ * menneskelige beskeder læses; den nyeste fra en på listen vælges (senesteFraRaadgiver, ren).
+ */
 export function useRaadgiverKort(companyId: string | null | undefined, userId: string | null | undefined, aktiv: boolean) {
   const kort = useQuery<RaadgiverKortData>({
     queryKey: raadgiverKortKey(companyId, userId),
     enabled: aktiv && !!companyId && !!userId,
     staleTime: 60_000,
     queryFn: async () => {
+      const raadgivere: RaadgiverProfil[] = (await hentSynligeRaadgiverProfiler()).map((r) => ({
+        user_id: r.user_id,
+        full_name: r.full_name ?? null,
+        avatar_url: (r as { avatar_url?: string | null }).avatar_url ?? null,
+      }));
       const samtaleRes = await supabase
         .from("conversations")
         .select("id")
@@ -58,44 +69,25 @@ export function useRaadgiverKort(companyId: string | null | undefined, userId: s
         .maybeSingle();
       if (samtaleRes.error) throw new Error(`conversations: ${samtaleRes.error.message}`);
       const samtaleId = (samtaleRes.data as { id: string } | null)?.id ?? null;
-      if (!samtaleId) return { samtaleId: null, seneste: null, profiler: [] };
+      if (!samtaleId) return { samtaleId: null, seneste: null, raadgivere, harSkrevet: false };
 
       const beskedRes = await supabase
         .from("messages")
-        .select("id, sender_id, content, created_at")
+        .select("id, sender_id, content, created_at, context_meta")
         .eq("conversation_id", samtaleId)
-        .eq("message_type", "user")
+        // «welcome» (send-welcome-message, skrevet som rådgiveren) tæller som rådgiverens besked — ellers bad
+        // kortet om «din første besked», efter Morten havde budt velkommen (CTO-rådets fund 3, 2/10).
+        .in("message_type", ["user", "welcome"])
         .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .limit(BESKEDER_LAEST);
       if (beskedRes.error) throw new Error(`messages: ${beskedRes.error.message}`);
-      const seneste = (beskedRes.data as SenesteBesked | null) ?? null;
-
-      let profiler: AfsenderProfil[] = [];
-      if (seneste && seneste.sender_id !== userId) {
-        try {
-          const { data, error } = await supabase.rpc("get_conversation_sender_profiles" as never, { _conversation_id: samtaleId } as never);
-          if (!error) profiler = (data as unknown as AfsenderProfil[] | null) ?? [];
-        } catch {
-          // Fail-soft: navnet falder tilbage (afsenderNavn).
-        }
-      }
-      return { samtaleId, seneste, profiler };
+      const beskeder = (beskedRes.data as unknown as SenesteBesked[] | null) ?? [];
+      const seneste = senesteFraRaadgiver(beskeder, raadgivere);
+      // Har medlemmet (eller en kollega) selv skrevet? Så er «Skriv din første besked» usandt (fund 3).
+      const harSkrevet = beskeder.some((b) => !raadgivere.some((r) => r.user_id === b.sender_id));
+      return { samtaleId, seneste, raadgivere, harSkrevet };
     },
   });
 
-  const raadgivere = useQuery<string[]>({
-    queryKey: [...RAADGIVER_KORT_KEY, "raadgivere"],
-    enabled: aktiv,
-    staleTime: 10 * 60_000,
-    queryFn: async () => {
-      try {
-        return (await hentSynligeRaadgiverProfiler()).map((r) => r.full_name ?? "").filter(Boolean);
-      } catch {
-        return [];
-      }
-    },
-  });
-
-  return { kort, raadgiverNavne: raadgivere.data ?? [] };
+  return { kort, raadgiverNavne: (kort.data?.raadgivere ?? []).map((r) => r.full_name ?? "").filter(Boolean) };
 }

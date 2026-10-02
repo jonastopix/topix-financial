@@ -7,9 +7,12 @@ import { resolve } from "node:path";
  * «Dit certifikat» og «Din rådgiver». Kildelæsning med selvbevis på kopier
  * (seksSteder.guard-mønstret).
  *
- *   1. RÆKKEFØLGEN: «Din plan» → «Dit certifikat» → «Din rådgiver» → «Næste i
- *      Netværket», hvert kort tegnet ÉN gang i BoardroomView; rådgiverkortet
- *      kun for medlemmet (!isAdvisor) — også gatet i komponenten.
+ *   1. RÆKKEFØLGEN (FORSIDE V3, 2/10-2026 aften — docs/forside-v3.md §0): felterne
+ *      i HTML-rækkefølge vigtigst → til-gode → tal-og-score → plan → raadgiver →
+ *      netvaerk (= prioritet = mobil = skærmlæser); rådgiverkortet ÉN gang og kun
+ *      for medlemmet (!isAdvisor) — også gatet i komponenten. Certifikatet er en
+ *      LINJE i Score-kortet (certifikatScore), ikke længere et kort på forsiden
+ *      (før v3: «Din plan» → «Dit certifikat» → «Din rådgiver» → «Næste i Netværket»).
  *   2. FORHÅNDSVISNING, INGEN LÆSEMARKERING, INGEN TILDELING: rådgiverkortet
  *      (komponent, hook, ord) kalder aldrig mark_messages_read, skriver aldrig
  *      conversation_last_seen/read_at og læser aldrig assigned_advisor_id.
@@ -39,19 +42,29 @@ const RAAD_HOOK = "src/hooks/raadgiverKort.ts";
 const SKRIVEVEJ = "src/lib/chatSkrivevej.ts";
 const PANE = "src/components/MemberChatPane.tsx";
 
-/** Dom 1. */
+/** Dom 1 (forside v3). */
+export const FELTER = ["vigtigst", "til-gode", "tal-og-score", "plan", "raadgiver", "netvaerk"] as const;
 export const raekkefoelgen = (forside: string, raadKomp: string): boolean => {
   const krop = forside.slice(forside.indexOf("export const BoardroomView = () => {"));
-  const plan = krop.lastIndexOf('id="din-plan"');
-  const cert = krop.indexOf("<ForsideCertifikatKort />");
-  const raad = krop.indexOf("<ForsideRaadgiverKort />");
-  const naeste = krop.indexOf("data-forside-naeste-netvaerk");
-  return plan > -1 && cert > plan && raad > cert && naeste > raad &&
-    (krop.match(/<ForsideCertifikatKort \/>/g) ?? []).length === 1 &&
-    (krop.match(/<ForsideRaadgiverKort \/>/g) ?? []).length === 1 &&
-    krop.includes("{companyId && !isAdvisor && <ForsideRaadgiverKort />}") &&
+  const pos = FELTER.map((f) => krop.indexOf(`data-felt="${f}"`));
+  const iOrden = pos.every((p, i) => p > -1 && (i === 0 || p > pos[i - 1]!)) && FELTER.every((f) => krop.split(`data-felt="${f}"`).length === 2);
+  return iOrden &&
+    !krop.includes("<ForsideCertifikatKort") &&
+    krop.includes("certifikat={certifikatScore}") &&
+    (krop.match(/<ForsideRaadgiverKort /g) ?? []).length === 1 &&
+    krop.includes("{companyId && !isAdvisor && (\n          <Felt kol={2} data-felt=\"raadgiver\">\n            <ForsideRaadgiverKort className=\"\" />") &&
     raadKomp.includes("const aktiv = !isAdvisor && !!companyId && !!user;") &&
     raadKomp.includes("if (!aktiv || kort.isPending) return null;");
+};
+
+/** Dom 7 (forside v3 §5): kortet viser KUN rådgivernes beskeder — rådgiverlisten er den synlige (uden
+    tjenestekonto), hentet i samme queryFn (fail-closed), og valget er den rene senesteFraRaadgiver. */
+export const kunRaadgivernes = (raadHook: string, raadOrd: string): boolean => {
+  const h = udenKommentarer(raadHook), o = udenKommentarer(raadOrd);
+  return h.includes("await hentSynligeRaadgiverProfiler()") &&
+    h.includes("const seneste = senesteFraRaadgiver(") &&
+    !h.includes("get_conversation_sender_profiles") &&
+    o.includes("return beskeder.find((b) => ids.has(b.sender_id)) ?? null;");
 };
 
 const LAESEMARKERING = /mark_messages_read|conversation_last_seen|useConversationLastSeen|read_at|assigned_advisor_id/;
@@ -102,14 +115,16 @@ describe("forsideKort.guard — «Dit certifikat» og «Din rådgiver» på fors
   const forside = laes(FORSIDE), certKomp = laes(CERT_KOMP), raadKomp = laes(RAAD_KOMP);
   const certOrd = laes(CERT_ORD), raadOrd = laes(RAAD_ORD), raadHook = laes(RAAD_HOOK), skrivevej = laes(SKRIVEVEJ), pane = laes(PANE);
 
-  it("dom 1: Din plan → Dit certifikat → Din rådgiver → Næste i Netværket; rådgiverkortet kun for medlemmet", () =>
+  it("dom 1 (v3): vigtigst → til-gode → tal-og-score → plan → raadgiver → netvaerk; certifikatet i Score; rådgiverkortet kun for medlemmet", () =>
     expect(raekkefoelgen(forside, raadKomp)).toBe(true));
+  it("dom 7 (v3): kun rådgivernes beskeder — synlig rådgiverliste, fail-closed, ren dom", () =>
+    expect(kunRaadgivernes(raadHook, raadOrd)).toBe(true));
   it("dom 2: rådgiverkortet markerer intet læst og læser aldrig assigned_advisor_id", () =>
     expect(ingenLaesemarkering(raadKomp, raadHook, raadOrd)).toBe(true));
   it("dom 3: certifikatkortet bruger husets dom — ingen egen regel", () => expect(husetsDom(certKomp, certOrd)).toBe(true));
   it("dom 4: hooks i topblokken i begge komponenter", () => {
     expect(hooksITopblokken(certKomp, "export const ForsideCertifikatKort = () => {")).toBe(true);
-    expect(hooksITopblokken(raadKomp, "export const ForsideRaadgiverKort = () => {")).toBe(true);
+    expect(hooksITopblokken(raadKomp, "export const ForsideRaadgiverKort = (")).toBe(true);
   });
   it("dom 5: én skrivevej — chatten og kortet indsætter gennem indsaetChatBesked", () =>
     expect(enSkrivevej(skrivevej, pane, raadKomp, raadHook)).toBe(true));
@@ -120,14 +135,20 @@ describe("forsideKort.guard — dommene fælder på en kopi", () => {
   const forside = laes(FORSIDE), certKomp = laes(CERT_KOMP), raadKomp = laes(RAAD_KOMP);
   const certOrd = laes(CERT_ORD), raadHook = laes(RAAD_HOOK), skrivevej = laes(SKRIVEVEJ), pane = laes(PANE);
 
-  it("1: byttet rækkefølge, et kort under Næste i Netværket, eller rådgiverkortet til rådgivere, fælder", () => {
-    const byttet = forside.replace("{companyId && <ForsideCertifikatKort />}\n      {companyId && !isAdvisor && <ForsideRaadgiverKort />}", "{companyId && !isAdvisor && <ForsideRaadgiverKort />}\n      {companyId && <ForsideCertifikatKort />}");
+  it("1: byttet rækkefølge, certifikatkortet tilbage, eller rådgiverkortet til rådgivere, fælder", () => {
+    const byttet = forside.replace('data-felt="plan"', 'data-felt="X"').replace('data-felt="netvaerk"', 'data-felt="plan"').replace('data-felt="X"', 'data-felt="netvaerk"');
     expect(byttet).not.toBe(forside);
     expect(raekkefoelgen(byttet, raadKomp)).toBe(false);
-    const nederst = forside.replace("{companyId && <ForsideCertifikatKort />}", "").replace("    </div>\n  );\n};", "      <ForsideCertifikatKort />\n    </div>\n  );\n};");
-    expect(raekkefoelgen(nederst, raadKomp)).toBe(false);
-    expect(raekkefoelgen(forside.replace("{companyId && !isAdvisor && <ForsideRaadgiverKort />}", "{companyId && <ForsideRaadgiverKort />}"), raadKomp)).toBe(false);
+    const certTilbage = forside.replace("      </Pakning>", "      </Pakning>\n      <ForsideCertifikatKort />");
+    expect(raekkefoelgen(certTilbage, raadKomp)).toBe(false);
+    expect(raekkefoelgen(forside.replace("{companyId && !isAdvisor && (\n          <Felt kol={2} data-felt=\"raadgiver\">", "{companyId && (\n          <Felt kol={2} data-felt=\"raadgiver\">"), raadKomp)).toBe(false);
     expect(raekkefoelgen(forside, raadKomp.replace("const aktiv = !isAdvisor && !!companyId && !!user;", "const aktiv = !!companyId && !!user;"))).toBe(false);
+  });
+  it("7: medlemmets egen besked eller en anden afsenderliste fælder", () => {
+    const ord = laes(RAAD_ORD);
+    expect(kunRaadgivernes(raadHook.replace("const seneste = senesteFraRaadgiver(", "const seneste = foersteBesked("), ord)).toBe(false);
+    expect(kunRaadgivernes(raadHook.replace("await hentSynligeRaadgiverProfiler()", "await hentAlleProfiler()"), ord)).toBe(false);
+    expect(kunRaadgivernes(raadHook, ord.replace("return beskeder.find((b) => ids.has(b.sender_id)) ?? null;", "return beskeder[0] ?? null;"))).toBe(false);
   });
   it("2: mark_messages_read, conversation_last_seen eller assigned_advisor_id i kortet fælder", () => {
     expect(ingenLaesemarkering(raadKomp + '\nsupabase.rpc("mark_messages_read", { p_conversation_id: x });')).toBe(false);
@@ -142,7 +163,7 @@ describe("forsideKort.guard — dommene fælder på en kopi", () => {
   it("4: et hook efter en return fælder", () => {
     const sent = raadKomp.replace("  const data = kort.data;", "  const data = kort.data;\n  const [x] = useState(0);");
     expect(sent).not.toBe(raadKomp);
-    expect(hooksITopblokken(sent, "export const ForsideRaadgiverKort = () => {")).toBe(false);
+    expect(hooksITopblokken(sent, "export const ForsideRaadgiverKort = (")).toBe(false);
   });
   it("5: en egen insert i kortet eller panelet fælder", () => {
     const egen = raadKomp.replace(
@@ -155,5 +176,5 @@ describe("forsideKort.guard — dommene fælder på en kopi", () => {
     expect(enSkrivevej(skrivevej, panel, raadKomp, raadHook)).toBe(false);
     expect(enSkrivevej(skrivevej, pane, raadKomp.replace("notifyChatMessage(ny.id);", ""), raadHook)).toBe(false);
   });
-  it("6: en hex-farve fælder", () => expect(ingenHex(raadKomp.replace('className="h-10 px-5 text-sm"', 'className="h-10 px-5 text-sm" style={{ color: "#123456" }}'))).toBe(false));
+  it("6: en hex-farve fælder", () => expect(ingenHex(raadKomp.replace('className="h-10 shrink-0 px-5 text-sm"', 'className="h-10 shrink-0 px-5 text-sm" style={{ color: "#123456" }}'))).toBe(false));
 });

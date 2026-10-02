@@ -91,3 +91,42 @@ describe("kortetsContent — som chattens sendefelt (chatAfsendelse)", () => {
     expect(kortetsContent("x".repeat(MAX_MESSAGE_LENGTH))).toBe("x".repeat(MAX_MESSAGE_LENGTH));
   });
 });
+
+import { beskedLinje, raadgiverFornavn, senesteFraRaadgiver, sendtKvittering, SENDTE_EN_FIL, SENDTE_EN_VIDEO } from "@/lib/hjemmebane/raadgiverKort";
+
+describe("forside v3 — kun rådgivernes beskeder", () => {
+  const raadgivere = [
+    { user_id: "morten", full_name: "Morten Lund", avatar_url: null },
+    { user_id: "jonas", full_name: "Jonas Hansen", avatar_url: "x.jpg" },
+  ];
+  const b = (id: string, sender: string) => ({ id, sender_id: sender, content: id, created_at: "2026-10-01T10:00:00Z" });
+  it("medlemmets egen nyeste besked springes over", () => {
+    expect(senesteFraRaadgiver([b("1", "medlem"), b("2", "jonas"), b("3", "morten")], raadgivere)?.id).toBe("2");
+  });
+  it("en afsender uden for listen (fx tjenestekontoen) er ikke en rådgiver", () => {
+    expect(senesteFraRaadgiver([b("1", "claude"), b("2", "medlem")], raadgivere)).toBeNull();
+  });
+  it("uden rådgiverliste vælges intet (fail-closed)", () => {
+    expect(senesteFraRaadgiver([b("1", "jonas")], [])).toBeNull();
+  });
+  it("fornavnet fra listen", () => {
+    expect(raadgiverFornavn("jonas", raadgivere)).toBe("Jonas");
+    expect(raadgiverFornavn("ukendt", raadgivere)).toBe("Rådgiver");
+  });
+  it("video og tom tekst siges som det, der skete", () => {
+    const video = (m: unknown) => !!(m as { video?: unknown } | null)?.video;
+    expect(beskedLinje({ content: "🎥 Video", context_meta: { video: { guid: "g" } } }, video)).toEqual({ tekst: SENDTE_EN_VIDEO, kursiv: true });
+    expect(beskedLinje({ content: "<p></p>", context_meta: null }, video)).toEqual({ tekst: SENDTE_EN_FIL, kursiv: true });
+    expect(beskedLinje({ content: "Hej Mette", context_meta: null }, video)).toEqual({ tekst: "Hej Mette", kursiv: false });
+  });
+  it("kvitteringen nævner rådgiverne", () => {
+    expect(sendtKvittering(["Morten Lund", "Jonas Hansen"])).toBe("Sendt. Morten og Jonas svarer i chatten.");
+  });
+});
+
+import { beskedTid } from "@/lib/hjemmebane/raadgiverKort";
+describe("beskedTid — forsidens ene datoformat", () => {
+  it("«tirs. 29. sep. kl. 19.38»", () => expect(beskedTid("2026-09-29T17:38:00Z", new Date("2026-10-02T12:00:00Z"))).toBe("tirs. 29. sep. kl. 19.38"));
+  it("et andet år med år", () => expect(beskedTid("2025-12-24T15:00:00Z", new Date("2026-10-02T12:00:00Z"))).toBe("24. dec. 2025 kl. 16.00"));
+  it("ugyldig → tom", () => expect(beskedTid("x", new Date())).toBe(""));
+});

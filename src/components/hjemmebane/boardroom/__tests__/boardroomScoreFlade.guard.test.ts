@@ -66,14 +66,16 @@ export const kortHooksFoerst = (kort: string): boolean => {
     tiles — data-forside-tiles; båndet er væk (seks steder), så toppens slut er
     nu «Dit næste skridt»-sektionens afslutning.) */
 export const placering = (forside: string): boolean => {
-  const top = forside.indexOf("data-forside-top");
-  const hoejre = forside.indexOf("data-forside-hoejre", top);
-  const skridt = forside.indexOf("data-forside-naeste-skridt", hoejre);
-  const score = forside.indexOf("data-forside-score");
+  // FORSIDE V3 (2/10-2026 aften, docs/forside-v3.md §3): Score står i «Sådan har I det» (felt tal-og-score)
+  // UNDER Din måned — efter «Det vigtigste lige nu», før «Din plan» — som forside-variant (kompakt), én gang.
+  const skridt = forside.indexOf("data-forside-naeste-skridt");
+  const felt = forside.indexOf('data-felt="tal-og-score"', skridt);
+  const talOgScore = forside.indexOf("<TalOgScore", felt);
+  const score = forside.indexOf("data-forside-score", talOgScore);
+  const kort = forside.indexOf("<ScoreKort", score);
   const plan = forside.indexOf('id="din-plan"');
-  return top > -1 && hoejre > top && skridt > hoejre && score > skridt && plan > score &&
-    // Kortet står ikke i toppens højre kolonne (Din måned / Dit næste skridt er urørt).
-    forside.slice(hoejre, score).indexOf("<ScoreKort") === -1 &&
+  return skridt > -1 && felt > skridt && talOgScore > felt && score > talOgScore && kort > score && plan > kort &&
+    forside.slice(kort, forside.indexOf("/>", kort)).includes('variant="forside"') &&
     (forside.match(/<ScoreKort\b/g) ?? []).length === 1;
 };
 
@@ -180,11 +182,11 @@ describe("Boardroom Score-fladen — kildeværn", () => {
     expect(kortHooksFoerst(kort.replace("  const bevaegelse = useFaarBevaegelse();\n", ""))).toBe(false);
   });
 
-  it("dom 2: sektionen står mellem toppen og «Din plan», én gang, ikke i højre kolonne", () => {
+  it("dom 2 (v3): kortet står i «Sådan har I det» under Din måned, før «Din plan», som forside-variant, én gang", () => {
     expect(placering(forside)).toBe(true);
-    // (Til 2/10 var ankeret data-forside-din-maaned — «Din måned» bor nu på /reports, seks steder skridt 2.)
     const iToppen = forside.replace("data-forside-naeste-skridt>", "data-forside-naeste-skridt><ScoreKort />");
     expect(placering(iToppen)).toBe(false);
+    expect(placering(forside.replace('variant="forside"', 'variant="fuld"'))).toBe(false);
   });
 
   it("dom 3: ingen hårdkodet handling — alt gennem loefterMitTal", () => {

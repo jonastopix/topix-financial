@@ -87,3 +87,41 @@ export function certifikatKort(i: CertifikatKortInput): CertifikatKortVisning | 
   const dato = formatDay(s.unlockDate);
   return { tilstand: "laast", titel: CERTIFIKAT_KORT.laastTitel, linje: laastLinje(s.daysUntilUnlock, dato), dage: s.daysUntilUnlock, dato };
 }
+
+// ── Linjen på forsidens Score-kort (docs/forside-v3.md §3, 2/10-2026) ─────────
+/**
+ * Score-kortets certifikat-input. `{ dageTil }` = låst med N dage til
+ * åbningsdatoen; `{ klar: true }` = området er åbent. null = ingen linje.
+ * Afledes af husets dom gennem certifikatKort → certifikatTilScore — her
+ * regnes ingen dato.
+ */
+export type CertifikatScore = { dageTil: number } | { klar: true } | null;
+
+/** Kortets visning (certifikatKort) → Score-kortets input. Ingen visning (skjult, henter, fejl) → null. */
+export function certifikatTilScore(visning: CertifikatKortVisning | null): CertifikatScore {
+  if (!visning) return null;
+  return visning.tilstand === "klar" ? { klar: true } : { dageTil: visning.dage };
+}
+
+export type CertifikatLinje =
+  | { tilstand: "laast"; tekst: string }
+  | { tilstand: "klar"; tekst: string; sti: string };
+
+/**
+ * Score-kortets ene certifikatlinje:
+ *   { dageTil: N ≥ 2 } → «Certifikatet åbner om N dage»
+ *   { dageTil: 1 }     → «Certifikatet åbner om 1 dag»
+ *   { dageTil: 0 }     → «Certifikatet åbner i dag»
+ *   { klar: true }     → «Dit certifikat er klar» (link til CERTIFIKAT_KORT.sti)
+ *   null/udeladt, et negativt tal eller et ikke-heltal → null (FAIL-CLOSED,
+ *   som certifikatKort: hellere ingen linje end en forkert dato).
+ * NB: husets dom giver i dag aldrig «låst med 0 dage» (fra og med åbningsdatoen
+ * er tilstanden «open» — certifikatKort), så «i dag» står her for fuldstændighed.
+ */
+export function certifikatLinje(c: CertifikatScore | undefined): CertifikatLinje | null {
+  if (!c) return null;
+  if ("klar" in c) return c.klar === true ? { tilstand: "klar", tekst: "Dit certifikat er klar", sti: CERTIFIKAT_KORT.sti } : null;
+  if (!Number.isInteger(c.dageTil) || c.dageTil < 0) return null;
+  if (c.dageTil === 0) return { tilstand: "laast", tekst: "Certifikatet åbner i dag" };
+  return { tilstand: "laast", tekst: `Certifikatet åbner ${omDage(c.dageTil)}` };
+}

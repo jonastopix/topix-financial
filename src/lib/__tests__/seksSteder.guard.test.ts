@@ -214,7 +214,9 @@ export const netvaerketHarFaner = (faner: string, faneHoved: string, faneDom: st
   // Community-fladen tegner ikke selv fanerne eller hovedet — skallen gør.
   !/HbNetvaerkFaner|HbNetvaerkFaneHoved|HbStedsSaetning/.test(community);
 
-/** Dom 8: forsiden, skridt 2 — «Næste i Netværket» nederst; de tre sektioner væk. */
+/** Dom 8: forsiden, skridt 2 — «Næste i Netværket» efter planen; «Kommende» og «Fra fællesskabet» væk.
+    FORSIDE V3 (2/10-2026 aften, Jonas 20:05 — «er det med vilje man ikke lige ser sine nyeste tal …»): «Din
+    måned» er TILBAGE på forsiden (forsideTop.guard dom 1 vogter den); dette værn vogter kun de to andre. */
 export const forsidenSkridt2 = (forside: string, naesteDom: string): boolean => {
   const krop = forside.slice(forside.indexOf("export const BoardroomView = () => {"));
   const plan = krop.indexOf('id="din-plan"');
@@ -222,7 +224,7 @@ export const forsidenSkridt2 = (forside: string, naesteDom: string): boolean => 
   const event = krop.indexOf("data-naeste-event=", naeste);
   const opslag = krop.indexOf("data-naeste-opslag=", event);
   return krop.length > 0 && plan > -1 && naeste > plan && event > naeste && opslag > event &&
-    !/"Din måned"|"Kommende"|"Fra fællesskabet"|data-forside-din-maaned|<DinMaaned\b|<FremhaevetOpslag\b|aktiveMedlemmer\(|"member-directory"/.test(krop) &&
+    !/"Kommende"|"Fra fællesskabet"|<FremhaevetOpslag\b|aktiveMedlemmer\(|"member-directory"/.test(krop) &&
     (krop.match(/data-forside-naeste-netvaerk/g) ?? []).length === 1 &&
     krop.includes("const naesteNetvaerk = useMemo(() => naesteINetvaerket(eventsQuery.data ?? [], communityQuery.data ?? []), [eventsQuery.data, communityQuery.data]);") &&
     krop.includes('queryFn: () => hentFeed(30),') && krop.includes("queryFn: () => listUpcomingEvents(3),") &&
@@ -237,8 +239,9 @@ export const forsidenSkridt2 = (forside: string, naesteDom: string): boolean => 
     // Rådets fund 4 (2/10): opslagsrækken kun med Netværket — fanernes dom, hooks i topblokken.
     krop.includes("const harNetvaerket = visNetvaerkFaner({ isAdvisor, viewingAsMember, membershipTier });") &&
     krop.indexOf("{harNetvaerket && (") > -1 && krop.indexOf("{harNetvaerket && (") < opslag &&
-    // Rådets fund 5 (2/10): handlingen under rækken på 375, ved siden af fra sm — begge rækker.
-    (krop.match(/className="mt-2 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-5"/g) ?? []).length === 2;
+    // Rådets fund 5 (2/10; v3-mockuppen): eventets handling på EGEN linje på 375 (flugtet med titlen), ved
+    // siden af fra sm; opslagets «Læs» står til højre i rækken (kort ord, ingen ombrydning).
+    (krop.match(/className="w-full shrink-0 pl-14 sm:w-auto sm:pl-0"/g) ?? []).length === 1;
 };
 
 describe("seksSteder.guard — skridt 1: menuen, stedsætningerne, forsiden ryddet", () => {
@@ -352,7 +355,7 @@ describe("seksSteder.guard — skridt 1: menuen, stedsætningerne, forsiden rydd
     // Ruterne er uændrede: fanernes links er stedets stier.
     for (const b of NETVAERKETS_BOERN) expect(STEDERNES_STIER[b.to], b.to).toBe("netvaerket");
   });
-  it("dom 8 (skridt 2): forsiden uden Din måned, Kommende og Fra fællesskabet — «Næste i Netværket» nederst med næste event og nyeste opslag, hver med tom tilstand, ingen ny hentning", () => {
+  it("dom 8 (skridt 2, v3): forsiden uden Kommende og Fra fællesskabet — «Næste i Netværket» efter planen med næste event og nyeste opslag, hver med tom tilstand, ingen ny hentning", () => {
     expect(forsidenSkridt2(forside, naesteDom)).toBe(true);
   });
 
@@ -400,15 +403,12 @@ describe("seksSteder.guard — skridt 1: menuen, stedsætningerne, forsiden rydd
     expect(netvaerketHarFaner(faner, faneHoved, faneDom, skal, ord, netvaerkViews, community + "\n<HbNetvaerkFaner sti=\"/community\" />")).toBe(false);
     expect(netvaerketHarFaner(faner, faneHoved, faneDom, skal, ord, { ...netvaerkViews, "/events": netvaerkViews["/events"].replace("<HbNetvaerkFaneHoved", '<h1>Events</h1><HbNetvaerkFaneHoved') }, community)).toBe(false);
   });
-  it("selvbevis 8: Din måned eller Fra fællesskabet tilbage på forsiden, kortet over planen, eller en member-directory-hentning falder", () => {
-    expect(forsidenSkridt2(forside.replace("data-forside-naeste-skridt>", 'data-forside-naeste-skridt><HbSection eyebrow="Din måned" data-forside-din-maaned />'), naesteDom)).toBe(false);
+  it("selvbevis 8: Fra fællesskabet tilbage, Netværket over planen, eller en member-directory-hentning falder", () => {
     expect(forsidenSkridt2(forside.replace("<FornyelsesBaand />", '<FornyelsesBaand /><HbSection eyebrow="Fra fællesskabet" />'), naesteDom)).toBe(false);
-    const naeste = forside.slice(forside.indexOf("{companyId && (\n        <HbSection eyebrow={NAESTE_I_NETVAERKET.eyebrow}"), forside.lastIndexOf("    </div>\n  );\n};"));
-    expect(naeste.length).toBeGreaterThan(0);
-    expect(forsidenSkridt2(forside.replace(naeste, "").replace("<FornyelsesBaand />", `<FornyelsesBaand />${naeste}`), naesteDom)).toBe(false);
+    expect(forsidenSkridt2(forside.replace("<Pakning>", "<Pakning><div data-forside-naeste-netvaerk />"), naesteDom)).toBe(false);
     expect(forsidenSkridt2(forside, naesteDom.replace('traade.filter((t) => t.status === "aktiv")', "traade"))).toBe(false);
     expect(forsidenSkridt2(forside.replace("{harNetvaerket && (", "{true && ("), naesteDom)).toBe(false);
-    expect(forsidenSkridt2(forside.replace("mt-2 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-5", "mt-2 flex items-center gap-5"), naesteDom)).toBe(false);
+    expect(forsidenSkridt2(forside.replace("w-full shrink-0 pl-14 sm:w-auto sm:pl-0", "shrink-0"), naesteDom)).toBe(false);
     expect(forsidenSkridt2(forside.replace("const naesteNetvaerk = useMemo(", 'const d = useQuery({ queryKey: ["member-directory"], queryFn: listMemberDirectory });\n  const naesteNetvaerk = useMemo('), naesteDom)).toBe(false);
   });
   it("selvbevis 5: et mærke på et andet barn, eller et toppunkt der rører Netværket, falder", () => {

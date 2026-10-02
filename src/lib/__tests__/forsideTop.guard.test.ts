@@ -45,24 +45,27 @@ function blok(kode: string, navn: string): string {
   return m === -1 ? kode.slice(fra) : kode.slice(fra, fra + 1 + m);
 }
 
-/** Dom 1 (omskrevet 2/10, igen i skridt 2): toppen uden bånd — én kolonne,
-    «Dit næste skridt» (kompakt) alene; «Din måned» er IKKE på forsiden (den
-    bor på /reports — dom 6); ingen nyhed/tiles/StoryCard i BoardroomView,
-    ingen tal-strip. */
+/** Dom 1 (FORSIDE V3, 2/10-2026 aften — docs/forside-v3.md, mockup v3 godkendt 20:41; Jonas 20:05: «er det med
+    vilje man ikke lige ser sine nyeste tal i en kolonne i toppen som på den gamle?»): felterne står i ÉN
+    pakning (Pakning/Felt — to kolonner fra xl, DOM-orden = prioritet); FØRST «Det vigtigste lige nu»
+    (VigtigstKort i data-forside-naeste-skridt), og «Din måned» er TILBAGE på forsiden i «Sådan har I det» med
+    SAMME kort og SAMME dom som /reports (DinMaaned + dinMaanedDom). Stadig ingen nyhed/tiles/StoryCard,
+    ingen tal-strip, ingen FocusCard. Var (2/10 nat–aften): én kolonne, «Dit næste skridt» alene, Din måned
+    kun på /reports. */
 export const toppenHolder = (forside: string): boolean => {
   const krop = forside.slice(forside.indexOf("export const BoardroomView = () => {"));
-  const top = forside.indexOf("data-forside-top");
-  const hoejre = forside.indexOf("data-forside-hoejre", top);
-  const skridt = forside.indexOf("data-forside-naeste-skridt", hoejre);
-  const topLinje = forside.slice(forside.lastIndexOf("\n", top), forside.indexOf("\n", top));
-  return krop.length > 0 && top > -1 && hoejre > top && skridt > hoejre &&
-    !/data-forside-din-maaned|<DinMaaned\b|dinMaanedDom\(/.test(krop) &&
-    /grid grid-cols-1/.test(topLinje) && !/md:grid-cols-12/.test(topLinje) && !/hasBand/.test(topLinje) &&
-    /<div className="min-w-0 space-y-8 md:col-span-12" data-forside-hoejre>/.test(forside) &&
+  const pakning = krop.indexOf("<Pakning>");
+  const vigtigst = krop.indexOf('data-felt="vigtigst"', pakning);
+  const skridt = krop.indexOf("data-forside-naeste-skridt", vigtigst);
+  const kort = krop.indexOf("<VigtigstKort", skridt);
+  const tal = krop.indexOf('data-felt="tal-og-score"', kort);
+  const din = krop.indexOf("<TalOgScore dinMaaned={dinMaaned} alder={talAlder}>", tal);
+  return krop.length > 0 && pakning > -1 && vigtigst > pakning && skridt > vigtigst && kort > skridt && tal > kort && din > tal &&
+    /dinMaanedDom\(dinMaanedRaekker, /.test(krop) &&
     !/data-forside-venstre|data-forside-nyheden|data-forside-tiles/.test(forside) &&
     !/<StoryCard\b|variant="main"|variant="side"|hasBand|band\.main|band\.side|redaktioneltHistory|historikOpen/.test(krop) &&
     !/"Fra os til dig"|Se tidligere|Skjul tidligere/.test(krop) &&
-    /<FocusCard\s+variant="kompakt"/.test(forside.slice(skridt)) &&
+    !/<FocusCard\b/.test(krop) &&
     !/<TalStrip/.test(forside);
 };
 
@@ -87,25 +90,40 @@ export const dinMaanedPaaRapportering = (rapportering: string, kort: string, for
     !/const DinMaaned = \(/.test(forside);
 };
 
-/** Dom 5 (PR 3, Jonas' skærm 17/9 11:28; OMSKREVET 2/10): MOBIL-RÆKKEFØLGEN
-    var tiles EFTER højre kolonne — nu er der ingen tiles. DOM-ordenen ER
-    stadig mobil-ordenen: hilsen → stedsætningen → (fornyelsen) →
-    Dit næste skridt → Score → Din plan; ingen `order-*`, ingen md:hidden-
-    dublet, og stedsætningen står under hilsenen og FØR toppen. */
+/** Dom 5 (FORSIDE V3): DOM-ordenen ER mobil-ordenen og skærmlæserens: hilsen → stedsætningen (kun de første
+    30 døgn) → (fornyelsen) → pakningen med felterne vigtigst → til-gode → tal-og-score (Score inde i) → plan
+    → raadgiver → netvaerk. Kolonnerne fra xl er EKSPLICITTE (xl:col-start) i Felt — ingen `order-*`, ingen
+    md:hidden-dublet, Score og stedsætningen hver ÉN gang. */
+export const FELT_ORDEN = ["vigtigst", "til-gode", "tal-og-score", "plan", "raadgiver", "netvaerk"];
 export const mobilRaekkefoelge = (forside: string): boolean => {
   const hilsen = forside.indexOf("<PageHeader");
   const sted = forside.indexOf('<HbStedsSaetning sti="/"', hilsen);
-  const top = forside.indexOf("data-forside-top", sted);
-  const hoejre = forside.indexOf("data-forside-hoejre", top);
-  const scoreSektion = forside.indexOf('eyebrow="Boardroom Score"', hoejre);
-  const score = forside.indexOf("data-forside-score", hoejre);
-  const slut = forside.indexOf('id="din-plan"', score);
-  const topBlok = forside.slice(top, slut === -1 ? undefined : slut);
-  return hilsen > -1 && sted > hilsen && top > sted && hoejre > top && scoreSektion > hoejre && score > scoreSektion && slut > score &&
+  const pakning = forside.indexOf("<Pakning>", sted);
+  const slut = forside.indexOf("</Pakning>", pakning);
+  const blokP = forside.slice(pakning, slut);
+  const pos = FELT_ORDEN.map((f) => blokP.indexOf(`data-felt="${f}"`));
+  const score = blokP.indexOf("data-forside-score");
+  return hilsen > -1 && sted > hilsen && pakning > sted && slut > pakning &&
+    pos.every((p, i) => p > -1 && (i === 0 || p > pos[i - 1]!)) &&
+    score > pos[2]! && score < pos[3]! &&
     (forside.match(/data-forside-score/g) ?? []).length === 1 &&
     (forside.match(/<HbStedsSaetning sti="\/"/g) ?? []).length === 1 &&
-    !/\border-\d|md:order-|\bord[e]r-(first|last|none)\b/.test(topBlok) &&
-    !/md:hidden|hidden md:block/.test(topBlok);
+    /\{visStedsSaetningHer && <HbStedsSaetning sti="\/"/.test(forside) &&
+    !/\border-\d|md:order-|\bord[e]r-(first|last|none)\b/.test(blokP) &&
+    !/md:hidden|hidden md:block/.test(blokP);
+};
+
+/** Dom 7 (FORSIDE V3, docs/forside-v3.md §0): pakningen bruger EKSPLICITTE kolonner (xl:col-start) og
+    målte rækker (--span) — aldrig `order-*` eller `display: contents` (begge bryder skærmlæserens orden). */
+export const PAKNING = "src/components/hjemmebane/boardroom/forsideV3.tsx";
+export const pakningenHolder = (v3: string): boolean => {
+  const felt = v3.slice(v3.indexOf("export const Felt = ("), v3.indexOf("export const Pakning"));
+  const pakning = v3.slice(v3.indexOf("export const Pakning"), v3.indexOf("/* ── TIL GODE"));
+  return felt.includes('kol === 1 ? "xl:col-start-1" : "xl:col-start-2"') &&
+    felt.includes("Math.ceil((el.getBoundingClientRect().height + MELLEM_PX) / RAEKKE_PX)") &&
+    felt.includes("self-start") &&
+    pakning.includes("xl:grid-flow-dense") && pakning.includes("xl:[&>div]:[grid-row-end:var(--span)]") &&
+    !/\bcontents\b|\border-\d|md:order-|xl:order-/.test(felt + pakning);
 };
 
 /** Dom 2: ingen procent i «Din måned» — kortet læses af DinMaaned.tsx (skridt 2). */
@@ -139,7 +157,7 @@ describe("forsideTop.guard — PR 2 (omskrevet 2/10): toppen, Din måned (på /r
   const kort = udenKommentarer(laes(KORT));
   const rapportering = udenKommentarer(laes(RAPPORTERING));
 
-  it("dom 1 (omskrevet 2/10, skridt 2): toppen er én kolonne uden bånd — Dit næste skridt alene, Din måned ikke på forsiden; intet StoryCard, ingen tiles, tal-strippen er væk", () => {
+  it("dom 1 (v3): pakningen — Det vigtigste først, Din måned tilbage i «Sådan har I det» (samme kort og dom som /reports); intet StoryCard, ingen tiles, ingen FocusCard, ingen tal-strip", () => {
     expect(toppenHolder(forside)).toBe(true);
   });
   it("dom 6 (skridt 2): Din måned bor øverst på /reports — samme kort, før leveringsbåndet, kun når godkendelsen er kendt, hook før return", () => {
@@ -154,18 +172,16 @@ describe("forsideTop.guard — PR 2 (omskrevet 2/10): toppen, Din måned (på /r
   it("dom 4: hovedhistorien er stående — ingen 42 %-spalte", () => {
     expect(staaende(forside)).toBe(true);
   });
-  it("dom 5 (omskrevet 2/10): mobil-rækkefølgen — hilsen → stedsætning → top → Score → Din plan; ingen order-*, ingen dublet", () => {
+  it("dom 5 (v3): mobil-rækkefølgen — hilsen → stedsætning → vigtigst → til-gode → tal-og-score (Score) → plan → raadgiver → netvaerk; ingen order-*, ingen dublet", () => {
     expect(mobilRaekkefoelge(forside)).toBe(true);
   });
 
-  it("selvbevis 1: båndet tilbage (StoryCard, to kolonner, tiles), Dit næste skridt før Din måned, en fuld FocusCard i toppen, eller tal-strippen tilbage falder", () => {
-    expect(toppenHolder(forside.replace('<div className="min-w-0 space-y-8 md:col-span-12" data-forside-hoejre>', '<div className="min-w-0 md:col-span-7" data-forside-venstre><StoryCard story={band.main} variant="main" pushSender={null} pushCoverUrl={null} onVelkomstSet={async () => {}} /></div><div className="min-w-0 space-y-8 md:col-span-12" data-forside-hoejre>'))).toBe(false);
-    expect(toppenHolder(forside.replace('className="mt-10 grid grid-cols-1 gap-8 md:mt-12 md:items-start" data-forside-top', 'className={cn("mt-10 grid grid-cols-1 gap-8 md:mt-12 md:items-start", hasBand && "md:grid-cols-12")} data-forside-top'))).toBe(false);
-    expect(toppenHolder(forside.replace("data-forside-hoejre>", "data-forside-hoejre><div data-forside-tiles />"))).toBe(false);
-    expect(toppenHolder(forside.replace('<FocusCard\n              variant="kompakt"', '<FocusCard\n              variant="fuld"'))).toBe(false);
+  it("selvbevis 1: båndet tilbage, FocusCard tilbage, Din måned væk fra forsiden, eller tal-strippen tilbage falder", () => {
+    expect(toppenHolder(forside.replace("<Pakning>", '<Pakning><div data-forside-venstre><StoryCard story={band.main} variant="main" /></div>'))).toBe(false);
+    expect(toppenHolder(forside.replace("<VigtigstKort", "<FocusCard"))).toBe(false);
+    expect(toppenHolder(forside.replace("<TalOgScore dinMaaned={dinMaaned} alder={talAlder}>", "<TalOgScoreUden>"))).toBe(false);
+    expect(toppenHolder(forside.replace("dinMaanedDom(dinMaanedRaekker, ", "egenDom(dinMaanedRaekker, "))).toBe(false);
     expect(toppenHolder(forside + "\n<TalStrip hasFacts={false} />")).toBe(false);
-    // Din måned tilbage på forsiden falder (skridt 2).
-    expect(toppenHolder(forside.replace("data-forside-naeste-skridt>", 'data-forside-naeste-skridt><HbSection eyebrow="Din måned" data-forside-din-maaned><DinMaaned dom={dinMaaned} /></HbSection>'))).toBe(false);
   });
   it("selvbevis 6: Din måned efter leveringsbåndet, uden godkendelses-gaten, med CTA, eller kortet defineret på forsiden igen, falder", () => {
     const sektion = rapportering.slice(rapportering.indexOf("{companyId && !godkendelseUkendt && ("), rapportering.indexOf("Levering {currentYearGroup.year}"));
@@ -185,12 +201,21 @@ describe("forsideTop.guard — PR 2 (omskrevet 2/10): toppen, Din måned (på /r
     expect(ingenNulPunkter(dom.replace('.filter((r) => r.basis === "measured")', '.filter((r) => r.basis === "measured" || r.basis === "estimated")'))).toBe(false);
     expect(ingenNulPunkter(dom.replace(".map((r) => ({ key: r.key, value: r[felt] as number }))", ".map((r) => ({ key: r.key, value: r[felt] ?? 0 }))"))).toBe(false);
   });
-  it("selvbevis 5: stedsætningen over hilsenen eller tegnet to gange, Score i toppen, eller en order-klasse falder", () => {
-    const sted = '<HbStedsSaetning sti="/" className="mt-4" />';
+  it("selvbevis 5: stedsætningen over hilsenen eller uden 30-døgns-gaten, felterne byttet, Score uden for sit felt, eller en order-klasse falder", () => {
+    const sted = '{visStedsSaetningHer && <HbStedsSaetning sti="/" className="mt-4" />}';
+    expect(forside.includes(sted)).toBe(true);
     expect(mobilRaekkefoelge(forside.replace(sted, "").replace("<PageHeader", `${sted}<PageHeader`))).toBe(false);
-    expect(mobilRaekkefoelge(forside.replace("<FornyelsesBaand />", `<FornyelsesBaand />${sted}`))).toBe(false);
-    expect(mobilRaekkefoelge(forside.replace("data-forside-hoejre>", "data-forside-hoejre><div data-forside-score />"))).toBe(false);
-    expect(mobilRaekkefoelge(forside.replace('"min-w-0 space-y-8 md:col-span-12" data-forside-hoejre', '"min-w-0 space-y-8 md:col-span-12 order-2" data-forside-hoejre'))).toBe(false);
+    expect(mobilRaekkefoelge(forside.replace(sted, '<HbStedsSaetning sti="/" className="mt-4" />'))).toBe(false);
+    expect(mobilRaekkefoelge(forside.replace('data-felt="plan"', 'data-felt="X"').replace('data-felt="raadgiver"', 'data-felt="plan"').replace('data-felt="X"', 'data-felt="raadgiver"'))).toBe(false);
+    expect(mobilRaekkefoelge(forside.replace("<Pakning>", "<Pakning><div data-forside-score />"))).toBe(false);
+    expect(mobilRaekkefoelge(forside.replace('<Felt kol={1} data-felt="vigtigst">', '<Felt kol={1} data-felt="vigtigst"><div className="order-2" />'))).toBe(false);
+  });
+  it("dom 7 (v3): pakningen — eksplicitte kolonner, målte rækker, ingen order-* og ingen display: contents", () => {
+    const v3 = udenKommentarer(laes(PAKNING));
+    expect(pakningenHolder(v3)).toBe(true);
+    expect(pakningenHolder(v3.replace("self-start", "self-start contents"))).toBe(false);
+    expect(pakningenHolder(v3.replace('"xl:col-start-2"', '"xl:col-start-2 xl:order-first"'))).toBe(false);
+    expect(pakningenHolder(v3.replace("self-start", ""))).toBe(false);
   });
   it("selvbevis 4: 42 %-spalten tilbage i MainStoryShell falder", () => {
     expect(staaende(forside.replace('<div className="relative aspect-video w-full">', '<div className="relative aspect-[3/2] md:aspect-auto md:w-[42%] md:shrink-0">'))).toBe(false);
