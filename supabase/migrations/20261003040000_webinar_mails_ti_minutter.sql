@@ -6,7 +6,7 @@
 -- fjorten_dage (20260928120000).
 --
 -- NY MAILART «ti_minutter» (3/10-2026, docs/webinarmotor.md §4 og §8.4 punkt 3):
--- påmindelsen lige før start («Vi begynder kl. 11.00 — venteværelset er åbent»,
+-- påmindelsen lige før start («Vi begynder kl. 11.00 — her er dit link»,
 -- 5–15 min før) — KUN for webinarmotorens tilmeldinger
 -- (ewebinar_id «P-<uuid>», kilde_system 'platform'). eWebinar sender selv sin
 -- 10-minutters-mail til sine tilmeldte; dommen (_shared/webinarMailDom.ts,

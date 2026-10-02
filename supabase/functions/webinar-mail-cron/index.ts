@@ -114,7 +114,7 @@
 // (CHECK'en webinar_mails_invitation_check er urørt); rækken kendes på «P-».
 //
 // «TI_MINUTTER» (3/10-2026, docs/webinarmotor.md §4 og §7.1): «Vi begynder
-// kl. 11.00 — venteværelset er åbent» (klokkeslættet, aldrig et antal minutter:
+// kl. 11.00 — her er dit link» (klokkeslættet, aldrig et antal minutter:
 // mailen går 5–15 min før) — KUN motorens rækker (dommens Plan.kunMotor; eWebinar sender selv
 // sin 10-minutters-mail til sine). Dommen afgør det FØR alt andet («ikke_motor»),
 // og mailVejDom kræver bagefter kilde_system = 'platform'. Vinduet er T−15 … T−5

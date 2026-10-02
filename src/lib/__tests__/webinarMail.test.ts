@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bygWebinarMail, EMNER, AFSENDER, SVAR_TIL, invitationsTekst } from "../../../supabase/functions/_shared/webinarMailTekster.ts";
+import { bygWebinarMail, EMNER, emneFor, KLOKKE_PLADS, AFSENDER, SVAR_TIL, invitationsTekst } from "../../../supabase/functions/_shared/webinarMailTekster.ts";
 import { bygFormData, beskedUrl, MAILGUN_EU_BASE, sendMailgun } from "../../../supabase/functions/_shared/mailgunAfsendelse.ts";
 import { byggAfmeldToken, laesAfmeldToken, afmeldUrl, TOKEN_FORM } from "../../../supabase/functions/_shared/webinarAfmeldToken.ts";
 import { AKTIVE_ARTER, ARTER, MED_INVITATION, type MailArt, UDGAAEDE_ARTER } from "@/lib/webinar/mailDom";
@@ -33,7 +33,10 @@ describe("bygWebinarMail — alle syv mails er hele (fem sendes; tre_dage og dag
   it("hver art har emne, HTML og tekst — og tidspunktet står i dem alle", () => {
     for (const art of ARTER) {
       const m = bygWebinarMail({ ...ARGS, art });
-      expect(m.subject, art).toBe(EMNER[art]);
+      // emneFor: EMNER ordret — for ti_minutter med klokkeslættet sat ind (3/10).
+      expect(m.subject, art).toBe(emneFor(art, "kl. 11.00"));
+      expect(m.subject, art).not.toContain(KLOKKE_PLADS);
+      if (art !== "ti_minutter") expect(m.subject, art).toBe(EMNER[art]);
       expect(m.html.startsWith("<!DOCTYPE html>"), art).toBe(true);
       // «tirsdag 13. oktober kl. 11.00» — dansk tid, fra klaviyoDato.webinarTekst.
       expect(m.html, art).toContain("tirsdag 13. oktober kl. 11.00");
@@ -176,17 +179,34 @@ describe("INGEN LØFTER OM ET LINK, DER KOMMER (Jonas 22/9 ca. 19:35)", () => {
   });
 });
 
-describe("ti_minutter — «Vi begynder kl. 11.00 — venteværelset er åbent» (3/10-2026, kun motorens tilmeldte)", () => {
+describe("ti_minutter — «Vi begynder kl. 11.00 — her er dit link» (3/10-2026, kun motorens tilmeldte)", () => {
   const MOTOR = { ...ARGS, joinLink: "https://app.theboardroom.dk/w/webinar?t=abc.def", kalenderLink: "https://app.theboardroom.dk/w/webinar/kalender?t=abc.def", invitationVedhaeftet: false };
   const m = bygWebinarMail({ ...MOTOR, art: "ti_minutter" });
 
   it("emnet, overskriften, klokkeslættet og knappen til rummet", () => {
-    expect(m.subject).toBe("Venteværelset er åbent — her er dit link");
+    expect(m.subject).toBe("Vi begynder kl. 11.00 — her er dit link");
+    expect(m.html).toContain("<title>Vi begynder kl. 11.00 — her er dit link</title>");
     expect(m.html).toContain("Vi begynder<br/>kl. 11.00");
-    expect(m.html).toContain("Vi begynder kl. 11.00 — venteværelset er åbent.");
-    expect(m.text).toContain("Vi begynder kl. 11.00 — venteværelset er åbent.");
+    expect(m.html).toContain("Vi begynder kl. 11.00.");
+    expect(m.text).toContain("Vi begynder kl. 11.00.");
     expect(m.html).toContain(`href="${MOTOR.joinLink}"`);
     expect(m.text).toContain(`Gå til webinaret: ${MOTOR.joinLink}`);
+  });
+
+  /**
+   * INGEN PÅSTAND OM LOBBYEN (3/10): om venteværelset er åbent, afhænger af
+   * sessionens lobby_min, som hverken dommen eller cronens opslag kender.
+   */
+  const LOVER_LOBBY = /venteværelse|lobby|rummet er åbent|er åbent/i;
+  it("teksten påstår ALDRIG, at venteværelset er åbent — emne, HTML og tekst", () => {
+    for (const [navn, tekst] of [["emne", m.subject], ["html", m.html], ["tekst", m.text]]) {
+      expect(tekst, navn).not.toMatch(LOVER_LOBBY);
+    }
+  });
+  it("PRØVEN VIRKER: den anden udgave (3/10) ville være fældet", () => {
+    for (const gammel of ["Venteværelset er åbent — her er dit link", "Vi begynder kl. 11.00 — venteværelset er åbent.", "VENTEVÆRELSET ER ÅBENT"]) {
+      expect(gammel, gammel).toMatch(LOVER_LOBBY);
+    }
   });
 
   /** Fælder ethvert løfte om et ANTAL minutter — mailen går 5–15 min før (dommens vindue). */
@@ -205,14 +225,17 @@ describe("ti_minutter — «Vi begynder kl. 11.00 — venteværelset er åbent»
   it("klokkeslættet er dansk tid hen over skiftet 25/10-2026 (sommertid → vintertid)", () => {
     // 24/10 kl. 11.00 dansk = 09:00Z (UTC+2); 26/10 kl. 11.00 dansk = 10:00Z (UTC+1).
     const klokke = (sessionTid: string) => bygWebinarMail({ ...MOTOR, art: "ti_minutter", sessionTid }).text;
-    expect(klokke("2026-10-24T09:00:00.000Z")).toContain("Vi begynder kl. 11.00 —");
-    expect(klokke("2026-10-26T10:00:00.000Z")).toContain("Vi begynder kl. 11.00 —");
+    expect(klokke("2026-10-24T09:00:00.000Z")).toContain("Vi begynder kl. 11.00.");
+    expect(klokke("2026-10-26T10:00:00.000Z")).toContain("Vi begynder kl. 11.00.");
     // Selve skiftedagen: 25/10 kl. 11.00 dansk er vintertid = 10:00Z; 09:00Z er kl. 10.00.
-    expect(klokke("2026-10-25T10:00:00.000Z")).toContain("Vi begynder kl. 11.00 —");
-    expect(klokke("2026-10-25T09:00:00.000Z")).toContain("Vi begynder kl. 10.00 —");
+    expect(klokke("2026-10-25T10:00:00.000Z")).toContain("Vi begynder kl. 11.00.");
+    expect(klokke("2026-10-25T09:00:00.000Z")).toContain("Vi begynder kl. 10.00.");
     // Og om natten, hvor skiftet sker (03:00 sommertid → 02:00 vintertid): 00:30Z = 02.30 sommertid, 01:30Z = 02.30 vintertid.
-    expect(klokke("2026-10-25T00:30:00.000Z")).toContain("Vi begynder kl. 2.30 —");
-    expect(klokke("2026-10-25T01:30:00.000Z")).toContain("Vi begynder kl. 2.30 —");
+    expect(klokke("2026-10-25T00:30:00.000Z")).toContain("Vi begynder kl. 2.30.");
+    expect(klokke("2026-10-25T01:30:00.000Z")).toContain("Vi begynder kl. 2.30.");
+    // Emnet bærer samme klokkeslæt — også på skiftedagen.
+    expect(bygWebinarMail({ ...MOTOR, art: "ti_minutter", sessionTid: "2026-10-25T10:00:00.000Z" }).subject).toBe("Vi begynder kl. 11.00 — her er dit link");
+    expect(bygWebinarMail({ ...MOTOR, art: "ti_minutter", sessionTid: "2026-10-24T09:00:00.000Z" }).subject).toBe("Vi begynder kl. 11.00 — her er dit link");
     expect(webinarKlokke(new Date("2026-10-25T10:00:00.000Z"))).toBe("kl. 11.00");
     // Hjælperen er webinarTekst' hale — samme format.
     for (const s of ["2026-10-24T09:00:00.000Z", "2026-10-25T10:00:00.000Z", "2026-03-29T08:30:00.000Z"]) {

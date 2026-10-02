@@ -164,7 +164,7 @@ export const PLANEN: readonly Plan[] = [
   // på T−15 eller senere, eller det næste på T−5 eller før — prøvet for alle 60
   // minutter i webinarMailDom.test.ts). For en session kl. hh:00: vinduet
   // hh−1:45 … hh−1:55 → slot :47, altså 13 min før. DERFOR siger teksten
-  // klokkeslættet («Vi begynder kl. 11.00 — venteværelset er åbent»), aldrig
+  // klokkeslættet («Vi begynder kl. 11.00 — her er dit link»), aldrig
   // «om 10 minutter» (webinarMailTekster.ts; prøvet i webinarMail.test.ts).
   // ALDRIG EFTER STARTEN: dommens `nu` er kørslens start. Seneste ja = T − 5 min.
   // Budgettet (webinarMailBudget.ts) starter et forsøg uden invitation senest
