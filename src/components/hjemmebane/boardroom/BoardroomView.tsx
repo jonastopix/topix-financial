@@ -50,6 +50,8 @@ import { HbButton } from "../HbButton";
 import { FornyelsesBaand } from "./FornyelsesBaand";
 import { ScoreKort } from "./ScoreKort";
 import { TrofaeKort } from "./TrofaeKort";
+import { ForsideCertifikatKort } from "../forside/ForsideCertifikatKort";
+import { ForsideRaadgiverKort } from "../forside/ForsideRaadgiverKort";
 import { useMedlemmetsTrofaeer } from "@/hooks/trofaeer";
 import { useBoardroomScore } from "@/hooks/useBoardroomScore";
 import { HbCard } from "../HbCard";
@@ -90,7 +92,8 @@ import { pushOverlinje } from "./pushOverlinje";
     SEKS STEDER, SKRIDT 2 (2/10-2026 — Jonas' ja til forslagets spørgsmål 2):
     forsiden handler om DIN VIRKSOMHED og din vej — hilsen → stedsætningen →
     (fornyelsen) → «Dit næste skridt» → Boardroom Score (+ trofæer) → «Din
-    plan» → «Næste i Netværket» (ét kort: næste event + nyeste opslag,
+    plan» → «Dit certifikat» → «Din rådgiver» (2/10 eftermiddag) → «Næste i
+    Netværket» (ét kort: næste event + nyeste opslag,
     lib/hjemmebane/naesteINetvaerket). «Din måned» er flyttet til /reports
     (DinMaaned.tsx), «Kommende» og «Fra fællesskabet» er taget af — de bor i
     Netværket (faner). Beskrivelsen herunder er historik (17/9–2/10).
@@ -2330,6 +2333,15 @@ export const BoardroomView = () => {
           )}
         </HbSection>
       )}
+
+      {/* ── DIT CERTIFIKAT og DIN RÅDGIVER (2/10-2026 eftermiddag, «forsidens to
+          sidste kort»): efter «Din plan», før «Næste i Netværket». Begge er
+          egne komponenter med hooks i deres egen topblok og gater selv
+          (certifikatet: husets dom — skjult/henter/fejl = intet; rådgiveren:
+          kun medlemmet selv, aldrig en rådgiver). Kun med virksomhed, som
+          Score. Værn: forsideKort.guard. ── */}
+      {companyId && <ForsideCertifikatKort />}
+      {companyId && !isAdvisor && <ForsideRaadgiverKort />}
 
       {/* ── NÆSTE I NETVÆRKET (seks steder, skridt 2, 2/10 — Jonas: «Kommende»
           og «Fra fællesskabet» forlader forsiden «med én linje tilbage»;
