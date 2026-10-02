@@ -380,3 +380,12 @@ describe("forside-varianten (docs/forside-v3.md §3 «Score kompakt»)", () => {
     expect(loefterMest(linjer, null)?.tekst).toBe(FULD.loefterMest?.tekst);
   });
 });
+
+
+describe("streakLinjer — fristen ved årsskiftet (CTO-rådet 2/10)", () => {
+  it("decembers frist i januar året efter står med år", () => {
+    const s = { laengde: 2, status: "aktiv" as const, bedste: 2, aabenMaanedGodkendt: false, naesteFrist: { key: "2026-12", tidspunkt: new Date("2027-01-20T22:59:59.999Z"), hverdageTil: 18 } };
+    expect(streakLinjer(s, new Date("2026-12-22T10:00:00Z")).frist).toBe("Næste frist: december senest 20. jan. 2027 (18 hverdage)");
+    expect(streakLinjer(s, new Date("2027-01-05T10:00:00Z")).frist).toBe("Næste frist: december senest ons. 20. jan. (18 hverdage)");
+  });
+});

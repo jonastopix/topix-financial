@@ -355,10 +355,11 @@ describe("ScoreKort variant=\"forside\" (docs/forside-v3.md §3 «Score kompakt�
     expect(container.querySelector('[data-score-certifikat="laast"]')!.textContent).toBe("Certifikatet åbner om 13 dage");
     // Jonas 2/10 23:39: linjen åbner detaljerne, hvor trofæerne står (hvilke man har, hvilke man mangler).
     const knap = container.querySelector("[data-score-trofaeer-knap]") as HTMLButtonElement;
-    expect(knap.getAttribute("aria-expanded")).toBe("false");
+    // Knappen kan kun ÅBNE (CTO-rådet 2/10) — derfor aria-controls uden aria-expanded.
+    expect(knap.hasAttribute("aria-expanded")).toBe(false);
+    expect(knap.getAttribute("aria-controls")).toBeTruthy();
     expect(container.querySelector("[data-trofae]")).toBeNull();
     fireEvent.click(knap);
-    expect(knap.getAttribute("aria-expanded")).toBe("true");
     expect(container.querySelectorAll("[data-trofae]").length).toBeGreaterThan(0);
   });
 
@@ -384,7 +385,7 @@ describe("ScoreKort variant=\"forside\" (docs/forside-v3.md §3 «Score kompakt�
     expect(container.querySelector("[data-score-loefter-mest]")!.textContent).toContain("Løfter mest");
     unmount();
     // Forsidens primære handling peger på /reports, og /reports står ØVERST: den næste vises.
-    const rapport = { soejle: "disciplin" as const, tekst: "Upload og godkend september senest tirs. 20. okt..", gevinst: 50, sti: "/reports" as const };
+    const rapport = { soejle: "disciplin" as const, tekst: "Upload og godkend september senest tirs. 20. okt.", gevinst: 50, sti: "/reports" as const };
     const maal = { soejle: "vaekst" as const, tekst: "Fem procent mere omsætning end sammenligningen.", gevinst: 30, sti: null };
     const anden = forside({ dom: { ...dom, handlinger: [rapport, maal], loefterMest: rapport }, undgaaSti: "/reports" });
     const vist = anden.container.querySelector("[data-score-loefter-mest]")!;

@@ -210,8 +210,7 @@ describe("Boardroom Score-fladen — kildeværn", () => {
     expect(kompaktLoefter(kort)).toBe(true);
     expect(kompaktLoefter(kort.replace("<LoefterRaekke h={oeverst} />", "{loefter.map((h) => <LoefterRaekke h={h} />)}"))).toBe(false);
     expect(kompaktLoefter(kort.replace("useState(false)", "useState(true)"))).toBe(false);
-    // replaceAll: forsidens trofælinje (2/10) åbner SAMME fold og bærer også aria-expanded={aaben}.
-    expect(kompaktLoefter(kort.split("aria-expanded={aaben}").join(""))).toBe(false);
+    expect(kompaktLoefter(kort.replace("aria-expanded={aaben}", ""))).toBe(false);
   });
 
   it("dom 8: skærmlæserteksten står inde i ringens relative boks", () => {

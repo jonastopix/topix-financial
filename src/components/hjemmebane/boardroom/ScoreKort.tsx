@@ -571,7 +571,6 @@ function ScoreKortForside({ dom, loefter: linjer, vist, bevaegelse, aaben, onSki
                   maal?.scrollIntoView({ block: "start", behavior: roligt ? "auto" : "smooth" });
                 });
               }}
-              aria-expanded={aaben}
               aria-controls={detaljerId}
               className={cn("inline-flex min-h-6 items-center gap-1 text-left underline-offset-4 hover:text-hb-ink hover:underline", fokus)}
               data-score-trofaeer-knap
