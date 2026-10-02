@@ -380,8 +380,17 @@ describe("deriveFocus — hver kilde for sig", () => {
       }),
     );
     expect(items).toHaveLength(1);
-    expect(items[0]).toMatchObject({ kind: "unlinked-lever", priority: 8, ctaHref: "/handouts" });
+    // Handouts i Akademiet (1/10 nat): uden sti → Akademiet; aldrig /handouts.
+    expect(items[0]).toMatchObject({ kind: "unlinked-lever", priority: 8, ctaLabel: "Åbn øvelsen", ctaHref: "/akademiet" });
     expect(items[0].description).toContain('"Flere leads fra LinkedIn" (Salg)');
+  });
+
+  it("(h) med sti fra kalderen fører punktet til lektionen, der bærer øvelsen", () => {
+    const items = deriveFocus(
+      base({ unlinkedLevers: [{ lever: "Flere leads fra LinkedIn", moduleTitle: "Salg", sti: "/akademiet/classroom/salg-1" }] }),
+    );
+    expect(items[0]).toMatchObject({ kind: "unlinked-lever", ctaHref: "/akademiet/classroom/salg-1" });
+    expect(items[0].ctaHref).not.toContain("/handouts");
   });
 
   it("(i) tom netværksprofil → punktet, lavest prioritet", () => {

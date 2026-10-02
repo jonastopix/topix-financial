@@ -12,7 +12,7 @@ describe("fokusCtaHref — velkomst-punktet får hashen, intet andet røres", ()
   });
 
   it("de fem andre tjekliste-punkter bærer deres sti uændret", () => {
-    for (const sti of ["/settings", "/rapportering", "/handouts", "/chat"]) {
+    for (const sti of ["/settings", "/rapportering", "/akademiet", "/chat"]) {
       expect(fokusCtaHref({ kind: "tjekliste", ctaHref: sti })).toBe(sti);
     }
   });

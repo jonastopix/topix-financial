@@ -115,7 +115,16 @@ export interface HbNavInput {
 export const BLOK_MEDLEMMETS_FLADER = "Medlemmets flader";
 export const BLOK_PLATFORM = "Platform";
 
-function dineTal(active: HbAktiv): HbNavEntry {
+/** «Handouts» i «Dine tal» (1/10-2026 nat): rådgiverens vej ind i
+    virksomhedens handouts med override — og abonnentens (exit-produktet,
+    rådets fund 2, 2/10): abonnenten har ingen lektioner i Akademiet, så
+    uden punktet mistede den sine handouts. Det FULDE medlem har intet
+    punkt — handouts hører til Akademiet som lektionens øvelse (Jonas 1/10
+    22:29: «Handouts hører til Akademiet … Enkelthed er et nøgleord»;
+    motoren lib/hjemmebane/oevelse.ts, værn handoutsIAkademiet.guard). */
+export const HANDOUTS_PUNKT = { label: "Handouts", to: "/handouts" } as const;
+
+function dineTal(active: HbAktiv, medHandouts: boolean): HbNavEntry {
   return {
     label: "Dine tal",
     children: [
@@ -124,7 +133,7 @@ function dineTal(active: HbAktiv): HbNavEntry {
       { label: "Budget", to: "/budget", active: active === "budget" },
       // «Dine mål» («Én plan», fase 3, 16/9): stien /milestones beholdes, ordet er målenes.
       { label: "Dine mål", to: "/milestones", active: active === "milestones" },
-      { label: "Handouts", to: "/handouts", active: active === "handouts" },
+      ...(medHandouts ? [{ ...HANDOUTS_PUNKT, active: active === "handouts" }] : []),
     ],
   };
 }
@@ -134,10 +143,10 @@ const rabataftaler = (active: HbAktiv): HbNavEntry => ({ label: "Rabataftaler", 
 /** Medlemmets menu — ORDRET som før 8/9 (HbMemberShell.tsx:107-220), minus
     «Podcast & Talks» (15/9, se filhovedet). */
 export function medlemmetsNav(active: HbAktiv, erAbonnent: boolean, boardroomTo: string, certifikat?: CertifikatMenu | null): HbNavEntry[] {
-  if (erAbonnent) return [dineTal(active), rabataftaler(active)];
+  if (erAbonnent) return [dineTal(active, true), rabataftaler(active)];
   const punkter: HbNavEntry[] = [
     { label: "Dit Boardroom", to: boardroomTo, active: active === "boardroom" },
-    dineTal(active),
+    dineTal(active, false),
     {
       label: "Din rådgiver",
       children: [
@@ -197,7 +206,7 @@ export function raadgiverensNav(active: HbAktiv, isPartner = false): HbNavEntry[
     { label: "Community", to: "/community", active: active === "community" },
     { label: "Indhold", to: "/admin/indhold" },
     ...(isPartner === true ? [{ label: "Økonomi", to: "/oekonomi", active: active === "oekonomi" }] : []),
-    { ...dineTal(active), blok: medlem },
+    { ...dineTal(active, true), blok: medlem },
     { label: "Akademiet", to: "/akademiet", active: active === "akademiet", blok: medlem },
     { ...rabataftaler(active), blok: medlem },
     { label: "Events", to: "/events", active: active === "events", blok: medlem },

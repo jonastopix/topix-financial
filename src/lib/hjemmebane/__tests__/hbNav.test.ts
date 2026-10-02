@@ -14,6 +14,10 @@ import { BLOK_MEDLEMMETS_FLADER, BLOK_PLATFORM, bygHbNav, type HbAktiv } from "@
 // listerne nedenfor er fortsat ordrede toEqual, så en forskudt eller
 // omdøbt nabo fejler. Podcasten lever videre som et tekstlink til Spotify
 // nederst i sidebaren (HbSidebar.test.tsx), ikke som menupunkt.
+// Ændret med vilje 1/10 (Jonas 1/10 22:29, handouts i Akademiet): «Handouts»
+// ud af det FULDE medlems menu — abonnent og rådgiver beholder punktet
+// (rådets beslutning 2/10: abonnenten har ingen lektioner, så listen er
+// dens eneste vej til handouts). handoutsIAkademiet.guard dom 1.
 
 const flad = (nav: ReturnType<typeof bygHbNav>) =>
   nav.map((n) => ({
@@ -33,8 +37,16 @@ const DINE_TAL = {
     { label: "Budget", to: "/budget" },
     // «Dine mål» («Én plan», fase 3, 16/9) — rettet med vilje.
     { label: "Dine mål", to: "/milestones" },
-    { label: "Handouts", to: "/handouts" },
+    // «Handouts» er UDE af det fulde medlems menu (1/10-2026 nat: handouts
+    // hører til Akademiet som lektionens øvelse — handoutsIAkademiet.guard).
   ],
+};
+
+/** Abonnentens «Dine tal» beholder Handouts (2/10): ingen lektioner, så
+    listen er dens eneste vej til handouts. */
+const DINE_TAL_ABONNENT = {
+  ...DINE_TAL,
+  children: [...DINE_TAL.children, { label: "Handouts", to: "/handouts" }],
 };
 
 describe("medlemmets menu — ordret som før 8/9", () => {
@@ -51,9 +63,9 @@ describe("medlemmets menu — ordret som før 8/9", () => {
       { label: "Fortæl det videre", to: "/deling", blok: null, children: null },
     ]);
   });
-  it("abonnenten: kun Dine tal og Rabataftaler; hjemlinket er /kpis", () => {
+  it("abonnenten: kun Dine tal (med Handouts) og Rabataftaler; hjemlinket er /kpis", () => {
     expect(flad(bygHbNav({ isAdvisor: false, erAbonnent: true, active: "noegletal" }))).toEqual([
-      DINE_TAL,
+      DINE_TAL_ABONNENT,
       { label: "Rabataftaler", to: "/rabataftaler", blok: null, children: null },
     ]);
   });
@@ -104,7 +116,7 @@ describe("rådgiverens menu — det I bruger øverst (Jonas 8/9)", () => {
       ["Platform", null, BLOK_PLATFORM],
     ]);
   });
-  it("Dine tal bliver med sine fem; Book session, Dit Boardroom og Opgaver er ude", () => {
+  it("Dine tal bliver med sine fem (Handouts kun her — rådgiverens vej ind i virksomhedens handouts, 1/10); Book session, Dit Boardroom og Opgaver er ude", () => {
     const labels = nav.flatMap((n) => [n.label, ...(n.children ?? []).map((c) => c.label)]);
     expect(nav.find((n) => n.label === "Dine tal")?.children?.map((c) => c.label)).toEqual(["Rapportering", "KPI'er", "Budget", "Dine mål", "Handouts"]);
     for (const l of ["Book session", "Dit Boardroom", "Opgaver", "Din rådgiver", "Chat"]) expect(labels).not.toContain(l);

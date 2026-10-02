@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { byggTjekliste, type Tjekliste, type TjeklisteInput } from "@/lib/onboardingTjekliste";
 import { harVelkomstvideo as doemVelkomstvideo } from "@/lib/appConfig";
 import { KILDE_PRAESENTATION } from "@/lib/hjemmebane/praesentation";
+import { RETNING_MODUL } from "@/lib/hjemmebane/oevelse";
 import { getEffectiveReportPeriodKey, type ReportData } from "@/lib/financialUtils";
 
 /**
@@ -39,7 +40,10 @@ import { getEffectiveReportPeriodKey, type ReportData } from "@/lib/financialUti
  *     der ikke er omme» fra «en afsluttet måned der venter på godkendelse».
  *   financial_report_facts: count — virksomhedens GODKENDTE tal (9/9: punktet
  *     «Dine tal» er først gjort ved godkendelse, ikke ved upload)
- *   handouts: count, status = 'completed', user_id = mig
+ *   handouts: count, status = 'completed', user_id = mig, module <>
+ *     'overordnet' (2/10, rådets fund 11: punktet hedder «Din første øvelse»,
+ *     og overordnet er ikke en øvelse — retningen bor i Dine mål; et gammelt
+ *     udfyldt «Målsætning 12 mdr.» må ikke krydse punktet af)
  *   conversations.last_member_message_at, member_id = mig — sat af triggeren
  *     på messages KUN for ikke-rådgivere (migration 20260311043341)
  *   app_config.velkomstvideo_guid — «Anyone authenticated can read config»
@@ -118,7 +122,8 @@ async function hentInput(
       .from("handouts")
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId)
-      .eq("status", "completed"),
+      .eq("status", "completed")
+      .neq("module", RETNING_MODUL),
     supabase
       .from("conversations")
       .select("last_member_message_at")

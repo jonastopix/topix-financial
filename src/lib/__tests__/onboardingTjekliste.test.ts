@@ -281,7 +281,7 @@ describe("byggTjekliste — rækkefølge og stier er LÅST", () => {
     expect(byggTjekliste(FULD).punkter.map((p) => p.id)).toEqual(byggTjekliste(TOM).punkter.map((p) => p.id));
   });
 
-  it("stierne: profil → /settings?fane=profil (fanen, ikke siden — 9/9), praesentation → /community?praesentation=1 (11/9), virksomhed → /settings, rapport → /rapportering, handout → /handouts, besked → /chat, deling → /deling (14/9), velkomst → tom", () => {
+  it("stierne: profil → /settings?fane=profil (fanen, ikke siden — 9/9), praesentation → /community?praesentation=1 (11/9), virksomhed → /settings, rapport → /rapportering, handout → /akademiet (1/10: øvelsen bor i Akademiet, aldrig /handouts), besked → /chat, deling → /deling (14/9), velkomst → tom", () => {
     const stier = Object.fromEntries(byggTjekliste({ ...TOM, medlem_siden: "2026-09-22T09:00:00.000Z" }).punkter.map((p) => [p.id, p.sti]));
     expect(stier).toEqual({
       velkomst: "",
@@ -289,7 +289,7 @@ describe("byggTjekliste — rækkefølge og stier er LÅST", () => {
       praesentation: "/community?praesentation=1",
       virksomhed: "/settings",
       rapport: "/rapportering",
-      handout: "/handouts",
+      handout: "/akademiet",
       besked: "/chat",
       deling: "/deling",
     });

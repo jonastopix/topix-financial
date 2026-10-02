@@ -21,7 +21,7 @@
  *   3. praesentation  Præsentér dig i fællesskabet (kort 60)  │ har brug for
  *   4. virksomhed     Din virksomhed — data platformen bruger  ┘
  *   5. rapport        Dine tal — den første rapport            ┐ det de får
- *   6. handout        Dit første handout                       ┘ noget ud af
+ *   6. handout        Din første øvelse (handoutet, i Akademiet) ┘ noget ud af
  *   7. besked         Skriv til din rådgiver                   — mennesket
  *   8. deling         Fortæl det videre (14/9)                 — ud af huset
  * Rækkefølgen er låst af testen i src/lib/__tests__/onboardingTjekliste.test.ts.
@@ -230,7 +230,11 @@ export const TJEKLISTE_STIER: Readonly<Record<TjeklistePunktId, string>> = {
   praesentation: PRAESENTATION_STI,
   virksomhed: "/settings",
   rapport: "/rapportering",
-  handout: "/handouts",
+  // Handouts i Akademiet (1/10-2026 nat): øvelserne ligger under lektionerne
+  // (OevelseKort) — punktet fører til Akademiet, aldrig /handouts (medlemmet
+  // har ingen handout-liste). Id'et «handout» og tællingen
+  // (antal_udfyldte_handouts) er uændrede: øvelsen ER handoutet.
+  handout: "/akademiet",
   besked: "/chat",
   deling: "/deling",
 };
@@ -303,7 +307,8 @@ export function byggTjekliste(input: TjeklisteInput, nu: Date = new Date()): Tje
 
   // HANDOUT — udfyldt, ikke startet. En påbegyndt række (in_progress)
   // findes så snart et enkelt felt er gemt; «Markér udfyldt» er den
-  // handling der tæller.
+  // handling der tæller. Tællingen (useOnboardingTjekliste) udelader
+  // overordnet (2/10): det er retningen i Dine mål, ikke en øvelse.
   const handoutGjort = input.antal_udfyldte_handouts > 0;
 
   // BESKED — triggeren sætter stemplet kun for beskeder fra ikke-
@@ -360,8 +365,8 @@ export function byggTjekliste(input: TjeklisteInput, nu: Date = new Date()): Tje
     },
     handout: {
       id: "handout",
-      titel: "Dit første handout",
-      beskrivelse: "Udfyld ét handout — start med Overordnet.",
+      titel: "Din første øvelse",
+      beskrivelse: "Øvelserne ligger under lektionerne i Akademiet — lav én.",
       gjort: handoutGjort,
       sti: TJEKLISTE_STIER.handout,
     },

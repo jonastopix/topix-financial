@@ -120,7 +120,15 @@ export interface FocusWeeklyFocus {
 export interface FocusUnlinkedLever {
   lever: string;
   moduleTitle: string;
+  /** Handouts i Akademiet (1/10-2026 nat): stien til den lektion, der bærer
+      modulet — øvelsen (kalderen slår den op i kataloget, oevelseTilbage).
+      Udeladt → Akademiets forside. Aldrig /handouts: medlemmet har ingen
+      handout-liste længere. */
+  sti?: string;
 }
+
+/** Hvor løftestangs-punktet (h) fører hen: lektionen, der bærer øvelsen, ellers Akademiet. */
+export const OEVELSE_FALDBACK_STI = "/akademiet";
 
 /** Udvidelsen af NextStepInputs (recon §D): de fire bogførte udeladelser
     + løftestængerne. En senere opgave-model adapters ind HER — dommen
@@ -548,7 +556,9 @@ export function deriveFocus(inputs: FocusInputs): FocusItem[] {
 
   // (h) Løftestang uden milestone — ÉT samlet, stille punkt (første
   // løftestang i kalderens orden citeres; pr.-løftestang-spam undgås
-  // bevidst — handout-fladen ejer detaljen).
+  // bevidst — øvelsen (handoutet i Akademiet, 1/10) ejer detaljen).
+  // Knappen fører til den lektion, der bærer øvelsen (sti fra kalderen),
+  // ellers Akademiet — aldrig /handouts (medlemmet har ingen liste).
   if (inputs.unlinkedLevers.length > 0) {
     const first = inputs.unlinkedLevers[0];
     items.push({
@@ -557,8 +567,8 @@ export function deriveFocus(inputs: FocusInputs): FocusItem[] {
       priority: 8,
       title: "Gør en løftestang til en milestone",
       description: `"${first.lever}" (${first.moduleTitle}) venter på at blive en aktiv milestone, du kan tracke.`,
-      ctaLabel: "Åbn handouts",
-      ctaHref: "/handouts",
+      ctaLabel: "Åbn øvelsen",
+      ctaHref: first.sti ?? OEVELSE_FALDBACK_STI,
     });
   }
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Navigate, useSearchParams } from "react-router-dom";
 import { Lightbulb, ArrowLeft, ArrowRight, Lock, Loader2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
@@ -11,6 +11,7 @@ import { calcHandoutProgress } from "@/lib/handoutUtils";
 import { loadHandoutSummaries } from "@/lib/handoutEngine";
 import { kraevRaekke } from "@/lib/kraevRaekker";
 import { kildeAf, sektionsfejlTekst } from "@/lib/hjemmebane/hentefejl";
+import { RETNING_MODUL, RETNING_STI, modulFraParam } from "@/lib/hjemmebane/oevelse";
 import { HbAdvisorCompanyPrompt } from "../HbAdvisorCompanyPrompt";
 import { HbSection } from "../HbSection";
 import { HbCard } from "../HbCard";
@@ -34,17 +35,53 @@ interface HandoutSummary {
 }
 
 export const HandoutsView = () => {
-  const { user, companyId, isAdvisor: rawAdvisor, isLegat } = useAuth();
+  const { user, companyId, isAdvisor: rawAdvisor, isLegat, membershipTier, companyResolution } = useAuth();
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
   const [searchParams, setSearchParams] = useSearchParams();
   const [summaries, setSummaries] = useState<HandoutSummary[]>(
     moduleOrder.map(m => ({ module: m, status: "not_started" as const, progress: 0, completedAt: null, levers: [], checklist: {} }))
   );
-  const [activeModule, setActiveModule] = useState<HandoutModule | null>(null);
+  // ?module= læses i INITIALISERINGEN for listens flader (rådgiver, legat,
+  // abonnent): deres deep-link åbner detaljen, og parametret ryddes
+  // bagefter, så «Tilbage» til listen er ren. Medlemsgrenen læser IKKE
+  // denne state — den læser URL'en direkte (se nedenfor).
+  const [activeModule, setActiveModule] = useState<HandoutModule | null>(() =>
+    modulFraParam(searchParams.get("module")),
+  );
+  /* Handouts i Akademiet (1/10-2026 nat; Jonas: «Handouts hører til
+     Akademiet … Enkelthed er et nøgleord»): listen er ikke det fulde
+     medlems flade længere — menuen har intet punkt, og øvelsen nås fra
+     lektionen (OevelseKort). Ruten LEVER for gamle links og mails:
+       · medlem på /handouts uden modul       → /akademiet (replace)
+       · medlem på /handouts?module=overordnet → /milestones (retningen bor
+         i Dine mål — aldrig et handout for et medlem)
+       · medlem på /handouts?module=<øvelse>  → editoren direkte, med
+         «Tilbage» til lektionen (HbHandoutDetail tilbageTilAkademiet,
+         afsenderen i `fra=`)
+     Medlemsgrenen læser modulet DIREKTE fra URL'en og rydder aldrig
+     parametrene (rådets fund 1 og 3, 2/10): den gamle mount-effekt
+     (setSearchParams({})) overhalede <Navigate to=/milestones> og landede
+     medlemmet på /handouts uden modul; og uden parametret i URL'en gik
+     editoren tabt ved reload og bogmærke. Rydningen var til «tilbage til
+     listen», som medlemmet ikke har.
+     Rådgiveren (ikke «se som medlem»), legatet OG abonnenten beholder
+     listen (rådets fund 2, 2/10 — beslutning): rådgiverens «Dine tal ›
+     Handouts» er vejen ind i virksomhedens handouts, legatforløbet låser
+     modulerne op dag for dag uden adgang til Akademiet, og abonnenten
+     (exit-produktet) har ingen lektioner — uden listen mistede abonnenten
+     sine handouts og landede i et tomt Akademi. */
+  const erAbonnent = membershipTier === "subscriber";
+  const erMedlemsvisning = !isAdvisor && !isLegat && !erAbonnent;
+  /* membershipTier er null, mens useAuth afgør den (companyResolution
+     «pending») — null er UAFGJORT, ikke «fuldt medlem»: en abonnent må ikke
+     sendes til Akademiet i de renders. Rådgiver og legat afgøres af deres
+     egne flag og venter ikke. */
+  const tierUafgjort = !isAdvisor && !isLegat && companyResolution === "pending";
   const [isLoading, setIsLoading] = useState(true);
   /* Hentefejl (16/9, mangellisten «Tavse queryFn'er — de flader tjeklisten
-     fører til»): tjeklistens punkt 6 («Dit første handout») fører hertil, og
+     fører til»): tjeklistens punkt 6 («Dit første handout») førte hertil
+     (siden 1/10 fører det til Akademiet; listen er rådgiverens, legatets og abonnentens), og
      før lignede en fejlet hentning «Kom godt i gang med handouts» — summaries
      beholdt sine not_started-defaults, og ingen sagde noget. Nu kaster
      loadHandoutSummaries (kraevRaekker), fejlen fanges her med kildens navn,
@@ -95,16 +132,15 @@ export const HandoutsView = () => {
     return legatDay >= (LEGAT_UNLOCK_DAYS[moduleKey] ?? 1);
   };
 
-  // Deep-link support: ?module=bogholderi opens that handout directly
-  // (Akademi-broens kontrakt: ElementView linker /handouts?module=<m>)
+  // Deep-link på LISTENS flader (rådgiver, legat, abonnent): modulet er
+  // læst i useState-initialiseringen; her ryddes parametret, så «Tilbage»
+  // til listen er ren. Først når det er afgjort, at der ER en liste —
+  // medlemsgrenen rydder ALDRIG (modulet og afsenderen skal overleve reload).
   useEffect(() => {
-    const moduleParam = searchParams.get("module") as HandoutModule | null;
-    if (moduleParam && moduleOrder.includes(moduleParam)) {
-      setActiveModule(moduleParam);
-      // Clear param so back navigation works cleanly
-      setSearchParams({}, { replace: true });
-    }
-  }, []); // only on mount
+    if (tierUafgjort || erMedlemsvisning) return;
+    if (searchParams.get("module")) setSearchParams({}, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- kun når dommen falder, ikke ved hver URL-ændring
+  }, [tierUafgjort, erMedlemsvisning]);
 
   // Navigation reset: when nav is clicked while on this page, go back to list
   const resetKey = useNavigationReset();
@@ -134,6 +170,8 @@ export const HandoutsView = () => {
 
   useEffect(() => {
     if (!user || !companyId) return;
+    // Medlemmet ser ingen liste (grenen nedenfor) — intet opslag for den.
+    if (erMedlemsvisning) return;
     setIsLoading(true);
     setHentefejl(null);
     const load = async () => {
@@ -174,7 +212,32 @@ export const HandoutsView = () => {
     // BudgetteringViews load-effekt, hb-budget-persistens-recon §1c):
     // effekten afhænger kun af bruger-identiteten; objektet skiftes ved
     // hvert auth-event og gav unødig genindlæsning/spinner-flimmer.
-  }, [user?.id, activeModule, companyId]);
+  }, [user?.id, activeModule, companyId, erMedlemsvisning]);
+
+  // Uafgjort tier (se tierUafgjort) — intet dømmes, før useAuth har svaret.
+  if (tierUafgjort) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-hb-evergreen" />
+      </div>
+    );
+  }
+
+  // Medlemmets gren (se erMedlemsvisning ovenfor) — efter ALLE hooks.
+  // Modulet læses fra URL'en, ikke fra state: reload og bogmærke holder.
+  if (erMedlemsvisning) {
+    const modul = modulFraParam(searchParams.get("module"));
+    if (!modul) return <Navigate to="/akademiet" replace />;
+    if (modul === RETNING_MODUL) return <Navigate to={RETNING_STI} replace />;
+    return (
+      <HbHandoutDetail
+        config={handoutConfigs[modul]}
+        onBack={() => undefined}
+        tilbageTilAkademiet
+        fra={searchParams.get("fra")}
+      />
+    );
+  }
 
   if (activeModule) {
     // Resolve the correct member userId for this module
