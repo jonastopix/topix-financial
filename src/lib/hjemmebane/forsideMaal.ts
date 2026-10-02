@@ -64,7 +64,6 @@ export const FORSIDE_MAAL_ORD = {
   /** Det mørke kort. */
   tomEyebrow: "Jeres retning",
   tomOverskrift: "Hvor skal I være om 12 måneder?",
-  tomTekst: "Sæt ét mål med et tal og en frist. Så viser vi hver måned, om I er på sporet.",
   ingenAktiveOverskrift: "Ingen aktive mål lige nu",
   saetFoersteMaal: "Sæt jeres første mål",
   saetNytMaal: "Sæt et nyt mål",

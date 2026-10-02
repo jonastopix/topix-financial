@@ -103,10 +103,10 @@ export const sammeFunctions = (forside: string): boolean => {
 /** Dom 4: det tomme er invitationen — det mørke kort, tilstanden dømt af den rene forsideMaalTilstand. */
 export const invitationen = (dom: string, forside: string): boolean => {
   const tom = forside.slice(forside.indexOf('{maalTilstand === "tom" && ('), forside.indexOf("{plan.maal.length > 0 && ("));
-  return dom.includes('export const PLAN_TOM_TEKST = "Din plan starter med et mål. Sæt det første selv — eller sammen med din rådgiver.";') &&
+  return dom.includes('export const PLAN_TOM_TEKST = "Sæt ét mål med et tal og en frist — selv eller sammen med jeres rådgiver. Så viser vi hver måned, om I er på sporet.";') &&
     dom.includes('export const PLAN_TOM_BOOK = "Book en session";') &&
     /const maalTilstand = forsideMaalTilstand\(\{ bekraeftedeViste: plan\?\.maal\.length \?\? 0, ubekraeftede: ubekraeftedeMaal \}\);/.test(forside) &&
-    tom.includes("data-plan-tom") && tom.includes("{PLAN_TOM_TEKST}") &&
+    tom.includes("data-plan-tom") && tom.includes(": PLAN_TOM_TEKST}") &&
     tom.includes("<Link to={SAET_MAAL_STI}>") && tom.includes("FORSIDE_MAAL_ORD.saetFoersteMaal") &&
     tom.includes('<Link to="/book-session">') && tom.includes("{PLAN_TOM_BOOK}") &&
     !/I har ikke sat mål endnu/.test(forside) && !/DINE_MAAL_TOM_TEKST/.test(forside);
@@ -191,7 +191,7 @@ describe("forsidePlan.guard — PR 3: én sektion, skridt under mål, samme func
     expect(sammeFunctions(forside + '\nawait supabase.from("company_actions").insert({});')).toBe(false);
   });
   it("selvbevis 4: den gamle mangel-tekst tilbage, eller «Book en session» væk, falder", () => {
-    expect(invitationen(dom.replace("Din plan starter med et mål. Sæt det første selv — eller sammen med din rådgiver.", "I har ikke sat mål endnu."), forside)).toBe(false);
+    expect(invitationen(dom.replace("Sæt ét mål med et tal og en frist — selv eller sammen med jeres rådgiver. Så viser vi hver måned, om I er på sporet.", "I har ikke sat mål endnu."), forside)).toBe(false);
     expect(invitationen(dom, forside.replace('<Link to="/book-session">', "<span>"))).toBe(false);
     expect(invitationen(dom, forside.replace("<Link to={SAET_MAAL_STI}>", '<Link to="/milestones">'))).toBe(false);
   });

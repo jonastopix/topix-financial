@@ -1046,7 +1046,11 @@ const FocusCard = ({
   onProevIgen?: () => void;
 }) => {
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
-  const displayed = items.slice(0, 4);
+  // Kompakt (forsidens top, 2/10 aften — «designet skal sidde»): ét primært punkt og højst TO stille
+  // linjer, og højst ÉN «Måske relevant» — kortet bar før seks-syv linjer under knappen. Resten af
+  // punkterne står i «Din plan» lige under. «fuld» er uændret.
+  const displayed = items.slice(0, variant === "kompakt" ? 3 : 4);
+  const visteRelevante = variant === "kompakt" ? relevante.slice(0, 1) : relevante;
   const primary = displayed[0];
   const quiet = displayed.slice(1);
 
@@ -1207,8 +1211,8 @@ const FocusCard = ({
           — før stod de som løse linjer under kortet. Ordene og udvalget er
           motorens (lib/hjemmebane/maaskeRelevant); stien er kalderens. */}
       {!loading && relevante.length > 0 && (
-        <ul className={cn("space-y-1 text-sm text-hb-ink-soft", kompakt ? "mt-4 border-t border-hb-line pt-3" : "mt-6")} data-maaske-relevant={relevante.length}>
-          {relevante.map((lektion) => (
+        <ul className={cn("space-y-1 text-sm text-hb-ink-soft", kompakt ? "mt-4 border-t border-hb-line pt-3" : "mt-6")} data-maaske-relevant={visteRelevante.length}>
+          {visteRelevante.map((lektion) => (
             <li key={lektion.id}>
               {MAASKE_RELEVANT_PRAEFIKS}:{" "}
               <Link to={lektion.sti} className="text-hb-evergreen underline-offset-4 hover:underline">
@@ -1227,7 +1231,7 @@ const FocusCard = ({
     begrundelsen (forslag), og OpgaveKnapper — SAMME knapper og kald som
     «Dine skridt» havde. Knapperne er søskende til teksten (ingen klikbar
     handling i et anker). */
-const PlanSkridtRaekke = ({ skridt, slags, busy, onKald, ansigt = null, maalFrist = null }: { skridt: PlanSkridt; slags: "aktiv" | "forslag"; busy: boolean; onKald: (kald: OpgaveKald) => void; ansigt?: Ansigt | null; maalFrist?: string | null }) => {
+export const PlanSkridtRaekke = ({ skridt, slags, busy, onKald, ansigt = null, maalFrist = null }: { skridt: PlanSkridt; slags: "aktiv" | "forslag"; busy: boolean; onKald: (kald: OpgaveKald) => void; ansigt?: Ansigt | null; maalFrist?: string | null }) => {
   const meta = slags === "forslag" ? forslagMetaLinje(skridt, new Date()) : null;
   // PR 4: med et ansigt siger første led «Fra Morten» i stedet for «Fra din rådgiver» (aftaler.forslagKilde er fald-tilbage).
   const metaDele = meta ? (ansigt ? [ansigt.linje, ...meta.dele.slice(1)] : meta.dele) : [];
@@ -2205,7 +2209,7 @@ export const BoardroomView = () => {
               <span aria-hidden className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full border border-hb-sage/20" />
               <p className="relative text-[11px] font-semibold uppercase tracking-[0.14em] text-hb-amber">{FORSIDE_MAAL_ORD.tomEyebrow}</p>
               <h3 className="relative mt-3 max-w-xl font-editorial text-2xl font-medium leading-snug md:text-[28px]">{plan.ingenAktive ? FORSIDE_MAAL_ORD.ingenAktiveOverskrift : FORSIDE_MAAL_ORD.tomOverskrift}</h3>
-              <p className="relative mt-3 max-w-xl text-sm leading-relaxed text-hb-paper/80">{plan.ingenAktive ? PLAN_INGEN_AKTIVE_TEKST : `${FORSIDE_MAAL_ORD.tomTekst} ${PLAN_TOM_TEKST}`}</p>
+              <p className="relative mt-3 max-w-xl text-sm leading-relaxed text-hb-paper/80">{plan.ingenAktive ? PLAN_INGEN_AKTIVE_TEKST : PLAN_TOM_TEKST}</p>
               <div className="relative mt-6 flex flex-wrap gap-2">
                 <Link to={SAET_MAAL_STI}><HbButton className="h-10 bg-hb-paper px-5 text-sm text-hb-evergreen hover:bg-hb-paper/90">{plan.ingenAktive ? FORSIDE_MAAL_ORD.saetNytMaal : FORSIDE_MAAL_ORD.saetFoersteMaal}</HbButton></Link>
                 {plan.ingenAktive ? (
