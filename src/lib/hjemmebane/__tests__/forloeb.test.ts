@@ -90,6 +90,19 @@ describe("afgoerForloeb — tilstandene", () => {
     expect(d.nextEntry?.item.id).toBe("a2");
   });
 
+  it("F0 (2/10): en progress-række UDEN egen aktivitet (state untouched — kun rådgiverens markering) er aldrig continue; next peger på den som første urørte, og «start» siges", () => {
+    // a2 har en række (rådgiveren markerede den, nyeste updated_at), men medlemmet har ikke rørt den.
+    const d = doem(katalog(), [raekke("a2", "2026-10-02T08:00:00Z")]);
+    expect(d.continueEntry).toBeUndefined();
+    expect(d.started).toBe(false);
+    expect(d.harBegyndt).toBe(false);
+    expect(d.nextEntry?.item.id).toBe("a1");
+    expect(forloebslinje(d)?.tekst).toBe(`${START_PRAEFIKS}Lektion a1`);
+    // Og en ÆGTE påbegyndt række vinder stadig, selv med en ældre updated_at.
+    const d2 = doem(katalog({ a3: { state: "started" } }), [raekke("a2", "2026-10-02T08:00:00Z"), raekke("a3", "2026-09-16T10:00:00Z")]);
+    expect(d2.continueEntry?.item.id).toBe("a3");
+  });
+
   it("varianten: nr. 3 er påbegyndt, 1-2 urørte → continue = a3, next = a1 (forsiden skifter fra a1 til a3)", () => {
     const d = doem(katalog({ a3: { state: "started" } }), [raekke("a3", "2026-09-16T10:00:00Z")]);
     expect(d.continueEntry?.item.id).toBe("a3");

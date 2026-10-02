@@ -52,7 +52,8 @@ export const BRUGBAR_TAK = "Tak for svaret.";
 export interface SkalSpoergeInput {
   /** isTrackedItem/isTrackedEntry — kun Bunny-videoer spores. */
   tracked: boolean;
-  /** itemProgressState — "done" er acknowledged_at sat. */
+  /** itemProgressState — "done" er medlemmets EGET acknowledged_at (F0, 2/10:
+      rådgiverens markering, markeret_at, giver aldrig "done"). */
   state: ItemProgressState;
   /** member_progress.brugbar — null/undefined = ikke besvaret. */
   brugbar: boolean | null | undefined;

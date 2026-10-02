@@ -36,7 +36,9 @@
  *
  * DOMMEN (ordret som ForsideView.tsx:82-109 før 16/9):
  *   - continueEntry: nyeste progress-aktivitet (updated_at faldende) blandt
- *     sporede videoer i et Akademi-område, ulåst, state !== "done". SKIPPED
+ *     sporede videoer i et Akademi-område, ulåst, state !== "done" og (F0,
+ *     2/10) state !== "untouched" — en række med kun rådgiverens markering
+ *     er ikke noget, hun har begyndt. SKIPPED
  *     TÆLLER MED — det er dagens adfærd (en sprunget lektion har state
  *     "skipped", ikke "done"), ikke en beslutning truffet her; testen låser
  *     det under det navn.
@@ -129,12 +131,21 @@ export function afgoerForloeb<T extends ForloebEntry>(input: ForloebInput<T>): F
   for (const entries of orderedByArea.values()) for (const entry of entries) byId.set(entry.item.id, entry);
 
   // Seneste påbegyndte video (nyeste progress-aktivitet, ulåst, ikke gennemført).
+  // F0 (2/10-2026): heller ikke URØRT — en række kan findes uden egen aktivitet
+  // (rådgiverens markering, markeret_at, giver state "untouched", og
+  // backfillen efterlod 199 sådanne rækker). «Fortsæt hvor du slap» må kun
+  // pege på noget, hun selv har begyndt (started/skipped).
   const continueEntry = [...progressRows]
     .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
     .map((row) => byId.get(row.content_item_id))
     .find(
       (entry): entry is T =>
-        entry !== undefined && erSporetVideo(entry.item) && inAkademi(entry) && entry.drip.unlocked && entry.state !== "done",
+        entry !== undefined &&
+        erSporetVideo(entry.item) &&
+        inAkademi(entry) &&
+        entry.drip.unlocked &&
+        entry.state !== "done" &&
+        entry.state !== "untouched",
     );
 
   // Første urørte video i forløbsrækkefølgen (områdernes rækkefølge).

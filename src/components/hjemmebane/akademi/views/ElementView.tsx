@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Check, Download, ExternalLink, Lock, Undo2 } from "lucide-react";
 import { AREAS, ITEM_TYPES, getAssetPreviewUrl } from "@/lib/hjemmebane/adminContentApi";
-import { listItemAttachments } from "@/lib/hjemmebane/akademiApi";
+import { egetSeenAt, listItemAttachments } from "@/lib/hjemmebane/akademiApi";
 import { hasRichTextContent } from "@/lib/hjemmebane/richtext";
 import { useAuth } from "@/hooks/useAuth";
 import { formatDuration } from "@/components/hjemmebane/admin/editors/shared";
@@ -94,9 +94,12 @@ export const ElementView = ({ areaKey, slug }: { areaKey: string; slug: string }
   // seen_at ved første visning — én gang pr. element pr. besøg. En
   // tjenestekonto KIGGER (30/9, tjenestekonto.guard dom 6): intet stempel;
   // flaget i afhængighederne, så stemplet venter, mens opslaget henter.
+  // F0 (2/10): kun medlemmets EGET seen_at tæller (egetSeenAt) — på en
+  // backfillet batch-række er seen_at rådgiverens stempel, og hendes besøg
+  // skal nu efterlade et spor (akademi-grundlag §6, grænse 3).
   useEffect(() => {
     if (!entry || data.loading || !entry.drip.unlocked || !laeseMarkeringTilladt) return;
-    if (entry.progress?.seen_at || seenWrittenRef.current === entry.item.id) return;
+    if (egetSeenAt(entry.progress) || seenWrittenRef.current === entry.item.id) return;
     seenWrittenRef.current = entry.item.id;
     data.writeProgress(entry.item.id, { seen_at: new Date().toISOString() });
     // eslint-disable-next-line react-hooks/exhaustive-deps

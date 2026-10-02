@@ -6,8 +6,8 @@ import { cn } from "@/lib/utils";
 import {
   AREAS,
   MEDLEM_SKJULTE_OMRAADER,
-  batchAcknowledge,
-  clearAcknowledge,
+  batchMarker,
+  fortrydMarkering,
   listAllMemberProgress,
   listMembers,
   type AdminMember,
@@ -21,23 +21,32 @@ import {
   listPublishedItems,
   type ItemProgressState,
 } from "@/lib/hjemmebane/akademiApi";
+import { fortrydMarkeringPatch, markeringsTilstand } from "@/lib/hjemmebane/progressState";
 import { brugbarLinje, optaelBrugbarPrLektion, synligeMedlemmer, udelukFraBrugbar } from "@/lib/hjemmebane/lektionBrugbar";
 import { detaljeTilstand } from "@/lib/hjemmebane/fremdriftDetalje";
 import { kraevRaekker } from "@/lib/kraevRaekker";
 import { raadgiverHentefejlTekst } from "@/lib/raadgiverHentefejl";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { isTrackedItem } from "../../akademi/useAkademiData";
 import { hbControlClasses } from "../HbField";
 import { HbAdminSplit } from "../HbAdminShell";
 
 /** Fremdrift-fanen (advisor-værktøjet): overblik over ALLE medlemmers
-    Akademi-fremdrift + manuel markering (enkelt-toggle + "Markér hele
-    modulet"-batch) som ægte member_progress.acknowledged_at — medlemmet
-    ser Gennemført som var det selvsat (kildeløst; accepteret vilkår,
-    baseline). Kun TRACKED items (B1-video) vises og skrives; dryp er
+    Akademi-fremdrift + rådgiverens markering (enkelt + "Markér hele
+    modulet"-batch). F0 (2/10-2026, akademi-grundlag §4): TO tydelige
+    tilstande pr. lektion — «set af medlemmet» (hendes EGEN acknowledged_at,
+    itemProgressState) og «gennemgået med rådgiver» (markeret_at,
+    markeringsTilstand). Rådgiveren skriver KUN markeret_*; medlemmets flader
+    ser aldrig markeringen som sin egen fremdrift (før: batchAcknowledge
+    skrev acknowledged_at, og medlemmet så «Gennemført» på lektioner, hun
+    aldrig havde set). Kun TRACKED items (B1-video) vises og skrives; dryp er
     bevidst droppet i advisor-visningen (råt done/total). Én samlet
     progress-nøgle ["admin-progress"] — samme optimistiske patch opdaterer
     både venstre resumé og højre detalje (PR #166-mønstret). */
+
+export const SET_AF_MEDLEMMET = "set af medlemmet";
+export const GENNEMGAAET_MED_RAADGIVER = "gennemgået med rådgiver";
 
 type ProgressKey = `${string}:${string}`;
 const keyOf = (userId: string, itemId: string): ProgressKey => `${userId}:${itemId}`;
@@ -112,6 +121,9 @@ const StateDot = ({ state }: { state: ItemProgressState }) => {
 
 export const ProgressView = () => {
   const queryClient = useQueryClient();
+  // Rådgiveren selv — markeret_af på det, hun markerer (F0).
+  const { user } = useAuth();
+  const raadgiverId = user?.id ?? "";
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -186,8 +198,12 @@ export const ProgressView = () => {
     return map;
   }, [progressQuery.data]);
 
+  // Medlemmets EGEN tilstand (F0: itemProgressState ser bort fra rådgiverens
+  // stempel) — og rådgiverens markering, hver for sig.
   const stateFor = (userId: string, itemId: string): ItemProgressState =>
     itemProgressState(rowByKey.get(keyOf(userId, itemId)));
+  const erGennemgaaet = (userId: string, itemId: string): boolean =>
+    markeringsTilstand(rowByKey.get(keyOf(userId, itemId))) === "gennemgaaet";
 
   // «N af M videoer» tæller kun det, medlemmet KAN se: skjulte områder
   // (Quick Wins, 1/10-2026) står stadig i blokkene til højre, men ikke i
@@ -198,31 +214,33 @@ export const ProgressView = () => {
   );
   const doneCount = (userId: string) =>
     synligeTracked.filter((item) => stateFor(userId, item.id) === "done").length;
+  const gennemgaaetCount = (userId: string) =>
+    synligeTracked.filter((item) => erGennemgaaet(userId, item.id)).length;
 
   // ── Optimistisk skrivning (PR #166-formen på den samlede nøgle) ─────────
+  // Patchen rører KUN markeringskolonnerne — plus det, fortrydMarkeringPatch
+  // rydder på en backfillet batch-række. Medlemmets egne felter i cachen
+  // står som hentet.
   const patchCache = (
     userId: string,
-    patches: { itemId: string; seenAt: string | null; acknowledgedAt: string | null }[],
+    patches: { itemId: string; patch: Partial<Pick<AdminProgressRow, "markeret_at" | "markeret_af" | "acknowledged_at" | "seen_at">> }[],
   ) => {
     queryClient.setQueryData<AdminProgressRow[]>(["admin-progress"], (old = []) => {
       const next = [...old];
-      for (const patch of patches) {
-        const index = next.findIndex(
-          (row) => row.user_id === userId && row.content_item_id === patch.itemId,
-        );
+      for (const { itemId, patch } of patches) {
+        const index = next.findIndex((row) => row.user_id === userId && row.content_item_id === itemId);
         if (index >= 0) {
-          next[index] = {
-            ...next[index],
-            seen_at: patch.seenAt ?? next[index].seen_at,
-            acknowledged_at: patch.acknowledgedAt,
-          };
+          next[index] = { ...next[index], ...patch };
         } else {
           next.push({
             user_id: userId,
-            content_item_id: patch.itemId,
-            seen_at: patch.seenAt,
-            acknowledged_at: patch.acknowledgedAt,
+            content_item_id: itemId,
+            seen_at: null,
+            acknowledged_at: null,
             skipped_at: null,
+            markeret_at: null,
+            markeret_af: null,
+            ...patch,
           });
         }
       }
@@ -231,16 +249,16 @@ export const ProgressView = () => {
   };
 
   const setMutation = useMutation({
-    mutationFn: ({ userId, entries }: { userId: string; entries: { itemId: string; seenAt: string | null }[] }) =>
-      batchAcknowledge(userId, entries),
-    onMutate: async ({ userId, entries }) => {
+    mutationFn: ({ userId, itemIds }: { userId: string; itemIds: string[] }) =>
+      batchMarker(userId, itemIds, raadgiverId),
+    onMutate: async ({ userId, itemIds }) => {
       setError(null);
       await queryClient.cancelQueries({ queryKey: ["admin-progress"] });
       const previous = queryClient.getQueryData<AdminProgressRow[]>(["admin-progress"]);
       const now = new Date().toISOString();
       patchCache(
         userId,
-        entries.map((entry) => ({ itemId: entry.itemId, seenAt: entry.seenAt ?? now, acknowledgedAt: now })),
+        itemIds.map((itemId) => ({ itemId, patch: { markeret_at: now, markeret_af: raadgiverId } })),
       );
       return { previous };
     },
@@ -252,13 +270,13 @@ export const ProgressView = () => {
   });
 
   const clearMutation = useMutation({
-    mutationFn: ({ userId, itemId }: { userId: string; itemId: string }) =>
-      clearAcknowledge(userId, itemId),
-    onMutate: async ({ userId, itemId }) => {
+    mutationFn: ({ userId, itemId, raekke }: { userId: string; itemId: string; raekke: AdminProgressRow }) =>
+      fortrydMarkering(userId, itemId, raekke),
+    onMutate: async ({ userId, itemId, raekke }) => {
       setError(null);
       await queryClient.cancelQueries({ queryKey: ["admin-progress"] });
       const previous = queryClient.getQueryData<AdminProgressRow[]>(["admin-progress"]);
-      patchCache(userId, [{ itemId, seenAt: null, acknowledgedAt: null }]);
+      patchCache(userId, [{ itemId, patch: fortrydMarkeringPatch(raekke) }]);
       return { previous };
     },
     onError: (err: Error, _variables, context) => {
@@ -268,20 +286,21 @@ export const ProgressView = () => {
     onSettled: () => void queryClient.invalidateQueries({ queryKey: ["admin-progress"] }),
   });
 
-  const acknowledgeOne = (userId: string, item: ContentItem) => {
-    const existing = rowByKey.get(keyOf(userId, item.id));
-    setMutation.mutate({ userId, entries: [{ itemId: item.id, seenAt: existing?.seen_at ?? null }] });
+  const markerEn = (userId: string, item: ContentItem) => {
+    setMutation.mutate({ userId, itemIds: [item.id] });
   };
 
-  const acknowledgeMissing = (userId: string, items: ContentItem[]) => {
-    const missing = items.filter((item) => stateFor(userId, item.id) !== "done");
-    setMutation.mutate({
-      userId,
-      entries: missing.map((item) => ({
-        itemId: item.id,
-        seenAt: rowByKey.get(keyOf(userId, item.id))?.seen_at ?? null,
-      })),
-    });
+  /** «Markér hele modulet»: det, rådgiveren ikke har gennemgået endnu —
+      uanset om medlemmet selv har set lektionen (de to tilstande er hver sin). */
+  const markerManglende = (userId: string, items: ContentItem[]) => {
+    const manglende = items.filter((item) => !erGennemgaaet(userId, item.id));
+    setMutation.mutate({ userId, itemIds: manglende.map((item) => item.id) });
+  };
+
+  const fortrydEn = (userId: string, item: ContentItem) => {
+    const raekke = rowByKey.get(keyOf(userId, item.id));
+    if (!raekke) return;
+    clearMutation.mutate({ userId, itemId: item.id, raekke });
   };
 
   // ── Venstre: medlemsliste (alfabetisk fra api-laget) ────────────────────
@@ -333,8 +352,11 @@ export const ProgressView = () => {
             <span className="block truncate text-xs text-hb-ink-soft">{member.companyName}</span>
           )}
         </span>
-        <span className="shrink-0 text-xs text-hb-ink-soft">
-          {doneCount(member.userId)} af {synligeTracked.length}
+        <span className="shrink-0 text-right text-xs text-hb-ink-soft">
+          <span className="block">{doneCount(member.userId)} af {synligeTracked.length}</span>
+          {gennemgaaetCount(member.userId) > 0 && (
+            <span className="block">{gennemgaaetCount(member.userId)} gennemgået</span>
+          )}
         </span>
       </button>
     );
@@ -352,11 +374,18 @@ export const ProgressView = () => {
           <p className="mt-1.5 text-sm text-hb-ink-soft">
             {[
               selectedMember.companyName,
-              detalje.art === "klar" ? `${doneCount(selectedMember.userId)} af ${synligeTracked.length} videoer gennemført` : null,
+              detalje.art === "klar" ? `${doneCount(selectedMember.userId)} af ${synligeTracked.length} videoer ${SET_AF_MEDLEMMET}` : null,
+              detalje.art === "klar" ? `${gennemgaaetCount(selectedMember.userId)} ${GENNEMGAAET_MED_RAADGIVER}` : null,
             ]
               .filter(Boolean)
               .join(" · ")}
           </p>
+          {detalje.art === "klar" && (
+            <p className="mt-1 text-xs text-hb-ink-soft">
+              To tilstande, hver sin: «{SET_AF_MEDLEMMET}» er det, medlemmet selv har set færdigt — det tæller i
+              hendes fremdrift. «{GENNEMGAAET_MED_RAADGIVER}» er jeres markering — den tæller ikke som hendes.
+            </p>
+          )}
 
           {error && <p className="mt-4 text-sm text-hb-rust">{error}</p>}
 
@@ -377,7 +406,7 @@ export const ProgressView = () => {
                 <div className="mt-3 space-y-6">
                   {block.groups.map((group) => {
                     const missing = group.items.filter(
-                      (item) => stateFor(selectedMember.userId, item.id) !== "done",
+                      (item) => !erGennemgaaet(selectedMember.userId, item.id),
                     ).length;
                     return (
                       <div key={`${block.areaKey}:${group.label}`}>
@@ -387,49 +416,58 @@ export const ProgressView = () => {
                           </h3>
                           <button
                             type="button"
-                            onClick={() => acknowledgeMissing(selectedMember.userId, group.items)}
+                            onClick={() => markerManglende(selectedMember.userId, group.items)}
                             disabled={missing === 0 || setMutation.isPending}
                             className="shrink-0 rounded-full border border-hb-line px-3.5 py-1.5 text-sm text-hb-ink-soft transition-colors hover:bg-hb-sage/30 hover:text-hb-ink disabled:opacity-40"
                           >
-                            Markér hele modulet ({missing})
+                            Markér hele modulet som gennemgået ({missing})
                           </button>
                         </div>
                         <ul className="mt-2 space-y-1">
                           {group.items.map((item) => {
                             const state = stateFor(selectedMember.userId, item.id);
                             const done = state === "done";
+                            const gennemgaaet = erGennemgaaet(selectedMember.userId, item.id);
                             return (
                               <li
                                 key={item.id}
                                 className="flex items-center gap-3 rounded-lg px-2 py-1.5 transition-colors hover:bg-hb-sage/20"
                               >
+                                {/* Prikken er medlemmets EGEN tilstand — aldrig markeringen. */}
                                 <StateDot state={state} />
                                 <span className="min-w-0 flex-1 truncate text-[15px] text-hb-ink">
                                   {item.title}
                                 </span>
-                                {done ? (
+                                {done && (
+                                  <span
+                                    className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-hb-sage px-3 py-1 text-xs font-medium text-hb-ink"
+                                    title="Medlemmet har selv set lektionen færdig — kun medlemmet kan fortryde det"
+                                  >
+                                    <Check className="h-3.5 w-3.5" />
+                                    Set af medlemmet
+                                  </span>
+                                )}
+                                {gennemgaaet ? (
                                   /* Fortryd celle-for-celle — samme rolige
                                      hover-cue som medlemmets egen toggle. */
                                   <button
                                     type="button"
-                                    onClick={() =>
-                                      clearMutation.mutate({ userId: selectedMember.userId, itemId: item.id })
-                                    }
-                                    title="Klik for at fortryde"
-                                    aria-label={`Gennemført: ${item.title} — klik for at fortryde`}
-                                    className="group inline-flex shrink-0 items-center gap-1.5 rounded-full bg-hb-sage px-3 py-1 text-xs font-medium text-hb-ink transition-colors hover:bg-hb-sage/60"
+                                    onClick={() => fortrydEn(selectedMember.userId, item)}
+                                    title="Klik for at fortryde markeringen"
+                                    aria-label={`Gennemgået med rådgiver: ${item.title} — klik for at fortryde`}
+                                    className="group inline-flex shrink-0 items-center gap-1.5 rounded-full border border-hb-evergreen/50 px-3 py-1 text-xs font-medium text-hb-ink transition-colors hover:bg-hb-sage/40"
                                   >
                                     <Check className="h-3.5 w-3.5 group-hover:hidden" />
                                     <Undo2 className="hidden h-3.5 w-3.5 group-hover:block" />
-                                    Gennemført
+                                    Gennemgået med rådgiver
                                   </button>
                                 ) : (
                                   <button
                                     type="button"
-                                    onClick={() => acknowledgeOne(selectedMember.userId, item)}
+                                    onClick={() => markerEn(selectedMember.userId, item)}
                                     className="shrink-0 rounded-full border border-hb-line px-3 py-1 text-xs text-hb-ink-soft transition-colors hover:bg-hb-sage/30 hover:text-hb-ink"
                                   >
-                                    Markér
+                                    Markér som gennemgået
                                   </button>
                                 )}
                               </li>
