@@ -8,7 +8,9 @@ import { toast } from "sonner";
 import { HentningsFejl, kraevRaekker } from "@/lib/kraevRaekker";
 import { erManglendeKolonne } from "@/lib/manglendeTabel";
 import { dineMaalKvartalstjekKey, hentKvartalstjek, useDineMaalSkrivning } from "@/hooks/dineMaalGrundlag";
-import { BEKRAEFT_ORD, delBekraeftelser, KVARTAL_ORD, statusEfterKvartalValg, ventendeKvartalstjekAlle, type Kvartal } from "@/lib/hjemmebane/maalBekraeft";
+import { BEKRAEFT_ORD, delBekraeftelser, erBekraeftet, KVARTAL_ORD, statusEfterKvartalValg, ventendeKvartalstjekAlle, type Kvartal } from "@/lib/hjemmebane/maalBekraeft";
+import { useMaalPladsdom } from "@/hooks/maalPladsdom";
+import { bekraeftelseSpaerret } from "@/lib/hjemmebane/maalPladsdom";
 import { BekraeftMaalKort, type BekraeftHandling, type KvartalHandling } from "@/components/hjemmebane/milestones/BekraeftMaalKort";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
@@ -1990,6 +1992,13 @@ export const BoardroomView = () => {
     [milestonesQuery.data, skridtQuery.data],
   );
   const plan = useMemo(() => (dineMaal ? forsidePlanDom(dineMaal, aftaleRaekker, new Date()) : null), [dineMaal, aftaleRaekker]);
+  // Pladsens regel, MÅLT (maalPladsdom; migration 20261002241000): under «kun_bekraeftede» afviser
+  // triggeren en bekræftelse ved 3 bekræftede aktive — kortet viser grunden i stedet (rådets fund 2/10).
+  const pladsdom = useMaalPladsdom();
+  const antalBekraeftedeAktive = useMemo(
+    () => (milestonesQuery.data ?? []).filter((m) => m.status === "active" && erBekraeftet(m)).length,
+    [milestonesQuery.data],
+  );
 
   // SKIVE 3 (2/10-2026): forslag, gamle mål og kvartalstjek øverst i «Din plan» —
   // SAMME komponent og SAMME skrivninger som /milestones (BekraeftMaalKort →
@@ -2203,7 +2212,7 @@ export const BoardroomView = () => {
             </details>
           )}
           {/* SKIVE 3: forslag, gamle mål og kvartalstjek — kræver medlemmets klik, før de tæller. */}
-          <BekraeftMaalKort bekraeftelser={bekraeftelser} kvartalstjek={ventendeKvartalstjek} kanKlikke={!isAdvisor} onBekraeft={bekraeftHandling} onKvartal={kvartalHandling} className="mb-6" />
+          <BekraeftMaalKort bekraeftelser={bekraeftelser} kvartalstjek={ventendeKvartalstjek} kanKlikke={!isAdvisor} bekraeftSpaerret={bekraeftelseSpaerret(pladsdom, antalBekraeftedeAktive)} onBekraeft={bekraeftHandling} onKvartal={kvartalHandling} className="mb-6" />
           {/* FEJRINGEN øverst i sektionen — ét sted, uanset om målet stadig er
               blandt de aktive (ved 100 % er det nået i planens dom og rykker ud). */}
           {fejring && (

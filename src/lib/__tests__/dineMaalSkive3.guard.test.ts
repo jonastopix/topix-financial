@@ -71,7 +71,12 @@ export const ubekraeftedeTaellerIkke = (dom: string, fokus: string, hook: string
   return (
     /const bekraeftede = plan\.aktive\.filter\(\(x\) => erBekraeftet\(x\.maal\)\);/.test(d) &&
     /aktive: bekraeftede\.map\(til\)/.test(d) &&
-    /graenseTekst: graenseTekst\(bekraeftede\.length, ubekraeftede\.length\)/.test(d) &&
+    // Punkt 13 (2/10, migration 20261002241000): pladsen og grænseteksten regnes efter den MÅLTE regel (pladsdom),
+    // aldrig efter en antagelse — «alle» er standarden, indtil databasen svarer «kun_bekraeftede».
+    /graenseTekst: graenseTekst\(bekraeftede\.length, ubekraeftede\.length, pladsdom\)/.test(d) &&
+    /const plads = kanOpretteMaal\(aktiveDerTaeller\(bekraeftede\.length, ubekraeftede\.length, pladsdom\)\);/.test(d) &&
+    /pladsOptagetAfUbekraeftede: pladsdom === "alle" && !plads && kanOpretteMaal\(bekraeftede\.length\),/.test(d) &&
+    /pladsdom: Pladsdom = "alle"\): DineMaalDom/.test(d) &&
     /afgoerMilepael\(m, nu\)\.aktiv && erBekraeftet\(m\)/.test(f) &&
     /g\.maal\.filter\(\(m\) => m\.status === "active" && erBekraeftet\(m\)\)/.test(h) &&
     /\.some\(taellerSomScoreMaal\)/.test(s) &&

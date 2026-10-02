@@ -38,6 +38,11 @@ import { HbButton } from "../HbButton";
  * rådgiveren kun SELECT på milestones; bekræftelsen er medlemmets): knapperne
  * er deaktiverede med BEKRAEFT_ORD.kunMedlemmet som title.
  *
+ * Pladsen (rådets fund 2/10, migration 20261002241000): under «kun_bekraeftede»
+ * afviser triggeren en bekræftelse, når der allerede er 3 bekræftede aktive —
+ * så «Det er vores mål»/«Behold» står deaktiverede med grunden
+ * (`bekraeftSpaerret`, dømt af maalPladsdom.bekraeftelseSpaerret hos kalderen).
+ *
  * Dobbeltklik: ét mål ad gangen (`arbejder` = målets id) — knapperne på det
  * mål er låst, mens skrivningen løber; de andre kort er stadig klikbare.
  */
@@ -55,6 +60,10 @@ type Props = {
   kvartalstjek: readonly VentendeKvartalstjek[];
   /** Medlemmet (ikke rådgiveren, heller ikke i «Se som medlem»). */
   kanKlikke: boolean;
+  /** Grunden, «Det er vores mål»/«Behold» ikke kan trykkes (maalPladsdom.bekraeftelseSpaerret: under
+      «kun_bekraeftede» afviser triggeren 20261002241000 en fjerde bekræftet aktiv). null/udeladt = mulig.
+      «Ikke nu»/«Slip» og kvartalstjekket er aldrig spærret — de frigør eller rører ikke pladsen. */
+  bekraeftSpaerret?: string | null;
   /** Svarer med fejlteksten eller null ved ja. */
   onBekraeft: (maalId: string, handling: BekraeftHandling) => Promise<string | null>;
   /** Kvartalstjekkets behold/parkeret/naaet. «justeret» registreres af kalderen EFTER redigeringen er gemt. */
@@ -64,7 +73,7 @@ type Props = {
   className?: string;
 };
 
-export const BekraeftMaalKort = ({ bekraeftelser, kvartalstjek, kanKlikke, onBekraeft, onKvartal, onJuster, className }: Props) => {
+export const BekraeftMaalKort = ({ bekraeftelser, kvartalstjek, kanKlikke, bekraeftSpaerret = null, onBekraeft, onKvartal, onJuster, className }: Props) => {
   const [arbejder, setArbejder] = useState<string | null>(null);
   const [fejl, setFejl] = useState<{ maalId: string; tekst: string } | null>(null);
   const { forslag, gamle } = bekraeftelser;
@@ -85,6 +94,12 @@ export const BekraeftMaalKort = ({ bekraeftelser, kvartalstjek, kanKlikke, onBek
   };
   const laast = (maalId: string) => !kanKlikke || arbejder === maalId;
   const titel = kanKlikke ? undefined : BEKRAEFT_ORD.kunMedlemmet;
+  // Bekræftelsen (ikke slip): spærret med grunden, når databasen ville afvise den.
+  const bekraeftLaast = (maalId: string) => laast(maalId) || bekraeftSpaerret !== null;
+  const bekraeftTitel = titel ?? bekraeftSpaerret ?? undefined;
+  const spaerretGrund = kanKlikke && bekraeftSpaerret ? (
+    <p className="mt-2 text-sm text-hb-ink-soft" data-bekraeft-spaerret>{bekraeftSpaerret}</p>
+  ) : null;
   const fejlFor = (maalId: string) =>
     fejl?.maalId === maalId ? <p role="alert" className="mt-2 text-sm text-hb-rust" data-bekraeft-fejl>{fejl.tekst}</p> : null;
 
@@ -97,7 +112,7 @@ export const BekraeftMaalKort = ({ bekraeftelser, kvartalstjek, kanKlikke, onBek
           <p className="mt-2 font-editorial text-xl font-medium leading-snug text-hb-ink">{m.title}</p>
           <p className="mt-2 max-w-2xl text-sm text-hb-ink-soft">{BEKRAEFT_ORD.forslagTekst}</p>
           <div className="mt-4 flex flex-wrap gap-2">
-            <HbButton className="h-10 gap-1.5 px-5 text-sm" disabled={laast(m.id)} title={titel} onClick={() => void koer(m.id, () => onBekraeft(m.id, "bekraeft"))} data-handling="bekraeft">
+            <HbButton className="h-10 gap-1.5 px-5 text-sm" disabled={bekraeftLaast(m.id)} title={bekraeftTitel} onClick={() => void koer(m.id, () => onBekraeft(m.id, "bekraeft"))} data-handling="bekraeft">
               <Check className="h-4 w-4" aria-hidden />
               {BEKRAEFT_ORD.detErVoresMaal}
             </HbButton>
@@ -105,6 +120,7 @@ export const BekraeftMaalKort = ({ bekraeftelser, kvartalstjek, kanKlikke, onBek
               {BEKRAEFT_ORD.ikkeNu}
             </HbButton>
           </div>
+          {spaerretGrund}
           {fejlFor(m.id)}
         </HbCard>
       ))}
@@ -114,6 +130,7 @@ export const BekraeftMaalKort = ({ bekraeftelser, kvartalstjek, kanKlikke, onBek
         <HbCard className="p-5 md:p-6" data-gamle-maal-kort>
           <p className={cn(mikro, "text-hb-rust")}>{BEKRAEFT_ORD.gamleOverskrift}</p>
           <p className="mt-2 max-w-2xl text-sm text-hb-ink-soft">{BEKRAEFT_ORD.gamleTekst(gamle.length)}</p>
+          {spaerretGrund}
           <ul className="mt-3 divide-y divide-hb-line">
             {gamle.map((m) => {
               const af = skrevetAfTekst(m.source);
@@ -125,7 +142,7 @@ export const BekraeftMaalKort = ({ bekraeftelser, kvartalstjek, kanKlikke, onBek
                     {fejlFor(m.id)}
                   </div>
                   <div className="flex shrink-0 gap-2">
-                    <HbButton className="h-9 gap-1.5 px-4 text-sm" disabled={laast(m.id)} title={titel} onClick={() => void koer(m.id, () => onBekraeft(m.id, "bekraeft"))} data-handling="behold">
+                    <HbButton className="h-9 gap-1.5 px-4 text-sm" disabled={bekraeftLaast(m.id)} title={bekraeftTitel} onClick={() => void koer(m.id, () => onBekraeft(m.id, "bekraeft"))} data-handling="behold">
                       <Check className="h-4 w-4" aria-hidden />
                       {BEKRAEFT_ORD.behold}
                     </HbButton>

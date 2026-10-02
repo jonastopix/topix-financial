@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useCommunityGaest } from "@/hooks/communityAdgang";
 import { useAuth } from "@/hooks/useAuth";
 import { byggTjekliste, type MaalTilTjekliste, type Tjekliste, type TjeklisteInput } from "@/lib/onboardingTjekliste";
 import { harVelkomstvideo as doemVelkomstvideo } from "@/lib/appConfig";
@@ -61,10 +62,13 @@ import { getEffectiveReportPeriodKey, type ReportData } from "@/lib/financialUti
  *
  * TRÅDRETTEN (kan_oprette_traad) er klientens sammensatte Community-dom:
  * !isLegat && membershipTier === "full" — MemberRoute (App.tsx:102-109)
- * plus abonnent-udelukkelsen (hbNav.ts:97). Der findes ingen klient-
- * funktion der svarer 1:1 til har_aktivt_medlemskab (målt 11/9). Hooken
- * venter på at tier er afgjort (null = uafgjort, useAuth henter den en
- * runde efter companyId), så punktet ikke dukker op midt i listen.
+ * plus abonnent-udelukkelsen (hbNav.ts:97) — OG ikke gæst (2/10-2026,
+ * Jonas 14/9: «En gæst ser Community, men skriver ikke»; hooks/
+ * communityAdgang.ts: vis_i_netvaerk = false uden slutdato giver tier
+ * «full» i useAuth, men ingen skriveret i databasen). Der findes ingen
+ * klient-funktion der svarer 1:1 til har_aktivt_medlemskab (målt 11/9).
+ * Hooken venter på at tier OG gæstedommen er afgjort (null = uafgjort),
+ * så punktet ikke dukker op midt i listen.
  *
  * velkomstvideo_set_at er ikke i de genererede typer endnu (kolonnen er
  * kørt 2/9, migration 20260902170000) — derfor `as any` på det ene opslag,
@@ -212,11 +216,13 @@ export function useOnboardingTjekliste(): OnboardingTjeklisteResultat {
   const { user, isAdvisor, isLegat, membershipTier, companyId } = useAuth();
   const queryClient = useQueryClient();
   const userId = user?.id ?? "";
+  // Gæsten (2/10): null = uafgjort, true = gæst — «Præsentér dig» udgår (døren er lukket i datalaget).
+  const gaest = useCommunityGaest();
   // Trådretten — klientens sammensatte Community-dom (se filhovedet).
-  const kanOpretteTraad = !isLegat && membershipTier === "full";
-  // Tier null = uafgjort (useAuth henter den en runde efter companyId):
+  const kanOpretteTraad = !isLegat && membershipTier === "full" && gaest === false;
+  // Tier null = uafgjort (useAuth henter den en runde efter companyId), og gæstedommen null = uafgjort:
   // ventes på, så præsentations-punktet ikke dukker op midt i listen.
-  const aktiv = Boolean(userId) && !isAdvisor && Boolean(companyId) && membershipTier !== null;
+  const aktiv = Boolean(userId) && !isAdvisor && Boolean(companyId) && membershipTier !== null && gaest !== null;
 
   const query = useQuery({
     queryKey: [TJEKLISTE_QUERY_KEY, userId, companyId, kanOpretteTraad],

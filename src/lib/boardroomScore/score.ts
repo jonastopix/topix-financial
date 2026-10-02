@@ -127,7 +127,9 @@ function handlingerFor(g: ScoreGrundlag, nu: Date, soejler: Soejler): Handling[]
     // en virksomhed kan have mål uden frist og stadig mangle pointet, så «dit første mål» ville lyve.
     // Runde 2, fund 1: fylder de UBEKRÆFTEDE databasens pladser (≥ MAX_AKTIVE_MAAL — triggeren tæller dem),
     // afviser databasen «Sæt et mål», og vejen er «Behold»/«Det er vores mål» på et mål med frist.
-    const pladserneFuldeAfUbekraeftede = (g.ubekraeftedeMaal ?? 0) >= MAX_AKTIVE_MAAL;
+    // Punkt 13 (2/10, migration 20261002241000): tæller triggeren kun bekræftede (pladserTaellerKunBekraeftede,
+    // målt — ikke antaget), fylder de ubekræftede ingen plads, og «Sæt et mål …» er sandt igen.
+    const pladserneFuldeAfUbekraeftede = g.pladserTaellerKunBekraeftede !== true && (g.ubekraeftedeMaal ?? 0) >= MAX_AKTIVE_MAAL;
     const tekst = pladserneFuldeAfUbekraeftede ? LOEFTER_SIG_JA_TEKST : LOEFTER_SAET_MAAL_TEKST;
     ud.push({ soejle: "disciplin", tekst, gevinst: gevinstVed(soejler, med.disciplin), sti: "/milestones" });
   }

@@ -12,6 +12,7 @@
 import { kbhDato } from "@/lib/hverdage";
 import { MAANEDSNAVNE } from "@/lib/maanedsnoegle";
 import { MAX_AKTIVE_MAAL } from "./maal";
+import { aktiveDerTaeller, type Pladsdom } from "./maalPladsdom";
 import { dageMellem, MAAL_NOEGLER, MAAL_ORD, type MaalKort, type MaalNoegle, type SporStatus, type TidslinjeDom, type TidslinjePunkt } from "./maalTal";
 
 // ── Hovedet ────────────────────────────────────────────────────────────────
@@ -46,36 +47,39 @@ export const venterPaaJaTekst = (antal: number): string => (antal === 1 ? "1 ven
 
 /**
  * «N mål for de næste 12 måneder · M plads ledig» (designet 1/10). N er de
- * BEKRÆFTEDE (dem, der tæller); pladsen er DATABASENS: MAX_AKTIVE_MAAL −
- * (bekræftede + ubekræftede), fordi triggeren tæller alle aktive (rådets fund
- * 3). Med ubekræftede står «· M venter på jeres ja», og er pladserne fyldt af
- * dem, siger linjen «Svar på de mål, der venter på jeres ja …» — aldrig «3
- * pladser ledige», som databasen ville afvise. Uden bekræftede, men med
- * ubekræftede: «Ingen bekræftede mål endnu» (runde 2, fund 4 — «Ingen mål
- * endnu» ville lyve, når tre står og venter).
+ * BEKRÆFTEDE (dem, der tæller); pladsen er DATABASENS efter den MÅLTE regel
+ * (maalPladsdom.ts): under «alle» MAX_AKTIVE_MAAL − (bekræftede + ubekræftede),
+ * fordi triggeren fra 20260917150000 tæller alle aktive (rådets fund 3) — med
+ * ubekræftede står «· M venter på jeres ja», og er pladserne fyldt af dem,
+ * siger linjen «Svar på de mål, der venter på jeres ja …» — aldrig «3 pladser
+ * ledige», som databasen ville afvise. Under «kun_bekraeftede» (20261002241000,
+ * Jonas 2/10 «Ja, kun bekræftede») tæller kun de bekræftede: «· M venter på
+ * jeres ja» står stadig, men pladsen regnes uden dem, og «Svar på …» siges
+ * aldrig. Uden bekræftede, men med ubekræftede: «Ingen bekræftede mål endnu»
+ * (runde 2, fund 4 — «Ingen mål endnu» ville lyve, når tre står og venter).
  *
  * ÉN hovedlinje (2/10-2026; i drift stod to røde linjer oven på hinanden —
  * hovedLinje OG dineMaal.graenseTekst, «5 af 3 aktive mål» — Rallysupport):
  * /milestones tegner KUN denne. Over grænsen (flere BEKRÆFTEDE end tre — mål
- * fra før grænsen) siger den: «5 aktive mål — flere end de 3, der er plads
- * til. Parkér eller markér nogle som nået, så I står med højst 3.» med «· N
- * venter på jeres ja» efter tallet (samme ord som dineMaal.graenseTekst —
- * «Parkér et» var falsk for N > 3: ét parkeret mål giver ikke plads; rådets
- * fund 2/10);
- * aldrig «5 af 3». Fylder de ubekræftede pladserne op (bekræftede < 3), er
- * svaret vejen til plads (TAG_STILLING); er de bekræftede tre, er der «ingen
- * plads ledig», uanset hvor mange der venter.
+ * fra før grænsen; under begge regler) siger den: «5 aktive mål — flere end de
+ * 3, der er plads til. Parkér eller markér nogle som nået, så I står med højst
+ * 3.» med «· N venter på jeres ja» efter tallet (samme ord som
+ * dineMaal.graenseTekst — «Parkér et» var falsk for N > 3: ét parkeret mål
+ * giver ikke plads; rådets fund 2/10); aldrig «5 af 3». Fylder de ubekræftede
+ * pladserne op (bekræftede < 3, KUN under «alle»), er svaret vejen til plads
+ * (TAG_STILLING); er de bekræftede tre, er der «ingen plads ledig», uanset hvor
+ * mange der venter.
  */
-export function hovedLinje(antalBekraeftede: number, antalUbekraeftede = 0): string {
+export function hovedLinje(antalBekraeftede: number, antalUbekraeftede = 0, pladsdom: Pladsdom = "alle"): string {
   const venter = antalUbekraeftede > 0 ? ` · ${venterPaaJaTekst(antalUbekraeftede)}` : "";
   if (antalBekraeftede > MAX_AKTIVE_MAAL) {
     return `${antalBekraeftede} aktive mål${venter} — flere end de ${MAX_AKTIVE_MAAL}, der er plads til. Parkér eller markér nogle som nået, så I står med højst ${MAX_AKTIVE_MAAL}.`;
   }
   const ingen = antalUbekraeftede > 0 ? INGEN_BEKRAEFTEDE_MAAL_TEKST : INGEN_MAAL_TEKST;
   const maal = antalBekraeftede === 0 ? ingen : antalBekraeftede === 1 ? "1 mål for de næste 12 måneder" : `${antalBekraeftede} mål for de næste 12 måneder`;
-  const plads = MAX_AKTIVE_MAAL - (antalBekraeftede + antalUbekraeftede);
+  const plads = MAX_AKTIVE_MAAL - aktiveDerTaeller(antalBekraeftede, antalUbekraeftede, pladsdom);
   if (plads > 0) return `${maal}${venter} · ${plads === 1 ? "1 plads ledig" : `${plads} pladser ledige`}`;
-  if (antalBekraeftede < MAX_AKTIVE_MAAL && antalUbekraeftede > 0) return `${maal}${venter} · ${TAG_STILLING_TEKST}`;
+  if (antalBekraeftede < MAX_AKTIVE_MAAL && antalUbekraeftede > 0 && pladsdom === "alle") return `${maal}${venter} · ${TAG_STILLING_TEKST}`;
   return `${maal}${venter} · ingen plads ledig`;
 }
 

@@ -30,6 +30,7 @@ import { fremdriftTekst, planenDom, type MaalIPlanen, type MaalRaekke, type Skri
 import { kanOpretteMaal, MAX_AKTIVE_MAAL } from "./maal";
 import { danskDato } from "./skridtForslag";
 import { erBekraeftet } from "./maalBekraeft";
+import { aktiveDerTaeller, type Pladsdom } from "./maalPladsdom";
 
 /** Det af company_actions-rækken medlemmets flader læser: planens skridt +
     closed_at (historik: «gjort 12. sep.»). */
@@ -95,15 +96,19 @@ export interface DineMaalDom {
   naaede: MaalForMedlem[];
   /** Ingen mål overhovedet. */
   tom: boolean;
-  /** Under tre aktive — DATABASENS tælling (triggeren milestones_hoejst_tre_aktive tæller ALLE status =
-      'active', også ubekræftede; migration 20261002100000 rører den ikke). Fladen lover aldrig en plads,
-      databasen afviser. */
+  /** Under tre aktive — DATABASENS tælling efter den MÅLTE regel (maalPladsdom.ts): «alle» = triggeren
+      fra 20260917150000 tæller alle status = 'active', også ubekræftede; «kun_bekraeftede» = triggeren
+      fra 20261002241000 tæller kun bekræftede. Fladen lover aldrig en plads, databasen afviser. */
   kanOprette: boolean;
-  /** Pladserne er ledige blandt de bekræftede, men de ubekræftede fylder databasens tre: fladen siger
-      «Plads, når I har taget stilling» (BEKRAEFT_ORD.pladsOptaget) i stedet for «Sæt et mål». */
+  /** Pladserne er ledige blandt de bekræftede, men de ubekræftede fylder databasens tre (KUN under reglen
+      «alle»): fladen siger «Plads, når I har taget stilling» (BEKRAEFT_ORD.pladsOptaget) i stedet for
+      «Sæt et mål». Altid false under «kun_bekraeftede» — der fylder et forslag ingen plads. */
   pladsOptagetAfUbekraeftede: boolean;
-  /** Grænsen på tre i klart sprog — altid én sætning. Tæller databasens aktive: bekræftede + «N venter på jeres ja» (fund 3). */
+  /** Grænsen på tre i klart sprog — altid én sætning. Tæller databasens aktive efter reglen: under «alle»
+      bekræftede + «N venter på jeres ja» (fund 3); under «kun_bekraeftede» kun de bekræftede. */
   graenseTekst: string;
+  /** Reglen, dommen blev regnet efter — så fladen kan vise den samme i hovedlinjen (dineMaalFlade.hovedLinje). */
+  pladsdom: Pladsdom;
   /** Flere end tre aktive (mål fra før grænsen) — databasens tælling (planen.gennemgang). */
   overGraensen: boolean;
 }
@@ -146,24 +151,28 @@ export function skridtLinjer(skridt: readonly SkridtTilDineMaal[]): SkridtLinje[
 export const GRAENSE_TAG_STILLING_TEKST = "Svar på de mål, der venter på jeres ja, for at få plads til jeres eget.";
 
 /**
- * Grænsen på tre i klart sprog. Tæller DATABASENS aktive — bekræftede +
- * ubekræftede (triggeren tæller begge, rådets fund 3); de ubekræftede nævnes
- * som «N venter på jeres ja», og fylder de pladserne, siger teksten «Tag
- * stilling …» i stedet for «plads til N mere». Flere BEKRÆFTEDE end tre (mål
- * fra før grænsen) siger det FØRST — aldrig «5 af 3 aktive mål» (målt i drift
- * 2/10, Rallysupport). /milestones tegner den ikke længere (ÉN hovedlinje,
- * dineMaalFlade.hovedLinje); forsidens «Din plan» gør.
+ * Grænsen på tre i klart sprog. Tæller DATABASENS aktive efter den målte regel
+ * (maalPladsdom.ts): under «alle» bekræftede + ubekræftede (triggeren fra
+ * 20260917150000 tæller begge, rådets fund 3) — de ubekræftede nævnes som «N
+ * venter på jeres ja», og fylder de pladserne, siger teksten «Svar på …» i
+ * stedet for «plads til N mere». Under «kun_bekraeftede» (20261002241000)
+ * tæller kun de bekræftede; «N venter på jeres ja» nævnes stadig, men tager
+ * aldrig en plads, og «Svar på …» siges aldrig. Flere BEKRÆFTEDE end tre (mål
+ * fra før grænsen) siger det FØRST — under begge regler, aldrig «5 af 3 aktive
+ * mål» (målt i drift 2/10, Rallysupport). /milestones tegner den ikke længere
+ * (ÉN hovedlinje, dineMaalFlade.hovedLinje); forsidens «Din plan» gør.
  */
-export function graenseTekst(antalBekraeftede: number, antalUbekraeftede = 0): string {
-  const antalAktive = antalBekraeftede + antalUbekraeftede;
+export function graenseTekst(antalBekraeftede: number, antalUbekraeftede = 0, pladsdom: Pladsdom = "alle"): string {
+  const antalAktive = aktiveDerTaeller(antalBekraeftede, antalUbekraeftede, pladsdom);
   const venter = antalUbekraeftede > 0 ? ` · ${antalUbekraeftede === 1 ? "1 venter på jeres ja" : `${antalUbekraeftede} venter på jeres ja`}` : "";
   if (antalBekraeftede > MAX_AKTIVE_MAAL) return `Du har ${antalBekraeftede} aktive mål${venter} — flere end de ${MAX_AKTIVE_MAAL} der er plads til. Parkér eller markér nogle som nået, så I står med højst ${MAX_AKTIVE_MAAL}.`;
-  if (antalAktive <= 0) return `Du kan have op til ${MAX_AKTIVE_MAAL} aktive mål ad gangen.`;
+  if (antalAktive <= 0 && antalUbekraeftede <= 0) return `Du kan have op til ${MAX_AKTIVE_MAAL} aktive mål ad gangen.`;
   if (antalAktive < MAX_AKTIVE_MAAL) {
     const plads = MAX_AKTIVE_MAAL - antalAktive;
     return `${antalBekraeftede} af ${MAX_AKTIVE_MAAL} aktive mål${venter} — plads til ${plads} mere.`;
   }
-  if (antalUbekraeftede > 0 && antalBekraeftede < MAX_AKTIVE_MAAL) return `${antalBekraeftede} af ${MAX_AKTIVE_MAAL} aktive mål${venter} — ${GRAENSE_TAG_STILLING_TEKST}`;
+  // «Svar på …» kun under «alle»: under «kun_bekraeftede» fylder et forslag ingen plads.
+  if (antalUbekraeftede > 0 && antalBekraeftede < MAX_AKTIVE_MAAL && pladsdom === "alle") return `${antalBekraeftede} af ${MAX_AKTIVE_MAAL} aktive mål${venter} — ${GRAENSE_TAG_STILLING_TEKST}`;
   // Tre bekræftede: det højeste — også når flere venter (et ja ville afvises af databasen).
   return `Du har ${MAX_AKTIVE_MAAL} aktive mål${venter} — det er det højeste. Parkér eller markér et som nået for at få plads til et nyt.`;
 }
@@ -179,7 +188,7 @@ function medHandlinger(x: MaalIPlanen, skridtAf: Map<string, SkridtTilDineMaal[]
   return { plan: x, handlinger, skridtLinjer: linjer, fremdriftTekst: fremdriftTekst(x), gjorte: x.skridt.gjorte.length, alleSkridtGjort };
 }
 
-export function dineMaalDom(maal: readonly MaalRaekke[], skridt: readonly SkridtTilDineMaal[], nu: Date): DineMaalDom {
+export function dineMaalDom(maal: readonly MaalRaekke[], skridt: readonly SkridtTilDineMaal[], nu: Date, pladsdom: Pladsdom = "alle"): DineMaalDom {
   const plan = planenDom(maal, skridt, nu);
   const skridtAf = new Map<string, SkridtTilDineMaal[]>();
   for (const s of skridt) {
@@ -188,11 +197,12 @@ export function dineMaalDom(maal: readonly MaalRaekke[], skridt: readonly Skridt
     liste.push(s);
     skridtAf.set(s.maal_id, liste);
   }
-  // Skive 3: pladsen dømmes som databasen (alle aktive) — se DineMaalDom.kanOprette.
-  const plads = kanOpretteMaal(plan.aktive.length);
-  const til = (x: MaalIPlanen) => medHandlinger(x, skridtAf, plads);
   const bekraeftede = plan.aktive.filter((x) => erBekraeftet(x.maal));
   const ubekraeftede = plan.aktive.filter((x) => !erBekraeftet(x.maal));
+  // Skive 3: pladsen dømmes som DATABASEN efter den målte regel (maalPladsdom.ts) — se DineMaalDom.kanOprette.
+  // «alle»: plan.aktive.length (= bekræftede + ubekræftede); «kun_bekraeftede»: kun de bekræftede.
+  const plads = kanOpretteMaal(aktiveDerTaeller(bekraeftede.length, ubekraeftede.length, pladsdom));
+  const til = (x: MaalIPlanen) => medHandlinger(x, skridtAf, plads);
   return {
     aktive: bekraeftede.map(til),
     ubekraeftede: ubekraeftede.map(til),
@@ -200,9 +210,10 @@ export function dineMaalDom(maal: readonly MaalRaekke[], skridt: readonly Skridt
     naaede: plan.naaede.map(til),
     tom: maal.length === 0,
     kanOprette: plads,
-    pladsOptagetAfUbekraeftede: !plads && kanOpretteMaal(bekraeftede.length),
-    graenseTekst: graenseTekst(bekraeftede.length, ubekraeftede.length),
+    pladsOptagetAfUbekraeftede: pladsdom === "alle" && !plads && kanOpretteMaal(bekraeftede.length),
+    graenseTekst: graenseTekst(bekraeftede.length, ubekraeftede.length, pladsdom),
     overGraensen: plan.gennemgang,
+    pladsdom,
   };
 }
 

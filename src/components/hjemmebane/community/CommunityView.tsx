@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { useCommunityGaest } from "@/hooks/communityAdgang";
+import { GAEST_LAESER_TEKST, visComposer, visGaestGraense } from "@/lib/hjemmebane/communityAdgang";
 import { TJEKLISTE_QUERY_KEY } from "@/hooks/useOnboardingTjekliste";
 import { cn } from "@/lib/utils";
 import {
@@ -178,6 +180,9 @@ export const CommunityView = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  /* Gæsten (2/10, Jonas 14/9: læser, skriver ikke): null mens dommen hentes, true = gæst — ingen composer,
+     ingen like, grænsen vises; false = som i dag. Hooken kaster aldrig (lib/hjemmebane/communityAdgang.ts). */
+  const gaest = useCommunityGaest();
   const [searchParams, setSearchParams] = useSearchParams();
   const [titel, setTitel] = useState("");
 
@@ -267,7 +272,7 @@ export const CommunityView = () => {
             indlæst: den må ikke montere med et tomt brugerId, for så ville
             en billed-upload lande på en ulovlig sti, som motoren bagefter
             kasserer. */}
-        {!feedQuery.isLoading && user && (
+        {!feedQuery.isLoading && user && visComposer(gaest) && (
           <div className="mb-8">
             <CommunityComposer
               key={praesentationAnmodet ? "praesentation" : "nyt"}
@@ -290,6 +295,11 @@ export const CommunityView = () => {
           </div>
         )}
 
+        {/* Gæstens grænse — i stedet for composeren, aldrig som en fejl (w13). */}
+        {!feedQuery.isLoading && visGaestGraense(gaest) && (
+          <p className="mb-8 text-sm text-hb-ink-soft" data-gaest-graense>{GAEST_LAESER_TEKST}</p>
+        )}
+
         {feedTilstand === "henter" ? (
           <ul className="list-none">
             <RowSkeleton />
@@ -306,7 +316,7 @@ export const CommunityView = () => {
               <TraadRaekke
                 key={traad.id}
                 traad={traad}
-                reagerer={reaktionMutation.isPending}
+                reagerer={reaktionMutation.isPending || !visComposer(gaest)}
                 onLike={() => reaktionMutation.mutate(traad.id)}
               />
             ))}

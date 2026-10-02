@@ -5,7 +5,7 @@
 -- src/lib/hjemmebane/maalTal.ts. Hentning: src/hooks/dineMaalGrundlag.ts.
 --
 -- FILNAVNET (rådets fund 8, 1/10 aften): 20261001190000 — sorterer EFTER de kørte
--- 20261001110000/20261001120000 og FØR den ukørte 20261002200000_kald_edge_apikey.
+-- 20261001110000/20261001120000 og FØR den ukørte 20261002290000_kald_edge_apikey.
 -- Når denne flippes til «KØRT», står der ingen ukørt fil før den sidst kørte
 -- (metaSend.guard dom 11, ventepladser-reglen). Hed før 20261001210000.
 --
@@ -53,7 +53,7 @@
 --   KENDT HUL (SECURITY_BASELINE fund 6, ÅBENT): «Users can … own milestones»
 --   dømmer kun user_id — et medlem kan skrive et mål med en ANDEN virksomheds
 --   company_id. Stramningen er forberedt SEPARAT i
---   20261002210000_milestones_with_check.sql og kræver Jonas' grønne lys; den er
+--   20261002280000_milestones_with_check.sql og kræver Jonas' grønne lys; den er
 --   IKKE en del af denne migration.
 --
 -- RÆKKEFØLGEN (ét skridt ad gangen):

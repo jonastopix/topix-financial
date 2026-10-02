@@ -164,6 +164,37 @@ describe("dineMaalDom — grænsen på tre i klart sprog", () => {
     expect(graenseTekst(3, 2)).toBe("Du har 3 aktive mål · 2 venter på jeres ja — det er det højeste. Parkér eller markér et som nået for at få plads til et nyt.");
     for (const [b, u] of [[5, 6], [4, 0], [3, 2]] as const) expect(graenseTekst(b, u)).not.toMatch(/[4-9]\d* af 3/);
   });
+  it("punkt 13 (migration 20261002241000, «kun_bekraeftede»): kun bekræftede tæller — «venter på jeres ja» nævnes, tager ingen plads, «Svar på …» siges aldrig", () => {
+    expect(graenseTekst(1, 1, "kun_bekraeftede")).toBe("1 af 3 aktive mål · 1 venter på jeres ja — plads til 2 mere.");
+    expect(graenseTekst(0, 3, "kun_bekraeftede")).toBe("0 af 3 aktive mål · 3 venter på jeres ja — plads til 3 mere.");
+    expect(graenseTekst(2, 2, "kun_bekraeftede")).toBe("2 af 3 aktive mål · 2 venter på jeres ja — plads til 1 mere.");
+    expect(graenseTekst(3, 2, "kun_bekraeftede")).toBe("Du har 3 aktive mål · 2 venter på jeres ja — det er det højeste. Parkér eller markér et som nået for at få plads til et nyt.");
+    expect(graenseTekst(0, 0, "kun_bekraeftede")).toBe(graenseTekst(0));
+    // Over grænsen (flere BEKRÆFTEDE end tre) under begge regler — aldrig «5 af 3».
+    expect(graenseTekst(5, 1, "kun_bekraeftede")).toBe(graenseTekst(5, 1, "alle"));
+    expect(graenseTekst(5, 1, "kun_bekraeftede")).not.toMatch(/[4-9]\d* af 3/);
+    // Standarden er stadig «alle» — den gamle regel, indtil databasen svarer andet.
+    expect(graenseTekst(2, 2)).toBe(graenseTekst(2, 2, "alle"));
+  });
+  it("punkt 13: dineMaalDom dømmer pladsen efter reglen — tre forslag fylder under «alle», ikke under «kun_bekraeftede»", () => {
+    const tre = [maal({ id: "a", bekraeftet_at: null }), maal({ id: "b", bekraeftet_at: null }), maal({ id: "c", bekraeftet_at: null })];
+    const alle = dineMaalDom(tre, [], NU);
+    expect(alle).toMatchObject({ kanOprette: false, pladsOptagetAfUbekraeftede: true, pladsdom: "alle" });
+    expect(alle.graenseTekst).toContain(GRAENSE_TAG_STILLING_TEKST);
+    const kun = dineMaalDom(tre, [], NU, "kun_bekraeftede");
+    expect(kun).toMatchObject({ kanOprette: true, pladsOptagetAfUbekraeftede: false, pladsdom: "kun_bekraeftede" });
+    expect(kun.graenseTekst).toBe("0 af 3 aktive mål · 3 venter på jeres ja — plads til 3 mere.");
+    expect(kun.ubekraeftede).toHaveLength(3);
+    // Tre BEKRÆFTEDE fylder under begge regler; et parkeret mål kan da ikke aktiveres.
+    const bekr = [maal({ id: "a", bekraeftet_at: "2026-09-01T00:00:00Z" }), maal({ id: "b", bekraeftet_at: "2026-09-01T00:00:00Z" }), maal({ id: "c", bekraeftet_at: "2026-09-01T00:00:00Z" }), maal({ id: "p", status: "parked" })];
+    expect(dineMaalDom(bekr, [], NU, "kun_bekraeftede")).toMatchObject({ kanOprette: false, pladsOptagetAfUbekraeftede: false });
+    expect(dineMaalDom(bekr, [], NU, "kun_bekraeftede").parkerede[0].handlinger.kanAktivere).toBe(false);
+    // To bekræftede + ét forslag: plads under «kun_bekraeftede», og et parkeret kan aktiveres.
+    const blandet = [maal({ id: "a", bekraeftet_at: "2026-09-01T00:00:00Z" }), maal({ id: "b", bekraeftet_at: "2026-09-01T00:00:00Z" }), maal({ id: "f", bekraeftet_at: null }), maal({ id: "p", status: "parked" })];
+    expect(dineMaalDom(blandet, [], NU, "alle")).toMatchObject({ kanOprette: false, pladsOptagetAfUbekraeftede: true });
+    expect(dineMaalDom(blandet, [], NU, "kun_bekraeftede")).toMatchObject({ kanOprette: true, pladsOptagetAfUbekraeftede: false });
+    expect(dineMaalDom(blandet, [], NU, "kun_bekraeftede").parkerede[0].handlinger.kanAktivere).toBe(true);
+  });
   it("kanOprette følger kanOpretteMaal; overGraensen = planens gennemgang; tom = ingen mål", () => {
     const tom = dineMaalDom([], [], NU);
     expect(tom).toMatchObject({ tom: true, kanOprette: true, overGraensen: false });

@@ -66,6 +66,31 @@ to the entire access-control model.
   `community_svar`, `community_reaktioner`, `community_visninger`
   (advisor policies unchanged, gated by `has_role`)
 - Introduced in migration `20260811160000_community_adgang.sql`
+- **2/10-2026 (migration `20261002242000`, IKKE KØRT, kræver grønt lys):** the two
+  member SELECT policies (`community_traade`, `community_svar`) and the read RPCs
+  move to `kan_laese_community` (below). All write policies and write RPCs stay
+  on this function — it is the WRITE verdict for community from then on.
+
+### `kan_laese_community(_user_id uuid) → boolean` (2/10-2026, migration `20261002242000_community_gaest_laeser.sql`, IKKE KØRT — KRÆVER GRØNT LYS)
+- **READ-only community verdict** (Jonas 14/9: «En gæst ser Community, men skriver
+  ikke»): `har_aktivt_medlemskab(uid) OR EXISTS` membership in a company with
+  `vis_i_netvaerk = false AND is_legat = false AND contract_end_date IS NULL AND
+  is_demo IS DISTINCT FROM true AND data_slettet_at IS NULL` (the guest; demo and
+  deleted companies excluded — council finding 2/10; `er_kunde` deliberately not read,
+  it is a counting marker, never an access verdict). Narrow by design: an EXPIRED company with the flag is not a guest; a
+  company without end date and without the flag is not a guest.
+- STABLE, SECURITY DEFINER, `search_path = public`; `REVOKE ALL FROM PUBLIC, anon`;
+  `GRANT EXECUTE TO authenticated, service_role`.
+- Consumed ONLY by: policies «Members can view active threads» / «Members can view
+  active replies» (DROP + CREATE same name/command/role/shape — only the verdict
+  changes; PERMISSIVE grants of a yes, nothing to deny, §5) and the gates of
+  `get_community_feed`, `get_community_traad`, `get_community_svar`,
+  `maa_se_community_billede`, `maa_se_community_fil` (bodies otherwise identical to
+  their latest migration — source guard `communityGaest.guard` dom 3).
+- NOT consumed by: any INSERT/UPDATE/DELETE policy, `community_reaktioner`,
+  `community_visninger`, `registrer_community_visning`, `get_community_medlemmer`
+  (also the recipient list for the post mail), storage upload/delete. Truth table
+  and FØR/EFTER-SQL: `docs/adgangsdomme.md` §7 and the migration header.
 
 ### `har_aktivt_abonnement(_user_id uuid) → boolean`
 - **Fail-closed** exit-subscription verdict (dated note 2026-08-13): true
@@ -436,7 +461,7 @@ Fremtidige CASCADE-drops skal efterfølges af `pg_policies`-diff i prod.
 - **Fund 7:** «Members can insert own notifications» på `advisor_notifications` (WITH CHECK `member_id = auth.uid()` alene; `type`, `advisor_id`, `title`, `body` frie) droppes. Ingen klient brugte den (eneste klient-insert, `src/lib/advisorNotifications.ts`, havde ingen kaldere og er slettet); alle skrivere er edge functions med service role. `advisor_notifications` har derefter ingen klient-INSERT.
 - **Fund 6 — ÅBENT:** «Users can insert own reports/milestones/kpi targets/benchmarks» tjekker stadig kun `user_id` (BACKLOG [P4] ovenfor). En WITH CHECK på `company_id = user_company_id(auth.uid())` er ikke skrevet, fordi `user_company_id` tager én vilkårlig række (LIMIT 1) og `company_members` ikke er unik på `user_id` — et medlem i to virksomheder ville miste skriveadgang. Migrationens FØR-SELECT sektion 5–6 måler antallet af brugere i flere virksomheder og eksisterende rækker uden for skribentens virksomhed; stramningen skrives, når tallene er læst.
   - **Forstærket for `milestones` (1/10-2026 aften, «Dine mål»-motoren, det tekniske råds fund 9):** hullet har nu to følger mere. (a) Målet står på den ANDEN virksomheds forside og i «Dine mål» (hentningen filtrerer på `company_id`, `src/hooks/dineMaalGrundlag.ts:hentMaalMedTal`). (b) Triggeren `milestones_hoejst_tre_aktive` tæller pr. `company_id` — tre fremmede aktive mål blokerer offerets egne («Du har allerede 3 aktive mål»). Desuden har «Users can update own milestones» og «Company members can update company milestones» INGEN WITH CHECK (Postgres bruger da USING), så et medlem kan også flytte sit eget mål til en fremmed `company_id` ved UPDATE.
-  - **Forberedt, IKKE KØRT:** `supabase/migrations/20261002210000_milestones_with_check.sql` (første linje «-- IKKE KØRT. KRÆVER JONAS' GRØNNE LYS (RLS-stramning, SECURITY_BASELINE fund 6).»): `ALTER POLICY … WITH CHECK` på de fire medlemspolitikker for INSERT/UPDATE (`auth.uid() = user_id AND company_id = public.user_company_id(auth.uid())` for «Users …», `company_id = public.user_company_id(auth.uid())` for «Company members …»). Ingen DROP, USING røres ikke. Politiknavnene er KODELÆSTE (20260223155456:22–23, 20260224222456:192/196) og SKAL måles i `pg_policy` før kørsel (filens FØR-SQL sektion 1); sektion 2 (brugere i flere virksomheder) skal være 0, ellers STOP og vælg med Jonas (fx en `company_members`-baseret EXISTS). Tilbagerulningen står i filen. Kildeværnet `maalSkriv.guard` dom 2 tillader filen KUN i denne form. Reports/kpi targets/benchmarks er IKKE omfattet.
+  - **Forberedt, IKKE KØRT:** `supabase/migrations/20261002280000_milestones_with_check.sql` (første linje «-- IKKE KØRT. KRÆVER JONAS' GRØNNE LYS (RLS-stramning, SECURITY_BASELINE fund 6).»): `ALTER POLICY … WITH CHECK` på de fire medlemspolitikker for INSERT/UPDATE (`auth.uid() = user_id AND company_id = public.user_company_id(auth.uid())` for «Users …», `company_id = public.user_company_id(auth.uid())` for «Company members …»). Ingen DROP, USING røres ikke. Politiknavnene er KODELÆSTE (20260223155456:22–23, 20260224222456:192/196) og SKAL måles i `pg_policy` før kørsel (filens FØR-SQL sektion 1); sektion 2 (brugere i flere virksomheder) skal være 0, ellers STOP og vælg med Jonas (fx en `company_members`-baseret EXISTS). Tilbagerulningen står i filen. Kildeværnet `maalSkriv.guard` dom 2 tillader filen KUN i denne form. Reports/kpi targets/benchmarks er IKKE omfattet.
 
 ### Advisor access (full read, scoped write)
 ```sql
@@ -903,7 +928,7 @@ skrivende edge functions bruger `SUPABASE_SERVICE_ROLE_KEY`.
 
 - **Bekræftelsen bor på rækken** (`milestones.bekraeftet_at timestamptz NULL`, `bekraeftet_af uuid NULL`, kun tilføjende): et mål, en rådgiver/agent/handout skrev, tæller først som medlemmets, når medlemmet har sat stemplet. **Ingen ny policy på `milestones`:** medlemmet skriver gennem den eksisterende «Company members can update company milestones» (USING `company_id = user_company_id(auth.uid())`, uden WITH CHECK — fund 6 ovenfor gælder stadig), som også dækker et mål med rådgiverens `user_id`. Klientens UPDATE er guardet `.is("bekraeftet_at", null).eq("status", "active")`. Rådgiveren har kun SELECT og kan ikke bekræfte — fladen deaktiverer knapperne. Backfillen i migrationen sætter `bekraeftet_at = created_at` KUN for `source = 'manual'` med `user_id` i `company_members` for virksomheden (guard `WHERE bekraeftet_at IS NULL`).
 - **`maal_kvartalstjek` — append-only svar-spor:** RLS slået til; SELECT/INSERT TO authenticated for medlemmer af virksomheden (`company_id = user_company_id(auth.uid())`), INSERT desuden `valgt_af = auth.uid()` og EXISTS på `milestones` (målet hører til virksomheden — under medlemmets egen RLS) **og databasens dom (rådets fund 11, 2/10):** målet er bekræftet (`bekraeftet_at IS NOT NULL`), kvartalet er forfaldent — `greatest(bekraeftet_at som dansk dato, date '2026-10-02') + 3·kvartal måneder ≤ i dag (Europe/Copenhagen) < anker + 12 måneder` — ingen eksisterende række med `kvartal ≥` det nye (self-subquery under medlemmets SELECT-policy; ingen rekursion), og målets status passer til valget (`behold`/`justeret` → `active`; `parkeret` → `active`/`parked`; `naaet` → `active`/`completed`, fordi klienten skriver handlingen FØR rækken). Udtrykket er spejlet i klienten (`maalBekraeft.maaRegistrereKvartalstjek`) og holdt ens af `dineMaalSkive3.guard` dom 7; SELECT for rådgivere (`has_role(auth.uid(), 'advisor')`, forsidens linje). **Ingen UPDATE/DELETE-policy, ingen GRANT UPDATE/DELETE** (kun SELECT, INSERT til authenticated; anon intet — REVOKE). Rækker forsvinder kun med målet/virksomheden (FK `ON DELETE CASCADE` — kaskaden kører som tabelejer). Alle policies PERMISSIVE og giver kun JA — intet at nægte (§5). `UNIQUE (milestone_id, kvartal)`; CHECK på `kvartal IN (1,2,3)` og `valg IN ('behold','justeret','parkeret','naaet')` — ordforrådet står ORDRET i `src/lib/hjemmebane/maalBekraeft.ts` (kildeværn `dineMaalSkive3.guard` dom 4).
-- **Ingen SECURITY DEFINER, ingen funktion, ingen trigger.** Triggeren `milestones_hoejst_tre_aktive` er bevidst IKKE rørt og tæller stadig alle aktive (også ubekræftede) — fladen lover derfor aldrig en plads, databasen afviser (`dineMaal.pladsOptagetAfUbekraeftede`). En trigger, der kun tæller bekræftede, er et åbent punkt (grønt lys).
+- **Ingen SECURITY DEFINER, ingen funktion, ingen trigger.** Triggeren `milestones_hoejst_tre_aktive` er bevidst IKKE rørt og tæller stadig alle aktive (også ubekræftede) — fladen lover derfor aldrig en plads, databasen afviser (`dineMaal.pladsOptagetAfUbekraeftede`). En trigger, der kun tæller bekræftede, er et åbent punkt (grønt lys). **Bygget 2/10 (migration `20261002241000_maal_pladser_kun_bekraeftede.sql`, IKKE KØRT, kræver grønt lys):** `haandhaev_hoejst_tre_aktive_maal` tæller kun `status = 'active' AND bekraeftet_at IS NOT NULL` og dømmer også, når `bekraeftet_at` sættes på et aktivt forslag; triggeren forbliver SECURITY INVOKER; ny SECURITY INVOKER-RPC `maal_pladser_kun_bekraeftede()` lader klienten måle, hvilken regel databasen kører (`src/lib/hjemmebane/maalPladsdom.ts`; «alle» ved fejl). Sandhedstabellen står i migrationens filhoved.
 - **Data:** stempler, uid'er, kvartal og et ord — ingen beløb, ingen persondata ud over uid.
 - Kildeværn: `src/lib/__tests__/dineMaalSkive3.guard.test.ts` (8 domme; dom 6 holder migrationen tilføjende, dom 7 policyen = klientens dom). Design: `docs/dine-maal-design.md` «Skive 3».
 
@@ -970,7 +995,7 @@ skrivende edge functions bruger `SUPABASE_SERVICE_ROLE_KEY`.
     `verify_jwt = false` ONLY together with a «key only» mode that refuses the
     role claim, and the invariant script rewritten to enforce exactly that —
     without it the role claim is forgeable by anyone.
-  - `public.kald_edge` (SECURITY DEFINER, migration `20261002200000_kald_edge_apikey.sql`,
+  - `public.kald_edge` (SECURITY DEFINER, migration `20261002290000_kald_edge_apikey.sql`,
     **not run; needs Jonas' explicit go-ahead to run**): still sends the legacy
     `Authorization: Bearer` from vault `email_queue_service_role_key`
     unchanged, and additionally `apikey` from the NEW vault entry

@@ -11455,6 +11455,31 @@ En recon-agent (kun læsning) gik alle kort igennem med bevis fra `git log` og O
 - Fase 3a (legacy-nøglerne) — beslutning D1 i `docs/prod-hjem-plan.md`.
 - lh@-koblingen (manuel webinarkobling) — forslag, ikke bygget.
 
+### 2. oktober morgen — triggeren tæller kun bekræftede, og gæsten læser Community (gren `feat/trigger-og-gaest`; to migrationer — begge KØRT i prod 2/10 ca. 12:00–12:20 efter Jonas' «Klar» 11:31)
+
+Svar på morgenlisten 2/10 på to af nattens åbne punkter (pkt. 8 ovenfor).
+
+**Del A — punkt 13 (Jonas: «Ja, kun bekræftede»):** `20261002241000_maal_pladser_kun_bekraeftede.sql`. `haandhaev_hoejst_tre_aktive_maal` tæller kun `status = 'active' AND bekraeftet_at IS NOT NULL` og dømmer også, når `bekraeftet_at` sættes på et aktivt forslag; sandhedstabellen og FØR-sammenligningen med `20260917150000` står i filhovedet. Klienten måler den kørende regel (`maal_pladser_kun_bekraeftede()`, SECURITY INVOKER; `src/lib/hjemmebane/maalPladsdom.ts` + `src/hooks/maalPladsdom.ts`, «alle» ved fejl/PGRST202), så fladen er rigtig før og efter kørslen. `maal-skriv` tæller stadig alle aktive (konservativt; ændring kræver udrulning — åbent). Kort `a02-trigger-ubekraeftede`.
+
+**Del B — gæsten (Jonas: «Gæsten læser, skriver ikke (ny læse-dom)»; 14/9: «En gæst ser Community, men skriver ikke»):** `20261002242000_community_gaest_laeser.sql`. Ny SECURITY DEFINER-dom `kan_laese_community` = `har_aktivt_medlemskab` ELLER gæst (`vis_i_netvaerk = false AND is_legat = false AND contract_end_date IS NULL AND is_demo IS DISTINCT FROM true AND data_slettet_at IS NULL` — det snævre snit; en udløbet virksomhed med flaget er ikke gæst; demo/slettet tilføjet efter rådets fund 2/10, `er_kunde` bevidst ikke). Bruges KUN i de to SELECT-politikker og de fem læse-RPC'er; skrivning, visningstælleren og `get_community_medlemmer` (opslagsmailens modtagere — ellers mailes gæster) står på `har_aktivt_medlemskab`. Sandhedstabel, FØR/EFTER-SQL og RLS-prøve: migrationens filhoved og `docs/adgangsdomme.md` §7. Klienten (virker også før kørslen): «Som gæst kan du læse med — opslag, svar og reaktioner er for medlemmer.» i stedet for composeren på feedet og trådsiden, like slået fra, «Præsentér dig» udgår (`src/lib/hjemmebane/communityAdgang.ts`, `src/hooks/communityAdgang.ts`). Værn: `communityGaest.guard` (otte domme), `communityAdgang.test.ts`, `CommunityView.test.tsx`. Kort `w13`.
+
+**Omdøbt (før merge, intet kørt):** `20261002220000_maal_pladser_kun_bekraeftede` → `20261002241000_…` og `20261002230000_community_gaest_laeser` → `20261002242000_…`. Grunden: samme numre bruges i dag af andre grene (`20261002220000_opkaldsanmodninger`, `20261002220000_community_spoergsmaal`, `20261002230000_member_progress_markering` + `20261002231000`). Alle henvisninger i kode og tests er rettet.
+
+**Rådets fund rettet 2/10 (samme gren, intet kørt):**
+- **Bekræftelsen ved tre:** efter `20261002241000` afviser triggeren «Det er vores mål»/«Behold» på et aktivt forslag, når der allerede er 3 bekræftede aktive. `maalPladsdom.bekraeftelseSpaerret(pladsdom, antalBekraeftedeAktive)` giver grunden «I har 3 aktive mål — parkér eller markér et som nået først» (kun under «kun_bekraeftede»; under «alle» dømmes en bekræftelse aldrig); `BekraeftMaalKort` (`bekraeftSpaerret`) deaktiverer de to knapper og viser grunden — «Ikke nu»/«Slip» og kvartalstjekket kan stadig trykkes. Begge flader (/milestones og forsidens «Din plan») giver den ind. Test: `maalPladsdom.test.ts`, `BekraeftMaalKort.test.tsx`.
+- **Gæstegrenen:** `AND c.is_demo IS DISTINCT FROM true AND c.data_slettet_at IS NULL` i SQL og i klientspejlet (`erCommunityGaest`, `COMMUNITY_GAEST_FELTER`); sandhedstabellen har to rækker mere. `er_kunde` er bevidst IKKE med: målt i koden er den kun en tællemarkør (husets egen virksomhed), aldrig en adgangsdom.
+- **Klientens gæstedom læser kun den aktive virksomhed** — bevidst; grunden (medlemmets SELECT på `companies` er `user_company_id`, LIMIT 1) og følgen for en bruger i to virksomheder står i `docs/adgangsdomme.md` §7.
+- `CLAUDE.md` «Dine mål, skive 3»: «triggeren tæller dem stadig» gælder FØR `20261002241000`.
+
+**Rækkefølgen i drift:** Jonas' grønne lys PR MIGRATION → FØR-SQL (kroppene med `pg_get_functiondef`, politikkerne med `pg_policy`; afviger én, STOP) → kør → EFTER-SQL → Update. Ingen edge function er ændret.
+
+**KØRT 2/10 (migrationssessionen med Jonas, «Klar» 11:31; Claude via Lovable-MCP som `postgres`):**
+- **`20261002241000` (triggeren), ca. 12:00.** FØR: kroppen som `20260917150000`, 4 triggere på `milestones`, ingen RPC; virksomheden `86d4a4fa…` har 5 bekræftede og 11 aktive i alt; ubekræftede aktive: agent 15, ai 5, handout 10. EFTER: markøren `kun_bekraeftede` i kroppen, 4 triggere uændret, `maal_pladser_kun_bekraeftede()` svarer true (også som `authenticated`), ikke DEFINER.
+- **`20261002242000` (gæsten), ca. 12:20.** FØR: de fem læse-RPC'ers prod-kroppe blev sammenlignet tegn for tegn med migrationens kroppe (porten byttet tilbage) — **kun kommentarlinjer afveg** (prod-kopien har kortere kommentarer end kildefilerne 20260812180000/110000/140000; koden er ens), så «afviger én, STOP» udløste ikke; dom 0, politikker 16, gæster 0, brugere med ny læseadgang 0. Tørprøve af DEL 1–2 i en DO-blok med RAISE (rullet tilbage). EFTER: dom 1 (DEFINER + STABLE + search_path; EXECUTE: authenticated, service_role, postgres og Lovables `sandbox_exec_…` — ikke anon), fem porte «false / true», `get_community_medlemmer` og de fire skriveveje «true / false» (urørte), politikker 16, læsere 27 / 27 aktive medlemmer. RLS-prøve som rigtig bruger (rullet tilbage): medlem dom true · 11 tråde · feed 5; udløbet dom false · 0 · 0. **Der findes ingen gæst i dag** — migrationen ændrer ingen adgang, før den første gæst oprettes; gæstegrenen er derfor kun prøvet i koden (`communityGaest.guard`), ikke på en rigtig gæst. **ROLLBACK** (prod-kroppene FØR, ordret): gemt i sessionens scratchpad `prod.json`; logisk lig kildefilerne, så rollback-vejen i filhovedet holder.
+- **Omdøbt efter kørslen:** `20261002200000_kald_edge_apikey` → `20261002290000_…` og `20261002210000_milestones_with_check` → `20261002280000_…` — begge ukørte og sorterede nu FØR de kørte 241000/242000 (metaSend.guard dom 11 fældede). Rækkefølgen resten af dagen: 243000 (Spørgsmål) → 260000/261000 (F0) → 270000 (ring-op) → 280000 (with-check) → 290000 (3a). Værnene `communityGaest.guard` dom 1 og `maalSkriv.guard` dom 7 godtager nu også en første linje «-- KØRT i prod <dato> … Jonas' grønne lys».
+
+---
+
 ### 2. oktober nat — samlet (hvad der skete, hvad der venter)
 
 Samleoversigten for natten 1.–2. oktober. Detaljen står i emnernes egne sektioner og dokumenter, som der henvises til; den gentages ikke her. Klokkeslæt er dansk tid.
@@ -11501,11 +11526,11 @@ Efter Update: mål bundlen rekursivt i en FRISK fane (regelsættet (ee), (jj)), 
 | bogh | «Ja» + note: «e-conomic. Den er forbundet via connectors allerede. Det samme er Pleo. Og Stripe. Fakturaer via Corpay kommer ind i kasseklasse i e-conomic automatisk.» | Skrevet ind som Jonas' beslutning i `docs/analyser-30-09/bogholderi-agent-design.md` §7.6 |
 | gaest | «(b)» | **STOP, ikke bygget.** (b) giver også skriveadgang, Akademi og events til ALLE uden slutdato, uden udløb. Det strider mod Jonas' beslutning 14/9: «En gæst ser Community, men skriver ikke». Tre muligheder ligger hos Jonas (punkt 8). Lærestreg (nn) |
 | monday | «kald fra Monday skal bare væk» | Bygget i #1229, udrullet og bevist (punkt 2) |
-| 3a | «I morgen, sammen med mig» | Venter. Fase 3a i `docs/prod-hjem-plan.md`; migrationen `20261002200000_kald_edge_apikey.sql` er ikke kørt |
+| 3a | «I morgen, sammen med mig» | Venter. Fase 3a i `docs/prod-hjem-plan.md`; migrationen `20261002290000_kald_edge_apikey.sql` er ikke kørt |
 
 **6. Omdøbt (indholdet er uændret, ingen af dem er kørt):**
-- `20261001200000_kald_edge_apikey` → `20261002200000_kald_edge_apikey`
-- `20261002090000_milestones_with_check` → `20261002210000_milestones_with_check`
+- `20261001200000_kald_edge_apikey` → `20261002290000_kald_edge_apikey`
+- `20261002090000_milestones_with_check` → `20261002280000_milestones_with_check`
 
 Grunden: begge sorterede før `20261002100000`, som ER kørt. En ukørt migration må aldrig sortere før en kørt (`metaSend.guard` dom 11, lærestreg (ll)). Omdøbningen står i hver fils filhoved.
 
@@ -11516,7 +11541,7 @@ Grunden: begge sorterede før `20261002100000`, som ER kørt. En ukørt migratio
 
 **8. Kendt og åbent:**
 - **Triggeren `milestones_hoejst_tre_aktive` tæller også ubekræftede mål** med i loftet på tre aktive, selv om fladen ikke regner dem som aktive. En ændring af triggeren kræver grønt lys. Kort [`a02-trigger-ubekraeftede`](mangelliste.html#a02-trigger-ubekraeftede).
-- **RLS-stramningen `20261002210000_milestones_with_check`** (WITH CHECK, SECURITY_BASELINE fund 6) afventer grønt lys. Kort [`a02-milestones-with-check`](mangelliste.html#a02-milestones-with-check).
+- **RLS-stramningen `20261002280000_milestones_with_check`** (WITH CHECK, SECURITY_BASELINE fund 6) afventer grønt lys. Kort [`a02-milestones-with-check`](mangelliste.html#a02-milestones-with-check).
 - **F0 i akademi-grundlaget:** rådgiverens kvittering (`batchAcknowledge`) skal skilles fra medlemmets egen aktivitet, før akademitallene kan læses ærligt. Kort [`a02-akademi-f0`](mangelliste.html#a02-akademi-f0).
 - **Gæsten (aftenlistens «(b)»):** tre muligheder til Jonas.
   1. **Fuld adgang** for gæster. Det er et bevidst brud med beslutningen fra 14/9.
@@ -11568,7 +11593,7 @@ Grundlag: målt i prod 1/10 — 36 aktive mål hos 14 af 30 kunder, 0 med både 
 | #1206 | Dine mål: «Gjort» lukker ikke målet; skridtets frist ≤ målets | Update 14:35 + `skridt-tilfoej` udrullet 14:3x («Successfully deployed edge functions: skridt-tilfoej, webinar-delt»). **Kald-bevis mangler:** den nye 400 nås kun af et medlem af virksomheden, og Claude har ingen medlemskonto. Formularen afviser det samme før kaldet |
 | #1208 | Talrækker i chatten («1. 1. 1.») | Update 14:35 |
 | #1209 | Webinarkoblingen: forslag + klik | Update 14:35 + `webinar-delt` udrullet. Set på Zanco: mailen matcher (81 %), intet forslag, ingen hentefejl. **Kald-bevis for `webinar-delt` (`koblinger_talt`) afventer** delingslinket til Nicklas |
-| #1207 | Fase 3a trin 1 (kald_edge + sb_secret) | Merget 14:31 (`c69be02f`). Migrationen `20261002200000` **IKKE KØRT** (kræver Jonas' ja + vault-post). `_shared/edgeFunctionAuth.ts` er ændret: næste udrulning af en hvilken som helst function tager den med (legacy-nøglen virker uændret) |
+| #1207 | Fase 3a trin 1 (kald_edge + sb_secret) | Merget 14:31 (`c69be02f`). Migrationen `20261002290000` **IKKE KØRT** (kræver Jonas' ja + vault-post). `_shared/edgeFunctionAuth.ts` er ændret: næste udrulning af en hvilken som helst function tager den med (legacy-nøglen virker uændret) |
 | #1211 | /engagement: sandt sprog, mobilvisning (stablede kort under `sm`), trofænavne brækkes ikke midt i ordet | Merget `98db936c`. **Venter på Update** |
 | #1213 | Docs: Mortens bogholderagent (§7) + `docs/mailplan-14-dage-og-sms.md` | Kun docs |
 

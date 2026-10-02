@@ -48,6 +48,7 @@ import { kbhDele } from "@/lib/hverdage";
 import { boardroomScore, tidligsteGodkendelse, type ScoreDom, type ScoreGrundlag, type ScoreMaaned } from "@/lib/boardroomScore";
 import { erUbekraeftetAktivt, taellerSomScoreMaal, type MaalTilScore } from "@/lib/hjemmebane/maalBekraeft";
 import { erManglendeKolonne } from "@/lib/manglendeTabel";
+import { hentMaalPladsdom } from "@/hooks/maalPladsdom";
 import type { Json } from "@/integrations/supabase/types";
 
 /** Kolonnerne, Score læser af milestones (skive 3). bekraeftet_at er den, der kan mangle. */
@@ -135,6 +136,8 @@ export async function hentScoreGrundlag(companyId: string, nu: Date): Promise<Sc
   if (budget.error) throw new HentningsFejl("budget_targets", budget.error.message);
 
   const { harMaal, ubekraeftede } = await hentHarMaal(companyId);
+  // Punkt 13 (2/10): pladsernes regel måles — «alle» før migration 20261002241000 (hentMaalPladsdom kaster aldrig).
+  const pladsdom = await hentMaalPladsdom();
 
   const maaneder: ScoreMaaned[] = facts.map((f) => ({
     key: f.period_key,
@@ -151,6 +154,7 @@ export async function hentScoreGrundlag(companyId: string, nu: Date): Promise<Sc
       harBudgetForAaret: (budget.count ?? 0) > 0,
       harMaal,
       ubekraeftedeMaal: ubekraeftede,
+      pladserTaellerKunBekraeftede: pladsdom === "kun_bekraeftede",
     },
   };
 }

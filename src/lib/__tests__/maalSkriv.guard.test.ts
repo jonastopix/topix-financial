@@ -24,6 +24,13 @@ import { join, resolve } from "node:path";
 //   5. Agenten har hverken create_milestone eller update_milestone_progress —
 //      hverken i poolen, i executeTool, i SKRIVE_TOOLS eller i onboarding-prompten.
 //   6. Triggeren «højst tre» (ikke DEFINER, kun når rækken bliver aktiv, ingen politik).
+//   7. Punkt 13 (2/10-2026, Jonas «Ja, kun bekræftede»; migration 20261002241000, IKKE KØRT,
+//      KRÆVER GRØNT LYS): den NYE krop tæller kun bekræftede aktive (bekraeftet_at is not null),
+//      dømmer også når bekraeftet_at sættes på en aktiv (old.bekraeftet_at is null), bærer
+//      markøren «PLADSDOM: kun_bekraeftede», som RPC'en maal_pladser_kun_bekraeftede læser i
+//      pg_proc; stadig ikke DEFINER, ingen politik; første linje kræver grønt lys (ikke «IKKE
+//      KØRT. DEPLOY:», så mappescanningen ikke tager den); klienten dømmer «alle» uden svar
+//      (laesPladsdom) og tager reglen fra RPC'en, aldrig fra en antagelse.
 // Kildelæsning med selvbevis på kopier.
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -35,6 +42,9 @@ const MAAL_SKRIV = "supabase/functions/maal-skriv/index.ts";
 const AGENT = "supabase/functions/run-company-agent/index.ts";
 const TOER = "supabase/functions/_shared/agentToerkoersel.ts";
 const TRE = "supabase/migrations/20260917150000_maal_hoejst_tre_aktive.sql";
+const TRE_BEKRAEFTEDE = "supabase/migrations/20261002241000_maal_pladser_kun_bekraeftede.sql";
+const PLADSDOM = "src/lib/hjemmebane/maalPladsdom.ts";
+const PLADSDOM_HOOK = "src/hooks/maalPladsdom.ts";
 const HANDOUT = "src/lib/handoutEngine.ts";
 const HOOK = "src/components/hjemmebane/milestones/useMilestones.ts";
 const MEDLEM = "src/components/hjemmebane/milestones/DineMaalView.tsx";
@@ -108,7 +118,7 @@ export const ingenRlsAendring = (migrationer: readonly { sti: string; sql: strin
  * STRAMMER: hver WITH CHECK indeholder company_id = public.user_company_id(auth.uid()).
  * Køres den, flippes linjen — og værnet skal ajourføres i samme PR.
  */
-export const FORBEREDTE_RLS_STRAMNINGER = ["supabase/migrations/20261002210000_milestones_with_check.sql"] as const;
+export const FORBEREDTE_RLS_STRAMNINGER = ["supabase/migrations/20261002280000_milestones_with_check.sql"] as const;
 export const forberedtStramning = (sql: string): boolean => {
   const krop = udenSqlKommentarer(sql);
   const checks = [...krop.matchAll(/WITH CHECK \(([^;]*)\);/gi)].map((m) => m[1]);
@@ -164,6 +174,43 @@ export const treHolder = (sql: string): boolean =>
   /create trigger milestones_hoejst_tre_aktive\s+before insert or update on public\.milestones/.test(sql) &&
   !/create policy|drop policy|alter policy/i.test(sql);
 
+/** Dom 7: triggeren «højst tre BEKRÆFTEDE» (punkt 13) — og klienten, der måler reglen. */
+export const treBekraeftedeHolder = (raa: string): boolean => {
+  const sql = udenSqlKommentarer(raa);
+  return (
+    (
+      raa.split("\n")[0] === "-- IKKE KØRT. KRÆVER JONAS' GRØNNE LYS (SECURITY DEFINER/trigger). DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik)." ||
+      // Efter kørslen (2/10-2026): første linje bærer KØRT og Jonas' grønne lys — aldrig et lys, der ikke blev givet.
+      /^-- KØRT i prod \d{1,2}\/\d{1,2}-\d{4} .*Jonas' grønne lys/.test(raa.split("\n")[0])
+    ) &&
+    /create or replace function public\.haandhaev_hoejst_tre_aktive_maal\(\)/.test(sql) &&
+    /set search_path to 'public'/.test(sql) && !/security definer/i.test(sql) &&
+    /if new\.status = 'active'\s+and new\.bekraeftet_at is not null\s+and \(tg_op = 'INSERT' or old\.status is distinct from 'active' or old\.bekraeftet_at is null\) then/.test(sql) &&
+    /and m\.status = 'active'\s+and m\.bekraeftet_at is not null\s+and m\.id is distinct from new\.id;/.test(sql) &&
+    /if antal >= 3 then/.test(sql) &&
+    // Markøren står i KROPPEN (en kommentar inde i $$ … $$ er en del af prosrc) — ikke kun i filhovedet.
+    /PLADSDOM: kun_bekraeftede/.test(raa.match(/haandhaev_hoejst_tre_aktive_maal\(\)\s+returns trigger[\s\S]*?as \$\$([\s\S]*?)\$\$;/)?.[1] ?? "") &&
+    /create trigger milestones_hoejst_tre_aktive\s+before insert or update on public\.milestones/.test(sql) &&
+    /create or replace function public\.maal_pladser_kun_bekraeftede\(\)\s+returns boolean/.test(sql) &&
+    /position\('PLADSDOM: kun_bekraeftede' in p\.prosrc\) > 0/.test(sql) &&
+    /exception when others then\s+return false;/.test(sql) &&
+    (sql.match(/security definer/gi) ?? []).length === 0 &&
+    !/create policy|drop policy|alter policy/i.test(sql) &&
+    !/alter table/i.test(sql)
+  );
+};
+
+/** Dom 7b: klienten måler — «alle» uden svar, reglen kun fra RPC'en, og medlemmets flade sender dommen ind. */
+export const klientenMaaler = (lib: string, hook: string, view: string): boolean =>
+  lib.includes('export const PLADSDOM_RPC = "maal_pladser_kun_bekraeftede";') &&
+  /if \(fejl\) return "alle";\s*return data === true \? "kun_bekraeftede" : "alle";/.test(lib) &&
+  hook.includes("(supabase.rpc as any)(PLADSDOM_RPC)") &&
+  hook.includes('return q.data ?? "alle";') &&
+  !/"kun_bekraeftede"/.test(udenKommentarer(hook)) &&
+  view.includes("const pladsdom = useMaalPladsdom();") &&
+  view.includes("dineMaalDom(milestones.map(tilMaalRaekke), skridtTilDom, nu, pladsdom)") &&
+  view.includes("hovedLinje(kort.length, dom.ubekraeftede.length, dom.pladsdom)");
+
 describe("maalSkriv.guard — fase 2: medlemmet ejer sine mål, rådgiveren skriver gennem maal-skriv, AI aldrig", () => {
   it("dom 1: maal-skriv — auth før rolle før service role; kun rådgivere; «højst tre» kun gennem kanOpretteMaal; opslag og sletning med company_id", () => {
     expect(maalSkrivHolder(udenKommentarer(laes(MAAL_SKRIV)))).toBe(true);
@@ -197,6 +244,23 @@ describe("maalSkriv.guard — fase 2: medlemmet ejer sine mål, rådgiveren skri
   });
   it("dom 6: triggeren «højst tre» — ikke DEFINER, kun når rækken bliver aktiv, ingen politik", () => {
     expect(treHolder(udenSqlKommentarer(laes(TRE)))).toBe(true);
+  });
+
+  it("dom 7: triggeren «højst tre BEKRÆFTEDE» (punkt 13) — markøren i kroppen, RPC'en måler den, ikke DEFINER, ingen politik, første linje kræver grønt lys", () => {
+    expect(treBekraeftedeHolder(laes(TRE_BEKRAEFTEDE))).toBe(true);
+    expect(klientenMaaler(laes(PLADSDOM), laes(PLADSDOM_HOOK), udenKommentarer(laes(MEDLEM)))).toBe(true);
+  });
+  it("selvbevis 7: uden markøren i kroppen, uden bekræftelsesleddet, som DEFINER, med «IKKE KØRT. DEPLOY:» eller en klient, der antager reglen, falder", () => {
+    const f = laes(TRE_BEKRAEFTEDE);
+    expect(treBekraeftedeHolder(f.replace("-- PLADSDOM: kun_bekraeftede (2/10-2026", "-- (2/10-2026"))).toBe(false);
+    expect(treBekraeftedeHolder(f.replace(" or old.bekraeftet_at is null) then", ") then"))).toBe(false);
+    expect(treBekraeftedeHolder(f.replace("language plpgsql\nset search_path to 'public'\nas $$\ndeclare", "language plpgsql\nsecurity definer\nset search_path to 'public'\nas $$\ndeclare"))).toBe(false);
+    expect(treBekraeftedeHolder(f.replace(/^[^\n]*/, "-- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik)."))).toBe(false);
+    expect(treBekraeftedeHolder(f + "\ncreate policy x on public.milestones for insert with check (true);")).toBe(false);
+    const lib = laes(PLADSDOM), hook = laes(PLADSDOM_HOOK), view = udenKommentarer(laes(MEDLEM));
+    expect(klientenMaaler(lib.replace('if (fejl) return "alle";', 'if (fejl) return "kun_bekraeftede";'), hook, view)).toBe(false);
+    expect(klientenMaaler(lib, hook.replace('return q.data ?? "alle";', 'return q.data ?? "kun_bekraeftede";'), view)).toBe(false);
+    expect(klientenMaaler(lib, hook, view.replace("skridtTilDom, nu, pladsdom)", "skridtTilDom, nu)"))).toBe(false);
   });
 
   it("selvbevis 1: service role før auth, en medlems-undtagelse, et hardkodet «>= 3» eller sletning uden company_id falder", () => {
