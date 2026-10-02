@@ -121,7 +121,7 @@ export const WebinarMotorOpsaetning = () => {
 
         <HbCard className="mt-6 p-5 md:p-6">
           <p className="mb-4 text-sm font-medium text-hb-ink">Opret et webinar</p>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <HbField label="Titel" htmlFor="mw-titel" error={wFejl.titel}>
               <HbInput id="mw-titel" value={wForm.titel} maxLength={200} onChange={(e) => setWForm({ ...wForm, titel: e.target.value, slug: wForm.slug === slugFraTitel(wForm.titel) ? slugFraTitel(e.target.value) : wForm.slug })} />
             </HbField>
@@ -265,7 +265,7 @@ function WebinarDetaljer(p: DetaljerProps) {
             })}
           </ul>
         )}
-        <div className="mt-5 grid gap-4 md:grid-cols-[1fr_8rem_8rem_auto] md:items-end">
+        <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-[1fr_8rem_8rem_auto] md:items-end">
           <HbField label="Dato (dansk)" htmlFor="ms-dato" error={p.sFejl.dato}>
             <HbInput id="ms-dato" type="date" value={p.sForm.dato} onChange={(e) => p.setSForm({ ...p.sForm, dato: e.target.value })} />
           </HbField>
@@ -320,7 +320,7 @@ function WebinarDetaljer(p: DetaljerProps) {
           </ul>
         )}
 
-        <div className="mt-5 grid gap-4 md:grid-cols-4">
+        <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-4">
           <HbField label="Type" htmlFor="mi-art" error={p.iFejl.art}>
             <HbSelect id="mi-art" value={art} onChange={(e) => p.setIForm({ ...p.iForm, art: e.target.value })}>
               {EDITOR_ARTER.map((a) => <option key={a} value={a}>{ART_NAVN[a]}</option>)}
