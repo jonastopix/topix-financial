@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (EFTER 20261002260000, FØR Update-klik).
+-- KØRT i prod 2/10-2026 ca. 12:50 (efter 20261002260000; Claude via Lovable-MCP). FØR: triggeren fandtes ikke, kolonnen fandtes, 5 politikker. EFTER: triggeren O, ikke DEFINER, 5 politikker. Tørprøve (rullet tilbage): medlem skriver egen position ok · medlem markerer selv → afvist · rådgiver skriver acknowledged_at → afvist · rådgiver markerer → ok · rådgiver fortryder en batch-række → ok. NB: den gamle frontends «Markér hele modulet» (batchAcknowledge) fejler nu højt for rådgivere, indtil F0's Update.
 --
 -- AKADEMIET F0, VÆRNET — medlemmets felter i member_progress skrives kun af
 -- medlemmet selv (2/10-2026; grundlag docs/akademi-grundlag.md §4 F0).

@@ -140,7 +140,8 @@ export function migrationenErReversibel(sql: string): boolean {
   const foersteLinje = sql.split("\n")[0] ?? "";
   const krop = sql.replace(/^--[^\n]*$/gm, "");
   return (
-    foersteLinje.startsWith("-- IKKE KØRT. DEPLOY:") &&
+    // Før kørslen «IKKE KØRT. DEPLOY:»; efter (2/10-2026) «KØRT i prod <dato> …».
+    (foersteLinje.startsWith("-- IKKE KØRT. DEPLOY:") || /^-- KØRT i prod \d{1,2}\/\d{1,2}-\d{4} /.test(foersteLinje)) &&
     /ADD COLUMN IF NOT EXISTS markeret_at timestamptz NULL/.test(krop) &&
     /ADD COLUMN IF NOT EXISTS markeret_af uuid NULL/.test(krop) &&
     /HAVING count\(\*\) >= 2/.test(krop) &&
@@ -157,7 +158,7 @@ export function migrationenErReversibel(sql: string): boolean {
 export function vaernetLaaserMedlemmetsFelter(sql: string): boolean {
   const krop = sql.replace(/^--[^\n]*$/gm, "");
   return (
-    (sql.split("\n")[0] ?? "").startsWith("-- IKKE KØRT. DEPLOY:") &&
+    ((sql.split("\n")[0] ?? "").startsWith("-- IKKE KØRT. DEPLOY:") || /^-- KØRT i prod \d{1,2}\/\d{1,2}-\d{4} /.test(sql.split("\n")[0] ?? "")) &&
     /IF auth\.uid\(\) IS NULL OR auth\.role\(\) = 'service_role' THEN\s*RETURN NEW;/.test(krop) &&
     /IF auth\.uid\(\) = NEW\.user_id THEN\s*IF TG_OP = 'INSERT' THEN\s*IF NEW\.markeret_at IS NOT NULL OR NEW\.markeret_af IS NOT NULL THEN/.test(krop) &&
     /ELSIF NEW\.markeret_at IS DISTINCT FROM OLD\.markeret_at\s*OR NEW\.markeret_af IS DISTINCT FROM OLD\.markeret_af THEN/.test(krop) &&
@@ -313,7 +314,7 @@ describe("akademiF0.guard — kilden", () => {
     expect(migrationenErReversibel(kopi10)).toBe(false);
     const kopi10b = migration.replace("HAVING count(*) >= 2", "HAVING count(*) >= 1");
     expect(migrationenErReversibel(kopi10b)).toBe(false);
-    const kopi10c = migration.replace("-- IKKE KØRT. DEPLOY:", "-- Migration: F0. IKKE KØRT. DEPLOY:");
+    const kopi10c = migration.replace(/^[^\n]*/, "-- Migration: F0. IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).");
     expect(migrationenErReversibel(kopi10c)).toBe(false);
     // medlemmet uden lås på markeret_* (som før F0's værn: «medlemmet må alt»).
     const kopiVaern = vaern.replace(

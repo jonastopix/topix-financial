@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod 2/10-2026 ca. 12:45 (Claude via Lovable-MCP, atomisk i én DO-blok; Jonas «Ja, byg F0» + «Klar» 11:31). FØR: kolonnen fandtes ikke; 353 rækker; batch 199 rækker i 34 grupper hos 19 brugere (0 hos rådgivere); max(updated_at) 06:43:15.433073+00; triggeren O. EFTER: 199 markeret = 199 lig acknowledged_at; 0 uden ack; 0 markeret_af; max(updated_at) uændret; triggeren O. REST (anon, bundle index-CoAcihj5.js): ?select=markeret_at,markeret_af → 200.
 --
 -- AKADEMIET F0 — RÅDGIVERENS MARKERING SKILLES FRA MEDLEMMETS (2/10-2026).
 -- Jonas 2/10 kl. 07:28: «Ja, byg F0». Grundlaget: docs/akademi-grundlag.md §2,
