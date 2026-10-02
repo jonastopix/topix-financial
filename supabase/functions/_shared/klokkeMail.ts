@@ -89,6 +89,9 @@ export const MORGEN_TYPER = [
   "ansoegning_samtale_booket",  // samtaleBesked (kun når ansøgeren selv bookede)
   "ansoegning_samtale_flyttet", // samtaleBesked
   "ansoegning_samtale_aflyst",  // samtaleBesked
+  "nyhed_udkast_klar",          // nyhed-agent-cron (30/9): ugens nyhedsudkast venter på en rådgiver — mandag før kl. 07
+  "opkald_anmodet",             // ring-mig-op (2/10): en webinardeltager bad om et opkald — Jonas 2/10: «Besked i morgenmailen, ikke straks — ja»; nummeret står KUN på /opkald
+  "venter_paa_velkomst",        // stille-klokker-cron (2/10, a1002-velkomst): et nyt medlem kom ind i går og har ikke hørt fra os — Jonas: «Klokke i morgenmailen, vi skriver selv» (_shared/dag1Klokke.ts); skrevet kl. 04:30 UTC, før kl. 07 dansk
 ] as const;
 
 /** ALDRIG mailet — med grunden. */
@@ -96,6 +99,7 @@ export const ALDRIG_TYPER: Readonly<Record<string, string>> = {
   ansoegning_ny: "mailes allerede: ansoegningMotor sender «ansoegning-ny-raadgiver» til raadgiverModtager ved indsendelsen",
   ansoegning_afholdt: "rykkerkøen mailer rådgiveren dag 2 (trappen «afholdt», rykkerkoe.ts)",
   community_svar: "Jonas 21/9: klokke, ikke mail (notify-community-svar → communitySvarBesked.ts)",
+  agent_insight: "1/10: run-company-agent ringer nu hos HVER rådgiver (agentKlokke.ts, med advisor_id) — klokke, ikke mail; indsigten står i virksomhedens chat, og Jonas har ikke bedt om mail (ikke overmaile)",
 };
 
 /**
@@ -109,11 +113,13 @@ export const SELVMAILENDE_REFERENCER = [
   "meta_haendelser",    // meta-send-cron (#1069, i main siden 21/9 aften): alarmmail + drift-klokke
   "ga_haendelser",      // ga-send-cron (merget 21/9 aften, da848925): alarmmail + drift-klokke
   "webinar_mails",      // webinar-mail-cron (29/9): alarmmail + drift-klokke (skrivAlarm) ved fejlede mails, stop eller pause hos Mailgun
+  "drift_agent_koersler", // drift-agent-cron (30/9, driftsagenten skive 1): én samlet alarmmail + drift-klokke ved rødt
 ] as const;
 export const SELVMAILENDE_GRUND = "mailes allerede af sin egen alarm (sendManagedEmail i samme kørsel som klokken)";
 
-/** Legacy-writerne (send-slack-*, run-company-agent): én fælles række UDEN advisor_id, og Slack er deres vej. Mailes aldrig. */
-export const LEGACY_TYPER = ["new_message", "report_uploaded", "handout_completed", "feedback_submitted", "agent_insight"] as const;
+/** Legacy-writerne (send-slack-*): én fælles række UDEN advisor_id, og Slack er deres vej. Mailes aldrig.
+    (agent_insight flyttet til ALDRIG_TYPER 1/10: run-company-agent skriver nu én række pr. rådgiver med advisor_id.) */
+export const LEGACY_TYPER = ["new_message", "report_uploaded", "handout_completed", "feedback_submitted"] as const;
 
 export type MailArt = "alarm" | "community" | "morgen";
 export type Klasse = MailArt | "aldrig" | "legacy" | "ukendt";

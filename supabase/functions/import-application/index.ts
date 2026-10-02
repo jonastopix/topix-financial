@@ -115,7 +115,8 @@ Deno.serve(async (req) => {
   }
 
   // 2-3. Opret eller genbrug virksomheden — den delte vej, som
-  // monday-webhook også skal gå. CVR-opslag, genbrugsreglen (otte cifre +
+  // ansøgningsmotoren også går (historie: skrevet til monday-webhook,
+  // nedlagt 2/10-2026). CVR-opslag, genbrugsreglen (otte cifre +
   // eksisterende række) og insert'en ligger i hjælperen; rækken bygges af
   // motoren med låst feltliste. contact_email sendes med: indgangen kræver
   // den (hent_betalingsdata_til_checkout svarer kun når den findes).

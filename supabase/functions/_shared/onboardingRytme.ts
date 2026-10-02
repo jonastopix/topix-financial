@@ -152,33 +152,36 @@ export function historikSaetning(nu: Date): string {
 
 /**
  * Det vi lover om mennesket (Jonas 14/9): initiativet er medlemmets — som
- * tjeklistens punkt «Skriv til din rådgiver — Sig hej, så ved vi, hvor du
- * er» (onboardingTjekliste.ts) — og svaret er det vi lover. Ikke «Jonas
- * eller Morten skriver til dig»: det var ikke automatiseret, og ingen
- * påmindelse sikrede det. Testen låser at den sætning ikke kommer igen.
+ * tjeklistens punkt «Skriv din første besked — Sig hej, og fortæl hvad du
+ * vil have ud af det næste år» (onboardingTjekliste.ts, punkt 2 fra 2/10) —
+ * og svaret er det vi lover. Ikke «Jonas eller Morten skriver til dig»: det
+ * var ikke automatiseret, og ingen påmindelse sikrede det. Testen låser at
+ * den sætning ikke kommer igen, og at begge begynder med medlemmets «Skriv».
  */
 export const LOEFTET = "Skriv til din rådgiver i chatten, når du vil — Jonas eller Morten svarer.";
 
 /**
- * A — tjeklistens punkter i tjeklistens rækkefølge (onboardingTjekliste.ts:
- * velkomst, profil, praesentation, virksomhed, tal, handout, besked, deling).
- * Delingen (14/9 aften) står sidst som i tjeklisten og menuen; mail A går
- * kun til dag 0-1-medlemmer, som alle er efter DELING_PUNKT_FRA.
+ * A — tjeklistens seks punkter i tjeklistens rækkefølge (onboardingTjekliste.ts,
+ * seks steder 2/10: boardroom, raadgiver, tal, maal, netvaerk, akademi — menuens
+ * orden med rådgiveren som nr. 2, mennesket før tallene). Hver linje begynder
+ * med punktets titel; onboardingRytme.test.ts låser pariteten med startsWith.
  * Velkomsten er kun med når der er en video (Jonas 2/9: «Vi viser ikke
- * tomt indhold»). Præsentationen (11/9, kort 60) følger med — mailen
- * følger tjeklisten (besluttet 11/9); onboardingRytme.test.ts låser
- * pariteten med startsWith på hvert punkts titel.
+ * tomt indhold») — så hedder punkt 1 «Udfyld din virksomhed», og mailen har
+ * stadig seks linjer. Mål-punktet gælder kun medlemmer fra MAAL_PUNKT_FRA;
+ * mail A går kun til dag 0-1-medlemmer, som alle er efter den. «Fortæl det
+ * videre» er ude (Jonas 2/10). Præsentationen (11/9, kort 60) er en del af
+ * Netværkets linje og lover intet udkast (praesentationPladsholder.guard).
  */
 export function komIGangTekst(fornavn: string | null | undefined, harVelkomstvideo: boolean, nu: Date): RytmeTekst {
   const punkter = [
-    ...(harVelkomstvideo ? ["Se velkomsten — en kort video om hvordan du får mest ud af The Boardroom."] : []),
-    "Din profil — et foto af dig, og hvad de andre i netværket kan spørge dig om.",
-    "Præsentér dig i fællesskabet — et opslag om hvem du er.",
-    "Din virksomhed — website, branche og CVR, det platformen regner på.",
-    `Dine tal — ${historikSaetning(nu)}`,
-    "Dit første handout — start med Overordnet.",
-    "Skriv til din rådgiver — sig hej, så ved vi hvor du er.",
-    "Fortæl det videre — dit medlemskab som billede til LinkedIn, så dit netværk ved hvor du får sparring.",
+    harVelkomstvideo
+      ? "Se velkomsten og udfyld din virksomhed — en kort video om hvordan du får mest ud af The Boardroom, og website, branche og CVR, det platformen regner på."
+      : "Udfyld din virksomhed — website, branche og CVR, det platformen regner på.",
+    "Skriv din første besked — sig hej, og fortæl hvad du vil have ud af det næste år.",
+    `Upload og godkend din første rapport — ${historikSaetning(nu)}`,
+    "Sæt dit første mål — ét mål med en frist, så I ved hvad I arbejder hen imod.",
+    "Fortæl, hvad man kan spørge dig om — og sig hej: et foto af dig, hvad de andre i netværket kan spørge dig om, og et opslag om hvem du er.",
+    "Lav din første øvelse i Akademiet — øvelsen ligger under lektionen; udfyld den, og tag den med til din rådgiver.",
   ];
   return {
     emne: "Sådan kommer du i gang i The Boardroom",

@@ -99,7 +99,7 @@ describe("samtaleBooking.guard — de otte domme på repoets filer", () => {
     expect(s.includes("<AnsoegSamtale token={token} booket={v.booket}") && !/href=\{v\.book\}|Book samtalen med Jonas/.test(s)).toBe(true);
   });
   it("7. migrationen: UNIQUE-værnet, samtale_link, ingen egne tabeller, IKKE KØRT", () => {
-    expect(laes(MIGRATION).startsWith("-- IKKE KØRT.")).toBe(true);
+    expect(laes(MIGRATION)).toMatch(/^-- (IKKE KØRT\.|KØRT i prod)/); // hovedet vendes ved kørsel (regelsættet §4c (dd))
     expect(migrationErRigtig(udenSqlKommentarer(laes(MIGRATION)))).toBe(true);
   });
   it("8. config.toml: verify_jwt = false med begrundelsen", () => expect(configErRigtig(laes(CONFIG))).toBe(true));

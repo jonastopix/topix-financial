@@ -8,16 +8,22 @@ import { useOnboardingTjekliste } from "@/hooks/useOnboardingTjekliste";
 import { HbOnboardingTjekliste } from "./HbOnboardingTjekliste";
 import { useTjeklisteLukket } from "@/hooks/useTjeklisteLukket";
 import { useHbDokumentGrund } from "@/hooks/useHbDokumentGrund";
-import { onboardingBoksMonteres, pillenTraekkerSig } from "@/lib/hjemmebane/ankomst";
+import { erErfarentMedlem, onboardingBoksMonteres, pillenTraekkerSig } from "@/lib/hjemmebane/ankomst";
 import { HbVisningSom } from "./HbVisningSom";
 import { HbFeedbackDialog } from "./HbFeedbackDialog";
-import { bygHbNav, type HbAktiv } from "@/lib/hjemmebane/hbNav";
+import { HbRaadgiverSkrev } from "./HbRaadgiverSkrev";
+import { useRaadgiverSkrev } from "@/hooks/raadgiverSkrev";
+import { useLocation, useNavigate } from "react-router-dom";
+import { bygHbNav, medLiveMaerke, type HbAktiv } from "@/lib/hjemmebane/hbNav";
 import { PODCAST_SPOTIFY_TEKST, PODCAST_SPOTIFY_URL } from "@/lib/hjemmebane/podcastSpotify";
 import { useQuery } from "@tanstack/react-query";
 import { useOnlineTracking } from "@/hooks/onlineTracking";
 import { listAllUpcomingEvents } from "@/lib/hjemmebane/akademiApi";
 import { LIVE_MAERKE, liveEvent, liveEventSti, liveEventTitel } from "@/lib/hjemmebane/liveEvent";
 import { useCertificate } from "@/hooks/useCertificate";
+import { HbStedsSaetning } from "./HbStedsSaetning";
+import { HbNetvaerkFaner } from "./netvaerk/HbNetvaerkFaner";
+import { netvaerksSti, skallenTegnerSaetning } from "@/lib/hjemmebane/stedsSaetninger";
 
 /** Fælles Hb-medlemsskal for forsiden ("/") og de øvrige medlemsflader
     (generalisering af den tidligere HbAkademiShell): V0-layoutmodellen
@@ -69,13 +75,21 @@ export const HbMemberShell = ({
      admin-skallen skulle gøre det samme (mobilens grønne bundstykke). */
   useHbDokumentGrund(rodRef);
   const { user, profile, signOut, membershipTier, isAdvisor, isPartner } = useAuth();
-  /* ONLINE NU (Jonas 16/9, hooks/onlineTracking): medlemmet tracker sig selv
-     på den private Presence-kanal, så rådgiverne kan se hvem der har appen
-     åben. Gaten er useAuth's RÅ isAdvisor — ikke viewingAsMember: i «Se som
-     medlem» er rådgiveren stadig rådgiver og tracker aldrig. Abonnenter
-     tracker (de er medlemmer i skallen); om de vises afgør rådgiverens dom.
+  /* ONLINE NU (Jonas 16/9; hjerteslag 30/9, hooks/onlineTracking): medlemmet
+     slår hjerteslag i online_hjerteslag (egen række, mens fanen er synlig),
+     så rådgiverne kan se hvem der har appen åben. Gaten er useAuth's RÅ
+     isAdvisor — ikke viewingAsMember: i «Se som medlem» er rådgiveren stadig
+     rådgiver og slår aldrig hjerteslag. Abonnenter slår hjerteslag (de er
+     medlemmer i skallen); om de vises afgør rådgiverens dom.
      Hook i topblokken, før enhver betinget return. */
   useOnlineTracking(!!user && !isAdvisor, user?.id);
+  /* «EN RÅDGIVER HAR LIGE SKREVET» (Jonas 1/10, hooks/raadgiverSkrev): en ny
+     rådgiverbesked, mens medlemmet er i appen og IKKE i chatten, giver et
+     roligt kort med uddrag og «Åbn chatten». Samme gate som hjerteslaget
+     (RÅ isAdvisor). Markerer intet læst. Hooks i topblokken. */
+  const location = useLocation();
+  const navigate = useNavigate();
+  const raadgiverSkrev = useRaadgiverSkrev(!!user && !isAdvisor, user?.id, location.pathname);
   const avatarSrc = profile?.avatar_url || undefined;
   const userName = profile?.full_name || "Medlem";
 
@@ -114,10 +128,16 @@ export const HbMemberShell = ({
   const tjeklisteBundluft = tjeklisteUdfoldet && boksMonteres ? "pb-[72vh] lg:pb-[30rem]" : "";
   const tjeklisteFornavn = profile?.full_name?.trim().split(/\s+/)[0] || null;
   // Pillen trækker sig KUN på forsiden, og KUN når fokuskortet faktisk
-  // viser tjeklisten (samme dom som nextStep.ts:221). Skallen er den
+  // viser tjeklisten (tjeklistenStyrerForsiden — samme dom som motoren).
+  // Et erfarent medlem (30/9, > 30 døgn siden medlemSiden) får ikke listen
+  // i kortet, så pillen bliver stående dér. Skallen er den
   // eneste der kender ruten (`active`), så dommen falder her og gives til
   // boksen som prop (src/lib/hjemmebane/ankomst.ts, §10 3/9).
-  const tjeklistePilleTraekkerSig = pillenTraekkerSig(active, tjeklisteData.tjekliste);
+  const tjeklistePilleTraekkerSig = pillenTraekkerSig(active, tjeklisteData.tjekliste, tjeklisteData.medlemSiden, new Date());
+  // Samme dom giver boksen besked om, at velkomsten IKKE skal springe
+  // automatisk op for et erfarent medlem (30/9, velkomstVisesAutomatisk i
+  // ankomst.ts); den eksplicitte åbning fra listen/#velkomst er uændret.
+  const tjeklisteErfarentMedlem = erErfarentMedlem(tjeklisteData.medlemSiden, new Date());
   // Menupunktet vises kun for medlemmer, og kun når listen ikke er færdig
   // ELLER medlemmet selv har lukket den (så den kan hentes frem igen).
   const komGodtIGang =
@@ -173,6 +193,24 @@ export const HbMemberShell = ({
      topblokken, før enhver betinget return. */
   const certifikat = useCertificate();
   const navUdenMaerke: HbNavEntry[] = bygHbNav({ isAdvisor, erAbonnent, active, isPartner, certifikat: certifikat.menu });
+  /* STEDSÆTNINGEN (seks steder, 2/10): «Det her er stedet, hvor …» øverst på
+     hvert af det fulde medlems seks steder — valgt af STIEN (stedsSaetninger),
+     ikke af `active`, så undersider tier. Hvem der ser den (det fulde medlem,
+     en rådgiver i «Se som medlem», aldrig abonnenten) afgør komponenten selv —
+     skallen gater ikke. Forsiden («/») tegner selv sætningen under hilsenen
+     (BoardroomView), og de fem steder med eget redaktionelt hoved
+     (STEDER_MED_EGET_HOVED: Dine tal, Dine mål, Akademiet) tegner den selv
+     under deres h1 (rådets fund 7, 2/10) — så skallen tegner den KUN, hvor
+     den er den eneste indledning: chatten, booking.
+     NETVÆRKET (skridt 2, 2/10): på de fem Netværks-stier (/community,
+     /events, /medlemmer, /rabataftaler, /deling — ruterne er uændrede)
+     tegner skallen i stedet NETVÆRKSHOVEDET (HbNetvaerkFaner: eyebrow → h1 →
+     sætningen → fanebjælken) over indholdet — ét sted, fem faner, sætningen
+     én gang. Hvem der ser det (det fulde medlem, en rådgiver i «Se som
+     medlem»; aldrig abonnenten) afgør komponenten selv, som sætningen.
+     Undersider (/community/:id, /events/:id, /medlemmer/:userId) får intet. */
+  const stedsSaetningSti = skallenTegnerSaetning(location.pathname) ? location.pathname : null;
+  const netvaerkHovedSti = netvaerksSti(location.pathname);
 
   /* «LIVE NU» VED EVENTS (Jonas 10/9). Hentningen deler cache-nøgle med
      /events og Community-composeren (["events", "upcoming-all"]), så
@@ -196,17 +234,22 @@ export const HbMemberShell = ({
     return () => window.clearInterval(id);
   }, []);
   const live = liveEvent(eventsQuery.data ?? [], nu);
-  const nav: HbNavEntry[] = live
-    ? navUdenMaerke.map((e) =>
-        e.to === "/events" ? { ...e, maerke: { tekst: LIVE_MAERKE, to: liveEventSti(live), titel: liveEventTitel(live) } } : e,
-      )
-    : navUdenMaerke;
+  // Mærket lander på det punkt, der peger på /events — toppunkt (rådgiveren)
+  // ELLER barn under «Netværket» (det fulde medlem, seks steder 2/10).
+  const nav: HbNavEntry[] = live ? medLiveMaerke(navUdenMaerke, { tekst: LIVE_MAERKE, to: liveEventSti(live), titel: liveEventTitel(live) }) : navUdenMaerke;
 
   return (
     <div ref={rodRef} className={`theme-hjemmebane ${fuld ? "h-screen-safe" : "min-h-screen-safe"} bg-hb-paper font-body text-hb-ink antialiased`}>
       <div className={`flex ${fuld ? "h-full overflow-hidden" : "lg:h-screen lg:overflow-hidden"}`}>
         <HbSidebar avatarSrc={avatarSrc} userName={userName} nav={nav} homeTo={boardroomTo} onSignOut={signOut} komGodtIGang={komGodtIGang} visIndstillinger={!isAdvisor} givFeedback={givFeedback} klokke={<HbKlokke />} spotifyLink={spotifyLink} />
-        <div className={`min-w-0 flex-1 ${fuld ? "flex flex-col overflow-hidden" : "lg:overflow-y-auto"}`}>
+        {/* `relative` (30/9, Jonas: «to scrollers i højre side»): uden en positioneret
+            forfader fandt absolut placerede elementer (fx `sr-only`-tekster i
+            Svartids-uret og Score-kortet) deres ramme i dokumentet i stedet for
+            i denne scrollende kolonne — dokumentet blev højere end vinduet, og
+            Chrome viste en ANDEN scrollbar og et tomt felt under bunden. Målt
+            30/9 22:55 på 1440×900: docH 1113 > 900, eneste element under
+            bunden var en sr-only-span. Med `relative` bliver de i kolonnen. */}
+        <div className={`relative min-w-0 flex-1 ${fuld ? "flex flex-col overflow-hidden" : "lg:overflow-y-auto"}`}>
           <HbNav onMenuClick={() => setDrawerOpen(true)} avatarSrc={avatarSrc} />
           {/* «Visning som» (3/9, recon-raadgiverfladen §4): en rådgiver med et
               valgt medlem får linjen øverst i indholdskolonnen — under
@@ -228,9 +271,20 @@ export const HbMemberShell = ({
             spotifyLink={spotifyLink}
           />
           {fuld ? (
-            <main className={`flex min-h-0 flex-1 flex-col ${tjeklisteBundluft}`}>{children}</main>
+            <main className={`flex min-h-0 flex-1 flex-col ${tjeklisteBundluft}`}>
+              {/* I «fuld» har main ingen padding (chatten tager højden) — sætningen får sin egen, og krymper aldrig.
+                  `hidden md:block` (rådets fund 3, 2/10): på mobil ER chatten hele skærmen (100dvh, beskedlisten
+                  + feltet), og tre linjer sætning over den æder beskeder — på desktop er der luft. Valgt frem for
+                  at tage /chat ud af stederne: «Din rådgiver» skal stadig have sin sætning dér, hvor den har plads. */}
+              {stedsSaetningSti && <HbStedsSaetning sti={stedsSaetningSti} className="hidden shrink-0 px-6 pt-6 md:block md:pt-8" />}
+              {children}
+            </main>
           ) : (
-            <main className={`mx-auto max-w-[1200px] px-6 py-10 md:py-14 ${tjeklisteBundluft}`}>{children}</main>
+            <main className={`mx-auto max-w-[1200px] px-6 py-10 md:py-14 ${tjeklisteBundluft}`}>
+              {stedsSaetningSti && <HbStedsSaetning sti={stedsSaetningSti} className="mb-8" />}
+              {netvaerkHovedSti && <HbNetvaerkFaner sti={netvaerkHovedSti} />}
+              {children}
+            </main>
           )}
         </div>
       </div>
@@ -246,9 +300,11 @@ export const HbMemberShell = ({
           markerVelkomstSet={tjeklisteData.markerVelkomstSet}
           onUdfoldetChange={setTjeklisteUdfoldet}
           pilleTraekkerSig={tjeklistePilleTraekkerSig}
+          erfarentMedlem={tjeklisteErfarentMedlem}
         />
       )}
       {!isAdvisor && <HbFeedbackDialog open={feedbackAaben} onClose={() => setFeedbackAaben(false)} />}
+      {!isAdvisor && <HbRaadgiverSkrev banner={raadgiverSkrev.banner} onLuk={raadgiverSkrev.luk} onAabn={(sti) => navigate(sti)} />}
     </div>
   );
 };

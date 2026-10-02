@@ -145,7 +145,8 @@ export const soejlenErDommens = (view: string, dom: string): boolean => {
   const d = udenKommentarer(dom);
   return v.includes("l.andelAfHelhed") &&
     v.includes("data-spor-andel") &&
-    d.includes("andelAfHelhed: andel(d.tilmeldte, helhed)") &&
+    d.includes("andelAfHelhed: andel(d.tilmeldte, helhed.tilmeldte)") &&
+    // (30/9-2026: helheden er en Deltagelse, så Wilsons «resten» og søjlen regnes af SAMME helhed.)
     // Fladen må ikke selv lægge rækkerne sammen til en nævner.
     !/\.reduce\(/.test(v) &&
     !/tilmeldte\s*\/\s*/.test(v);
@@ -273,8 +274,9 @@ export const graensenBorIDommen = (dom: string, view: string, hook: string, delt
     !/t >= g/.test(d) &&
     d.includes("const a = faellesEfter(mails, ansoegte, graense);") &&
     d.includes("const m = faellesEfter(mails, medlemmer, graense);") &&
-    /select\("email, indsendt_at, trin, company_id"\)/.test(udenKommentarer(hook)) &&
-    /select\("email, indsendt_at, trin, company_id"\)/.test(udenKommentarer(delt)) &&
+    // `id` med siden webinarkoblingen (1/10-2026): koblingen slås op pr. ansøgnings-id.
+    /select\("id, email, indsendt_at, trin, company_id"\)/.test(udenKommentarer(hook)) &&
+    /select\("id, email, indsendt_at, trin, company_id"\)/.test(udenKommentarer(delt)) &&
     !v.includes("indsendt_at") &&
     !/session_tid[\s\S]{0,40}[<>]/.test(v)
   );
@@ -339,7 +341,7 @@ describe("webinarfladens kildeværn", () => {
     expect(soejlenErDommens(view, dom)).toBe(true);
     expect(soejlenErDommens(view.replace(/l\.andelAfHelhed/g, "0.5"), dom)).toBe(false);
     expect(soejlenErDommens(`${view}\nconst total = raekker.reduce((a, b) => a + b, 0);`, dom)).toBe(false);
-    expect(soejlenErDommens(view, dom.replace("andelAfHelhed: andel(d.tilmeldte, helhed)", "andelAfHelhed: null"))).toBe(false);
+    expect(soejlenErDommens(view, dom.replace("andelAfHelhed: andel(d.tilmeldte, helhed.tilmeldte)", "andelAfHelhed: null"))).toBe(false);
   });
 
   it("9. fbclid slår referrer, og de tilskrevne kan efterprøves på fladen", () => {

@@ -1,3 +1,166 @@
+# Morgenlisten — onsdag 30/9 (Claude, nat 29/9 → 30/9)
+
+**Sådan læses den:**
+- **Blok A** er dig alene. Tag den i rækkefølge. Det er ca. 20 min, og så kører alt, der blev bygget i nat.
+- **Blok B** laver vi sammen, fordi den rører login og adgang.
+- **Blok C** er Klaviyo og eWebinar. Den skal være færdig før 6/10.
+- **Blok D** er beslutninger. Et ord pr. punkt er nok.
+- **Blok E** er adgange til bogholderiet, når du har tid i dag.
+
+---
+
+## A. Dig alene, ca. 20 min (kl. 07:30)
+
+**A1. Lovable build-chat.** Kopiér det hele:
+```
+Rør ingen kode, og commit intet. Kør deploy-værktøjet for disse syv edge functions ved navn, og vis mig værktøjets resultat ordret for hver: webinar-mail-cron, extract-annual-report, update-annual-report-revenue, notify-chat-reply, run-company-agent, stripe-webhook, calendly-webhook. Skriv ikke "udruller nu" uden at køre værktøjet — jeg skal se svaret fra deploy-værktøjet for alle syv.
+```
+
+**A2. Vent 10 min, og kør så dette i Lovable SQL editor.** Det er beviset for, at mailværnene kører:
+```
+SELECT id, status_code, (content::jsonb)->'budget'->>'job_timeout_ms' AS budget_nyt, (content::jsonb)->>'ukendte_foer' AS dubletvaern_nyt, (content::jsonb)->'loft'->>'maks' AS loft FROM net._http_response WHERE content LIKE '%"over_loft"%' ORDER BY id DESC LIMIT 1;
+```
+- **Rigtigt:** `budget_nyt` = 60000, `dubletvaern_nyt` er et tal (typisk 0), og `loft` = 1000.
+- **Forkert:** er `budget_nyt` tom, er `webinar-mail-cron` ikke udrullet. Så gentag A1 kun for den.
+
+**A3. Klik Update i Lovable.**
+
+**A4. Tre hurtige tjek på app.theboardroom.dk** (2 min):
+- **Log ind som dig selv.** Forsiden skal have et nyt kort, «Svartid». Det er rådgivernes fælles tal.
+- **Åbn en chat med en video.** Den må ikke starte af sig selv.
+- **Stripe** (efter første betaling eller fornyelse, ikke nu): Dashboard → Developers → Webhooks → leveringerne skal stå som 200. Signaturtjekket er strammet (konstant tid og et tidsvindue på 5 min).
+
+---
+
+## B. Sammen med mig (sig «Byg med mig: B1» når du er klar)
+
+**B1. Hurtigere login (#1159).** Medlemmets login bliver én rundtur i stedet for fire, og appens første indlæsning er 45 % mindre. Jeg merger, du klikker Update, og vi tester fire ting på 5 min. Går noget galt, ruller vi tilbage med det samme.
+
+**B2. Kritisk sikkerhedshul (#1157).** Et medlem kan i dag rette ALLE felter på sin egen virksomhed fra browserens konsol, bl.a. kontraktdato, legat, gratis sessioner og priser. Rettelsen er en trigger med en hvidliste over felter. Vi kører SQL'en i fire trin sammen, og jeg giver dig hvert trin her i chatten.
+
+---
+
+## C. Klaviyo og eWebinar: mails (ca. 1 time, senest 5/10)
+
+**Hvorfor:** deltageren fik «Det er i dag» to gange 22/9. Årsagen var, at en kampagne og et flow sendte samme mail til 324 personer. Det er lukket nu. Rettelserne her skærer det værste tilfælde for én tilmeldt fra 18–27 mails til 11–13.
+
+**C1. eWebinar (5 min).** Webinars → Mortens webinar → Edit → Notifications/Emails. Tjek, for hver session, også 13/10:
+- «Registration confirmation» er FRA.
+- Kun «10 minutes before» er TIL. «1 hour before», «1 day» og «starting now» er FRA.
+- Follow-ups («Thank you for attending», «Sorry we missed you» og replay) er FRA.
+- SMS/WhatsApp er FRA. Ingen integration sender selv mails.
+
+**C2. Kampagner 6/10–15/10 (5 min, kun kontrol).** Åbn #5 (7/10), #6 (15/10) og «Så webinaret 22/9 → ansøgning» (1/10). Under Recipients → Excluded skal der stå «Tilmeldt kommende webinar». Det gør der allerede.
+
+**C3. Velkomstflowet (10 min).** https://www.klaviyo.com/flow/TGxxUc/edit
+- For mail 2, 3 og 4, én ad gangen: Additional filters → Add filter → Properties about someone → `tb_naeste_webinar` → is not set.
+- Slå Smart Sending TIL, og tryk Save.
+- Rør ikke mail 1.
+
+**C4. «Deltog i webinar» (15 min).** https://www.klaviyo.com/flow/Wq3MkG/edit
+- **Triggeren:** Flow filters → Add filter → «is not in» → Medlemmer (ekskluderes) → Save.
+- **Mail 01, 02 og 03:** Additional filters → Add filter → `tb_naeste_webinar` → is not set → Save. Rør ikke de filtre, der står der i forvejen.
+
+**C5. «Moedte ikke op» (10 min).** https://www.klaviyo.com/flow/SDVvCW/edit. Under triggeren → Flow filters tilføjes tre filtre:
+- is not in Medlemmer (ekskluderes)
+- `tb_naeste_webinar` is not set
+- «Deltog i webinar» zero times over the last 14 days
+
+Tryk Save.
+
+**C6. Sunset (20 min, forbliver DRAFT).** https://www.klaviyo.com/flow/XCqPKg/edit
+
+Under triggeren → Flow filters tilføjes tre filtre:
+- is not in Medlemmer (ekskluderes)
+- «Deltog i webinar» zero times last 60 days
+- «Moedte ikke op» zero times last 60 days
+
+Derefter en betinget afslutning:
+1. Træk et **Conditional split** ind mellem «Wait 1 day» og «Update profile property».
+2. Betingelsen er: Opened Email zero times since starting this flow OG Clicked Email zero times since starting this flow.
+3. Yes → Update profile property. No → slut.
+4. Save.
+
+**Tænding 14/10:** hvert kort og selve flowet sættes Live, plus «Add past profiles» (ca. 417). Den 29/10 laver du segmentet «Sunset — afmeldes», og jeg kører afmeldingen med tørkørsel først.
+
+---
+
+## D. Beslutninger (et ord pr. punkt)
+
+**D1. Platformens påmindelser.** Skal «om tre dage» og «det er i dag» (07:30) droppes? Så får en deltager 14 dage, 7 dage, 1 dag, 1 time og eWebinars 10 min. **Min anbefaling: ja.** Svar: ja/nej.
+
+**D2. Webinarmotorens syv valg.** Min anbefaling er ja til alle syv:
+- Ærlighed: «optaget, Morten svarer live i chatten», ingen falsk chat og ingen oppustede tal.
+- Tilmeldingen sker på topix.dk.
+- Pixel og Conversions API på tilmeldingen, men først efter privatlivsteksten er rettet.
+- Ingen spoling. Pause er tilladt med «Tilbage til live».
+- Intet replay. Efter 25 % tilbydes næste session.
+- JIT og SMS kommer senere.
+- `ewebinar_id = 'P-…'` i parallelperioden.
+
+Svar: «ja til alle» eller nummeret på det, du er uenig i.
+
+**D3. Gamification for medlemmerne, første skive.** Min anbefaling er **Boardroom Score (0–1000) plus tal-streak**, fordi de bygger på tal, vi allerede har. Svar med et nummer fra idélisten.
+
+**D4. #1146 (lokation på events).** Byg eller luk?
+
+**D5. «Intet menneske taster», bogholderiet.** Hvilke selskaber skal med: Topix.dk ApS, The Boardroom, SnowWaves? Og er startlofterne OK? De er 25.000 kr. pr. postering, 3.000 kr. for en ny leverandør og 100.000 kr. pr. dag.
+
+---
+
+## E. Adgange til bogholder-agenten (når du har en time i dag)
+
+Nøgler lægger du selv i secrets, aldrig i chatten.
+
+1. **Supabase:** nyt projekt i DIN egen organisation (ikke Lovables), navn `topix-bogholderi`, EU, Pro.
+2. **e-conomic:** tjek, at pakken er Plus eller højere. Tilmeld udvikleraftale på e-conomic.com/developer. Opret appen «Topix bogholderi-agent» med rollen Bookkeeping. Gem AppSecretToken (vises én gang), og godkend appens Installation URL som administrator for at få AgreementGrantToken.
+3. **Nordea via Enable Banking:** konto og applikation på enablebanking.com (restricted mode). Link Nordea med MitID. Skriv samme dag til dem om produktionsaftale.
+4. **bilag@topix.dk:** ny bruger i Google Workspace. Gmail API og OAuth (Internal) i et nyt Cloud-projekt.
+5. **Stripe:** restricted key, kun læs.
+6. **Claude API-nøgle:** med månedligt forbrugsloft.
+7. **Leverandørernes faktura-mail** ændres til bilag@. Det gælder Google, Meta, Lovable, Klaviyo, Mailgun, eWebinar, Bunny, Calendly, Stripe, telefoni, forsikring og revisor.
+8. **Revisor, én samtale på en time:** kontoplan og moms, forsystemet og renten på ejerlån.
+
+Tjek også bogholderens opsigelsesvarsel.
+
+---
+
+## Det blev lavet i nat
+
+**Merget, med grøn CI på alle kørsler:**
+
+| PR | Hvad |
+|---|---|
+| #1152 | Mailgun-loftet er 1000 i timen. Bevist i drift 23:39 (`maks` = 1000). |
+| #1155 | Webinarmail-dubletværn. Er man tilmeldt flere sessioner, får man kun påmindelser til den nærmeste. Et ukendt udfald (timeout) sendes aldrig igen. |
+| #1162 | Webinarmail: et forsøg starter kun, hvis det kan nå at slutte før cron-timeouten. Før kunne en afbrudt kørsel give dubletter: 45 + 8 + 10 = 63 s > 60 s. Skal være udrullet før 7-dagsholdet 6/10. |
+| #1156 | Sikkerhed: ejertjek på årsrapporter, kun rådgivere kan udløse chat-klokken, et medlem kan ikke køre agenten live, returnUrl er altid intern, og webhook-signaturer tjekkes i konstant tid. |
+| #1160 | /auth hænger ikke længere på en evig spinner. Admin-lister skelner tom fra fejlet. Legatsvar tæller ikke som kundesvar. |
+| #1163 | Medlemmets budget kan ikke længere overskrives ved en fejlet hentning. En chatbesked, der ikke blev sendt, går ikke tabt. Booking hænger ikke. Notifikationen siger «juli 2026». |
+| #1164 | Svartids-uret: rådgivernes fælles svartid, trend, ældste ubesvarede og streak på forsiden. |
+| #1165 | Ingen stille lofter i rykker- og rytme-cron. Rådgiverens chat viser nu en besked, der ikke blev sendt. **Deploy af `send-report-reminder` og `onboarding-rytme` venter** til vi har målt, om tabellerne har passeret 1.000 rækker; ellers kan mange få en rytmemail på én gang. |
+| #1153, #1154 | Bogføringen, visionen og mangellisten. |
+
+**Åbne, der venter på noget:**
+- #1157: sikkerhedstriggeren (B2).
+- #1158: webinarmotorens skive 1, der er motoren.
+- #1161: skive 2, seerens flade.
+- #1159: hurtigere login (B1).
+- #1146: lokation på events (D4).
+
+**Analyserne** ligger i `docs/analyser-30-09/`. Det er sikkerhed, hastighed, drift, medlemsrejse, mail-worst-case, bogholder-agent og webinarmotor-spec. Du behøver ikke læse dem. Det, der skal handles på, står ovenfor.
+
+**Modeller:** den store model (opus) tog webinarmotoren, sikkerheden, mailværnene, bogholderi-designet og medlemsfejlene. Den mellemste (sonnet) tog Klaviyo-klikvejledningen og driftsrettelserne.
+
+**Rettet undervejs:**
+- Jeg skrev, at jeg kunne lave Sunset i Klaviyo. Det kan jeg ikke, fordi mine værktøjer kun kan læse flows.
+- Mit første bevis-SQL for loftet var for løst. Det i A2 læser den seneste cron-kørsel direkte.
+
+
+---
+
+> **Den tidligere morgenrapport herunder (skrevet 29/9 ~23:00) er afløst af listen ovenfor.** Den bevares som historik.
+
 # Morgenrapport — natten til 30/9 (Claude, «Kør selv» fra 29/9 19:50)
 
 ## A. Det, Jonas skal gøre (i denne rækkefølge)

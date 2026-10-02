@@ -101,8 +101,10 @@ export const vejenErChattens = (view: string, medlem: string, raadgiver: string)
     m.includes("navigate(`${location.pathname}${location.search}`, { replace: true, state: null });") &&
     m.includes("const contextMeta = bygBeskedMeta({ attachments, chip: noegletalChip });") &&
     m.includes("insertData.context_meta = contextMeta;") &&
-    // Chippen ryddes EFTER en lykket sending (i if (!error && data)), ikke før.
-    m.indexOf("if (!error && data) {") < m.indexOf("setNoegletalChip(null);\n        notifyChatMessage") &&
+    // Chippen ryddes EFTER en lykket sending, ikke før. Ved en sendefejl
+    // (30/9, chatSendefejl.ts) følger den med den fejlede række til «Prøv igen».
+    m.includes('if (sendeUdfald(svar) === "sendt") {') &&
+    m.indexOf('if (sendeUdfald(svar) === "sendt") {') < m.indexOf("setNoegletalChip(null);\n        notifyChatMessage") &&
     m.includes("{noegletalChip && <NoegletalChipBanner chip={noegletalChip} onFjern={() => setNoegletalChip(null)} />}") &&
     // Begge paners bobler (mobil + desktop) viser chippen; medlemmets én gang for hver.
     bobler(m) && bobler(r) &&

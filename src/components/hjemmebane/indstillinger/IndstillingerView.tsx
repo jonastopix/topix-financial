@@ -400,7 +400,7 @@ export const IndstillingerView = () => {
       {fane === "virksomhed" && (
         <>
           <HbSection eyebrow="Aftalen" hairline className="mt-10 max-w-3xl">
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <Kort titel="Dit medlemskab">
                 {!company ? (
                   <p className="text-sm text-hb-ink-soft">Henter…</p>
@@ -463,7 +463,7 @@ export const IndstillingerView = () => {
                       <p className="mt-1 text-xs text-hb-ink-soft">PNG eller JPG, højst 2 MB.</p>
                     </div>
                   </div>
-                  <div className="mt-5 grid gap-4 md:grid-cols-2">
+                  <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
                     <HbField label="Virksomhedsnavn" htmlFor="v-navn" className="md:col-span-2">
                       <HbInput id="v-navn" value={companyForm.name} onChange={(e) => setCompanyForm((f) => ({ ...f, name: e.target.value }))} />
                     </HbField>
@@ -598,7 +598,7 @@ export const IndstillingerView = () => {
 
       {fane === "notifikationer" && (
         <HbSection eyebrow="Notifikationer" hairline className="mt-10 max-w-3xl">
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <Kort titel="E-mails fra os">
               <p className="text-sm leading-relaxed text-hb-ink-soft">Vælg hvad vi må skrive til dig om. Beskederne i appen påvirkes ikke.</p>
               <ul className="mt-4 divide-y divide-hb-line">

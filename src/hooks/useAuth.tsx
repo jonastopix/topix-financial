@@ -2,9 +2,21 @@ import { useState, useEffect, useRef, createContext, useContext, useCallback } f
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 import { useInactivityLogout } from "./useInactivityLogout";
+import { erTjenestekonto } from "./tjenestekonti";
+import { inaktivitetsLogudAktiv, laeseMarkeringTilladt } from "@/lib/tjenestekonto";
 import { InactivityWarningDialog } from "@/components/InactivityWarningDialog";
 import { useQuery } from "@tanstack/react-query";
-import { computeMembershipTier } from "@/lib/membershipTier";
+import {
+  medTimeout,
+  PPI_TIMEOUT_MEDLEM_MS,
+  PPI_TIMEOUT_RAADGIVER_MS,
+  skalHenteBrugerdata,
+  skalLoggeLogin,
+  skalStarteOnboardingAgent,
+  tierFraVirksomhed,
+  type HentningsTilstand,
+  type VirksomhedsFelter,
+} from "@/lib/authIndlaesning";
 
 /** Hvor langt virksomhedsopslaget er nået — så "ved det ikke endnu" kan
     skelnes fra "gik galt". Før denne tilstand var begge `companyId ===
@@ -42,6 +54,14 @@ interface AuthContext {
   /** Se CompanyResolution. Index læser "failed" og viser en menneskelig
       flade i stedet for skelettet. */
   companyResolution: CompanyResolution;
+  /** TJENESTEKONTI (30/9-2026, src/lib/tjenestekonto.ts): true når et ja står
+      (også efter en fejlet genhentning); false når svaret er nej, henter
+      eller fejlede uden et tidligere ja. Samme query som logud-reglen. */
+  erTjenestekonto: boolean;
+  /** Må det at SE skrive et spor (læst, set, visning)? laeseMarkeringTilladt-
+      dommen: nej for en tjenestekonto og mens opslaget henter. Stederne står
+      i kildeværnet tjenestekonto.guard dom 6. */
+  laeseMarkeringTilladt: boolean;
   setCompanyOverride: (id: string, name: string) => void;
   clearCompanyOverride: () => void;
   refreshProfile: () => Promise<void>;
@@ -64,6 +84,8 @@ const AuthContext = createContext<AuthContext>({
   isCompanyOverride: false,
   membershipTier: null,
   companyResolution: "pending",
+  erTjenestekonto: false,
+  laeseMarkeringTilladt: false,
   setCompanyOverride: () => {},
   clearCompanyOverride: () => {},
   refreshProfile: async () => {},
@@ -129,19 +151,42 @@ async function afgoerMedlemsTier(companyId: string): Promise<"full" | "subscribe
     .select("contract_end_date, subscription_status, subscription_current_period_end")
     .eq("id", companyId)
     .maybeSingle();
-  if (!companyTierData) return "full";
-  const tier = computeMembershipTier(companyTierData);
-  return tier === "no_date" ? "full" : tier;
+  return tierFraVirksomhed(companyTierData);
+}
+
+/** Medlemskabet med virksomhedens tier- og onboarding-felter i SAMME
+    join (29/9, analyse-hastighed.md #1): før var tier og onboarding-flaget
+    to rundture mere i serie efter dette opslag. Felterne er de samme, som
+    afgoerMedlemsTier og onboarding-opslaget læste hver for sig — samme
+    tabel, samme RLS. Fejler den brede forespørgsel alligevel (fx en
+    kolonne-rettighed), falder hentningen tilbage på den smalle med de to
+    gamle enkeltopslag, så det værste udfald er den gamle hastighed —
+    aldrig et medlem uden virksomhed. */
+const MEDLEMSKAB_BRED =
+  "company_id, companies:company_id(id, name, contract_end_date, subscription_status, subscription_current_period_end, onboarding_completed, application_context)";
+const MEDLEMSKAB_SMAL = "company_id, companies:company_id(id, name)";
+
+function hentMedlemskab(userId: string, felter: string) {
+  return supabase
+    .from("company_members" as any)
+    .select(felter as any)
+    .eq("user_id", userId)
+    .limit(1)
+    .maybeSingle();
 }
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  /** Om auth-handleren SIDST så en session. En ref, ikke `user` fra
-      closure: handleren registreres én gang (deps []), så `user` derinde
-      er altid mount-værdien (null). Se overgangs-logikken i handleren. */
-  const havdeSessionRef = useRef(false);
+  /** Bruger-id'et i den session, auth-handleren SIDST så (null = ingen
+      session). En ref, ikke `user` fra closure: handleren registreres én
+      gang (deps []), så `user` derinde er altid mount-værdien (null). Se
+      overgangs-logikken i handleren. */
+  const sidsteBrugerIdRef = useRef<string | null>(null);
+  /** Hvor langt brugerdata-hentningen er (lib/authIndlaesning.ts
+      skalHenteBrugerdata): hentet færdig for hvem, og kører der en nu. */
+  const hentningRef = useRef<HentningsTilstand>({ hentetFor: null, igangFor: null });
   const [isAdvisor, setIsAdvisor] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isPartner, setIsPartner] = useState(false);
@@ -180,35 +225,43 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     if (data) setProfile(data);
   }, [user]);
 
-  const fetchUserData = async (userId: string) => {
-    const [rolesRes, profileRes, companyRes] = await Promise.all([
+  /** Henter roller, profil, legat og virksomhed for brugeren og sætter
+      state. Svarer true, når alt er afgjort; false, når koblingen til
+      virksomheden fejlede eller ikke nåede at svare — så næste
+      auth-hændelse prøver igen (skalHenteBrugerdata). */
+  const fetchUserData = async (authUser: User): Promise<boolean> => {
+    const userId = authUser.id;
+    // ÉN rundtur (29/9, analyse-hastighed.md #1): legat hentes nu for alle
+    // i samme Promise.all — før var det en rundtur mere i serie for
+    // medlemmer. For en rådgiver smides svaret væk (isLegat er altid
+    // false for rådgivere, som før).
+    const [rolesRes, profileRes, bredRes, legatRes] = await Promise.all([
       supabase.from("user_roles").select("role").eq("user_id", userId),
       supabase.from("profiles").select("full_name, company_name, avatar_url, onboarded_at, tour_completed_at").eq("user_id", userId).maybeSingle(),
+      hentMedlemskab(userId, MEDLEMSKAB_BRED),
       supabase
-        .from("company_members" as any)
-        .select("company_id, companies:company_id(id, name)" as any)
+        .from("legat_enrollments" as any)
+        .select("id")
         .eq("user_id", userId)
-        .limit(1)
+        .in("status", ["active", "completed"])
         .maybeSingle(),
     ]);
+    let companyRes = bredRes;
+    let bredtHentet = true;
+    if (bredRes.error) {
+      console.warn(
+        `[useAuth] bredt medlemskabsopslag fejlede user_id=${userId} — falder tilbage på enkeltopslag:`,
+        bredRes.error,
+      );
+      companyRes = await hentMedlemskab(userId, MEDLEMSKAB_SMAL);
+      bredtHentet = false;
+    }
     const roles = rolesRes.data?.map((r) => r.role) ?? [];
     const isAdv = roles.includes("advisor") || roles.includes("admin");
     setIsAdvisor(isAdv);
     setIsAdmin(roles.includes("admin" as any));
     setIsPartner(roles.includes("partner" as any));
-    let legatRow: any = null;
-    if (!isAdv) {
-      const { data } = await supabase
-        .from("legat_enrollments" as any)
-        .select("id")
-        .eq("user_id", userId)
-        .in("status", ["active", "completed"])
-        .maybeSingle();
-      legatRow = data;
-      setIsLegat(!!legatRow);
-    } else {
-      setIsLegat(false);
-    }
+    setIsLegat(!isAdv && !!legatRes.data);
     setProfile(profileRes.data);
     // Onboarding-porten er pensioneret (trin 7, docs/indgangen-overhaling.md
     // §9): auth-kontraktens onboarding-flag, localStorage-flaget og
@@ -217,16 +270,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const cm = companyRes.data as any;
     if (cm?.company_id) {
+      // Virksomhedens felter: fra joinet (ingen ekstra rundtur), eller —
+      // kun hvis den brede forespørgsel fejlede — fra de to gamle
+      // enkeltopslag, præcis som før.
+      let virksomhed: VirksomhedsFelter | null;
+      let tier: "full" | "subscriber" | "expired";
+      if (bredtHentet) {
+        virksomhed = (cm.companies ?? null) as VirksomhedsFelter | null;
+        tier = isAdv ? "full" : tierFraVirksomhed(virksomhed);
+      } else {
+        tier = isAdv ? "full" : await afgoerMedlemsTier(cm.company_id);
+        const { data: companyMeta } = await supabase
+          .from("companies")
+          .select("onboarding_completed, application_context")
+          .eq("id", cm.company_id)
+          .maybeSingle();
+        virksomhed = companyMeta as VirksomhedsFelter | null;
+      }
       setOwnCompanyId(cm.company_id);
       setOwnCompanyName(cm.companies?.name || null);
       setCompanyResolution("resolved");
-
-      // Determine membership tier
-      if (isAdv) {
-        setMembershipTier("full");
-      } else {
-        setMembershipTier(await afgoerMedlemsTier(cm.company_id));
-      }
+      // Determine membership tier (rådgiveren er altid "full", som før)
+      setMembershipTier(tier);
 
       // Trigger onboarding agent if this is first login for an imported company
       // (trin 6, docs/indgangen-overhaling.md §9): betingelsen bærer IKKE
@@ -234,13 +299,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       // true lige herunder, før kaldet), Onboarding.tsx:89 har altid kørt
       // uden leddet, og profiles.onboarded_at holder op med at blive
       // skrevet når porten pensioneres i trin 7.
-      const { data: companyMeta } = await supabase
-        .from("companies")
-        .select("onboarding_completed, application_context")
-        .eq("id", cm.company_id)
-        .maybeSingle();
-
-      if (companyMeta?.onboarding_completed === false && companyMeta?.application_context) {
+      if (skalStarteOnboardingAgent(virksomhed)) {
         // Mark completed immediately to prevent duplicate runs on rapid re-auth
         await supabase
           .from("companies")
@@ -260,11 +319,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           },
         }).catch((err) => console.warn("Onboarding agent failed:", err));
       }
+      return true;
     } else {
-      // No company membership — check for pending invitation
-      const authUser = (await supabase.auth.getUser()).data.user;
-      const userEmail = authUser?.email;
-      const inviteTokenMeta = authUser?.user_metadata?.invite_token;
+      // No company membership — check for pending invitation.
+      // Email og invite_token læses af sessionens bruger (29/9): før var det
+      // en ekstra rundtur (auth.getUser) før PPI. process-pending-invitation
+      // validerer selv JWT'en på serveren; her er det kun kaldets input.
+      const userEmail = authUser.email;
+      const inviteTokenMeta = authUser.user_metadata?.invite_token;
       if (userEmail) {
         // Tre fejlgrene (HTTP-fejl, uventet svar, exception) sætter alle
         // companyResolution = "failed", så Index kan vise noget menneskeligt
@@ -281,15 +343,41 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setMembershipTier(null);
           setCompanyResolution("failed");
         };
+        const ppiTimeoutMs = isAdv ? PPI_TIMEOUT_RAADGIVER_MS : PPI_TIMEOUT_MEDLEM_MS;
         try {
-          const { data: invResult, error: invError } = await supabase.functions.invoke(
-            "process-pending-invitation",
-            { body: { user_id: userId, invite_token: inviteTokenMeta || null } }
+          // Ventetiden kappes (29/9, analyse-hastighed.md #2): før kunne en
+          // koldstart holde forsiden tilbage i ubestemt tid. Kaldet kører
+          // videre på serveren; kun ventetiden er kappet.
+          const ppi = await medTimeout(
+            supabase.functions.invoke(
+              "process-pending-invitation",
+              { body: { user_id: userId, invite_token: inviteTokenMeta || null } }
+            ),
+            ppiTimeoutMs,
           );
+          if (ppi.udfald === "timeout") {
+            if (isAdv) {
+              // Fail-soft: rådgiverens forside kræver ingen egen virksomhed
+              // (Index læser kun "failed" for ikke-rådgivere), og svaret er
+              // næsten altid no_pending_invitation.
+              console.warn(
+                `[useAuth] process-pending-invitation svarede ikke inden ${ppiTimeoutMs} ms user_id=${userId} — rådgiveren fortsætter uden egen virksomhed`,
+              );
+              setOwnCompanyId(null);
+              setOwnCompanyName(null);
+              setMembershipTier(null);
+              setCompanyResolution("none");
+            } else {
+              markerFejl(`timeout_${ppiTimeoutMs}ms`);
+            }
+            return false;
+          }
+          const { data: invResult, error: invError } = ppi.vaerdi;
           if (invError) {
             // HTTP-fejl: invoke returnerer fejlen i stedet for at kaste.
             // Før lå den skjult som "invResult undefined" i else-grenen.
             markerFejl(await laesInvokeFejl(invError));
+            return false;
           } else if (invResult?.success) {
             setOwnCompanyId(invResult.company_id);
             setOwnCompanyName(invResult.company_name);
@@ -301,11 +389,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             // med service role, så user_company_id() finder den, og RLS
             // på companies slipper opslaget igennem.
             setMembershipTier(isAdv ? "full" : await afgoerMedlemsTier(invResult.company_id));
+            return true;
           } else if (typeof invResult?.reason === "string" && PPI_NORMALE_SVAR.has(invResult.reason)) {
             setOwnCompanyId(null);
             setOwnCompanyName(null);
             setMembershipTier(null);
             setCompanyResolution("none");
+            return true;
           } else {
             markerFejl(
               typeof invResult?.reason === "string"
@@ -314,15 +404,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                   ? invResult.error
                   : "uventet_svar",
             );
+            return false;
           }
         } catch (e) {
           markerFejl(e instanceof Error ? e.message : String(e));
+          return false;
         }
       } else {
         setOwnCompanyId(null);
         setOwnCompanyName(null);
         setMembershipTier(null);
         setCompanyResolution("none");
+        return true;
       }
     }
   };
@@ -360,28 +453,57 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           // /auth, login efter udlogning), er der noget at holde porten
           // lukket for. Ved hard reload er loading allerede sand fra
           // useState — kaldet er harmløst.
-          if (!havdeSessionRef.current) setLoading(true);
-          havdeSessionRef.current = true;
+          //
+          // Genhentningen følger SAMME overgang (29/9, analyse-hastighed.md
+          // #3): før hentede HVER hændelse med session alt igen — SIGNED_IN
+          // ved hvert faneskift, TOKEN_REFRESHED hver time — og loggede et
+          // nyt login ved hvert SIGNED_IN. Nu hentes kun, når data ikke
+          // allerede er hentet (eller hentes) for SAMME bruger-id, og kun
+          // overgangen til en ny bruger logges. En hentning, der fejlede,
+          // tæller ikke som hentet — næste hændelse prøver igen, som før.
+          const nyBrugerId = session.user.id;
+          const forrigeBrugerId = sidsteBrugerIdRef.current;
+          sidsteBrugerIdRef.current = nyBrugerId;
+          const skalHente = skalHenteBrugerdata(hentningRef.current, nyBrugerId);
+          if (forrigeBrugerId === null && skalHente) setLoading(true);
           // Log login event
-          if (_event === "SIGNED_IN") {
-            supabase.rpc("log_user_login" as any).then(({ error }) => {
-              if (error) console.error("Failed to log login:", error);
-            });
+          // En tjenestekonto logger intet login (30/9-2026): user_login_log
+          // læses af rådgiverforsidens kohorte. Opslaget fejler → den normale
+          // regel (logges), som laeseMarkeringTilladt.
+          if (skalLoggeLogin(_event, forrigeBrugerId, nyBrugerId)) {
+            void erTjenestekonto(nyBrugerId)
+              .catch(() => false)
+              .then((tjeneste) => {
+                if (tjeneste) return;
+                return supabase.rpc("log_user_login" as any).then(({ error }) => {
+                  if (error) console.error("Failed to log login:", error);
+                });
+              });
           }
+          if (!skalHente) return;
+          hentningRef.current = { ...hentningRef.current, igangFor: nyBrugerId };
+          const authUser = session.user;
           setTimeout(async () => {
+            let fuldfoert = false;
             try {
-              await fetchUserData(session.user.id);
+              fuldfoert = await fetchUserData(authUser);
             } catch (e) {
               console.error("[useAuth] fetchUserData failed:", e);
             } finally {
+              // Kun hvis denne hentning stadig er den aktuelle (ikke afløst
+              // af en udlogning eller en anden bruger imens).
+              if (hentningRef.current.igangFor === nyBrugerId) {
+                hentningRef.current = { hentetFor: fuldfoert ? nyBrugerId : null, igangFor: null };
+              }
               setLoading(false);
             }
           }, 0);
         } else {
           // Sessionen er væk (SIGNED_OUT, eller INITIAL_SESSION uden
-          // session). Markøren nulstilles, så det NÆSTE login igen tæller
-          // som overgang og holder porten lukket.
-          havdeSessionRef.current = false;
+          // session). Markørerne nulstilles, så det NÆSTE login igen tæller
+          // som overgang, holder porten lukket og henter alt.
+          sidsteBrugerIdRef.current = null;
+          hentningRef.current = { hentetFor: null, igangFor: null };
           setIsAdvisor(false);
           setIsAdmin(false);
           setIsLegat(false);
@@ -412,7 +534,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Inactivity auto-logout (reads session_timeout_minutes from app_config)
   const sessionTimeoutMinutes = useSessionTimeout();
-  const { showWarning, secondsLeft, extendSession } = useInactivityLogout(!!user, sessionTimeoutMinutes);
+  // TJENESTEKONTI (30/9-2026, src/lib/tjenestekonto.ts): claude@topix.dk logges
+  // ikke ud efter inaktivitet — alle andre som før. Fejl → den normale regel;
+  // mens opslaget henter, venter reglen (et gammelt stempel ville ellers logge
+  // tjenestekontoen ud i samme øjeblik, reglen slås til).
+  const tjenestekontoQuery = useQuery({
+    queryKey: ["tjenestekonto", user?.id ?? null],
+    queryFn: () => erTjenestekonto(user!.id),
+    enabled: !!user,
+    retry: false,
+    staleTime: 10 * 60 * 1000,
+  });
+  const logudAktiv = inaktivitetsLogudAktiv(!!user, tjenestekontoQuery.status, tjenestekontoQuery.data);
+  const { showWarning, secondsLeft, extendSession } = useInactivityLogout(logudAktiv, sessionTimeoutMinutes);
+  const erTjenestekontoNu = tjenestekontoQuery.data === true;
+  const maaMarkereLaest = laeseMarkeringTilladt(!!user, tjenestekontoQuery.status, tjenestekontoQuery.data);
 
   return (
     <AuthContext.Provider value={{
@@ -421,6 +557,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       ownCompanyId, ownCompanyName,
       isCompanyOverride,
       membershipTier, companyResolution,
+      erTjenestekonto: erTjenestekontoNu, laeseMarkeringTilladt: maaMarkereLaest,
       setCompanyOverride, clearCompanyOverride,
       refreshProfile, signOut,
     }}>

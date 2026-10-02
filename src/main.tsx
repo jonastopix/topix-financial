@@ -1,6 +1,7 @@
 import { createRoot } from "react-dom/client";
 import * as Sentry from "@sentry/react";
 import App from "./App.tsx";
+import { rensSentryHaendelse } from "./lib/sentryRens";
 import "./index.css";
 
 // 301-style redirect: old domains → app.theboardroom.dk
@@ -24,6 +25,10 @@ Sentry.init({
   enabled: import.meta.env.PROD,
   tracesSampleRate: 0.1,
   integrations: [Sentry.browserTracingIntegration()],
+  // Tokens i URL'en (/ring-mig-op?t=, /aftale?token=, /delt/webinar?t=) forlader aldrig
+  // browseren til Sentry — hverken i fejl eller transaktioner (src/lib/sentryRens.ts).
+  beforeSend: (haendelse) => rensSentryHaendelse(haendelse),
+  beforeSendTransaction: (haendelse) => rensSentryHaendelse(haendelse),
 });
 
 createRoot(document.getElementById("root")!).render(<App />);

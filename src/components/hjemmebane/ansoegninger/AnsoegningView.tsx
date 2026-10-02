@@ -33,6 +33,7 @@ import { SamtaleAfsnit } from "./SamtaleAfsnit";
 import { SendTilUnderskrift } from "../virksomhed/SendTilUnderskrift";
 import { AnsoegningRaadgivermail } from "./AnsoegningRaadgivermail";
 import { AnsoegningMails } from "./AnsoegningMails";
+import { WebinarKoblingAfsnit } from "./WebinarKoblingAfsnit";
 
 const Linje = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <div className="grid grid-cols-1 gap-x-4 py-1.5 text-sm sm:grid-cols-[11rem_1fr]">
@@ -187,7 +188,7 @@ export const AnsoegningView = ({ id }: { id: string | undefined }) => {
         {a.anbefaling ? (
           <div className="text-sm" data-anbefaling={a.anbefaling.udfald}>
             <p className="text-hb-ink"><span className="font-medium">{a.anbefaling.udfald === "tal_med_dem" ? "Tal med dem" : a.anbefaling.udfald === "afvis" ? "Afvis" : "Tvivl"}</span> · {grundlagSomTekst(a.anbefaling)}</p>
-            <div className="mt-3 grid gap-4 sm:grid-cols-2">
+            <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div><p className="text-[11px] uppercase tracking-[0.14em] text-hb-ink-soft">Taler for</p><ul className="mt-1 list-disc pl-5 text-hb-ink">{a.anbefaling.for.map((f) => <li key={f}>{f}</li>)}{a.anbefaling.for.length === 0 && <li className="list-none text-hb-ink-soft">—</li>}</ul></div>
               <div><p className="text-[11px] uppercase tracking-[0.14em] text-hb-ink-soft">Taler imod</p><ul className="mt-1 list-disc pl-5 text-hb-ink">{a.anbefaling.imod.map((f) => <li key={f}>{f}</li>)}{a.anbefaling.imod.length === 0 && <li className="list-none text-hb-ink-soft">—</li>}</ul></div>
             </div>
@@ -227,6 +228,9 @@ export const AnsoegningView = ({ id }: { id: string | undefined }) => {
           </Linje>
           <Linje label="Kilde">{`${KILDE_ORD[a.kilde] ?? a.kilde}${a.kilde_raa ? ` (${a.kilde_raa})` : ""}`}</Linje>
         </div>
+        {/* Webinarkoblingen (1/10): mailen står ikke i eWebinar, men en tilmelding under en anden mail ligner —
+            forslaget og klikket. Komponenten tegner selv intet, når der ikke er noget at vise. */}
+        <WebinarKoblingAfsnit ansoegningId={a.id} navnAf={navnAf} />
       </HbSection>
 
       <HbSection eyebrow="CVR-opslaget" hairline className="mt-12">

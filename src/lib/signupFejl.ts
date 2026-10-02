@@ -44,6 +44,27 @@ export function afgoerInvitationslink(a: {
   return "ukendt";
 }
 
+/**
+ * Fristen for invitationsopslaget (30/9, m28-invitationsopslag-haenger). Før
+ * ventede /auth på lookup_invite_company_info uden frist, og et svar, der
+ * aldrig kom, gav en spinner for evigt. Regnestykket: opslaget er én RPC
+ * (målt 22/9: REST gns. 0,37 s fra Jonas' maskine, ny forbindelse pr. kald);
+ * 10 s er over 25 × det, så en langsom mobilforbindelse når det, mens et
+ * udeblevet svar ikke holder personen længere, end hun venter på en side.
+ */
+export const INVITATIONSOPSLAG_FRIST_MS = 10_000;
+
+/**
+ * Det, opslaget «svarer» når fristen er gået: ingen data og en fejl, der ikke
+ * er 22P02. afgoerInvitationslink dømmer det derfor «fejl» — samme gren som et
+ * netværksfejl-svar: signup-formen som før, og triggeren (handle_new_user)
+ * afgør. Aldrig «ukendt»: et udeblevet svar siger intet om, at linket er brugt.
+ */
+export const INVITATIONSOPSLAG_UDEBLEV = {
+  data: null,
+  error: { code: "frist_udloebet", message: `lookup_invite_company_info svarede ikke inden ${INVITATIONSOPSLAG_FRIST_MS} ms` },
+} as const;
+
 /** Linjen over login-formen når linket ikke svarer (ukendt). */
 export const LINK_UKENDT_TEKST =
   `Linket er allerede brugt, eller det virker ikke længere. Har du oprettet din konto, så log ind herunder. Ellers skriv til ${KONTAKT_ADRESSE}, så hjælper vi dig.`;

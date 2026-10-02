@@ -7,6 +7,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { planlaegGem, type FlytSvar, type Tidspatch } from "@/lib/hjemmebane/flytEvent";
 import type { Database } from "@/integrations/supabase/types";
 import { erKunde } from "@/lib/raadgiverensKunder";
+import { erManglendeKolonne } from "@/lib/manglendeTabel";
+import { fortrydMarkeringPatch } from "@/lib/hjemmebane/progressState";
 
 type Tables = Database["public"]["Tables"];
 
@@ -27,7 +29,9 @@ export type ContentStatus = "draft" | "published" | "archived";
     visningsnavne (DB-nøglerne i `key` er urørte); `hint` vises som stille
     hjælpelinje under område-rækken for det valgte område.
     `akademi`: true = forløbsområde i /akademiet; false = området har hjem
-    et andet sted (push → forsidens hero) og må ALDRIG optræde i Akademiet
+    et andet sted (push m.fl. — forsidens bånd indtil 2/10-2026; forsiden er
+    ryddet, og de fire områder vises ikke for medlemmer, før de får plads i
+    Akademiet som «Nyt fra os») og må ALDRIG optræde i Akademiet
     (ForsideView/OmraadeView/ElementView gater på flaget).
     `adminFane`: om området får en fane i /admin/indhold. ADSKILT fra
     `akademi` (13-08-2026): ét flag styrede før BÅDE medlemsfladen og
@@ -87,40 +91,61 @@ export const AREAS = [
   },
   {
     key: "quick_wins",
+    /* Produktbeslutning 1/10-2026 (Jonas: «Quick Wins skal væk fra
+       Akademiet»): området er SKJULT for medlemmer — akademi: false gater
+       ForsideView/OmraadeView/KursusView/ElementView og forløbsdommen, og
+       medlemSkjult: true lægger nøglen i MEDLEM_SKJULTE_OMRAADER, som
+       medlemsfladerne filtrerer på (useAkademiData m.fl.). Det er en
+       FLADEBESLUTNING, ikke adgangsbeskyttelse: RLS på content_items er
+       uændret, så et medlem kan stadig hente rækkerne direkte fra API'et.
+       Intet er slettet: rækkerne og nøglen 'quick_wins' (CHECK-constraints,
+       RLS) står, og admin-fanen (adminFane: true) kan stadig se og redigere
+       indholdet. Tages området ind igen: slet medlemSkjult og sæt
+       akademi: true (quickWinsSkjult.guard dom 1 holder de to i takt). */
     label: "Quick Wins",
-    akademi: true,
+    akademi: false,
     adminFane: true,
-    hint: "Korte, hurtige videoer",
+    medlemSkjult: true,
+    hint: "Korte, hurtige videoer — skjult i medlemmets flader siden 1/10-2026 (ikke adgangsbeskyttet; RLS er uændret)",
   },
   {
     key: "push",
     label: "Ugens push",
     akademi: false,
     adminFane: false,
-    hint: "Forsidens hero — seneste publicerede indslag er det, medlemmet møder først på Dit Boardroom",
+    hint: "Vises ikke for medlemmer lige nu — forsiden er ryddet (2/10); var forsidens hero. Indholdet får plads i Akademiet som «Nyt fra os»",
   },
   {
     key: "ugens_video",
     label: "Ugens video",
     akademi: false,
     adminFane: false,
-    hint: "Forsidens kuraterede videoindslag — nyeste publicerede, ikke-udløbne vinder (Bunny-id eller ekstern URL); kræver migration 20260809140000 kørt i Lovable",
+    hint: "Vises ikke for medlemmer lige nu — forsiden er ryddet (2/10); var forsidens videoindslag (nyeste publicerede, ikke-udløbne vinder; Bunny-id eller ekstern URL). Indholdet får plads i Akademiet som «Nyt fra os»",
   },
   {
     key: "redaktionelt",
     label: "Redaktionelt",
     akademi: false,
     adminFane: false,
-    hint: "Forsidens redaktionelle indslag (blog/LinkedIn m.m.) — link/citat i metadata; kræver migration 20260809170000 kørt i Lovable",
+    hint: "Vises ikke for medlemmer lige nu — forsiden er ryddet (2/10); var forsidens redaktionelle indslag (blog/LinkedIn m.m.; link/citat i metadata). Indholdet får plads i Akademiet som «Nyt fra os»",
   },
   {
     key: "evergreen",
     label: "Evergreen",
     akademi: false,
     adminFane: false,
-    hint: "Forsidens tidløse bibliotek (5-10 indslag UDEN udløb) — roterer deterministisk pr. ISO-uge; kræver migration 20260809170000 kørt i Lovable",
+    hint: "Vises ikke for medlemmer lige nu — forsiden er ryddet (2/10); var forsidens tidløse bibliotek (roterer pr. ISO-uge). Indholdet får plads i Akademiet som «Nyt fra os»",
   },
 ] as const;
+
+/** Områder, medlemmets flader ikke tegner (1/10-2026, Jonas) — AFLEDT af
+    AREAS' flag `medlemSkjult`, så der er ÉN kilde. Klienten filtrerer dem
+    fra; det er ikke adgangsbeskyttelse (RLS er uændret). Indholdsrækkerne
+    og admin-fanerne er uberørte; rådgiveren ser indholdet gennem admin
+    (listItems). */
+export const MEDLEM_SKJULTE_OMRAADER: ReadonlySet<string> = new Set(
+  AREAS.filter((a) => "medlemSkjult" in a && a.medlemSkjult).map((a) => a.key),
+);
 
 export type AreaKey = (typeof AREAS)[number]["key"];
 
@@ -413,6 +438,11 @@ export async function persistOrder(
 // Læsning bæres af advisor-SELECT-policyen; skrivning af advisor-INSERT/
 // UPDATE-policies (migration 20260805200000). Medlemmer skriver fortsat kun
 // egne rækker via akademiApi.upsertProgress.
+// F0 (2/10-2026, akademi-grundlag §4): rådgiverens markering er SKILT fra
+// medlemmets. Rådgiveren skriver KUN markeret_at/markeret_af («gennemgået
+// med rådgiver», migration 20261002260000) — aldrig acknowledged_at/seen_at,
+// som er medlemmets egne. Databasen håndhæver det (værnet 20261002261000);
+// kildeværnet akademiF0.guard låser det her.
 
 /** Rå fremdriftsrækker for en mængde items (typisk alle published) — én
     samlet SELECT. Sparse: kun rækker der findes. */
@@ -425,14 +455,29 @@ export type AdminProgressRow = {
   /** «Kunne du bruge den?» (16/9) — null = ikke besvaret; valgfrit, så
       ProgressViews optimistiske rækker uden feltet stadig er rækker. */
   brugbar?: boolean | null;
+  /** F0: rådgiverens markering. Fraværende FØR migrationen (fail-soft
+      hentning) = som i dag: ingen markering kendes. */
+  markeret_at?: string | null;
+  markeret_af?: string | null;
 };
+
+const PROGRESS_KOLONNER = "user_id, content_item_id, seen_at, acknowledged_at, skipped_at, brugbar";
+/** F0's kolonner (migration 20261002260000) — hentes med, og udelades igen,
+    hvis databasen svarer «kolonnen findes ikke» (42703/PGRST204), så fanen
+    virker som før migrationen. En anden fejl kastes som før. */
+export const MARKERING_KOLONNER = "markeret_at, markeret_af";
 
 export async function listAllMemberProgress(itemIds: string[]): Promise<AdminProgressRow[]> {
   if (itemIds.length === 0) return [];
+  const med = await supabase
+    .from("member_progress")
+    .select(`${PROGRESS_KOLONNER}, ${MARKERING_KOLONNER}`)
+    .in("content_item_id", itemIds);
+  if (!(med.error && erManglendeKolonne(med.error))) return throwIfError(med as unknown as { data: AdminProgressRow[] | null; error: { message: string } | null });
   return throwIfError(
     await supabase
       .from("member_progress")
-      .select("user_id, content_item_id, seen_at, acknowledged_at, skipped_at, brugbar")
+      .select(PROGRESS_KOLONNER)
       .in("content_item_id", itemIds),
   );
 }
@@ -456,6 +501,11 @@ export type AdminMember = {
   companyName: string;
   /** erKunde(companies-rækken) — false KUN ved eksplicit er_kunde = false. */
   companyErKunde: boolean;
+  /** companies.is_legat === true. Legat-medlemskaber vises ikke på
+      Fremdrift-fanen (ProgressView filtrerer dem), men de skal med i
+      udelukkelsen af «Svar pr. lektion» (30/9, m16-brugbar-er-kunde) —
+      før blev de filtreret fra HER, og så kendte udelukkelsen dem ikke. */
+  companyErLegat: boolean;
 };
 
 export async function listMembers(): Promise<AdminMember[]> {
@@ -470,8 +520,10 @@ export async function listMembers(): Promise<AdminMember[]> {
   const profileByUser = new Map((profilesRes.data ?? []).map((p) => [p.user_id, p]));
   const companyById = new Map((companiesRes.data ?? []).map((c) => [c.id, c]));
 
+  // Legat-medlemskaber filtreres IKKE her længere (30/9, m16-brugbar-er-kunde):
+  // de bærer companyErLegat, listen skjuler dem (ProgressView), og
+  // udelukFraBrugbar holder deres svar ude af tallet.
   return (membersRes.data ?? [])
-    .filter((m) => companyById.get(m.company_id)?.is_legat !== true)
     .map((m) => {
       const profile = profileByUser.get(m.user_id);
       return {
@@ -480,40 +532,61 @@ export async function listMembers(): Promise<AdminMember[]> {
         avatarUrl: profile?.avatar_url ?? null,
         companyName: companyById.get(m.company_id)?.name ?? "",
         companyErKunde: erKunde(companyById.get(m.company_id) ?? {}),
+        companyErLegat: companyById.get(m.company_id)?.is_legat === true,
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name, "da"));
 }
 
-/** Batch-markering: manglende TRACKED videoer i ét array-upsert (én
-    request, atomisk). Kalderen leverer eksisterende seen_at pr. item, så
-    "startet"-tidsstempler bevares; nye rækker får seen_at = nu. KUN sæt —
-    fortryd sker celle-for-celle (clearAcknowledge). */
-export async function batchAcknowledge(
+/** Rådgiverens markering «gennemgået med rådgiver» (F0, 2/10-2026 — før:
+    batchAcknowledge, som skrev acknowledged_at/seen_at SOM MEDLEMMET, så
+    hendes fremdrift viste «Gennemført» på lektioner, hun aldrig havde set):
+    ét array-upsert (én request, atomisk) med KUN markeret_at = nu og
+    markeret_af = rådgiveren. Medlemmets felter (seen_at, acknowledged_at,
+    skipped_at, last_position_seconds, brugbar*) sendes ALDRIG — PostgREST's
+    upsert sætter kun de kolonner, payloaden bærer, så en eksisterende rækkes
+    egne stempler står urørt, og en ny række har dem tomme. KUN sæt — fortryd
+    sker celle-for-celle (fortrydMarkering). FØR migrationen 20261002260000
+    svarer databasen PGRST204 («Could not find the 'markeret_at' column») —
+    det siges HØJT i stedet for at falde tilbage til at skrive som medlemmet:
+    faldet tilbage ville være selve fejlen, F0 retter. Kolonnerne står ikke i
+    types.ts, før Lovable genererer dem — derfor casten. */
+export async function batchMarker(
   userId: string,
-  entries: { itemId: string; seenAt: string | null }[],
+  itemIds: string[],
+  raadgiverId: string,
 ): Promise<void> {
-  if (entries.length === 0) return;
+  if (itemIds.length === 0) return;
+  if (!raadgiverId) throw new Error("Markeringen kræver en rådgiver (markeret_af) — ingen bruger fundet.");
   const now = new Date().toISOString();
-  const { error } = await supabase.from("member_progress").upsert(
-    entries.map((entry) => ({
-      user_id: userId,
-      content_item_id: entry.itemId,
-      seen_at: entry.seenAt ?? now,
-      acknowledged_at: now,
-    })),
-    { onConflict: "user_id,content_item_id" },
-  );
-  if (error) throw new Error(error.message);
-}
-
-/** Fortryd én markering (advisor): acknowledged_at → null. Rækkens øvrige
-    tidsstempler (seen_at m.v.) bevares — samme fortryd-semantik som
-    medlemmets egen unacknowledge i ElementView. */
-export async function clearAcknowledge(userId: string, itemId: string): Promise<void> {
+  const raekker = itemIds.map((itemId) => ({
+    user_id: userId,
+    content_item_id: itemId,
+    markeret_at: now,
+    markeret_af: raadgiverId,
+  }));
   const { error } = await supabase
     .from("member_progress")
-    .update({ acknowledged_at: null })
+    .upsert(raekker as unknown as Tables["member_progress"]["Insert"][], { onConflict: "user_id,content_item_id" });
+  if (error) throw new Error(erManglendeKolonne(error) ? MARKERING_AFVENTER_MIGRATION : error.message);
+}
+
+export const MARKERING_AFVENTER_MIGRATION =
+  "Markeringen kan ikke gemmes endnu: migrationen 20261002260000 (markeret_at/markeret_af) er ikke kørt i databasen.";
+
+/** Fortryd én markering (advisor): patchen er den rene dom
+    fortrydMarkeringPatch (progressState.ts) — markeret_* → null, og på en
+    backfillet batch-række også medlemmets felter, der ER rådgiverens stempel
+    (ellers blev rækken hendes egen «gennemført» i samme sekund). Medlemmets
+    egne stempler røres aldrig; databasens værn (20261002261000) nægter mere. */
+export async function fortrydMarkering(
+  userId: string,
+  itemId: string,
+  raekke: Pick<AdminProgressRow, "seen_at" | "acknowledged_at" | "markeret_at">,
+): Promise<void> {
+  const { error } = await supabase
+    .from("member_progress")
+    .update(fortrydMarkeringPatch(raekke) as Tables["member_progress"]["Update"])
     .eq("user_id", userId)
     .eq("content_item_id", itemId);
   if (error) throw new Error(error.message);

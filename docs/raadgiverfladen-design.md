@@ -287,7 +287,9 @@ blok 6.
 `/chat` viser, samme skrivevej. Med i tråden: **rapport-kommentarer**
 skrevet med `context_type: "report"` (`MemberDetail.tsx:545–575`) som
 kontekst-beskeder, og **«Tildelt: {rådgiver}»** (`conversations.
-assigned_advisor_id`, l. 481–495, 981–986).
+assigned_advisor_id`, l. 481–495, 981–986). *Fjernet 1/10-2026 (Jonas:
+«Tildeling af rådgiver skal helt fjernes fra platformen … Rådgiverne er
+sammen om alle medlemmer.») — se `docs/chat-design.md` §9.*
 
 **5. Tallene.** Finansielt snapshot med **afvigelserne fremhævet frem
 for alle tal**. Det MemberDetail i dag viser som «Finansielt
@@ -332,6 +334,16 @@ siden.» Jonas 17/9 (ordret: «Ja på alle») til analysens fem valg, alle A:
 
 1. Planen: blok 3 i fuld bredde, før tallene.
 2. Chatten: ned under tallene, 60 vh (min 420 px), med «Åbn i /chat».
+   **Rettet 30/9-2026** (Jonas 21:36: «Chatten på virksomhedssiderne er
+   lidt for små … banneret "brug for hjælp til" … vel reelt ligegyldigt nu,
+   hvor vi har fået refleksionerne for oven på siderne?»): 60 vh gav én
+   synlig besked. Nu `lg:h-[calc(100dvh-7rem)]` (min 480 px) — hele
+   sektionen på én skærm — og 70 dvh (min 440 px) under lg; regnestykket
+   ved `CHAT_HOEJDE` i `VirksomhedView.tsx`. «Brug for hjælp til»-båndet er
+   fjernet i låst tilstand (blok 2 viser samme `pulse_checkins.help_needed`
+   i fuld længde) og foldet til én linje med «Vis mere» på `/chat`;
+   skrivefeltet er én linje i hvile på virksomhedssiden (`lavIHvile`).
+   Værn: `virksomhedschatPlads.guard` + `virksomhedsside.guard` dom 5.
 3. Aftalen: foldet som standard med statuslinje åben; åbnes af
    ?grund=fornyelse|indgang og ?section=aftale (scroll-effekten åbner
    folden).
@@ -348,7 +360,7 @@ blokkenes NUMRE ovenfor beholdes som navne i koden, Blok1…Blok7):
 | 2 | Deres ord og din forberedelse (blok 2) | `section-refleksion`, `section-session` | uændret (forberedelsen læser planen: PR 2) |
 | 3 | **Planen** (`VirksomhedPlanen`) — egen sektion i FULD BREDDE: målene som rækker, hele titler, skridtene ÅBNE (◻ aktive · ? venter · ✓ gjort · – ikke gjort; op til seks, resten «Vis alle»), handlinger som ord; parkerede/nåede foldet | `section-milestones` | flyttet fra blok 6 |
 | 4 | Tallene (blok 5) | `section-tal` | før chatten |
-| 5 | Chatten (blok 4) — 60 vh, min 420 px, «Åbn i /chat»; den daglige puls sker på `/chat` (§3.4) | `section-chat` | efter tallene, lavere |
+| 5 | Chatten (blok 4) — ~~60 vh, min 420 px~~ viewport-højde fra 30/9 (se punkt 2), «Åbn i /chat»; den daglige puls sker på `/chat` (§3.4) | `section-chat` | efter tallene, lavere; højere 30/9 |
 | 6 | Aktivitet (blok 6): Rapportering · Handouts (to kort) + Rapporter (foldet efter tre) + Leveringsoverblik | `section-handouts`, `section-reports` | uden Planen |
 | 7 | Aftalen (blok 7) — FOLDET, statuslinjen (tier · fornyelse · indgang · fejlede træk · medlemmer · invitationer) åben; folden åbnes af `?section=aftale` og `?grund=fornyelse\|indgang` | `section-aftale` | foldet |
 | 8 | Mails til virksomheden | `section-mails` | uændret |
@@ -544,7 +556,7 @@ til:
 | 9 | «Godkend rapport →» | `MemberDetail.tsx:1587–1594`, `<a href="/admin/review-queue">` | link ud til review queue, **uændret** |
 | 10 | «Se original fil» (`openReportFile`) | `MemberDetail.tsx:577–579, 1607–1616` | **blok 6** |
 | 11 | Deep-link-ankre `?reportId=`, `?handout=`, `?section=` | `MemberDetail.tsx:207–223, 289–319`; skrives af `AdvisorNotifications.tsx:89, 104` | **skal bevares på den nye rute** (`/virksomhed/:companyId?reportId=…` osv.) |
-| 12 | «Tildelt: {rådgiver}» (`conversations.assigned_advisor_id` → `profiles`) | `MemberDetail.tsx:486–495, 981–986` | **blok 4** |
+| 12 | «Tildelt: {rådgiver}» (`conversations.assigned_advisor_id` → `profiles`) | `MemberDetail.tsx:486–495, 981–986` | **blok 4** — *fjernet 1/10-2026 (chat-design.md §9)* |
 | 13 | «Invitation sendt til {email}»-advarslen (invitations-email ≠ profil-email) | `MemberDetail.tsx:417–452, 987–992` | **blok 7** |
 | 14 | Quick stats (rapporter / aktive milestones / handouts) | `MemberDetail.tsx:894–912` | **blok 6** |
 | 15 | Tilknyt eksisterende bruger (`attach-user-to-company`) | `Members.tsx:199–236`, inde i import-dialogen | **blok 7**, tilføjes som **niende handling** (§3.6) |

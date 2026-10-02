@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { bygWebinarMail, EMNER, AFSENDER, SVAR_TIL, invitationsTekst } from "../../../supabase/functions/_shared/webinarMailTekster.ts";
 import { bygFormData, beskedUrl, MAILGUN_EU_BASE, sendMailgun } from "../../../supabase/functions/_shared/mailgunAfsendelse.ts";
 import { byggAfmeldToken, laesAfmeldToken, afmeldUrl, TOKEN_FORM } from "../../../supabase/functions/_shared/webinarAfmeldToken.ts";
-import { ARTER, MED_INVITATION, type MailArt } from "@/lib/webinar/mailDom";
+import { AKTIVE_ARTER, ARTER, MED_INVITATION, type MailArt, UDGAAEDE_ARTER } from "@/lib/webinar/mailDom";
 
 const SESSION = "2026-10-13T09:00:00.000Z";
 const AFMELD = "https://p.supabase.co/functions/v1/webinar-afmeld?t=abc.def";
@@ -14,9 +14,20 @@ const ARGS = {
   afmeldUrl: AFMELD,
   // Prøvernes standard: filen kom med. «Uden» prøves for sig nedenfor.
   invitationVedhaeftet: true,
+  // Mortens hilsen (30/9): uden video er mailene som før. «Med» prøves i webinarVideo.test.ts.
+  video: null,
 };
 
-describe("bygWebinarMail — alle syv mails er hele", () => {
+describe("bygWebinarMail — alle syv mails er hele (fem sendes; tre_dage og dagen er udgået 30/9, men teksterne står)", () => {
+  it("de fem, der SENDES, er en delmængde af de syv, der har en tekst — og de udgåede er stadig byggelige", () => {
+    expect([...AKTIVE_ARTER]).toEqual(["bekraeftelse", "fjorten_dage", "syv_dage", "en_dag", "en_time"]);
+    for (const art of AKTIVE_ARTER) expect(Object.keys(EMNER), art).toContain(art);
+    for (const art of UDGAAEDE_ARTER) {
+      expect(Object.keys(EMNER), art).toContain(art);
+      expect(bygWebinarMail({ ...ARGS, art }).subject, art).toBe(EMNER[art]);
+    }
+  });
+
   it("hver art har emne, HTML og tekst — og tidspunktet står i dem alle", () => {
     for (const art of ARTER) {
       const m = bygWebinarMail({ ...ARGS, art });
@@ -76,7 +87,7 @@ describe("bygWebinarMail — alle syv mails er hele", () => {
   });
 
   it("uden kalender_link forsvinder KUN Apple-linket", () => {
-    const m = bygWebinarMail({ ...ARGS, art: "dagen", kalenderLink: null });
+    const m = bygWebinarMail({ ...ARGS, art: "en_dag", kalenderLink: null });
     expect(m.html).not.toContain("api.ewebinar.com");
     expect(m.html).toContain("calendar.google.com");
     expect(m.html).toContain("outlook.office.com");
@@ -148,12 +159,18 @@ describe("INGEN LØFTER OM ET LINK, DER KOMMER (Jonas 22/9 ca. 19:35)", () => {
     }
   });
 
-  it("«dagen» lover stadig de to påmindelser, der FAKTISK sendes", () => {
-    // Platformen sender «en time før» (arten en_time), og eWebinars egen
-    // påmindelse går ti minutter før. Begge dele er sande — derfor står de.
-    const m = bygWebinarMail({ ...ARGS, art: "dagen" });
-    expect(m.html).toContain("Du får det igen en time og ti minutter før start.");
-    expect(m.text).toContain("Du får det igen en time og ti minutter før start.");
+  it("«dagen» lovede de to påmindelser — og er udgået (30/9); ingen AKTIV mail lover dem", () => {
+    // «dagen» sagde «Du får det igen en time og ti minutter før start.» Det var sandt
+    // (en_time + eWebinars 10 min), men «dagen» sendes ikke længere
+    // (UDGAAEDE_ARTER). Teksten står stadig, ubrugt — og løftet må ikke vandre
+    // over i en af de fem, der sendes, uden at blive prøvet igen.
+    expect(UDGAAEDE_ARTER).toContain("dagen");
+    expect(bygWebinarMail({ ...ARGS, art: "dagen" }).text).toContain("Du får det igen en time og ti minutter før start.");
+    for (const art of AKTIVE_ARTER) {
+      const m = bygWebinarMail({ ...ARGS, art });
+      expect(m.html, art).not.toContain("Du får det igen");
+      expect(m.text, art).not.toContain("Du får det igen");
+    }
   });
 });
 

@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge.
+-- KØRT i prod (målt 1/10-2026: filens markørobjekter findes i prod; hovedet vendt efterfølgende). DEPLOY: manuelt i Lovable → SQL editor efter merge.
 --
 -- E-underskriften: det underskrevne dokument skal være et BEVIS, ikke en påstand
 -- (recon-pengene §3, 18/9-2026). I dag kan service role ændre dokument_tekst og

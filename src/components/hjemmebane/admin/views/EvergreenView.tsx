@@ -15,6 +15,7 @@ import { pickEvergreen } from "../../boardroom/pushSelection";
 import { HbField, HbInput } from "../HbField";
 import { HbStatusPill } from "../HbStatusPill";
 import { HbAdminSplit } from "../HbAdminShell";
+import { ForsidenRyddetLinje } from "./ForsidenRyddetLinje";
 import { HbUploadZone } from "../HbUploadZone";
 import { useAdminHotkeys } from "../useAdminHotkeys";
 import {
@@ -308,6 +309,7 @@ export const EvergreenView = () => {
       onCloseEditor={() => setSelectedId(null)}
       list={
         <div className="flex h-full min-h-0 flex-col">
+          <ForsidenRyddetLinje />
           {/* SKÆRPELSEN: nul publicerede = forsiden uden sikkerhedsnet. */}
           {!itemsQuery.isLoading && published.length === 0 && (
             <div className="flex items-start gap-2.5 border-b border-hb-rust/30 bg-hb-rust/5 px-4 py-3">

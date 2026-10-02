@@ -38,8 +38,21 @@ function blok(kode: string, navn: string): string {
   return m === -1 ? kode.slice(fra) : kode.slice(fra, fra + 1 + m);
 }
 
-/** Dom 1: velkomsten først, dommen ren. */
-export const velkomstenFoerst = (forside: string, rykkeliste: string): boolean => {
+/** Dom 1 — OMSKREVET 2/10-2026 (seks steder, seksSteder.guard): båndet «Fra
+    os til dig» er taget af forsiden, og med det velkomst-hovedhistorien;
+    velkomsten ses gennem «Kom godt i gang» (HbOnboardingTjekliste, #velkomst).
+    Værnet holder nu det MODSATTE af før: forsiden kalder IKKE pickMainStory
+    og regner stadig ingen dage selv; rykkelistens StoryKind er urørt
+    (pushSelection.ts bærer dommen til «Nyt fra os» i Akademiet senere). Den
+    gamle dom (velkomsten FØRST i rykkelisten) lever som pushSelection.test. */
+export const velkomstenFoerst = (forside: string, rykkeliste: string): boolean =>
+  !forside.includes("pickMainStory<") &&
+  !forside.includes("velkomstHovedhistorie(") &&
+  !/erFoersteUge\(|erIndenDoegn\(|dageMellem\(/.test(forside) &&
+  rykkeliste.includes('export type StoryKind = "velkomst" | "push" | "video" | "redaktionelt" | "evergreen";');
+
+/** Den gamle dom 1 (17/9–2/10), bevaret som reference til pushSelection.test. */
+export const velkomstenFoerstFoer = (forside: string, rykkeliste: string): boolean => {
   const fra = forside.indexOf("pickMainStory<BandItem>([");
   const til = forside.indexOf("])", fra);
   const liste = fra === -1 ? "" : forside.slice(fra, til);
@@ -79,9 +92,12 @@ export const faldTilbage = (dom: string): boolean =>
   dom.includes("if (setAt) return false;") &&
   dom.includes("return erFoersteUge(startDato, nu);");
 
-/** Dom 5: stemplet gennem tjeklistens mutation. */
+/** Dom 5: stemplet gennem tjeklistens mutation. 2/10 (båndet væk): StoryCard
+    tegnes ikke på forsiden, så onVelkomstSet gives 0 gange — kortet selv
+    stempler stadig gennem onSet, og forsiden skriver aldrig selv til profiles. */
 export const stempletGennemTjeklisten = (forside: string): boolean =>
-  (forside.match(/onVelkomstSet=\{tjeklisteData\.markerVelkomstSet\}/g) ?? []).length === 2 &&
+  (forside.match(/onVelkomstSet=\{tjeklisteData\.markerVelkomstSet\}/g) ?? []).length === 0 &&
+  !/<StoryCard\b/.test(forside.slice(forside.indexOf("export const BoardroomView = () => {"))) &&
   blok(forside, "VelkomstStory").includes("await onSet();") &&
   !/velkomstvideo_set_at: new Date\(\)/.test(forside) &&
   !/from\("profiles"\)\s*\.update\(/.test(forside);
@@ -92,8 +108,9 @@ describe("forsideDag1.guard — PR 5: velkomsten først, én kilde, iframe ved k
   const hilsen = udenKommentarer(laes(HILSEN));
   const rykkeliste = udenKommentarer(laes(RYKKELISTE));
 
-  it("dom 1: velkomst-kandidaten står først i pickMainStory og afgøres af velkomstHovedhistorie — forsiden regner ingen dage", () => {
+  it("dom 1 (omskrevet 2/10): forsiden kalder hverken pickMainStory eller velkomstHovedhistorie og regner ingen dage; StoryKind er urørt", () => {
     expect(velkomstenFoerst(forside, rykkeliste)).toBe(true);
+    expect(velkomstenFoerstFoer(forside, rykkeliste)).toBe(false);
   });
   it("dom 2: erDag1 (14) og erFoersteUge (7) deler erIndenDoegn — ingen egen dagsregning i velkomstHistorie", () => {
     expect(enKilde(dom, hilsen)).toBe(true);
@@ -108,9 +125,11 @@ describe("forsideDag1.guard — PR 5: velkomsten først, én kilde, iframe ved k
     expect(stempletGennemTjeklisten(forside)).toBe(true);
   });
 
-  it("selvbevis 1: velkomsten efter pushet, eller en egen dagsregning på forsiden, falder", () => {
-    expect(velkomstenFoerst(forside.replace('        visVelkomst ? { kind: "velkomst", item: { velkomst: true, guid: velkomstvideoGuid } } : null,\n        pushItem ? { kind: "push", item: pushItem } : null,\n', '        pushItem ? { kind: "push", item: pushItem } : null,\n        visVelkomst ? { kind: "velkomst", item: { velkomst: true, guid: velkomstvideoGuid } } : null,\n'), rykkeliste)).toBe(false);
-    expect(velkomstenFoerst(forside.replace("const visVelkomst = velkomstHovedhistorie({", "const visVelkomst = erFoersteUge(contractStartQuery.data, new Date()) && velkomstHovedhistorie({"), rykkeliste)).toBe(false);
+  it("selvbevis 1: båndet tilbage på forsiden (pickMainStory), eller en egen dagsregning, falder", () => {
+    expect(velkomstenFoerst(forside + "\nconst band = pickMainStory<BandItem>([]);", rykkeliste)).toBe(false);
+    expect(velkomstenFoerst(forside + "\nconst visVelkomst = velkomstHovedhistorie({ startDato: null, nu: new Date(), harVideo: false, setAt: null });", rykkeliste)).toBe(false);
+    expect(velkomstenFoerst(forside + "\nconst dag1 = erFoersteUge(contractStartQuery.data, new Date());", rykkeliste)).toBe(false);
+    expect(velkomstenFoerst(forside, rykkeliste.replace('export type StoryKind = "velkomst" | "push" | "video" | "redaktionelt" | "evergreen";', 'export type StoryKind = "push" | "video" | "redaktionelt" | "evergreen";'))).toBe(false);
   });
   it("selvbevis 2: en egen dagsregning i velkomstHistorie, eller erDag1 uden erIndenDoegn, falder", () => {
     expect(enKilde(dom.replace("return erIndenDoegn(startDato, nu, VELKOMST_UGE_DOEGN);", "return (nu.getTime() - new Date(startDato ?? 0).getTime()) / 86400000 <= 7;"), hilsen)).toBe(false);
@@ -125,6 +144,8 @@ describe("forsideDag1.guard — PR 5: velkomsten først, én kilde, iframe ved k
   });
   it("selvbevis 5: en direkte profiles-skrivning fra forsiden, eller knappen uden tjeklistens mutation, falder", () => {
     expect(stempletGennemTjeklisten(forside + '\nawait supabase.from("profiles").update({ velkomstvideo_set_at: new Date().toISOString() });')).toBe(false);
-    expect(stempletGennemTjeklisten(forside.replace("onVelkomstSet={tjeklisteData.markerVelkomstSet}", "onVelkomstSet={async () => {}}"))).toBe(false);
+    // Et StoryCard tilbage på forsiden (båndet igen) falder — og en VelkomstStory uden onSet.
+    expect(stempletGennemTjeklisten(forside.replace("<FornyelsesBaand />", '<FornyelsesBaand /><StoryCard story={band.main} variant="main" pushSender={null} pushCoverUrl={null} onVelkomstSet={tjeklisteData.markerVelkomstSet} />'))).toBe(false);
+    expect(stempletGennemTjeklisten(forside.replace("await onSet();", "await Promise.resolve();"))).toBe(false);
   });
 });

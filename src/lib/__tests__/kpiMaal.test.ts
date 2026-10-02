@@ -82,9 +82,10 @@ describe("erStandardMaal — ukendt oprindelse er ikke standard", () => {
 // indtil mærket ryddes sammen med kpiTone's standard-gren.
 describe("teksterne — en oplysning, ikke en fejl", () => {
   it("er korte og siger «standard»", () => {
-    expect(STANDARDMAAL_TEKST).toBe("Standardmål");
+    // Skive 3 (2/10-2026): KPI-målene hedder pejlemærker på /kpis.
+    expect(STANDARDMAAL_TEKST).toBe("Standardpejlemærke");
     expect(STANDARDMAAL_KOMPAKT).toBe("standard");
-    expect(STANDARDMAAL_FORKLARING).toContain("ikke et mål aftalt med jer");
+    expect(STANDARDMAAL_FORKLARING).toContain("ikke et pejlemærke aftalt med jer");
   });
   it("bebrejder ikke — ingen «fejl», «forkert» eller «mangler»", () => {
     for (const t of [STANDARDMAAL_TEKST, STANDARDMAAL_KOMPAKT, STANDARDMAAL_FORKLARING]) {

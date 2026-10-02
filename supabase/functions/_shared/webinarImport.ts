@@ -266,7 +266,16 @@ export interface FremmoedeDom {
  * (ewebinar-webhook/index.ts:176–185). `nu` er importens ur — det bliver
  * hændelsens `time` og grundlaget for `frisk`, som ved webhooken.
  */
-export function doemFremmoedeForImport(foer: WebinarTilmelding | null, flettet: WebinarTilmelding, nu: Date): FremmoedeDom {
+export function doemFremmoedeForImport(
+  foer: WebinarTilmelding | null,
+  flettet: WebinarTilmelding,
+  nu: Date,
+  // «Må vi ringe til dig?» (2/10): samme link som webhooken lægger på «deltog» —
+  // ellers bærer en «Deltog i webinar», importen når først, intet link, og webhookens
+  // senere hændelse kasseres som dublet (samme unique_id). byggFremmoede nulstiller
+  // det for alt andet end «deltog».
+  ringOpUrl: string | null = null,
+): FremmoedeDom {
   const gradFoer = foer ? doemSetGrad(foer, nu) : null;
   const grad = doemSetGrad(flettet, nu);
   const overgang = afgoerOvergang(gradFoer, grad);
@@ -279,6 +288,7 @@ export function doemFremmoedeForImport(foer: WebinarTilmelding | null, flettet: 
     webinarTitel: flettet.webinar_titel ?? null,
     sessionTid: flettet.session_tid,
     tid: nu,
+    ringOpUrl,
   });
   return { ewebinar_id: flettet.ewebinar_id, email: flettet.email, grad_foer: gradFoer, grad, overgang, haendelse };
 }

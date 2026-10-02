@@ -30,7 +30,7 @@ const AUTH = "supabase/functions/_shared/webinarDeltagerAuth.ts";
 const HENT = "supabase/functions/_shared/webinarMotorHent.ts";
 const TOKEN = "supabase/functions/_shared/webinarMotor/token.ts";
 const PULS_DOM = "src/lib/webinarMotor/puls.ts";
-const MIGRATION = "supabase/migrations/20260930100000_webinarmotor_skive1.sql";
+const MIGRATION = "supabase/migrations/20261003010000_webinarmotor_skive1.sql";
 const utenKommentarer = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/[^\n]*/g, "$1");
 
 // ── 1. Positionen ────────────────────────────────────────────────────────────

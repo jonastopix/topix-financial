@@ -61,7 +61,6 @@ export interface ConversationWithProfile {
   recentReportName?: string;
   recentReportIds?: string[];
   awaiting_reply_from?: string | null;
-  assigned_advisor_id?: string | null;
   last_member_message_at?: string | null;
   last_advisor_reply_at?: string | null;
 }

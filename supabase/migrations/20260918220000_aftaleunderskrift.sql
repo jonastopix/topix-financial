@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod (målt 1/10-2026: filens markørobjekter findes i prod; hovedet vendt efterfølgende). DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
 --
 -- Husets egen e-underskrift af aftalegrundlaget — datamodellen (UDKAST
 -- 18/9-2026, ~/Downloads/udkast-underskrift/README.md). Ingen tredjepart.

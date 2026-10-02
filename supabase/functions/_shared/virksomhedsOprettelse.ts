@@ -1,9 +1,10 @@
 /**
  * Opret eller genbrug en virksomhed — den ENE vej ind i `companies`.
  *
- * HVORFOR DEN FINDES: to veje opretter virksomheder — rådgiverens import
- * fra /virksomheder (import-application) og Monday-godkendelsen
- * (monday-webhook) — og de må ikke drive fra hinanden. Målt 2/9
+ * HVORFOR DEN FINDES: flere veje opretter virksomheder — rådgiverens import
+ * fra /virksomheder (import-application), ansøgningsmotoren ved underskrift
+ * og, indtil 2/10-2026, Monday-godkendelsen (monday-webhook, nedlagt, svarer
+ * 410) — og de må ikke drive fra hinanden. Målt 2/9
  * (recon-delt-oprettelse.md): nul tests på begge funktioner, intet
  * CI-værn der fanger en regression, og import-application har præcis én
  * kalder. Så længe hver funktion bar sin egen kopi af CVR-opslag,
@@ -29,7 +30,8 @@
  *   - Fejler insert'en, KASTES der med en dansk fejltekst der bærer navn
  *     og CVR (samme mønster som companyHardDelete og agentSkriveveje).
  *     Kalderen oversætter til sit eget svar — import-application til 500,
- *     monday-webhook til sit.
+ *     ansøgningsmotoren til sin konvertering (historie: den nu nedlagte
+ *     monday-webhook, 410 siden 2/10-2026, oversatte til sit).
  *
  * HJÆLPEREN SÆTTER ALDRIG KONTRAKTDATOER. contract_start_date og
  * contract_end_date findes hverken i VirksomhedsInput eller i rækken,

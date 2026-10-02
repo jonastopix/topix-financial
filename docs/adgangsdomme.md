@@ -90,6 +90,16 @@ betyder. Ingen af de to har en test der binder dem til de tre andre.
 
 ---
 
+**Tilføjet 29/9-2026 (sikkerhedsanalysen fund 1):** alle fem domme læser felter på
+`companies` (`contract_end_date`, `is_legat`, `subscription_status`,
+`subscription_current_period_end`), og indtil migration `20260930090000` kunne et medlem
+skrive dem selv på sin egen række («Members can update own company» uden
+kolonnebegrænsning). Kolonneværnet (`companies_medlem_kolonnevaern`, BEFORE UPDATE) afviser
+nu ethvert medlemsskrevet felt uden for en hvidliste — ingen af dommenes felter er på den.
+Dommene selv er urørte. Se `supabase/SECURITY_BASELINE.md` §3.
+
+---
+
 ## 2. Den eneste dom på feltet
 
 Hele repoet sammenligner `companies.subscription_status` med præcis
@@ -235,3 +245,107 @@ Det er den første opgave, den dag politikken bygges.
 
 Bogført i `docs/OVERLEVERING.md` DEL 3 (rækken «UDSKUDT 3/9 aften») og
 DEL 4 (fælden om de fem domme).
+
+---
+
+## 7. Den sjette dom — `kan_laese_community` (2/10-2026; KØRT i prod 2/10 ca. 12:20 efter Jonas' grønne lys — FØR/EFTER i `docs/OVERLEVERING.md` «2. oktober morgen»)
+
+**Beslutningen:** Jonas 14/9: «En gæst ser Community, men skriver ikke».
+Morgenlisten 2/10: «Gæsten læser, skriver ikke (ny læse-dom)» — mulighed 2
+af de tre fra «2. oktober nat — samlet» pkt. 8 (kort `w13`). Aftenlistens
+«(b)» (alle uden slutdato får adgang) blev stoppet 2/10 nat (regelsættet
+(nn)) og er IKKE det, der er bygget.
+
+**Migration:** `supabase/migrations/20261002242000_community_gaest_laeser.sql`
+(første linje «-- IKKE KØRT. KRÆVER JONAS' GRØNNE LYS …», så mappescanningen
+ikke tager den). Omdøbt 2/10 fra `20261002230000`, fordi nummeret også
+bruges af F0-grenen (`20261002230000_member_progress_markering`).
+
+**Hvad «gæst» er (målt i kode og dokumentation 2/10):**
+`companies.vis_i_netvaerk = false` — kolonnen blev lavet til gæster
+(`20260902110000`), rådgiverens formular kalder feltet «Gæst — har adgang
+til platformen, men vises ikke i Netværket», og Jonas 14/9 kaldte de to
+virksomheder med flaget «GÆSTER». Der findes ingen anden markør.
+
+**Dommen:** `kan_laese_community(uid) = har_aktivt_medlemskab(uid) OR
+EXISTS (medlemskab i en virksomhed med vis_i_netvaerk = false AND
+is_legat = false AND contract_end_date IS NULL AND is_demo IS DISTINCT FROM
+true AND data_slettet_at IS NULL)`. Det SNÆVRE snit er valgt:
+flaget alene ville give en udløbet virksomhed, der er skjult fra Netværket,
+læseadgang; «ingen slutdato» alene var (b). SQL-funktion, STABLE, SECURITY
+DEFINER, `search_path = public`; EXECUTE kun til `authenticated` og
+`service_role`.
+
+**Demo og slettet (rådets fund 2/10):** en demovirksomhed (`is_demo = true`)
+og en slettet (`data_slettet_at` sat) er ingen gæst, selv med flaget og
+uden slutdato — samme udelukkelse som klaviyoMedlem, trofæerne og
+kvartalstjek-universet. `is_demo` NULL tæller som «ikke demo». **`er_kunde`
+er bevidst IKKE med** (målt i koden 2/10): feltet bruges kun i tællinger og
+lister (online, kohorte, kvartalstjek, virksomhedslisten, rådgiverforsiden,
+ansøgninger, klaviyoMedlem) og i ingen adgangsdom — det markerer husets egen
+virksomhed (Topix.dk ApS), ikke en gæst.
+
+**Sandhedstabel** (R = kan læse community, S = kan skrive; rådgiveren er
+altid R+S via `has_role`):
+
+| vis_i_netvaerk | is_legat | contract_end_date | har_aktivt_medlemskab | kan_laese_community | S | hvem |
+|---|---|---|---|---|---|---|
+| true | false | sat, ikke passeret | true | true | ja | fuldt medlem |
+| true | false | sat, passeret | false | false | nej | udløbet |
+| true | false | NULL | false | false | nej | «no_date» uden gæsteflag — som i dag ((b) afvist) |
+| **false** | **false** | **NULL** (ikke demo, ikke slettet) | **false** | **true ← ny** | **nej** | **gæsten (Jonas 14/9)** |
+| false | false | NULL, `is_demo = true` | false | false | nej | demo — ingen gæst (fund 2/10) |
+| false | false | NULL, `data_slettet_at` sat | false | false | nej | slettet — ingen gæst (fund 2/10) |
+| false | false | sat, ikke passeret | true | true | ja | fuldt medlem skjult fra Netværket |
+| false | false | sat, passeret | false | false | nej | udløbet + flag: IKKE gæst |
+| (alt) | true | (alt) | false | false | nej | legat — eget miljø |
+| intet medlemskab | | | false | false | nej | — |
+
+Selvbetjeningsabonnenten vurderes ikke (som i `har_aktivt_medlemskab`).
+
+**Hvor den bruges — KUN læsning:** SELECT-politikkerne «Members can view
+active threads» (`community_traade`) og «Members can view active replies»
+(`community_svar`) — DROP + CREATE med samme navn og form, kun dommen
+skifter; RPC'erne `get_community_feed`, `get_community_traad`,
+`get_community_svar` og edge-portene `maa_se_community_billede`,
+`maa_se_community_fil` (kroppene tegn for tegn som deres seneste
+migrationsfil, kun porten byttet — holdt af kildeværnet).
+
+**Bevidst IKKE rørt:** al skrivning (INSERT/UPDATE-politikker, reaktioner,
+`opret_*`, `ret_*`, `slet_*`, `skjul_*`, `saet_community_reaktion`) står på
+`har_aktivt_medlemskab`; `registrer_community_visning` (en visningsrække ER
+en skrivning — gæstens kig tæller ikke i «set af N»); `get_community_medlemmer`
+(resultatsættet er også modtagerlisten for opslagsmailen — at udvide den
+ville MAILE gæster, Jonas 22/9: ingen overmailing). Akademi og events: urørt.
+
+**Klientens spejl:** `src/lib/hjemmebane/communityAdgang.ts`
+(`erCommunityGaest`, `kanLaeseCommunity` = `harAdgangEfterRls` OR gæst,
+`kanSkriveICommunity` = `harAdgangEfterRls`), hooken
+`src/hooks/communityAdgang.ts` (`useCommunityGaest`: null mens den henter,
+fejl → false = som i dag). Feedet og trådsiden viser gæsten «Som gæst kan du
+læse med — opslag, svar og reaktioner er for medlemmer.» i stedet for
+composeren, like er slået fra, og tjeklistens «Præsentér dig» udgår. Den
+grænse virker også FØR migrationen er kørt (gæsten ser da en tom liste med
+grænsen i stedet for en fejl). Værn: `communityGaest.guard.test.ts` (otte
+domme med selvbevis), `communityAdgang.test.ts` (sandhedstabellen).
+
+**Klienten dømmer KUN den aktive virksomhed (bevidst, rådets fund 2/10):**
+SQL-dommen ser ALLE brugerens medlemskaber (`EXISTS` over `company_members`),
+men `useCommunityGaest` læser kun `companyId`s række — medlemmets SELECT på
+`companies` er «Members can view own company» (`id = user_company_id(auth.uid())`,
+og `user_company_id` tager `LIMIT 1`; kodelæst i `20260224222456`, ikke målt i
+`pg_policy`), så klienten KAN ikke læse de andre rækker, og at hente alle
+medlemskaber er derfor ikke enkelt (det kræver en ny RPC). Følgen for en
+bruger i BÅDE en gæste- og en medlemsvirksomhed: er den aktive gæsten, skjuler
+fladen composeren, selv om databasen (`har_aktivt_medlemskab` over alle
+medlemskaber) ville tage imod et opslag — den forsigtige fejl (grænsen, ikke
+en afvisning). Er den aktive medlemsvirksomheden, er fladen og databasen
+enige. Målt i prod: ikke målt, hvor mange brugere der har to medlemskaber.
+
+**Paritet:** klientspejlet er testet mod tabellen ovenfor; SQL-dommen er det
+ikke (§6 åbent punkt gælder stadig — der er ingen SQL-testinfrastruktur).
+Migrationens EFTER-SQL og RLS-prøve (rul tilbage) er beviset i prod.
+
+**Rækkefølgen:** Jonas' grønne lys → FØR-SQL (de fem kroppe og to
+politikker sammenlignes med `pg_get_functiondef`/`pg_policy`; afviger én,
+STOP) → kør → EFTER-SQL → Update.

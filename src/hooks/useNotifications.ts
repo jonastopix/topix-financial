@@ -23,7 +23,7 @@ export interface Notification {
  * Completely independent from chat read-state.
  */
 export function useNotifications() {
-  const { user } = useAuth();
+  const { user, laeseMarkeringTilladt } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   /* Hentefejl (16/9, «Tavse queryFn'er»): før blev en fejl til en tom liste
@@ -91,20 +91,22 @@ export function useNotifications() {
     (n) => !n.seen_at && n.priority === "action_required"
   );
 
+  // En tjenestekonto KIGGER (30/9, tjenestekonto.guard dom 6): intet markeres set eller læst.
   const markAllSeen = useCallback(async () => {
-    if (!user) return;
+    if (!user || !laeseMarkeringTilladt) return;
     await supabase.rpc("mark_notifications_seen" as any);
     setNotifications((prev) =>
       prev.map((n) => ({ ...n, seen_at: n.seen_at || new Date().toISOString() }))
     );
-  }, [user]);
+  }, [user, laeseMarkeringTilladt]);
 
   const markRead = useCallback(async (id: string) => {
+    if (!laeseMarkeringTilladt) return;
     await supabase.rpc("mark_notification_read" as any, { p_notification_id: id });
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read_at: n.read_at || new Date().toISOString() } : n))
     );
-  }, []);
+  }, [laeseMarkeringTilladt]);
 
   return {
     notifications,

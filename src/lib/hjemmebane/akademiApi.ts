@@ -23,7 +23,7 @@ import type {
     anden kalder ændres. */
 import type { MemberProgress } from "./progressState";
 export type { MemberProgress, ItemProgressState } from "./progressState";
-export { itemProgressState } from "./progressState";
+export { itemProgressState, egetSeenAt } from "./progressState";
 
 function throwIfError<T>(result: { data: T | null; error: { message: string } | null }): T {
   if (result.error) throw new Error(result.error.message);
@@ -78,8 +78,9 @@ export type ProgressPatch = Partial<
 
 /** Upsert på UNIQUE(user_id, content_item_id). Medlemmers ejerskab
     håndhæves af self-only RLS; advisors har egne write-policies
-    (fremdriftsværktøjet, migration 20260805200000) og skriver via
-    adminContentApi's batchAcknowledge/clearAcknowledge. */
+    (fremdriftsværktøjet, migration 20260805200000) og skriver KUN
+    markeret_at/markeret_af via adminContentApi's batchMarker/fortrydMarkering
+    (F0, 2/10-2026) — aldrig medlemmets egne felter. */
 export async function upsertProgress(
   userId: string,
   contentItemId: string,

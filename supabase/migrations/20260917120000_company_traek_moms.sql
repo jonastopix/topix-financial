@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod (målt 1/10-2026: filens markørobjekter findes i prod; hovedet vendt efterfølgende). DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
 --
 -- Momsen gemt pr. betaling i company_traek (16/9-2026, aften). Jonas: «Det
 -- kunne altså være lidt fint, hvis priserne stod som ex. 40.000 kr. ex. moms

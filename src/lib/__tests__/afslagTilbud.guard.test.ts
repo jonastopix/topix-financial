@@ -126,7 +126,7 @@ describe("afslagTilbud.guard — de otte domme på repoets filer", () => {
     expect(bygRykkerMail("ansoegning-abonnement-tilbud", K)).toBeNull();
   });
   it("5. migrationen: kolonnen, CHECK-unionen med C's venteplads, IKKE KØRT, intet abonnement", () => {
-    expect(laes(MIGRATION).startsWith("-- IKKE KØRT.")).toBe(true);
+    expect(laes(MIGRATION)).toMatch(/^-- (IKKE KØRT\.|KØRT i prod)/); // hovedet vendes ved kørsel (regelsættet §4c (dd))
     expect(migrationenErRigtig(udenSqlKommentarer(laes(MIGRATION)))).toBe(true);
   });
   it("6. handlingen læser grunden og afviser en ukendt", () => expect(handlingenErRigtig(udenKommentarer(laes(HANDLING)))).toBe(true));

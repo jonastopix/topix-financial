@@ -149,27 +149,38 @@ describe("teksterne — systemets stemme", () => {
     }
   });
 
-  it("A: tjeklistens punkter i tjeklistens rækkefølge, med og uden video", () => {
-    const tjekliste = byggTjekliste({
+  it("A: tjeklistens seks punkter i tjeklistens rækkefølge, med og uden video (seks steder, 2/10)", () => {
+    // Et nyt fuldt medlem (efter MAAL_PUNKT_FRA — mail A går kun til dag 0-1): alle seks punkter.
+    const input = {
       har_velkomstvideo: true, velkomstvideo_set_at: null, ask_me_about: null, avatar_url: null, website: null, industry_label: null,
       cvr_number: null, antal_rapporter: 0, antal_godkendte: 0, antal_udfyldte_handouts: 0, last_member_message_at: null,
       // Præsentationen (11/9, kort 60): et nyt fuldt medlem kan oprette tråde og har ikke præsenteret sig.
       kan_oprette_traad: true, har_praesentation: false,
-    });
+      medlem_siden: "2026-10-05T09:00:00.000Z", maal: [],
+    };
     const medVideo = komIGangTekst("Mette", true, NU).punkter;
+    const tjekliste = byggTjekliste(input);
+    expect(tjekliste.punkter).toHaveLength(TJEKLISTE_RAEKKEFOELGE.length);
     expect(medVideo).toHaveLength(TJEKLISTE_RAEKKEFOELGE.length);
     tjekliste.punkter.forEach((p, i) => expect(medVideo[i].startsWith(p.titel)).toBe(true));
+    // Uden video hedder punkt 1 «Udfyld din virksomhed» — stadig seks linjer (ingen punkter udgår).
     const udenVideo = komIGangTekst("Mette", false, NU).punkter;
-    expect(udenVideo).toHaveLength(TJEKLISTE_RAEKKEFOELGE.length - 1);
-    expect(udenVideo[0].startsWith("Din profil")).toBe(true);
+    const tjeklisteUdenVideo = byggTjekliste({ ...input, har_velkomstvideo: false });
+    expect(udenVideo).toHaveLength(TJEKLISTE_RAEKKEFOELGE.length);
+    tjeklisteUdenVideo.punkter.forEach((p, i) => expect(udenVideo[i].startsWith(p.titel)).toBe(true));
+    expect(udenVideo[0]).toBe("Udfyld din virksomhed — website, branche og CVR, det platformen regner på.");
     // Før 22/9 (fotokravet #957, Jonas «2. JA»): mailen følger tjeklisten — fotoet nævnes.
-    // Før: "Din profil — hvad de andre i netværket kan spørge dig om."
-    expect(udenVideo[0]).toBe("Din profil — et foto af dig, og hvad de andre i netværket kan spørge dig om.");
+    // Før 2/10 stod det i linjen «Din profil — et foto af dig, …»; nu i Netværkets linje (punkt 5).
+    expect(udenVideo[4]).toBe("Fortæl, hvad man kan spørge dig om — og sig hej: et foto af dig, hvad de andre i netværket kan spørge dig om, og et opslag om hvem du er.");
+    expect(udenVideo[4]).toContain("et foto af dig");
+    // «Fortæl det videre» er ude af mailen som af tjeklisten (Jonas 2/10).
+    expect(udenVideo.join(" ")).not.toContain("Fortæl det videre");
   });
 
   it("A: historikken — de tre seneste AFSLUTTEDE måneder ved navn (instruks F, 16/9), og initiativet er medlemmets — som tjeklistens punkt (Jonas 14/9)", () => {
     const s = fladt(komIGangTekst("Mette", false, NU));
-    expect(s).toContain(`Dine tal — Start med historikken: ${MAANEDER} — én fil pr. måned, også fra før du blev medlem.`);
+    // 2/10: linjen begynder med tjeklistens punkt 3, «Upload og godkend din første rapport» (før: «Dine tal»).
+    expect(s).toContain(`Upload og godkend din første rapport — Start med historikken: ${MAANEDER} — én fil pr. måned, også fra før du blev medlem.`);
     expect(s).not.toContain("de seneste 3 måneder");
     // Månederne følger mailens «nu»: 1/10 er september omme; 5/1 er det oktober–december.
     expect(fladt(komIGangTekst("Mette", false, new Date("2026-10-01T07:15:00Z")))).toContain("juli, august og september");
@@ -188,19 +199,25 @@ describe("teksterne — systemets stemme", () => {
     expect(komIGangTekst("  ", false, NU).overskrift).toBe("Hej,");
   });
 
-  it("A: mailen og tjeklistens sidste punkt («Skriv til din rådgiver» — 6 uden video, 7 med) siger det samme om hvem der tager initiativet", () => {
+  it("A: mailen og tjeklistens rådgiverpunkt («Skriv din første besked» — nr. 2, mennesket før tallene, 2/10) siger det samme om hvem der tager initiativet", () => {
     const tjekliste = byggTjekliste({
       har_velkomstvideo: false, velkomstvideo_set_at: null, ask_me_about: null, avatar_url: null, website: null, industry_label: null,
       cvr_number: null, antal_rapporter: 0, antal_godkendte: 0, antal_udfyldte_handouts: 0, last_member_message_at: null,
       kan_oprette_traad: true, har_praesentation: false,
     });
-    const besked = tjekliste.punkter.find((p) => p.id === "besked");
-    expect(besked?.titel).toBe("Skriv til din rådgiver");
-    // Uden video er det punkt 6 af 6 — og altid det sidste.
-    expect(tjekliste.punkter).toHaveLength(6);
-    expect(tjekliste.punkter[tjekliste.punkter.length - 1].id).toBe("besked");
-    // Begge begynder med medlemmets handling — ingen af dem lover at rådgiveren skriver først.
-    expect(LOEFTET.startsWith(besked!.titel)).toBe(true);
+    const besked = tjekliste.punkter.find((p) => p.id === "raadgiver");
+    expect(besked?.titel).toBe("Skriv din første besked");
+    // Før 2/10: «Skriv til din rådgiver», sidst (6 af 6 uden video). Nu nr. 2 — rådgiveren rykket op.
+    expect(tjekliste.punkter[1].id).toBe("raadgiver");
+    // Begge begynder med medlemmets handling («Skriv …») — ingen af dem lover at rådgiveren skriver først.
+    expect(besked!.titel).toMatch(/^Skriv /);
+    expect(LOEFTET).toMatch(/^Skriv /);
+    // Låst mod den eksplicitte streng igen (rådets fund 2/10): før 2/10 låste
+    // LOEFTET.startsWith("Skriv til din rådgiver") — værnet må ikke være svagere end før.
+    expect(LOEFTET).toBe("Skriv til din rådgiver i chatten, når du vil — Jonas eller Morten svarer.");
+    expect(LOEFTET.startsWith("Skriv til din rådgiver")).toBe(true);
+    expect(komIGangTekst(null, false, NU).efterKnap).toEqual(["Skriv til din rådgiver i chatten, når du vil — Jonas eller Morten svarer."]);
+    expect(komIGangTekst(null, false, NU).punkter[1].startsWith(besked!.titel)).toBe(true);
     expect(fladt(komIGangTekst(null, false, NU))).not.toMatch(/(Jonas|Morten) (eller (Jonas|Morten) )?skriver til dig/);
   });
 

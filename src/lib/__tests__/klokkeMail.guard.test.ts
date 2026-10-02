@@ -305,7 +305,9 @@ describe("klokkeMail.guard — rådgivernes klokker som mail", () => {
     expect(typer.size).toBeGreaterThanOrEqual(23);
     expect(typer.has("drift")).toBe(true);
     expect(typer.has("ansoegning_webhook_afvist")).toBe(true);
-    expect([...legacy].sort()).toEqual(["agent_insight", "feedback_submitted", "handout_completed", "new_message", "report_uploaded"]);
+    // 1/10: agent_insight er ikke længere legacy (én række pr. rådgiver med advisor_id, agentKlokke.ts) — den står i ALDRIG_TYPER.
+    expect([...legacy].sort()).toEqual(["feedback_submitted", "handout_completed", "new_message", "report_uploaded"]);
+    expect(klassificer("agent_insight")).toBe("aldrig");
     expect(typerneErDaekket(typer, legacy, klassificer)).toEqual({ ok: true, udenPlads: [], legacyIMail: [], dobbelt: [] });
     // SQL-vagterne skriver 'drift' — og drift er en alarm.
     expect(udenSqlKommentarer(laes("supabase/migrations/20260916170000_vagtens_samlemail.sql"))).toContain("'drift'");
@@ -329,7 +331,7 @@ describe("klokkeMail.guard — rådgivernes klokker som mail", () => {
   it("9. den rene fil er Deno-fri og importerer kun hverdage.ts", () => expect(renFilErRen(laes(REN))).toBe(true));
   it("11. de selvmailende alarmer i koden (gensenderen, profil-cronen) står alle i SELVMAILENDE_REFERENCER — listen ét sted, ingen overflødig", () => {
     const fund = selvmailendeIKoden(filer);
-    expect(fund.map((f) => f.reference).sort()).toEqual(["ga_haendelser", "klaviyo_haendelser", "klaviyo_profil", "meta_haendelser", "webinar_mails"]);
+    expect(fund.map((f) => f.reference).sort()).toEqual(["drift_agent_koersler", "ga_haendelser", "klaviyo_haendelser", "klaviyo_profil", "meta_haendelser", "webinar_mails"]);
     expect(selvmailendeErDaekket(filer, SELVMAILENDE_REFERENCER)).toEqual({ ok: true, mangler: [] });
     // Og reglen virker på det, listen siger: en drift-klokke med den reference er «aldrig».
     for (const r of SELVMAILENDE_REFERENCER) expect(klassificer("drift", r)).toBe("aldrig");
@@ -430,6 +432,7 @@ describe("klokkeMail.guard — dommene fanger fejlen på en kopi", () => {
     expect(selvmailendeIKoden([{ sti: "x.ts", kilde: 'await sendManagedEmail({});\nawait skrivRaadgiverBesked(admin, { type: RAADGIVER_BESKED.ny, title: t, reference_type: "ansoegning" });' }])).toEqual([]);
     expect(selvmailendeErDaekket(filer, [...SELVMAILENDE_REFERENCER, "overfloedig"]).ok).toBe(false);
     expect(selvmailendeErDaekket(filer, ["klaviyo_haendelser"]).mangler).toEqual([
+      "supabase/functions/drift-agent-cron/index.ts: drift_agent_koersler",
       "supabase/functions/ga-send-cron/index.ts: ga_haendelser",
       "supabase/functions/klaviyo-profil-cron/index.ts: klaviyo_profil",
       "supabase/functions/meta-send-cron/index.ts: meta_haendelser",

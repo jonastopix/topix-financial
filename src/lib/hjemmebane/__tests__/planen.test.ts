@@ -14,17 +14,26 @@ const skridt = (over: Partial<SkridtRaekke> & { id: string; maal_id: string | nu
 });
 
 describe("planenDom — grupperne", () => {
-  it("aktive, parkerede og nåede efter milepaelDom; progress 100 er nået selv med status active (Jonas: A)", () => {
+  it("aktive, parkerede og nåede efter milepaelDom; progress 100 med status active er AKTIVT (Jonas 1/10 — nået kun ved klik)", () => {
+    // Før 1/10: «h» lå under de nåede (Jonas 16/9: «A»). Rettet efter fejlen
+    // «klikker gjort på et skridt, så lukker målet» (Jonas 1/10 11:37).
     const d = planenDom([
       maal({ id: "a" }), maal({ id: "p", status: "parked" }), maal({ id: "n", status: "completed", completed_at: "2026-09-12T00:00:00Z" }),
-      maal({ id: "h", status: "active", progress: 100 }),
+      maal({ id: "h", status: "active", progress: 100, created_at: "2026-09-02T00:00:00Z" }),
     ], [], NU);
-    expect(d.aktive.map((x) => x.maal.id)).toEqual(["a"]);
+    expect(d.aktive.map((x) => x.maal.id)).toEqual(["a", "h"]);
     expect(d.parkerede.map((x) => x.maal.id)).toEqual(["p"]);
-    expect(d.naaede.map((x) => x.maal.id)).toEqual(["n", "h"]);
+    expect(d.naaede.map((x) => x.maal.id)).toEqual(["n"]);
     expect(d.gennemgang).toBe(false);
     expect(d.kanSaetteMaal).toBe(true);
-    expect(d.tekst).toBe("1 af 3 aktive · 1 parkeret · 2 nåede");
+    expect(d.tekst).toBe("2 af 3 aktive · 1 parkeret · 1 nået");
+  });
+  it("fejlen 1/10: ét skridt, «Gjort» → opgave-luk skriver progress 100 — målet bliver stående under de aktive", () => {
+    const d = planenDom([maal({ id: "m", progress: 100 })], [skridt({ id: "s", maal_id: "m", status: "done" })], NU);
+    expect(d.aktive.map((x) => x.maal.id)).toEqual(["m"]);
+    expect(d.naaede).toEqual([]);
+    expect(d.aktive[0].fremdrift).toBe(100);
+    expect(d.aktive[0].handlinger.kanMarkereNaaet).toBe(true);
   });
   it("ældste først i hver gruppe", () => {
     const d = planenDom([maal({ id: "ny", created_at: "2026-09-10T00:00:00Z" }), maal({ id: "gl", created_at: "2026-08-01T00:00:00Z" })], [], NU);

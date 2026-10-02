@@ -14,7 +14,9 @@
  *     VENTENDE forslag (ikke udløbne — B8 på læsesiden). Handlingerne er
  *     fladens (samme functions: opgave-luk/-udskyd/-accepter, skridt-tilfoej).
  *   - Skridt uden mål samlet sidst under «Uden mål»; skridt under mål der
- *     ikke vises (parkeret/fjerde) under «Skridt under andre mål».
+ *     ikke vises (parkeret/fjerde) under «Skridt under andre mål»; skridt under
+ *     et UBEKRÆFTET mål (skive 3) under «Venter på jeres ja» — aldrig «Uden
+ *     mål» (rådets fund 7).
  *   - TOM-TILSTANDE — medlemmet ejer sine mål (Jonas 16/9, ordret: «Nej. Vi
  *     er rådgivere, men det er medlemmernes virksomheder.»): uden mål en
  *     INVITATION, ikke en mangel; et mål uden skridt: «Tilføj det første
@@ -26,7 +28,7 @@
  * src/lib/__tests__/forsidePlan.guard.test.ts.
  */
 import type { DineMaalDom, MaalForMedlem } from "./dineMaal";
-import { forsideMaal } from "./dineMaal";
+import { ALLE_SKRIDT_GJORT_TEKST, forsideMaal } from "./dineMaal";
 import { sorterAktive, vaelgForslag } from "./aftaler";
 
 /** Det af company_actions-rækken planen læser (forsidens actionsQuery). */
@@ -61,13 +63,16 @@ export interface MaalIForsidePlan {
 export interface ForsidePlanDom {
   /** Ingen mål overhovedet — invitationen. */
   tom: boolean;
-  /** Mål findes, men ingen er aktive (parkerede/nåede). */
+  /** Mål findes, men ingen er aktive (parkerede/nåede) — OG ingen venter på bekræftelse (skive 3, rådets fund 7:
+      et ubekræftet forslag er et aktivt mål i databasen; kortet øverst viser det, linjen må ikke sige «ingen»). */
   ingenAktive: boolean;
   maal: MaalIForsidePlan[];
   /** Aktive mål ud over de tre viste. */
   flere: number;
   udenMaal: { aktive: PlanSkridt[]; forslag: PlanSkridt[] };
   andre: { aktive: PlanSkridt[]; forslag: PlanSkridt[] };
+  /** Skridt under et ubekræftet mål (dineMaal.ubekraeftede) — «Venter på jeres ja» (skive 3, fund 7). */
+  venterPaaJa: { aktive: PlanSkridt[]; forslag: PlanSkridt[] };
   overGraensen: boolean;
   graenseTekst: string;
   /** Antal ventende forslag i alt (til «N forslag venter»). */
@@ -75,14 +80,14 @@ export interface ForsidePlanDom {
 }
 
 // ── Teksterne (til Jonas' godkendelse — README) ──
-export const PLAN_TOM_TEKST = "Din plan starter med et mål. Sæt det første selv — eller sammen med din rådgiver.";
+export const PLAN_TOM_TEKST = "Sæt ét mål med et tal og en frist — selv eller sammen med jeres rådgiver. Så viser vi hver måned, om I er på sporet.";
 export const PLAN_TOM_SAET_MAAL = "Sæt et mål";
 export const PLAN_TOM_BOOK = "Book en session";
 export const PLAN_INGEN_AKTIVE_TEKST = "Ingen aktive mål lige nu — aktivér et parkeret, eller sæt et nyt.";
 export const MAAL_UDEN_SKRIDT_TEKST = "Tilføj det første skridt";
 export const UDEN_MAAL_OVERSKRIFT = "Uden mål";
 export const ANDRE_MAAL_OVERSKRIFT = "Skridt under andre mål";
-export const ALLE_GJORT_TEKST = "Alle skridt er gjort — marker målet som nået";
+export const VENTER_PAA_JA_OVERSKRIFT = "Venter på jeres ja";
 export const SE_HELE_PLANEN = "Se hele planen";
 export const PLAN_FEJL_TEKST = "Din plan kunne ikke hentes. Prøv igen.";
 
@@ -114,6 +119,7 @@ function del(skridt: readonly PlanSkridt[], nu: Date): { aktive: PlanSkridt[]; f
 export function forsidePlanDom(dineMaal: DineMaalDom, skridt: readonly PlanSkridt[], nu: Date): ForsidePlanDom {
   const { viste, flere } = forsideMaal(dineMaal);
   const visteIds = new Set(viste.map((x) => x.plan.maal.id));
+  const ubekraeftedeIds = new Set(dineMaal.ubekraeftede.map((x) => x.plan.maal.id));
   const alleMaalIds = new Set([...dineMaal.aktive, ...dineMaal.parkerede, ...dineMaal.naaede].map((x) => x.plan.maal.id));
   const maal: MaalIForsidePlan[] = viste.map((x) => {
     const egne = skridt.filter((s) => s.maal_id === x.plan.maal.id);
@@ -129,18 +135,21 @@ export function forsidePlanDom(dineMaal: DineMaalDom, skridt: readonly PlanSkrid
   });
   const udenMaal = del(skridt.filter((s) => !s.maal_id), nu);
   const andre = del(skridt.filter((s) => s.maal_id && !visteIds.has(s.maal_id) && alleMaalIds.has(s.maal_id)), nu);
+  // Skive 3 (fund 7): skridt under et ubekræftet mål venter med målet — ikke «Uden mål».
+  const venterPaaJa = del(skridt.filter((s) => s.maal_id && ubekraeftedeIds.has(s.maal_id)), nu);
   // Skridt der peger på et mål der slet ikke findes i listen (fx slettet — FK'en sætter maal_id til NULL, så det sker ikke i praksis) regnes som uden mål.
-  const forladte = del(skridt.filter((s) => s.maal_id && !alleMaalIds.has(s.maal_id)), nu);
+  const forladte = del(skridt.filter((s) => s.maal_id && !alleMaalIds.has(s.maal_id) && !ubekraeftedeIds.has(s.maal_id)), nu);
   udenMaal.aktive = sorterAktive([...udenMaal.aktive, ...forladte.aktive]);
   udenMaal.forslag = ordnForslag([...udenMaal.forslag, ...forladte.forslag]);
-  const ventende = maal.reduce((n, m) => n + m.forslag.length, 0) + udenMaal.forslag.length + andre.forslag.length;
+  const ventende = maal.reduce((n, m) => n + m.forslag.length, 0) + udenMaal.forslag.length + andre.forslag.length + venterPaaJa.forslag.length;
   return {
     tom: dineMaal.tom,
-    ingenAktive: !dineMaal.tom && viste.length === 0,
+    ingenAktive: !dineMaal.tom && viste.length === 0 && dineMaal.ubekraeftede.length === 0,
     maal,
     flere,
     udenMaal,
     andre,
+    venterPaaJa,
     overGraensen: dineMaal.overGraensen,
     graenseTekst: dineMaal.graenseTekst,
     ventende,
@@ -149,7 +158,7 @@ export function forsidePlanDom(dineMaal: DineMaalDom, skridt: readonly PlanSkrid
 
 /** Om planen har noget at vise ud over tom-tilstanden. */
 export function planHarIndhold(dom: ForsidePlanDom): boolean {
-  return dom.maal.length > 0 || dom.udenMaal.aktive.length + dom.udenMaal.forslag.length > 0 || dom.andre.aktive.length + dom.andre.forslag.length > 0;
+  return dom.maal.length > 0 || dom.udenMaal.aktive.length + dom.udenMaal.forslag.length > 0 || dom.andre.aktive.length + dom.andre.forslag.length > 0 || dom.venterPaaJa.aktive.length + dom.venterPaaJa.forslag.length > 0;
 }
 
 // ── Fejringen ──
@@ -167,9 +176,10 @@ export interface Fejring {
 export function fejringTekst(maalTitel: string | null, progress: number | null): string {
   if (!maalTitel || progress == null || !Number.isFinite(progress)) return "Godt gået.";
   const pct = Math.round(progress);
-  // 100 %: målet er færdigt i planens dom (Jonas «A») og forlader de aktive —
-  // fejringen bærer derfor selv opfordringen til at markere det som nået.
-  if (pct >= 100) return `Godt gået — ${maalTitel} er nu 100 %. ${ALLE_GJORT_TEKST}.`;
+  // 100 %: alle skridt er gjort, men målet er IKKE nået af sig selv (Jonas
+  // 1/10) — fejringen bærer opfordringen til at markere det som nået. ÉN
+  // tekst for «alle skridt gjort» (ALLE_SKRIDT_GJORT_TEKST, rådets fund L3).
+  if (pct >= 100) return `Godt gået — ${maalTitel} er nu 100 %. ${ALLE_SKRIDT_GJORT_TEKST}`;
   return `Godt gået — ${maalTitel} er nu ${pct} %`;
 }
 

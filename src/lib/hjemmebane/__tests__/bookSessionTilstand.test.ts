@@ -57,13 +57,13 @@ describe("afgoerMortenTilstand — hidden (baseEligible falder)", () => {
     ).toBe("hidden");
   });
 
-  it("contract_end_date præcis i dag giver hidden — datokolonnen parses som midnat UTC, og sammenligningen er strengt '>', så på selve slutdagen er kontrakten IKKE i fremtiden", () => {
-    // Dokumenteret nuværende adfærd: new Date("2026-08-13") = 2026-08-13T00:00:00Z,
-    // som hverken er > NU (kl. 12 samme dag) eller > midnat selv.
+  it("contract_end_date præcis i dag giver book — slutdatoen er sidste dag med adgang (computeMembershipTier, samme dom som backenden; 2/10)", () => {
+    // Før 2/10: strengt `new Date(slut) > now` skjulte kortet på slutdagen, mens backenden (tier «full» til
+    // og med slutdagen) ville booke. Nu dømmer begge ens; dagen efter kl. 00:00 UTC er den skjult.
     const slutdatoIDag = { intro_session_used_at: null, contract_end_date: "2026-08-13" };
-    expect(afgoerMortenTilstand(input({ company: slutdatoIDag }), NU)).toBe("hidden");
-    const midnat = new Date(Date.UTC(2026, 7, 13, 0, 0, 0));
-    expect(afgoerMortenTilstand(input({ company: slutdatoIDag }), midnat)).toBe("hidden");
+    expect(afgoerMortenTilstand(input({ company: slutdatoIDag }), NU)).toBe("book");
+    const dagenEfter = new Date(Date.UTC(2026, 7, 14, 0, 0, 0));
+    expect(afgoerMortenTilstand(input({ company: slutdatoIDag }), dagenEfter)).toBe("hidden");
   });
 
   it("contract_end_date null giver hidden (ingen dato = ikke i fremtiden)", () => {
@@ -270,6 +270,17 @@ describe("afgoerBookSession — antal kort: to indtil Mortens er brugt, så ét"
   it("rådgiver: ét kort — det købte", () => {
     const t = afgoerBookSession(begge({ isAdvisor: true }), NU);
     expect(antal(t)).toBe(1);
+    expect(t.jonas).toEqual({ kort: "koebt" });
+  });
+});
+
+describe("afgoerBookSession — den ene regel (lib/sessionRet, 2/10): et tilbud overtrumfer en ældre «brugt»", () => {
+  it("tilbudt efter en ældre «brugt» = det inkluderede kort (før: det købte, og backenden svarede 409)", () => {
+    const t = afgoerBookSession(begge({ company: { intro_session_used_at: BRUGT, jonas_session_used_at: "2026-09-13T20:50:54Z", jonas_session_tilbudt_at: "2026-10-01T11:43:32Z", contract_end_date: FREMTID } }), NU);
+    expect(t.jonas).toEqual({ kort: "inkluderet", tilstand: "book" });
+  });
+  it("brugt EFTER tilbuddet = brugt (det købte kort uden række)", () => {
+    const t = afgoerBookSession(begge({ company: { intro_session_used_at: BRUGT, jonas_session_used_at: "2026-10-02T09:00:00Z", jonas_session_tilbudt_at: "2026-10-01T11:43:32Z", contract_end_date: FREMTID } }), NU);
     expect(t.jonas).toEqual({ kort: "koebt" });
   });
 });

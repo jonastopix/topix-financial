@@ -1,4 +1,5 @@
 import { skalSpringesOverIPaamindelse } from "../_shared/ikkeIGang.ts";
+import { alleSider } from "../_shared/alleSider.ts";
 
 const DANISH_MONTHS = [
   "Januar", "Februar", "Marts", "April", "Maj", "Juni",
@@ -290,10 +291,11 @@ Deno.serve(async (req) => {
       : "gentle";
 
     // --- Normal flow ---
-    const { data: companies, error: compErr } = await supabase
-      .from("companies").select("id, name, start_date, created_at, contract_end_date, subscription_status, subscription_current_period_end").eq("status", "active");
-    if (compErr) throw compErr;
-    if (!companies?.length) {
+    // Alle opslag herunder går gennem alleSider (husets paginering, ingen tavse lofter):
+    // PostgREST giver højst 1.000 rækker uden fejl (analyse-drift fund 6).
+    const companies = await alleSider<any>((fra, til) => supabase
+      .from("companies").select("id, name, start_date, created_at, contract_end_date, subscription_status, subscription_current_period_end").eq("status", "active").order("id").range(fra, til), "companies");
+    if (!companies.length) {
       return new Response(JSON.stringify({ sent: 0, skipped: 0 }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -305,11 +307,10 @@ Deno.serve(async (req) => {
     // Check committed facts instead of uploaded reports
     // A reminder should only be skipped if the period is COMMITTED — not just uploaded
     // data_basis-undtagelse: eksistens-check pr. periode; kendt adfærd at en årsrapport-december dæmper januar-påmindelsen (BACKLOG, estimat-beregningsgrundlag)
-    const { data: committedFacts, error: factsErr } = await supabase
+    const committedFacts = await alleSider<any>((fra, til) => supabase
       .from("financial_report_facts")
       .select("company_id, period_key, source_type")
-      .eq("period_key", expectedPeriodKey);
-    if (factsErr) throw factsErr;
+      .eq("period_key", expectedPeriodKey).order("id").range(fra, til), "financial_report_facts");
 
     const reportedIds = new Set<string>(
       (committedFacts || []).map((f: any) => f.company_id)
@@ -324,20 +325,23 @@ Deno.serve(async (req) => {
     //    nedenfor. Efter 90 dage rykkes de som alle andre.
     //    Start = første company_members-række («de fik adgang», som forsiden);
     //    bevis = en MÅLT facts-række; uploads = financial_reports uden deleted_at.
-    const [medlemmerRes, maalteRes, uploadsRes] = await Promise.all([
-      supabase.from("company_members").select("company_id, created_at").limit(5000),
+    const [medlemmerRaekker, maalteRaekker, uploadsRaekker] = await Promise.all([
+      alleSider<{ company_id: string; created_at: string }>((fra, til) =>
+        supabase.from("company_members").select("company_id, created_at").order("id").range(fra, til), "company_members"),
       // data_basis-undtagelse: filtreret på measured — eksistens-check, ingen talværdier læses
-      supabase.from("financial_report_facts").select("company_id").eq("data_basis", "measured").limit(10000),
-      supabase.from("financial_reports").select("company_id").is("deleted_at", null).limit(10000),
+      alleSider<{ company_id: string }>((fra, til) =>
+        supabase.from("financial_report_facts").select("company_id").eq("data_basis", "measured").order("id").range(fra, til), "financial_report_facts (measured)"),
+      alleSider<{ company_id: string | null }>((fra, til) =>
+        supabase.from("financial_reports").select("company_id").is("deleted_at", null).order("id").range(fra, til), "financial_reports"),
     ]);
     const medlemSidenByCompany = new Map<string, string>();
-    for (const m of (medlemmerRes.data || []) as { company_id: string; created_at: string }[]) {
+    for (const m of medlemmerRaekker) {
       const hidtil = medlemSidenByCompany.get(m.company_id);
       if (!hidtil || m.created_at < hidtil) medlemSidenByCompany.set(m.company_id, m.created_at);
     }
-    const maaltByCompany = new Set(((maalteRes.data || []) as { company_id: string }[]).map((f) => f.company_id));
+    const maaltByCompany = new Set(maalteRaekker.map((f) => f.company_id));
     const uploadsByCompany = new Map<string, number>();
-    for (const r of (uploadsRes.data || []) as { company_id: string | null }[]) {
+    for (const r of uploadsRaekker) {
       if (r.company_id) uploadsByCompany.set(r.company_id, (uploadsByCompany.get(r.company_id) ?? 0) + 1);
     }
 

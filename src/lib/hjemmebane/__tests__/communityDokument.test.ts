@@ -1013,3 +1013,17 @@ describe("parseCommunityDokument — kun linjeskift er tomt", () => {
     ]);
   });
 });
+
+describe("parseCommunityDokument — en nummereret listes startnummer (1/10-2026, «1. 1. 1.»)", () => {
+  const liste = (attrs: unknown) => doc([{ type: "orderedList", attrs, content: [{ type: "listItem", content: [{ type: "paragraph", content: [tekst("a")] }] }] }]);
+  const punkt = [{ type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "a", marks: [] }] }] }];
+  it("et helt tal 2..9999 bæres med som start", () => {
+    expect(parseCommunityDokument(liste({ start: 2 }))).toEqual([{ type: "orderedList", content: punkt, start: 2 }]);
+    expect(parseCommunityDokument(liste({ start: 9999 }))).toEqual([{ type: "orderedList", content: punkt, start: 9999 }]);
+  });
+  it("1, manglende eller ugyldigt start udelades — træet er som før", () => {
+    for (const attrs of [undefined, null, {}, { start: 1 }, { start: 0 }, { start: -2 }, { start: 2.5 }, { start: 10000 }, { start: "x" }, { start: NaN }]) {
+      expect(parseCommunityDokument(liste(attrs)), JSON.stringify(attrs)).toEqual([{ type: "orderedList", content: punkt }]);
+    }
+  });
+});

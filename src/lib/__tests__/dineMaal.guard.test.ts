@@ -8,14 +8,18 @@ import { join, resolve } from "node:path";
 // opgaver selv»; «A» — 100 % = alle skridt gjort, målet vises som færdigt;
 // fladen får «Marker som nået». Syv ting låses:
 //   1. Menuen: «Dine mål» på stien /milestones (hbNav), og siden er DineMaalView.
-//   2. Fokusmotoren har INGEN milepæls-kilde (slot (e) ude): hverken
-//      `milestones:` i inputtet, kind "milestone-deadline" eller "/milestones"
-//      som ctaHref — og BoardroomView giver deriveFocus ingen `milestones:`.
+//   2. Fokusmotoren har INGEN gammel milepæls-kilde: hverken `milestones:` i
+//      inputtet, kind "milestone-deadline" eller en hårdkodet "/milestones"
+//      som ctaHref. RETTET 1/10-2026: slot (e) er genindført som MÅLET — men
+//      KUN gennem den rene dom maalFokus (maalFokus.ts, tiden = now), og
+//      forsiden giver den `maalPlan` af milestonesQuery + skridtQuery (ingen
+//      ny hentning), kun når begge er hentet.
 //   3. Skyderen kun for mål UDEN skridt: HbMaalRaekke's klikbare bar er
 //      låst til dommens kanSaetteFremdrift, og dommen sætter den fra `!x.beregnet`.
-//   4. Medlemmet ejer sine mål: DineMaalView bruger useMilestones' opret, slet,
-//      opdaterFelt og markerNaaet; og INGEN migration i repoet hedder
-//      «maal_skrives_af_raadgiveren» (planens RLS-migration UDGÅR).
+//   4. Medlemmet ejer sine mål: DineMaalView bruger useMilestones' slet,
+//      opdaterFelt og markerNaaet, og (fladen 1/10-2026) dineMaalGrundlag's
+//      opret/goerSkarpt — medlemmets egen RLS begge steder; INGEN migration i
+//      repoet hedder «maal_skrives_af_raadgiveren» (planens RLS-migration UDGÅR).
 //   5. JONAS 16/9 (ordret: «B»): maalId er VALGFRIT i foreslaa-opgave — ingen
 //      400 «Målet mangler»; et VALGT mål valideres stadig (404/409). Begge
 //      kaldere — chatten og Planen — sender maalId kun når et mål er valgt, og
@@ -58,13 +62,23 @@ const HOOK = "src/hooks/useVirksomhed.ts";
     rækken tegner knappen/formularen bag dommens kanTilfoejeSkridt, dommen giver
     den kun i den aktive gren; formularen bruger foreslaaetFrist + doemFrist (dansk
     tid, ikke før i dag) og et date-felt med min = i dag; fladen kalder
-    skridt-tilfoej og genhenter (invalidate + genhent) bagefter. */
+    skridt-tilfoej og genhenter (invalidate + genhent) bagefter.
+    1/10-2026 (Jonas): fristen højst MÅLETS frist — forslaget er
+    foreslaaetFristModMaal, doemFristModMaal dømmer før kaldet, og date-feltet
+    har max = målets frist (senesteSkridtFrist).
+    Rådets fund M1 (1/10): formen er noValidate (dommens danske grund, ikke
+    browserens boble), og max sættes kun, når målets frist ≥ i dag. */
 export const tilfoejKnappenHolder = (raekke: string, dom: string, view: string): boolean =>
   /\{h\.kanTilfoejeSkridt && \(/.test(raekke) &&
   raekke.includes("<TilfoejSkridtForm ") &&
-  /useState\(\(\) => foreslaaetFrist\(new Date\(\)\)\)/.test(raekke) &&
+  /useState\(\(\) => foreslaaetFristModMaal\(new Date\(\), maalFrist\)\)/.test(raekke) &&
   /const fristDom = doemFrist\(frist, new Date\(\)\);/.test(raekke) &&
-  /type="date" value=\{frist\} min=\{idag\} required/.test(raekke) &&
+  /const modMaal = doemFristModMaal\(fristDom\.dato, maalFrist, new Date\(\)\);\s*if \(modMaal\.ok === false\) \{ setFejl\(modMaal\.grund\); return; \}/.test(raekke) &&
+  /const maks = senesteSkridtFrist\(maalFrist\);/.test(raekke) &&
+  /const maksIFeltet = maks != null && maks >= idag \? maks : null;/.test(raekke) &&
+  /<form noValidate className="mt-2 space-y-2"/.test(raekke) &&
+  /type="date" value=\{frist\} min=\{idag\} max=\{maksIFeltet \?\? undefined\} required/.test(raekke) &&
+  raekke.includes("maalFrist={x.plan.maal.deadline}") &&
   /const idag = dagsdatoDansk\(new Date\(\)\);/.test(raekke) &&
   (dom.match(/kanTilfoejeSkridt: true/g) ?? []).length === 1 &&
   (dom.match(/kanTilfoejeSkridt: false/g) ?? []).length === 2 &&
@@ -106,14 +120,18 @@ export const menuenHolder = (nav: string, side: string): boolean =>
   side.includes('import { DineMaalView } from "@/components/hjemmebane/milestones/DineMaalView";') &&
   side.includes("<DineMaalView />");
 
-/** Dom 2: ingen milepæls-kilde i fokusmotoren; forsiden giver ingen. */
+/** Dom 2: ingen gammel milepæls-kilde i fokusmotoren; målet (slot (e), 1/10) kun gennem maalFokus. */
 export const motorenUdenMilepaele = (motor: string, forside: string): boolean => {
   const focusKald = forside.slice(forside.indexOf("return deriveFocus({"), forside.indexOf("});", forside.indexOf("return deriveFocus({")));
   return !/milestone-deadline/.test(motor) &&
     !/^\s*milestones:/m.test(motor) &&
     !/ctaHref: "\/milestones"/.test(motor) &&
     !/NextStepMilestone/.test(motor) &&
-    focusKald.length > 0 && !/milestones:/.test(focusKald);
+    /const maalPunkt = inputs\.maalPlan \? maalFokus\(inputs\.maalPlan\.maal, inputs\.maalPlan\.skridt, now\) : null;/.test(motor) &&
+    (motor.match(/maalFokus\(/g) ?? []).length === 1 &&
+    !/Date\.now\(\)/.test(motor) &&
+    focusKald.length > 0 && !/milestones:/.test(focusKald) &&
+    /maalPlan: milestonesQuery\.data && skridtQuery\.data\s*\?\s*\{ maal: milestonesQuery\.data, skridt: skridtQuery\.data/.test(focusKald);
 };
 
 /** Dom 3: skyderen kun uden skridt. */
@@ -124,14 +142,30 @@ export const skyderenHolder = (raekke: string, dom: string): boolean =>
   /kanSaetteFremdrift: !x\.beregnet, kanTilfoejeSkridt: true \}/.test(dom) &&
   (dom.match(/kanSaetteFremdrift: false/g) ?? []).length === 2;
 
-/** Dom 4: medlemmet ejer sine mål — fladen skriver med hookets egne skrivere; ingen RLS-migration. */
+/** Dom 4: medlemmet ejer sine mål — fladen skriver med hookets egne skrivere; ingen RLS-migration.
+    RETTET 1/10-2026 (fladen, docs/dine-maal-design.md §8): skyderen (saetFremgang/saetNuvaerendeVaerdi)
+    og useMilestones.opret er IKKE længere fladens veje — oprettelse og «Gør målet skarpt» går gennem
+    dineMaalGrundlag's bogførte klientskrivere (maalSkriv.guard dom 3: opretMaalMedTal/goerMaalSkarpt),
+    stadig medlemmets egen RLS. Nået/parkér/slet er stadig useMilestones' (markerNaaet, opdaterFelt, slet),
+    pakket ind med invalidering af motorens nøgler (markerNaaetOgRyd/opdaterMaalFelt). */
 export const medlemmetEjer = (view: string, migrationer: readonly string[]): boolean =>
-  /const \{ milestones, loading, saetFremgang, saetNuvaerendeVaerdi, markerNaaet, slet, opdaterFelt, opret, genhent \} = useMilestones\(/.test(view) &&
-  view.includes("onNaaet={() => void markerNaaet(ms.id)}") &&
-  view.includes('onParker={() => void opdaterFelt(ms.id, { status: "parked" })}') &&
+  // Skive 3 (runde 2, fund 7): fejringen (fejr) er også useMilestones' — kvartalstjekkets «Nået» kalder den efter ok.
+  /const \{ milestones, loading, markerNaaet, slet, opdaterFelt, genhent, fejr \} = useMilestones\(/.test(view) &&
+  view.includes("const skriv = useDineMaalSkrivning({ companyId, efter: genhent });") &&
+  view.includes("await markerNaaet(id);") &&
+  view.includes("onNaaet={() => void markerNaaetOgRyd(ms.id)}") &&
+  view.includes("onNaaet={() => void markerNaaetOgRyd(k.id)}") &&
+  view.includes('onParker={() => void opdaterMaalFelt(ms.id, { status: "parked" })}') &&
+  view.includes('onParker={() => void opdaterMaalFelt(k.id, { status: "parked" })}') &&
   view.includes("onSlet={() => setSletId(ms.id)}") &&
-  view.includes("onOpret={opret}") &&
+  view.includes("onSlet={() => setSletId(k.id)}") &&
+  // Runde 2, fund 7: guidens frosne åbningstidspunkt (guideNu) bærer dommen — ikke et nyt Date() ved klik.
+  view.includes("const guideNu = guide?.nu ?? nu;") &&
+  view.includes("await skriv.opret({ companyId, userId: user.id, input, nu: guideNu, maaneder: g.grundlag?.maaneder ?? null });") &&
+  view.includes("await skriv.goerSkarpt({ maalId, input, nu: guideNu, maaneder: g.grundlag?.maaneder ?? null });") &&
+  !/saetFremgang|saetNuvaerendeVaerdi|onQuickProgress|onUpdateCurrentValue/.test(view) &&
   !/functions\.invoke\("maal-skriv"/.test(view) &&
+  !/\.from\("milestones"\)/.test(view) &&
   !migrationer.some((m) => /maal_skrives_af_raadgiveren/.test(m));
 
 /** Dom 5 (Jonas «B»): maalId valgfrit — det valgte mål valideres; kalderne sender kun et valgt mål og har «Uden mål». */
@@ -176,7 +210,8 @@ export const forsidenHolder = (forside: string): boolean =>
   forside.includes("dineMaalDom(milestonesQuery.data, skridtQuery.data, new Date())") &&
   forside.includes("forsidePlanDom(dineMaal, aftaleRaekker, new Date())") &&
   forside.includes('kraevRaekker(skridtRes, "company_actions")') &&
-  forside.includes('kraevRaekker(res, "milestones") as MaalRaekke[]') &&
+  // Skive 3 (2/10-2026): hentningen læser også bekraeftet_at (fail-soft) — svaret er typet som planens form FØR kraevRaekker.
+  forside.includes('kraevRaekker(res, "milestones")') && forside.includes("type Svar = { data: MaalRaekke[] | null;") && forside.includes("if (res.error && erManglendeKolonne(res.error)) res = await hent(gamle);") &&
   /id="din-plan"/.test(forside) &&
   /id="dine-maal"/.test(forside) && /id="dine-skridt"/.test(forside) && !/id="dine-aftaler"/.test(forside);
 
@@ -192,7 +227,7 @@ describe("dineMaal.guard — fase 3: medlemmets mål, uden milepæls-slot, skyde
   it("dom 1: menuen siger «Dine mål» på /milestones, og siden er DineMaalView", () => {
     expect(menuenHolder(nav, side)).toBe(true);
   });
-  it("dom 2: fokusmotoren har ingen milepæls-kilde, og forsiden giver den ingen", () => {
+  it("dom 2: fokusmotoren har ingen gammel milepæls-kilde; målet (slot (e), 1/10) kun gennem maalFokus med forsidens egne rækker", () => {
     expect(motorenUdenMilepaele(motor, forside)).toBe(true);
   });
   it("dom 3: skyderen (klik på baren) kun når dommen siger kanSaetteFremdrift — og dommen siger det kun uden tællende skridt", () => {
@@ -224,9 +259,12 @@ describe("dineMaal.guard — fase 3: medlemmets mål, uden milepæls-slot, skyde
     expect(menuenHolder(nav.replace('label: "Dine mål"', 'label: "Milestones"'), side)).toBe(false);
     expect(menuenHolder(nav, side.replace("<DineMaalView />", "<MilestonesView />"))).toBe(false);
   });
-  it("selvbevis 2: slot (e) tilbage i motoren, eller `milestones:` i forsidens deriveFocus-kald, falder", () => {
+  it("selvbevis 2: den gamle kilde tilbage, `milestones:` i forsidens kald, målet uden om maalFokus, eller et halvt billede, falder", () => {
     expect(motorenUdenMilepaele(motor + '\n  items.push({ kind: "milestone-deadline" });', forside)).toBe(false);
     expect(motorenUdenMilepaele(motor, forside.replace("return deriveFocus({", "return deriveFocus({\n      milestones: milestonesQuery.data ?? [],"))).toBe(false);
+    expect(motorenUdenMilepaele(motor.replace("const maalPunkt = inputs.maalPlan ? maalFokus(", "const maalPunkt = inputs.maalPlan ? egenDom("), forside)).toBe(false);
+    expect(motorenUdenMilepaele(motor + "\nconst t = Date.now();", forside)).toBe(false);
+    expect(motorenUdenMilepaele(motor, forside.replace("maalPlan: milestonesQuery.data && skridtQuery.data", "maalPlan: milestonesQuery.data"))).toBe(false);
   });
   it("selvbevis 3: en bar der er klikbar uanset skridt, eller en dom der giver skyderen til mål med skridt, falder", () => {
     expect(skyderenHolder(raekke.replace("const klikbarBar = h.kanSaetteFremdrift && !maalbar;", "const klikbarBar = !maalbar;"), dom)).toBe(false);
@@ -235,6 +273,9 @@ describe("dineMaal.guard — fase 3: medlemmets mål, uden milepæls-slot, skyde
   it("selvbevis 4: fladen uden slet, med maal-skriv, eller en RLS-migration med planens navn falder", () => {
     expect(medlemmetEjer(view.replace("onSlet={() => setSletId(ms.id)}", ""), migrationer)).toBe(false);
     expect(medlemmetEjer(view + '\nawait supabase.functions.invoke("maal-skriv", {});', migrationer)).toBe(false);
+    expect(medlemmetEjer(view + '\nawait supabase.from("milestones").update({});', migrationer)).toBe(false);
+    expect(medlemmetEjer(view.replace("onNaaet={() => void markerNaaetOgRyd(k.id)}", "onNaaet={() => undefined}"), migrationer)).toBe(false);
+    expect(medlemmetEjer(view.replace("input, nu: guideNu, maaneder", "input, nu: new Date(), maaneder"), migrationer)).toBe(false);
     expect(medlemmetEjer(view, [...migrationer, "supabase/migrations/20260917160000_maal_skrives_af_raadgiveren.sql"])).toBe(false);
   });
   it("selvbevis 5: «Målet mangler» tilbage i functionen, et værn der er væk, eller en kalder uden «Uden mål» falder", () => {
@@ -254,8 +295,15 @@ describe("dineMaal.guard — fase 3: medlemmets mål, uden milepæls-slot, skyde
   it("selvbevis 9: knappen uanset tilstand, dommen der giver den til parkerede, en tom standardfrist, et date-felt uden min, eller en flade der ikke genhenter falder", () => {
     expect(tilfoejKnappenHolder(raekke.replace("{h.kanTilfoejeSkridt && (", "{("), dom, view)).toBe(false);
     expect(tilfoejKnappenHolder(raekke, dom.replace("kanAktivere: plads, kanSlette: true, kanSaetteFremdrift: false, kanTilfoejeSkridt: false }", "kanAktivere: plads, kanSlette: true, kanSaetteFremdrift: false, kanTilfoejeSkridt: true }"), view)).toBe(false);
-    expect(tilfoejKnappenHolder(raekke.replace("useState(() => foreslaaetFrist(new Date()))", 'useState("")'), dom, view)).toBe(false);
-    expect(tilfoejKnappenHolder(raekke.replace("type=\"date\" value={frist} min={idag} required", "type=\"date\" value={frist}"), dom, view)).toBe(false);
+    expect(tilfoejKnappenHolder(raekke.replace("useState(() => foreslaaetFristModMaal(new Date(), maalFrist))", 'useState("")'), dom, view)).toBe(false);
+    expect(tilfoejKnappenHolder(raekke.replace("type=\"date\" value={frist} min={idag} max={maksIFeltet ?? undefined} required", "type=\"date\" value={frist}"), dom, view)).toBe(false);
+    // 1/10: et date-felt uden max, en formular der ikke dømmer mod målets frist, eller en række der ikke giver fristen videre falder.
+    expect(tilfoejKnappenHolder(raekke.replace(" max={maksIFeltet ?? undefined}", ""), dom, view)).toBe(false);
+    // M1: browserens validering tilbage, eller et max der også gælder en passeret målfrist (min > max), falder.
+    expect(tilfoejKnappenHolder(raekke.replace("<form noValidate ", "<form "), dom, view)).toBe(false);
+    expect(tilfoejKnappenHolder(raekke.replace("max={maksIFeltet ?? undefined}", "max={maks ?? undefined}"), dom, view)).toBe(false);
+    expect(tilfoejKnappenHolder(raekke.replace("const modMaal = doemFristModMaal(fristDom.dato, maalFrist, new Date());", "const modMaal = { ok: true } as const;"), dom, view)).toBe(false);
+    expect(tilfoejKnappenHolder(raekke.replace("maalFrist={x.plan.maal.deadline}", ""), dom, view)).toBe(false);
     expect(tilfoejKnappenHolder(raekke, dom, view.replace("genhent();\n    },\n  });\n  const tilfoejSkridt", "},\n  });\n  const tilfoejSkridt"))).toBe(false);
   });
   it("selvbevis 10: en Planen med sin egen «manual»-streng, et hook uden source_type, eller en anden kilde i planen.ts falder", () => {

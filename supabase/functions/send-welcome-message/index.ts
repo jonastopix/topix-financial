@@ -5,6 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 // email_templates ved auto-oprettelse, og den række læses siden af
 // resolveSenderFromTemplate. Før 8/9 stod her «noreply@boardroom.topix.dk».
 import { VERIFIED_FROM_EMAIL } from "../_shared/managedEmail.ts";
+import { hentTjenestekonti, udenTjenestekonti } from "../_shared/tjenestekonti.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -101,21 +102,35 @@ serve(async (req) => {
   // Prefer the assigned advisor on the conversation; fall back to first advisor in system
   let advisorId: string | undefined = conv.assigned_advisor_id ?? undefined;
 
+  // Tjenestekonti (claude@topix.dk, 30/9) er aldrig velkomstens afsender — de er
+  // ingen person (_shared/tjenestekonti.ts). Fail-closed: kan tabellen ikke læses,
+  // sendes ingen velkomst (500), hellere end at den kommer fra en maskinkonto.
+  let tjenestekontiUdeladt = 0;
   if (!advisorId) {
-    const { data: advisorRole } = await admin
+    const { data: advisorRoles } = await admin
       .from("user_roles")
       .select("user_id")
-      .in("role", ["advisor", "admin"])
-      .limit(1)
-      .single();
+      .in("role", ["advisor", "admin"]);
+    let tjenestekonti: Set<string>;
+    try {
+      tjenestekonti = await hentTjenestekonti(admin);
+    } catch (e) {
+      return new Response(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const ids = [...new Set(((advisorRoles ?? []) as { user_id: string }[]).map((r) => r.user_id))];
+    const synlige = udenTjenestekonti(ids, tjenestekonti);
+    tjenestekontiUdeladt = ids.length - synlige.length;
 
-    if (!advisorRole?.user_id) {
+    if (!synlige[0]) {
       return new Response(JSON.stringify({ error: "no advisor found" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    advisorId = advisorRole.user_id;
+    advisorId = synlige[0];
   }
   const firstName = memberName?.split(" ")[0] || "der";
 
@@ -165,7 +180,7 @@ serve(async (req) => {
     .eq("id", conv.id);
 
   return new Response(
-    JSON.stringify({ sent: true, to: companyId }),
+    JSON.stringify({ sent: true, to: companyId, tjenestekonti_udeladt: tjenestekontiUdeladt }),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } }
   );
 });

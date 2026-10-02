@@ -75,10 +75,11 @@ Deno.serve(async (req) => {
       });
     }
 
+    const virksomhed: any = Array.isArray(member.companies) ? member.companies[0] : member.companies;
     const tier = computeMembershipTier({
-      contract_end_date: member.companies?.contract_end_date ?? null,
-      subscription_status: member.companies?.subscription_status ?? null,
-      subscription_current_period_end: member.companies?.subscription_current_period_end ?? null,
+      contract_end_date: virksomhed?.contract_end_date ?? null,
+      subscription_status: virksomhed?.subscription_status ?? null,
+      subscription_current_period_end: virksomhed?.subscription_current_period_end ?? null,
     });
     if (tier !== "full") {
       return new Response(JSON.stringify({ error: "Kun fulde medlemmer kan købe en session med Jonas." }), {

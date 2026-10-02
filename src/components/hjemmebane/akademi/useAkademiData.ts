@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import type { ContentCollection, ContentItem } from "@/lib/hjemmebane/adminContentApi";
+import { MEDLEM_SKJULTE_OMRAADER, type ContentCollection, type ContentItem } from "@/lib/hjemmebane/adminContentApi";
 import {
   getMyJoinedAt,
   getMyProgress,
@@ -53,8 +53,11 @@ export function useAkademiData() {
   });
 
   const derived = useMemo(() => {
-    const collections = collectionsQuery.data ?? [];
-    const items = itemsQuery.data ?? [];
+    // Skjulte områder (Quick Wins, 1/10-2026) tages ud ÉT sted: alle
+    // medlemsflader — Akademiet, forsidens forløb, «måske relevant» og
+    // rejselinjen — læser herfra.
+    const collections = (collectionsQuery.data ?? []).filter((c) => !MEDLEM_SKJULTE_OMRAADER.has(c.area));
+    const items = (itemsQuery.data ?? []).filter((i) => !MEDLEM_SKJULTE_OMRAADER.has(i.area));
     const progressByItem = new Map(
       (progressQuery.data ?? []).map((row) => [row.content_item_id, row]),
     );

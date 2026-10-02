@@ -56,6 +56,30 @@ describe("skridtForslag — paritet mellem src/lib/hjemmebane og supabase/functi
       }
     }
     for (const [d, n] of [["2026-12-25", 14], ["2028-02-20", 10], ["2026-09-17", 0]] as const) expect(web.laegDageTilDato(d, n)).toBe(deno.laegDageTilDato(d, n));
+    // Skridtets frist mod målets (1/10-2026): samme dom i begge kopier.
+    for (const nu of [NU, new Date("2026-09-17T22:30:00Z")]) {
+      for (const m of [null, undefined, "", "2026-09-16", "2026-09-17", "2026-09-25", "2026-12-01", "noget"]) {
+        expect(web.foreslaaetFristModMaal(nu, m)).toBe(deno.foreslaaetFristModMaal(nu, m));
+        expect(web.senesteSkridtFrist(m)).toBe(deno.senesteSkridtFrist(m));
+        for (const f of ["2026-09-17", "2026-09-25", "2026-12-02"]) {
+          expect(web.doemFristModMaal(f, m, nu)).toEqual(deno.doemFristModMaal(f, m, nu));
+          for (const h of ["tilføjet", "accepteret"] as const) expect(web.doemFristModMaal(f, m, nu, h)).toEqual(deno.doemFristModMaal(f, m, nu, h));
+        }
+        // Udskydelsen mod målets frist (opgave-udskyd, 1/10 eftermiddag).
+        for (const f of ["2026-09-17", "2026-09-18", "2026-09-25", "2026-10-01", "2026-12-02"]) {
+          for (const g of [null, "2026-09-10", "2026-09-25", "2026-12-01"]) {
+            for (const valgt of [false, true]) expect(web.doemUdskydModMaal(f, g, m, nu, valgt)).toEqual(deno.doemUdskydModMaal(f, g, m, nu, valgt));
+          }
+        }
+        // Målets frist mod skridtenes (maal-skriv «rediger», 1/10 eftermiddag).
+        const skridt = [
+          { status: "active", due_date: "2026-09-25", title: "a" },
+          { status: "proposed", due_date: "2026-12-01", title: "b" },
+          { status: "done", due_date: "2027-01-01", title: "c" },
+        ];
+        expect(web.doemMaalFristModSkridt(m ?? null, skridt)).toEqual(deno.doemMaalFristModSkridt(m ?? null, skridt));
+      }
+    }
   });
   it("kildekoden er ordret ens efter filhovedet (ingen imports at undtage)", () => {
     const krop = (sti: string) => {

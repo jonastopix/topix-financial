@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod (målt 1/10-2026: filens markørobjekter findes i prod; hovedet vendt efterfølgende). DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
 --
 -- ANSØGNINGSMOTOREN (18/9-2026): ansøgningsflowet flyttes fra Monday ind i
 -- platformen. Jonas 18/9 (ordret): «Vi bygger ikke en kopi af Monday. Vi

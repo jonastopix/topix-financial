@@ -6,6 +6,8 @@ Husets egen lead-motor, der skal erstatte eWebinar. Spec'en er `~/topix-financia
 
 **Nummereringen:** Jonas' «skive 2» (30/9) er seerens flade — spec'ens skive 3 og dele af skive 4. Spec'ens skive 2 (motor-cron og mails) står i §4 og er IKKE bygget.
 
+**2/10-2026 — grenen `feat/webinarmotor-skive1-v2`:** main flettet ind (ingen adfærdsændring), og migrationen er OMDØBT `20260930100000_webinarmotor_skive1.sql` → `20261003010000_webinarmotor_skive1.sql`. Grunden: main har kørte migrationer helt op til `20261002276000`, og en ukørt fil må aldrig sortere før en kørt (husreglen; `metaSend.guard` dom 11 — `ukoerteFoerKoerte`). Indholdet er uændret.
+
 ## 1. Arkitektur i én skærm
 
 ```
@@ -39,7 +41,7 @@ seerens side ──POST {t}──▶ webinar-rum  ──▶ rum, position, signe
 | Rene domme (spejlet ordret, paritetstest) | `src/lib/webinarMotor/{ur,spolning,puls,interaktioner,sessionplan,tilmelding,ics,token,svar}.ts` ↔ `supabase/functions/_shared/webinarMotor/` |
 | Deno-side | `_shared/webinarDeltagerAuth.ts` (prædikat + secret), `_shared/webinarTilmeldVaern.ts` (prædikat for den offentlige indgang), `_shared/webinarMotorHent.ts` (session/webinar med 10 s cache, frysning af tidslinjen, «i rummet») |
 | Functions | `webinar-tilmeld` (`tilmeld`, `sessioner`), `webinar-rum` (`tilstand`, GET `ics`), `webinar-puls` |
-| Data | migration `20260930100000_webinarmotor_skive1.sql` |
+| Data | migration `20261003010000_webinarmotor_skive1.sql` |
 | Værn | `webinarMotor.test.ts` (dommene og kanterne), `webinarMotor.paritet.test.ts`, `webinarMotor.guard.test.ts` (seks domme med mutationer), `bodyFelter.guard` (STRIKS), `check-edge-function-auth` (to nye prædikater) |
 
 **Afvigelser fra spec'en** (hver med begrundelsen i koden):

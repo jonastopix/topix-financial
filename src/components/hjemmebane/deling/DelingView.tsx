@@ -62,6 +62,7 @@ import {
   uploadVirksomhedslogo,
 } from "@/lib/delingsbilleder";
 import { HbDropzone } from "@/components/hjemmebane/HbDropzone";
+import { HbNetvaerkFaneHoved } from "@/components/hjemmebane/netvaerk/HbNetvaerkFaneHoved";
 import { HB_INPUT, HB_LABEL } from "@/components/hjemmebane/hbFormKlasser";
 import { KreativFuldskaerm } from "./KreativFuldskaerm";
 import { useMarkerDelingHentet } from "@/hooks/useDelingHentet";
@@ -182,10 +183,14 @@ export const DelingView = () => {
 
   return (
     <div className="flex flex-col gap-8">
+      {/* Hovedet: under Netværkets faner (skridt 2, 2/10; rådets fund 1) er
+          /deling en FANE, og rubrikken er en h2 — skallen tegner Netværkets
+          h1. Uden fanerne det gamle hoved: eyebrow → h1. Dommen er
+          HbNetvaerkFaneHoved (én h1 pr. side). Vejledningen om rettelser og
+          billeder er ikke en sted-intro — den står under hovedet i begge. */}
       <div className="flex flex-col gap-1">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-hb-ink-soft">Delingskreativ</p>
-        <h1 className="font-brand text-2xl font-semibold text-hb-ink">Din kreativ</h1>
-        <p className="text-sm text-hb-ink-soft">Ret navn og virksomhed — det ændrer kun kreativen, ikke din profil. Portrættet gemmes kun til kreativen; logoet bliver virksomhedens.</p>
+        <HbNetvaerkFaneHoved eyebrow="Delingskreativ" rubrik="Din kreativ" intro={null} />
+        <p className="mt-2 text-sm text-hb-ink-soft">Ret navn og virksomhed — det ændrer kun kreativen, ikke din profil. Portrættet gemmes kun til kreativen; logoet bliver virksomhedens.</p>
       </div>
 
       {/* Rettelser — kun kreativen, aldrig databasen (se filhovedet). */}

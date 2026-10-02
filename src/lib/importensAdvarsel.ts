@@ -6,8 +6,9 @@
  * have den mulighed. Men enig i det skal være tydeligt, at det er det der
  * sker.»). Knappen bliver; den skal bare sige hvad den gør.
  *
- * Der er to veje ind (recon-vejen-ind, 9/9):
- *   Monday-vejen: «Godkendt» → virksomhed + prisniveau + betalingslink →
+ * Der er to veje ind (recon-vejen-ind, 9/9; Monday-vejen nedlagt 2/10-2026
+ * og afløst af ansøgningsmotoren):
+ *   Ansøgningsvejen: underskrift → virksomhed + prisniveau + betalingslink →
  *     påmindelser → faktura → BETALING → kontraktdatoer + invitation.
  *   Import-vejen (denne dialog): virksomheden oprettes med kontraktdatoer
  *     fra regnearket, intet betalingslink, og invitationen går STRAKS.
@@ -33,7 +34,7 @@ export const IMPORT_ADVARSEL_LINJER: readonly string[] = [
 ];
 
 export const IMPORT_ADVARSEL_ANDEN_VEJ =
-  "Skal de betale først, sker det automatisk når ansøgningen sættes til Godkendt i Monday.";
+  "Skal de betale først, sker det automatisk når ansøgningen underskrives i platformen.";
 
 export interface ImportAdvarsel {
   overskrift: string;

@@ -33,6 +33,11 @@ export const HAENDELSE = {
   // Se _shared/webinarHaendelser.ts.
   deltog: "Deltog i webinar",
   moedteIkke: "Moedte ikke op",
+  // «Må vi ringe til dig?» (2/10-2026, Jonas: «Klaviyo får hændelsen «Bad om
+  // opkald» uden nummer — ja»): én hændelse pr. anmodning, så personen kan holdes
+  // ude af kampagner, mens vi ringer. Bærer ALDRIG nummeret eller navnet —
+  // kun mailen (som Klaviyo har) og tilmeldingens id'er (ringMigOp.guard).
+  badOmOpkald: "Bad om opkald",
 } as const;
 export type Haendelsesnavn = (typeof HAENDELSE)[keyof typeof HAENDELSE];
 
@@ -42,8 +47,30 @@ export interface HaendelseInput {
   /** VORES id. Klaviyos dubletnøgle sammen med profil + metric. */
   uniktId: string;
   egenskaber?: Record<string, unknown>;
+  /**
+   * PROFILEGENSKABER, sat i SAMME kald (2/10-2026, «Må vi ringe til dig?»; Jonas 08:17:
+   * «profilegenskab, fx ring_op_url, skrevet kun for deltagere»). Klaviyos Events API:
+   * «You can create a new profile or update a profile's properties when creating an
+   * event» — `profile.data.attributes.properties` (Events API overview, rev. 2026-01-15;
+   * feltet `properties?: {}` står på profilens attributter i Create Event-skemaet).
+   * SLÅET OP, IKKE MÅLT i drift — beviset er profilen efter den første rigtige hændelse.
+   * Samme regel som egenskaberne: null/undefined/tom tekst udelades, og et tomt sæt
+   * giver INTET `properties` på profilen — kroppen er da byte-ens med før.
+   */
+  profilEgenskaber?: Record<string, unknown>;
   /** Hvornår hændelsen SKETE hos os — ikke hvornår vi nåede at sende den. */
   tid?: Date;
+}
+
+/** null, undefined og tom tekst ud — ét sted for både hændelsens og profilens egenskaber. */
+function udenTomme(r: Record<string, unknown> | undefined): Record<string, unknown> {
+  const ud: Record<string, unknown> = {};
+  for (const [n, v] of Object.entries(r ?? {})) {
+    if (v === null || v === undefined) continue;
+    if (typeof v === "string" && v.trim() === "") continue;
+    ud[n] = v;
+  }
+  return ud;
 }
 
 /**
@@ -56,12 +83,10 @@ export interface HaendelseInput {
  * som «vi ved det ikke».
  */
 export function byggHaendelse(i: HaendelseInput): Record<string, unknown> {
-  const egenskaber: Record<string, unknown> = {};
-  for (const [n, v] of Object.entries(i.egenskaber ?? {})) {
-    if (v === null || v === undefined) continue;
-    if (typeof v === "string" && v.trim() === "") continue;
-    egenskaber[n] = v;
-  }
+  const egenskaber = udenTomme(i.egenskaber);
+  const profilEgenskaber = udenTomme(i.profilEgenskaber);
+  const profilAttributter: Record<string, unknown> = { email: i.email.trim().toLowerCase() };
+  if (Object.keys(profilEgenskaber).length > 0) profilAttributter.properties = profilEgenskaber;
   return {
     data: {
       type: "event",
@@ -70,7 +95,7 @@ export function byggHaendelse(i: HaendelseInput): Record<string, unknown> {
         time: (i.tid ?? new Date()).toISOString(),
         unique_id: i.uniktId,
         metric: { data: { type: "metric", attributes: { name: i.metric } } },
-        profile: { data: { type: "profile", attributes: { email: i.email.trim().toLowerCase() } } },
+        profile: { data: { type: "profile", attributes: profilAttributter } },
       },
     },
   };

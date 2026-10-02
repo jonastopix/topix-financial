@@ -57,6 +57,14 @@
  *
  * HANDLINGEN er «Skriv til {navn}» — den findes (tavshedens ord, §1:
  * vi ringer ikke).
+ *
+ * KLOKKEN (2/10-2026, Jonas «Klokke i morgenmailen, vi skriver selv»):
+ * signalet når også rådgivernes morgenmail — stille-klokker-cron ringer
+ * klokken venter_paa_velkomst (supabase/functions/_shared/dag1Klokke.ts) af
+ * SAMME regel. Dommen er derfor spejlet ORDRET i
+ * supabase/functions/_shared/venterPaaVelkomst.ts (paritetstest:
+ * src/lib/__tests__/venterPaaVelkomstParitet.test.ts) — enhver ændring her
+ * SKAL også laves dér. Filen har ingen imports.
  */
 
 export const VELKOMST_FRA_DAGE = 1;
@@ -100,7 +108,18 @@ export function kalenderdageSiden(start: string | Date | null | undefined, nu: D
 }
 
 export function afgoerVenterPaaVelkomst(input: VenterPaaVelkomstInput, nu: Date): VenterPaaVelkomstDom {
-  const dage = kalenderdageSiden(input.medlemSiden, nu);
+  return doemVenterPaaVelkomst(input, kalenderdageSiden(input.medlemSiden, nu));
+}
+
+/**
+ * Selve reglen, med dagene givet ind (2/10-2026, dag-1-klokken). Forsiden
+ * tæller dagene i læserens kalender (kalenderdageSiden — browseren står i
+ * Danmark); stille-klokker-cron kører på en maskine i UTC og tæller dem i
+ * den DANSKE kalender (_shared/dag1Klokke.ts) — ellers ville et medlem, der
+ * kom ind kl. 00:30 dansk, stå som «kom ind i går» samme morgen. Reglen er
+ * den samme, kun kalenderen er kalderens. dage = null: ingen medlem.
+ */
+export function doemVenterPaaVelkomst(input: Pick<VenterPaaVelkomstInput, "sidsteRaadgiverBeskedAt">, dage: number | null): VenterPaaVelkomstDom {
   if (dage == null) return { tilstand: "ingen_medlem", dage, signal: false };
   if (tilDato(input.sidsteRaadgiverBeskedAt)) return { tilstand: "hilst_paa", dage, signal: false };
   if (dage < VELKOMST_FRA_DAGE) return { tilstand: "for_tidligt", dage, signal: false };

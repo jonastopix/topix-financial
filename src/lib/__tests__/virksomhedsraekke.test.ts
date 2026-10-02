@@ -351,8 +351,8 @@ describe("byggVirksomhedsRaekke — felt for felt, som import-application gør d
 // ── contact_person (14/9): rækken bærer feltet, ad BEGGE veje ──
 // MÅLT: rækkebyggeren skrev det aldrig; navnet lå kun i
 // application_context.contact_name, og 35 af 39 virksomheder stod med
-// kolonnens DEFAULT ''. Bevist 14/9: Monday-vejen satte feltet (via sin
-// separate B5-opdatering), import-vejen gjorde ikke. Den 22/9 importeres
+// kolonnens DEFAULT ''. Bevist 14/9: den daværende Monday-vej (nedlagt 2/10)
+// satte feltet via en separat opdatering, import-vejen gjorde ikke. Den 22/9 importeres
 // 10-15 ansøgere ad importvejen.
 describe("byggVirksomhedsRaekke — contact_person sættes ad begge veje fra samme kilde-logik (14/9)", () => {
   it("import-vejen: ét samlet navn fra «Kontaktperson» lander i contact_person — og stadig i application_context", () => {
@@ -361,7 +361,7 @@ describe("byggVirksomhedsRaekke — contact_person sættes ad begge veje fra sam
     expect((raekke.application_context as { contact_name: string }).contact_name).toBe("Jonas Test");
   });
 
-  it("Monday-vejen: Fornavn + Efternavn samles med bygKontaktperson, og rækken bærer det samlede navn", () => {
+  it("delt navn: fornavn + efternavn samles med bygKontaktperson, og rækken bærer det samlede navn", () => {
     const samlet = bygKontaktperson("Anne Marie", "Møller Jensen");
     expect(samlet).toBe("Anne Marie Møller Jensen");
     const raekke = byggVirksomhedsRaekke(input({ contact_name: samlet }), cvr, NU);

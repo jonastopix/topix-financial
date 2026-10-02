@@ -29,7 +29,7 @@ export const LAAST_EFTER_UNDERSKRIFT = ["underskrevet_at", "underskrevet_navn", 
 
 export function migrationenErRigtig(raa: string): string[] {
   const f: string[] = [];
-  if (!raa.startsWith("-- IKKE KØRT.")) f.push("mangler IKKE KØRT-hovedet");
+  if (!/^-- (IKKE KØRT\.|KØRT i prod)/.test(raa)) f.push("mangler hovedet (IKKE KØRT / KØRT i prod)");
   const k = udenSql(raa);
   if (/security definer/i.test(k)) f.push("SECURITY DEFINER");
   if (!/create trigger protect_aftale_immutable_fields\s+before update on public\.aftale_underskrift/i.test(k)) f.push("BEFORE UPDATE-triggeren på aftale_underskrift mangler");
@@ -88,7 +88,7 @@ describe("aftaleUforanderlig.guard — selvbevis", () => {
   it("1: en lås fjernet, eller depth-reglen slækket, falder", () => {
     expect(migrationenErRigtig(raa.replace("if new.dokument_tekst is distinct from old.dokument_tekst then raise exception", "if false then raise exception"))).not.toEqual([]);
     expect(migrationenErRigtig(raa.replace("pg_trigger_depth() <= 1 then", "pg_trigger_depth() = 0 then"))).not.toEqual([]);
-    expect(migrationenErRigtig(raa.replace("-- IKKE KØRT.", "-- KØRT."))).not.toEqual([]);
+    expect(migrationenErRigtig(raa.replace(/^[^\n]*/, "-- KØRT."))).not.toEqual([]);
   });
   it("3: en update der skriver dokument_tekst, eller underskrevet_navn uden status, falder", () => {
     const o = udenTs(laes(OFFENTLIG));

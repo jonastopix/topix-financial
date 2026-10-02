@@ -38,7 +38,7 @@ import { useViewMode } from "@/hooks/useViewMode";
 import { supabase } from "@/integrations/supabase/client";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useQuery } from "@tanstack/react-query";
-import topixIconWhite from "@/assets/topix-icon-white.png";
+import topixIconWhite from "@/assets/topix-icon-white-96.png";
 
 const baseNavItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
@@ -190,16 +190,14 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
     if (!user) return;
 
     if (effectiveAdvisor) {
+      // Alle samtaler, der afventer en rådgiver — rådgiverne er sammen om
+      // alle medlemmer (Jonas 1/10); før talte kun «mine + utildelte».
       const { data: convs } = await supabase
         .from("conversations")
-        .select("id, awaiting_reply_from, assigned_advisor_id")
+        .select("id")
         .eq("awaiting_reply_from", "advisor");
 
-      if (!convs) { setUnreadChat(0); return; }
-      const count = convs.filter(c =>
-        !c.assigned_advisor_id || c.assigned_advisor_id === user.id
-      ).length;
-      setUnreadChat(count);
+      setUnreadChat(convs?.length ?? 0);
     } else {
       let totalUnread = 0;
 

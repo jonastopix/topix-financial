@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge.
+-- KØRT i prod (målt 1/10-2026: filens markørobjekter findes i prod; hovedet vendt efterfølgende). DEPLOY: manuelt i Lovable → SQL editor efter merge.
 --
 -- SPORET EFTER HVER KLAVIYO-HÆNDELSE (udkast 19/9-2026) — lag 2 af fire.
 --

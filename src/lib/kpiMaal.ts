@@ -57,8 +57,29 @@ export function erStandardMaal(maal: { value?: number; label?: string; kilde?: M
   return maal?.kilde === "standard";
 }
 
-/** Mærkets tekster — bruges af StandardmaalMaerke (uden for kort 40). */
-export const STANDARDMAAL_TEKST = "Standardmål";
+/** Mærkets tekster — bruges af StandardmaalMaerke (uden for kort 40).
+    SKIVE 3 (2/10-2026, Jonas 1/10 punkt 3): KPI-målene på /kpis hedder «pejlemærker» i al tekst —
+    «mål» er Dine mål (/milestones). Tabel- og kolonnenavne (kpi_targets, target) er uændrede. */
+export const STANDARDMAAL_TEKST = "Standardpejlemærke";
 export const STANDARDMAAL_KOMPAKT = "standard";
 export const STANDARDMAAL_FORKLARING =
-  "Standardmål: The Boardrooms standard for alle virksomheder, ikke et mål aftalt med jer. Jeres egne mål sættes under «Ret mål».";
+  "Standardpejlemærke: The Boardrooms standard for alle virksomheder, ikke et pejlemærke aftalt med jer. Jeres egne pejlemærker sættes under «Ret pejlemærker».";
+
+/** Ordene på /kpis (skive 3): KPI-målene er PEJLEMÆRKER — et tal at styre efter, ikke et mål med frist (Dine mål). */
+export const PEJLEMAERKE_ORD = {
+  eyebrow: "Pejlemærker",
+  samletOpfyldelse: "Samlet opfyldelse af pejlemærkerne:",
+  saet: "Sæt pejlemærker",
+  ret: "Ret pejlemærker",
+  skjul: "Skjul",
+  ingen: "Ingen pejlemærker sat endnu.",
+  /** Efter tallet: «pejlemærke 80.000». */
+  foranTal: "pejlemærke",
+  panelEyebrow: "Pejlemærker og benchmarks",
+  feltSuffiks: "· pejlemærke",
+  feltLabelAria: "pejlemærke-label",
+  standardHelp: "standardpejlemærke — ikke aftalt endnu",
+  gem: "Gem pejlemærker og benchmarks",
+  /** Hvor målene bor nu. */
+  dineMaalHenvisning: "Jeres mål med tal og frist står under Dine mål.",
+} as const;

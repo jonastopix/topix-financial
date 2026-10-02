@@ -80,6 +80,7 @@ export default {
           evergreen: "hsl(var(--hb-evergreen))",
           rust: "hsl(var(--hb-rust))",
           sage: "hsl(var(--hb-sage))",
+          amber: "hsl(var(--hb-amber))",
           line: "hsl(var(--hb-line))",
         },
       },

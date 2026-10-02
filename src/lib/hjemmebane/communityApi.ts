@@ -4,6 +4,8 @@
     profiler eller reaktioner direkte, og skrivereglerne bor i databasen. */
 
 import { supabase } from "@/integrations/supabase/client";
+import { hentTjenestekonti } from "@/hooks/tjenestekonti";
+import { synligeRaadgivere } from "@/lib/tjenestekonto";
 
 /** RPC'erne og community-tabellerne er endnu ikke i de genererede
     Supabase-typer (migrationerne køres manuelt i Lovable; typegen følger
@@ -35,6 +37,16 @@ export interface CommunityTraad {
       det fremhævede opslags billede (forsideOpslag.ts). Valgfrit i typen,
       fordi ældre kald i tests bygger rækker uden det. */
   indhold_json?: unknown | null;
+  /** Rådgivernes «Spørgsmål» (migration 20261002243000): sat = opslaget
+      ligger øverst i feedet. Valgfrit i typen, fordi RPC'erne først bærer
+      kolonnen, når migrationen er kørt — fladen er fail-soft
+      (communitySpoergsmaal.ts). */
+  spoergsmaal_markeret_at?: string | null;
+  /** Har kalderen et aktivt svar i tråden (samme migration). */
+  jeg_har_svaret?: boolean;
+  /** Antal forskellige personer med et aktivt svar, trådens forfatter
+      fraregnet (samme migration) — «N har svaret» (communitySpoergsmaal.ts). */
+  antal_svarere?: number;
 }
 
 export interface CommunitySvar {
@@ -93,6 +105,28 @@ export async function hentSvar(traadId: string): Promise<CommunitySvar[]> {
   return (rows ?? []).map(normaliserAntalReaktioner);
 }
 
+/** «Mest læst denne uge» (2/10-2026, migration 20261002275000 —
+    community_mest_laest_uge(), SECURITY DEFINER, IKKE KØRT før Jonas'
+    grønne lys). FAIL-SOFT: findes funktionen ikke endnu (42883 fra
+    Postgres, PGRST202 fra PostgREST's skemacache), svares [] — intet
+    mærke, ingen fejl. Enhver ANDEN fejl kastes (Sentry får den af
+    QueryCache.onError); fladen tegner da blot intet mærke — feedet
+    afhænger aldrig af denne hentning. Udvælgelsen er vaelgMestLaest
+    (communityMestLaest.ts). */
+export const MEST_LAEST_MANGLER_KODER = ["42883", "PGRST202"] as const;
+
+export async function hentMestLaestUge(): Promise<{ traad_id: string; laesere: number }[]> {
+  const { data, error } = await (supabase.rpc as any)("community_mest_laest_uge");
+  if (error) {
+    if ((MEST_LAEST_MANGLER_KODER as readonly string[]).includes(String(error.code ?? ""))) return [];
+    throw new Error(error.message);
+  }
+  return ((data ?? []) as { traad_id: string; laesere: unknown }[]).map((r) => ({
+    traad_id: r.traad_id,
+    laesere: Number(r.laesere ?? 0),
+  }));
+}
+
 // ── Skrivning ──────────────────────────────────────────────────────────────
 
 export async function opretTraad(input: {
@@ -140,10 +174,14 @@ export interface CommunityMedlem {
 }
 
 export async function hentCommunityMedlemmer(): Promise<CommunityMedlem[]> {
-  const rows = throwIfError(
-    await (supabase.rpc as any)("get_community_medlemmer"),
-  ) as CommunityMedlem[] | null;
-  return rows ?? [];
+  // Tjenestekonti (claude@topix.dk, 30/9) kan ikke @-nævnes — de er ingen
+  // person. Filtreret her: RPC'en er SECURITY DEFINER (src/lib/tjenestekonto.ts).
+  const [res, tjenestekonti] = await Promise.all([
+    (supabase.rpc as any)("get_community_medlemmer"),
+    hentTjenestekonti(),
+  ]);
+  const rows = throwIfError(res) as CommunityMedlem[] | null;
+  return synligeRaadgivere(rows ?? [], tjenestekonti);
 }
 
 /** Beder notify-community-svar notificere trådens forfatter om et nyt
@@ -183,11 +221,13 @@ export async function notificerNaevnelser(
 /** Nyt opslag → alle med community-adgang (notify-community-opslag,
     opslagsmail 3/9). Samme form som notificerNaevnelser: bivirkning der
     aldrig kaster — opslaget ER gemt, og en fejl her må ikke ligne et
-    mislykket opslag. */
-export async function notificerNytOpslag(traadId: string): Promise<void> {
+    mislykket opslag.
+    `udenMail: true` (kun nyhedsagentens opslag, 30/9) giver priority «info»:
+    in-app, ingen mail. Uden valget sendes body'en præcis som før. */
+export async function notificerNytOpslag(traadId: string, valg?: { udenMail?: boolean }): Promise<void> {
   try {
     const { error } = await supabase.functions.invoke("notify-community-opslag", {
-      body: { traadId },
+      body: valg?.udenMail === true ? { traadId, udenMail: true } : { traadId },
     });
     if (error) console.error("notificerNytOpslag fejlede:", error);
   } catch (fejl) {
@@ -237,6 +277,21 @@ export async function skjulTraad(traadId: string, skjul: boolean): Promise<void>
     await (supabase.rpc as any)("skjul_community_traad", {
       p_traad_id: traadId,
       p_skjul: skjul,
+    }),
+  );
+}
+
+/** Rådgivernes «Spørgsmål» (2/10-2026, migration 20261002243000): true
+    markerer opslaget og afløser det forrige (højst ét ad gangen), false
+    fjerner markeringen. Reglerne bor i RPC'en marker_community_spoergsmaal:
+    kun rådgivere, kun et aktivt opslag, kun et opslag skrevet af en
+    rådgiver. Kaster med RPC'ens besked — også «findes ikke», før
+    migrationen er kørt; fladen siger det i en toast og lader opslaget stå. */
+export async function markerSpoergsmaal(traadId: string, markeret: boolean): Promise<void> {
+  throwIfError(
+    await (supabase.rpc as any)("marker_community_spoergsmaal", {
+      p_traad_id: traadId,
+      p_markeret: markeret,
     }),
   );
 }

@@ -7,6 +7,10 @@ import type { MilestoneCategory } from "@/lib/milestoneCategories";
 import { afgoerMilepael, sammenlignAktive, statusEfterFremgang, type MilepaelDom, type MilepaelTilstand } from "@/lib/milepaelDom";
 // Fase 2 («Én plan», 16/9): «højst tre aktive» håndhæves af databasen (trigger) — fladen oversætter fejlen til husets tekst.
 import { maalFejlTekst } from "@/lib/hjemmebane/maalFejl";
+// 1/10-2026: datovælgerens lokale dag → «YYYY-MM-DD» (toISOString gav dagen før i dansk tid).
+import { lokalDatoStreng } from "@/lib/hjemmebane/dineMaal";
+// 1/10-2026 aften (rådets fund 5): den gamle talvisning kun for mål uden art.
+import { gammelTalvisning } from "@/lib/hjemmebane/maalTal";
 
 /**
  * Datalaget for Hb-milestonefladen — en ren FLYTNING af logikken i
@@ -29,6 +33,10 @@ import { maalFejlTekst } from "@/lib/hjemmebane/maalFejl";
 
 export type MilestoneStatus = MilepaelTilstand;
 
+/** opdaterFelt's svar (fund 13): et nej bærer grunden ordret. */
+export type OpdaterSvar = { ok: true } | { ok: false; grund: string };
+export const OPDATER_NUL_RAEKKER_TEKST = "Målet blev ikke gemt — det findes ikke længere, eller du har ikke adgang til det. Genindlæs siden.";
+
 export interface Milestone {
   id: string;
   title: string;
@@ -47,6 +55,12 @@ export interface Milestone {
   target_value: number | null;
   current_value: number | null;
   unit: string | null;
+  /** Dine mål (1/10-2026, migration 20261001190000): målets art. NULL = mål fra før designet — KUN dem viser
+      og skriver den gamle talvisning («X af Y enhed», maalTal.gammelTalvisning). Før migrationen: altid null. */
+  art: string | null;
+  /** Skive 3 (2/10-2026, migration 20261002100000): bekræftelsen. undefined = kolonnen ikke i svaret (select *
+      før migrationen) → tæller som i dag; null = ubekræftet forslag (maalBekraeft.erBekraeftet). */
+  bekraeftet_at?: string | null;
   /** Fase 3 («Dine mål»): planens felter — fremdriftens stempel, nået-dato og oprettelse (lib/hjemmebane/planen.MaalRaekke). */
   progress_updated_at: string | null;
   completed_at: string | null;
@@ -115,6 +129,8 @@ export function useMilestones({ userId, companyId, isAdvisor }: Args) {
         source: string; source_report: string | null; progress: number | null; category: string | null;
         baseline: string | null; target_value: number | null; current_value: number | null; unit: string | null;
         progress_updated_at: string | null; completed_at: string | null; created_at: string;
+        art?: string | null;
+        bekraeftet_at?: string | null;
       };
       const nu = new Date();
       const mapped: Milestone[] = ((data || []) as unknown as Raekke[]).map((m) => ({
@@ -132,6 +148,9 @@ export function useMilestones({ userId, companyId, isAdvisor }: Args) {
         target_value: m.target_value ?? null,
         current_value: m.current_value ?? null,
         unit: m.unit ?? null,
+        art: m.art ?? null,
+        // Skive 3: KUN når kolonnen er i svaret — undefined er «modellen slået fra».
+        ...("bekraeftet_at" in m ? { bekraeftet_at: m.bekraeftet_at ?? null } : {}),
         progress_updated_at: m.progress_updated_at ?? null,
         completed_at: m.completed_at ?? null,
         created_at: m.created_at,
@@ -200,7 +219,8 @@ export function useMilestones({ userId, companyId, isAdvisor }: Args) {
   /** MilestonesList.tsx:656-689. */
   const saetNuvaerendeVaerdi = useCallback(async (id: string, newCurrentValue: number) => {
     const ms = milestones.find((m) => m.id === id);
-    if (!ms || !ms.target_value) return;
+    // Et tal-/begivenhedsmål (art sat) følges af motoren (maalTal) — current ÷ target ville skrive en forkert fremdrift (fund 5).
+    if (!ms || !gammelTalvisning(ms)) return;
     const newProgress = Math.min(100, Math.round((newCurrentValue / ms.target_value) * 100));
     const dbStatus = statusEfterFremgang(newProgress);
     const wasNotDone = !ms.dom.faerdig;
@@ -222,8 +242,9 @@ export function useMilestones({ userId, companyId, isAdvisor }: Args) {
   }, [milestones, saetFremgang]);
 
   /** «Marker som nået» (fase 3, Jonas 16/9: medlemmet ejer sine mål) — status
-      = 'completed', fremdriften røres IKKE (et mål kan nås på 40 %; på 100 %
-      er det allerede nået). completed_at sættes af triggeren
+      = 'completed', fremdriften røres IKKE (et mål kan nås på 40 %, og et
+      mål på 100 % er IKKE nået, før nogen klikker her — 1/10-2026: nået er
+      KUN status 'completed', aldrig fremdriften). completed_at sættes af triggeren
       milestone_completed_at (fase 1). Fejringen er den samme som ved 100 %. */
   const markerNaaet = useCallback(async (id: string) => {
     const ms = milestones.find((m) => m.id === id);
@@ -245,8 +266,14 @@ export function useMilestones({ userId, companyId, isAdvisor }: Args) {
     toast.success(`"${title}" er slettet`);
   }, []);
 
-  /** MilestonesList.tsx:705-738, ordret — også parkering (status). */
-  const opdaterFelt = useCallback(async (id: string, fields: Record<string, unknown>) => {
+  /**
+   * MilestonesList.tsx:705-738 — også parkering (status). Rådets fund 13
+   * (1/10 aften): svaret er ok/fejl i stedet for at sluge fejlen; UPDATE'n
+   * SELECT'er id, og NUL rækker (RLS eller et mål, der imens er væk) er en
+   * fejl — aldrig et «Gemt». Toasten står her som før; kalderen (Redigér-
+   * dialogen) holder sig åben, når svaret er en fejl.
+   */
+  const opdaterFelt = useCallback(async (id: string, fields: Record<string, unknown>): Promise<OpdaterSvar> => {
     const dbFields: Record<string, unknown> = {};
     const localFields: Record<string, unknown> = {};
     for (const key of ["title", "category", "baseline"] as const) {
@@ -254,23 +281,33 @@ export function useMilestones({ userId, companyId, isAdvisor }: Args) {
     }
     if ("target_value" in fields) { dbFields.target_value = fields.target_value; localFields.target_value = fields.target_value; }
     if ("unit" in fields) { dbFields.unit = fields.unit || null; localFields.unit = fields.unit || null; }
+    // Fladen 1/10-2026: et TASTET tal (andet_tal) rettes her — KUN current_value, aldrig progress (fremdriften er motorens andel af vejen, maalTal.sporet).
+    if ("current_value" in fields && typeof fields.current_value === "number") { dbFields.current_value = fields.current_value; localFields.current_value = fields.current_value; }
     if ("description" in fields) { dbFields.description = fields.description || null; localFields.description = fields.description || null; }
     if ("deadline" in fields) {
-      dbFields.deadline = fields.deadline ? (fields.deadline as Date).toISOString().split("T")[0] : null;
-      localFields.deadline = fields.deadline || null;
+      // Den dag medlemmet klikkede (lokal dag), ikke toISOString — den gav dagen
+      // før i dansk tid. Lokalt som UTC-midnat, samme form som hentningen giver.
+      const dato = fields.deadline ? lokalDatoStreng(fields.deadline as Date) : null;
+      dbFields.deadline = dato;
+      localFields.deadline = dato ? new Date(dato) : null;
     }
     if ("status" in fields) {
       dbFields.status = fields.status;
       localFields.dbStatus = fields.status;
     }
+    // Skive 3, rådets fund 13: «Aktivér» af et ubekræftet mål bærer bekræftelsen i samme skrivning
+    // (maalBekraeft.aktiverFelter) — kolonnerne findes kun, når de er læst (bekraeftet_at !== undefined).
+    if ("bekraeftet_at" in fields) { dbFields.bekraeftet_at = fields.bekraeftet_at; localFields.bekraeftet_at = fields.bekraeftet_at; }
+    if ("bekraeftet_af" in fields) dbFields.bekraeftet_af = fields.bekraeftet_af;
     // Fase 3: genåbning af et mål nået på 100 % uden skridt nulstiller fremdriften (som skiftFuldfoert gjorde).
     if ("progress" in fields && typeof fields.progress === "number") {
       dbFields.progress = fields.progress;
       localFields.progress = fields.progress;
     }
-    const { error } = await supabase.from("milestones").update(dbFields).eq("id", id);
+    const { data, error } = await supabase.from("milestones").update(dbFields).eq("id", id).select("id");
     // Aktivering af et parkeret mål kan ramme «højst tre» — husets tekst, ikke databasens.
-    if (error) { toast.error(maalFejlTekst(error, "Kunne ikke gemme")); return; }
+    if (error) { const grund = maalFejlTekst(error, "Kunne ikke gemme"); toast.error(grund); return { ok: false, grund }; }
+    if (!data || (data as unknown[]).length === 0) { toast.error(OPDATER_NUL_RAEKKER_TEKST); return { ok: false, grund: OPDATER_NUL_RAEKKER_TEKST }; }
     // Dommen regnes om på den samlede række — status OG deadline kan være ændret.
     setMilestones((prev) => prev.map((m) => {
       if (m.id !== id) return m;
@@ -278,6 +315,7 @@ export function useMilestones({ userId, companyId, isAdvisor }: Args) {
       return { ...ny, ...doem(ny) };
     }));
     toast.success("Gemt");
+    return { ok: true };
   }, [milestones]);
 
   /** Oprettelse — Milestones.tsx:96-123, ordret. */
@@ -289,7 +327,7 @@ export function useMilestones({ userId, companyId, isAdvisor }: Args) {
       description: ny.description.trim() || null,
       baseline: ny.baseline.trim() || null,
       category: ny.category,
-      deadline: ny.deadline ? ny.deadline.toISOString().split("T")[0] : null,
+      deadline: ny.deadline ? lokalDatoStreng(ny.deadline) : null,
       company_id: companyId,
       user_id: userId,
       source: "manual",
@@ -308,5 +346,7 @@ export function useMilestones({ userId, companyId, isAdvisor }: Args) {
     return true;
   }, [userId, companyId]);
 
-  return { milestones, loading, saetFremgang, saetNuvaerendeVaerdi, skiftFuldfoert, markerNaaet, slet, opdaterFelt, opret, genhent };
+  // Skive 3 (runde 2, fund 7): kvartalstjekkets «Nået» på /milestones skriver gennem den guardede
+  // hooks/maalNaaetKlik og fejrer bagefter med SAMME fejring som «Markér som nået» — derfor eksponeret.
+  return { milestones, loading, saetFremgang, saetNuvaerendeVaerdi, skiftFuldfoert, markerNaaet, slet, opdaterFelt, opret, genhent, fejr };
 }

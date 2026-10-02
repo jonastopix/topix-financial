@@ -25,7 +25,10 @@ export function panenLaeserKolonnen(kilde: string): boolean {
 /** 2. Begge paner sender svar_paa_id i insert — fra svarPaa-tilstanden, kun når den er sat. */
 export function panenSenderSvarPaa(kilde: string): boolean {
   const k = udenKommentarer(kilde);
-  return /if \(svarPaa\) \{\s*insertData\.svar_paa_id = svarPaa\.id;\s*\}/.test(k) && /supabase\.from\("messages"\)\.insert\(insertData\)/.test(k);
+  return /if \(svarPaa\) \{\s*insertData\.svar_paa_id = svarPaa\.id;\s*\}/.test(k) &&
+    // Medlemmets panel indsætter siden 2/10 gennem den delte skrivevej
+    // (chatSkrivevej.ts — samme insert, ÉT sted; forsideKort.guard dom 5).
+    /supabase\.from\("messages"\)\.insert\(insertData\)|indsaetChatBesked\(insertData\)/.test(k);
 }
 
 /** 3. Citatet renderes gennem den fælles komponent (begge bobler) — og HVER «Svar»-knap gates af kanBesvares. */

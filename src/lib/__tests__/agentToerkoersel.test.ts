@@ -4,7 +4,12 @@ import { resolve } from "node:path";
 import {
   SKRIVE_TOOLS,
   toerResultat,
+  ikkeGodkendbareSkriveTools,
+  blokeredeVaerktoejer,
+  annonceredeVaerktoejer,
+  toerPromptTillaeg,
 } from "../../../supabase/functions/_shared/agentToerkoersel.ts";
+import { UNDERSTOETTEDE_SKRIVEVEJE } from "../../../supabase/functions/_shared/forslagEngine.ts";
 
 // Driftværn for tør-kørslens snit (docs/agent-forslag-design.md §4.1).
 // Invariansen: HVERT tool i run-company-agents pool er enten et
@@ -91,5 +96,89 @@ describe("run-company-agent — trigger- og default-værn (beslutning 2026-08-25
     // Live skal være et ord nogen har skrevet, aldrig noget nogen glemte.
     expect(rcaSource).toContain("const dryRun = body.dry_run !== false");
     expect(rcaSource).not.toContain("body.dry_run === true");
+  });
+});
+
+// Værnet for beslutningen 30/9-2026 (docs/agent-forslag-design.md §9):
+// en tør-kørsel må KUN foreslå det, en rådgiver kan godkende. Målt i prod:
+// 6 af 6 opgaveforslag fra tør-kørsler kunne aldrig godkendes. Listen over
+// det godkendbare står ÉT sted — forslagEngine.UNDERSTOETTEDE_SKRIVEVEJE.
+describe("tør-kørslen annoncerer kun godkendbare skrivetools (30/9)", () => {
+  const triggers = (() => {
+    const blok = rcaSource.match(/const KNOWN_TRIGGERS = \[([\s\S]*?)\]/)!;
+    return [...blok[1].matchAll(/"([a-z_]+)"/g)].map((m) => m[1]);
+  })();
+  const poolBlok = rcaSource.match(/const POOL_BLOCKLIST[\s\S]*?\{([\s\S]*?)\};/)![1];
+  const blocklistFor = (trigger: string): string[] => {
+    const linje = poolBlok.match(new RegExp(`^\\s*${trigger}:\\s*\\[([^\\]]*)\\]`, "m"));
+    expect(linje, `POOL_BLOCKLIST-posten for '${trigger}' kan ikke læses`).toBeTruthy();
+    return [...linje![1].matchAll(/"([a-z_]+)"/g)].map((m) => m[1]);
+  };
+
+  it("de ikke-godkendbare er præcis SKRIVE_TOOLS minus motorens liste", () => {
+    const forventet = [...SKRIVE_TOOLS].filter((t) => !UNDERSTOETTEDE_SKRIVEVEJE.has(t)).sort();
+    expect(ikkeGodkendbareSkriveTools()).toEqual(forventet);
+    expect(ikkeGodkendbareSkriveTools()).toContain("write_company_action");
+  });
+
+  for (const trigger of ["onboarding", "company_review", "report_committed", "anomaly_detected", "pulse_submitted"]) {
+    it(`${trigger}, tørt: hvert annonceret skrivetool kan godkendes`, () => {
+      expect(triggers).toContain(trigger);
+      const annoncerede = annonceredeVaerktoejer(declaredTools, blokeredeVaerktoejer(blocklistFor(trigger), true));
+      const skriv = annoncerede.filter((n) => SKRIVE_TOOLS.has(n));
+      for (const t of skriv) {
+        expect(UNDERSTOETTEDE_SKRIVEVEJE.has(t), `'${t}' annonceres i tør-tilstand, men kan ikke godkendes`).toBe(true);
+      }
+      expect(annoncerede).not.toContain("write_company_action");
+      // Læseværktøjerne og finish er urørte.
+      expect(annoncerede).toContain("get_company_facts");
+      expect(annoncerede).toContain("finish");
+    });
+  }
+
+  it("alle triggere, tørt: kun update_weekly_focus kan foreslås i dag", () => {
+    for (const trigger of triggers) {
+      const skriv = annonceredeVaerktoejer(declaredTools, blokeredeVaerktoejer(blocklistFor(trigger), true))
+        .filter((n) => SKRIVE_TOOLS.has(n));
+      expect(skriv, trigger).toEqual(["update_weekly_focus"]);
+    }
+  });
+
+  it("live er uændret: blokeringen er KUN triggerens egen post", () => {
+    for (const trigger of triggers) {
+      expect(blokeredeVaerktoejer(blocklistFor(trigger), false)).toEqual([...blocklistFor(trigger)].sort());
+    }
+    // report_committed og anomaly_detected kan stadig oprette skridt live.
+    const live = annonceredeVaerktoejer(declaredTools, blokeredeVaerktoejer(blocklistFor("report_committed"), false));
+    expect(live).toContain("write_company_action");
+  });
+
+  it("run-company-agent bruger den fælles blokering til BÅDE annoncering og afvisning", () => {
+    expect(rcaSource).toContain("blokeredeVaerktoejer(POOL_BLOCKLIST[trigger] ?? [], dryRun)");
+    expect(rcaSource).toContain("annonceredeVaerktoejer(tools.map((t) => t.function.name), blocked)");
+    expect(rcaSource).toContain("tools: activeTools");
+    expect(rcaSource).toContain("if (blocked.includes(toolName))");
+    // Blokeringen står FØR opsnapningen: et ikke-godkendbart kald bliver
+    // aldrig en agent_proposals-række.
+    expect(rcaSource.indexOf("if (blocked.includes(toolName))")).toBeLessThan(
+      rcaSource.indexOf("dryRun && SKRIVE_TOOLS.has(toolName)"),
+    );
+    // Ingen lokal kopi af den gamle filtrering.
+    expect(rcaSource).not.toMatch(/const blocked = POOL_BLOCKLIST\[trigger\] \?\? \[\];/);
+  });
+
+  it("beviset: svaret bærer annoncerede_vaerktoejer i alle fire svar", () => {
+    expect(rcaSource.match(/annoncerede_vaerktoejer: annoncerede/g)?.length).toBe(4);
+  });
+
+  it("tør-prompten: tillægget læses kun i tør-tilstand, og onboarding beder ikke om en opgave", () => {
+    expect(rcaSource).toContain("${dryRun ? `\\n\\n${toerPromptTillaeg(annoncerede)}` : \"\"}");
+    const onboarding = rcaSource.match(/trigger === "onboarding"\n\s*\? `([^`]*)`/);
+    expect(onboarding, "onboarding-prompten ikke fundet").toBeTruthy();
+    expect(onboarding![1]).not.toMatch(/handlingsopgave|write_company_action/);
+    expect(onboarding![1]).toContain("weekly focus");
+    const tillaeg = toerPromptTillaeg(["get_company_facts", "update_weekly_focus", "finish"]);
+    expect(tillaeg).toContain("update_weekly_focus");
+    expect(tillaeg).toContain("write_company_action");
   });
 });

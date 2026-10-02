@@ -18,7 +18,10 @@ import { resolve } from "node:path";
 //   3. INGEN KLIPNING på mål- og skridttitler i VirksomhedPlanen (truncate/line-clamp).
 //   4. AFTALEN FOLDET: <details open={aaben}> i section-aftale; startAaben
 //      afledt af ?section=aftale og grundene fornyelse/indgang (AABNER_AFTALEN).
-//   5. CHATTEN: 60 vh / min 420 px og «Åbn i /chat».
+//   5. CHATTEN: «Åbn i /chat» og højden. 17/9–30/9 60 vh / min 420 px; fra
+//      30/9 (Jonas 21:36: «Chatten på virksomhedssiderne er lidt for små»)
+//      viewportet minus sektionens hoved på lg, 70 dvh under lg — regnestykket
+//      ved CHAT_HOEJDE; «ikke en lille fast værdi» låses i virksomhedschatPlads.guard.
 //   6. ANKRENE følger med: section-chat/-tal/-aftale/-handouts/-refleksion i
 //      VirksomhedView, section-milestones i VirksomhedPlanen (forsideMaal.guard
 //      læser den fil); GRUNDENS_ANKER har ingen_maal → section-milestones.
@@ -87,10 +90,10 @@ export const aftalenErFoldet = (view: string): boolean => {
     /startAaben=\{startAftaleAaben\}/.test(komposition(view));
 };
 
-/** Dom 5: chatten 60 vh / min 420 og «Åbn i /chat». */
+/** Dom 5: chatten i viewport-højde (30/9) og «Åbn i /chat». */
 export const chattenHolder = (view: string): boolean =>
-  /const CHAT_HOEJDE = "h-\[60vh\] min-h-\[420px\]";/.test(view) &&
-  !/h-\[calc\(100dvh-10rem\)\]/.test(view) &&
+  view.includes('const CHAT_HOEJDE = "h-[70dvh] min-h-[440px] lg:h-[calc(100dvh-7rem)] lg:min-h-[480px]";') &&
+  !/h-\[60vh\]/.test(view) &&
   /linkLabel="Åbn i \/chat" linkTo=\{`\/chat\?companyId=\$\{d\.company\.id\}`\}/.test(view);
 
 /** Dom 6: ankrene. */
@@ -119,7 +122,7 @@ function bytOm(view: string, a: string, b: string): string {
   return view.replace(k, k.replace(a, PLADS).replace(b, a).replace(PLADS, b));
 }
 
-describe("virksomhedsside.guard — PR 1: Planen før tallene i fuld bredde, chatten 60 vh, Aftalen foldet", () => {
+describe("virksomhedsside.guard — PR 1: Planen før tallene i fuld bredde, chatten i viewport-højde (30/9), Aftalen foldet", () => {
   const view = udenKommentarer(laes(VIEW));
   const planen = udenKommentarer(laes(PLANEN));
 
@@ -135,7 +138,7 @@ describe("virksomhedsside.guard — PR 1: Planen før tallene i fuld bredde, cha
   it("dom 4: Aftalen foldet — åbnes af ?section=aftale og ?grund=fornyelse|indgang|venteliste", () => {
     expect(aftalenErFoldet(view)).toBe(true);
   });
-  it("dom 5: chatten 60 vh (min 420 px) med «Åbn i /chat»", () => {
+  it("dom 5: chatten i viewport-højde (lg: 100dvh − 7 rem, min 480; ellers 70 dvh, min 440) med «Åbn i /chat»", () => {
     expect(chattenHolder(view)).toBe(true);
   });
   it("dom 6: ankrene følger med — section-milestones i VirksomhedPlanen, ingen_maal peger derhen", () => {
@@ -166,8 +169,8 @@ describe("virksomhedsside.guard — PR 1: Planen før tallene i fuld bredde, cha
     expect(aftalenErFoldet(view.replace('new Set<OpgaveSlags>(["fornyelse", "indgang", "venteliste"])', 'new Set<OpgaveSlags>(["fornyelse"])'))).toBe(false);
     expect(aftalenErFoldet(view.replace("if (startAaben) setAaben(true);", ""))).toBe(false);
   });
-  it("selvbevis 5: hele viewportet tilbage, eller uden link, falder", () => {
-    expect(chattenHolder(view.replace('const CHAT_HOEJDE = "h-[60vh] min-h-[420px]";', 'const CHAT_HOEJDE = "h-[calc(100dvh-10rem)] min-h-[520px]";'))).toBe(false);
+  it("selvbevis 5: de gamle 60 vh tilbage, eller uden link, falder", () => {
+    expect(chattenHolder(view.replace('const CHAT_HOEJDE = "h-[70dvh] min-h-[440px] lg:h-[calc(100dvh-7rem)] lg:min-h-[480px]";', 'const CHAT_HOEJDE = "h-[60vh] min-h-[420px]";'))).toBe(false);
     expect(chattenHolder(view.replace('linkLabel="Åbn i /chat" ', ""))).toBe(false);
   });
   it("selvbevis 6: ankeret ude af Planen, eller ingen_maal uden anker, falder", () => {

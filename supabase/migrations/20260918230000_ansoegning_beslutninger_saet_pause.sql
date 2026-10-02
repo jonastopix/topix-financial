@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod (målt 1/10-2026: filens markørobjekter findes i prod; hovedet vendt efterfølgende). DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
 --
 -- «Sæt på pause til <dato>» (Jonas 18/9, den varige vej): en NY
 -- menneskehandling i ansøgningsmotoren — rådgiveren sætter eller flytter

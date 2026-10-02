@@ -204,6 +204,12 @@ export function raadgiverSti(n: Pick<RaadgiverNotifikation, "type" | "reference_
       return n.reference_id ? `/ansoegninger/${n.reference_id}` : "/ansoegninger";
     case "community_traad":
       return n.reference_id ? `/community/${n.reference_id}` : "/community";
+    // Nyhedsagenten (30/9): ugens udkast venter på rådgiverens klik — én side, udkastet står øverst.
+    case "nyhed_udkast":
+      return "/nyheder";
+    // «Må vi ringe til dig?» (2/10): én klokke pr. anmodning, til alle rådgivere — kortet med nummeret står på /opkald (også menupunktet «Opkald», 2/10).
+    case "opkald":
+      return "/opkald";
     default:
       return virksomhed;
   }

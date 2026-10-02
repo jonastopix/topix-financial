@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { hentTjenestekonti } from "@/hooks/tjenestekonti";
+import { synligeRaadgivere } from "@/lib/tjenestekonto";
 import {
   createItem,
   deleteItem,
@@ -26,6 +28,7 @@ import { HbUploadZone } from "../HbUploadZone";
 import { HbEditorRichtext } from "../HbEditorRichtext";
 import { HbStatusPill } from "../HbStatusPill";
 import { HbAdminSplit } from "../HbAdminShell";
+import { ForsidenRyddetLinje } from "./ForsidenRyddetLinje";
 import { useAdminHotkeys } from "../useAdminHotkeys";
 import {
   EditorBar,
@@ -89,10 +92,10 @@ const PushEditor = forwardRef<
   const dirty = Object.keys(draft).length > 0;
   const metadata = (form.metadata as Record<string, unknown>) ?? {};
 
-  // Afsender-vælgeren (bølge 1, PR 2): rådgiverlisten hentes m. SAMME
-  // to-trins-query som chat-tildelingens dropdown (CompanyChatPane:
-  // "Cached advisor list for assignment dropdown (two-step: roles then
-  // profiles)") — RLS-policyen "Advisors can view all roles" bærer den.
+  // Afsender-vælgeren (bølge 1, PR 2): rådgiverlisten hentes to-trins
+  // (roller, derefter profiler) — samme form som chattens tidligere
+  // tildelings-dropdown, der blev fjernet 1/10 — RLS-policyen "Advisors
+  // can view all roles" bærer den.
   const { data: advisors = [] } = useQuery({
     queryKey: ["admin-push", "advisor-profiles"],
     queryFn: async () => {
@@ -108,7 +111,8 @@ const PushEditor = forwardRef<
         .select("user_id, full_name, avatar_url")
         .in("user_id", uniqueIds);
       if (profErr) throw profErr;
-      return (profiles || []) as { user_id: string; full_name: string; avatar_url: string | null }[];
+      // Tjenestekonti (claude@topix.dk) er ingen afsender — de er ingen person.
+      return synligeRaadgivere((profiles || []) as { user_id: string; full_name: string; avatar_url: string | null }[], await hentTjenestekonti());
     },
     staleTime: 10 * 60 * 1000,
   });
@@ -385,7 +389,7 @@ const PushEditor = forwardRef<
         </div>
       </HbField>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <HbField label="Forfatter" htmlFor="push-author" help="Vises i bylinen — overstyrer afsender-navnet hvis udfyldt anderledes.">
           <HbInput
             id="push-author"
@@ -532,6 +536,7 @@ export const PushView = () => {
       onCloseEditor={() => setSelectedId(null)}
       list={
         <div className="flex h-full min-h-0 flex-col">
+          <ForsidenRyddetLinje />
           <div className="min-h-0 flex-1 overflow-y-auto">
             {itemsQuery.isLoading ? (
               <p className="px-4 py-6 text-sm text-hb-ink-soft">Henter…</p>

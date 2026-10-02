@@ -1,4 +1,4 @@
--- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge.
+-- KØRT i prod (målt 1/10-2026: filens markørobjekter findes i prod; hovedet vendt efterfølgende). DEPLOY: manuelt i Lovable → SQL editor efter merge.
 --
 -- «Hvor mange er I?» (Jonas 18/9, valg A): ansatte MED ejeren, så tallet kan
 -- sammenlignes med CVR-registret. Alene = 1. Før stod der «Skriv 0, hvis du er

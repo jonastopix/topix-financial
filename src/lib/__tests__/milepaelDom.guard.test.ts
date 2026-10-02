@@ -39,9 +39,14 @@ const DAEKKEDE = [
   // existsSync, så slettede stier SKAL ud herfra.
 ];
 
-/** Motoren selv er den ENESTE der må skrive reglen — og kun disse to linjer. */
+/** Motoren selv er den ENESTE der må skrive reglen — og kun disse linjer.
+    1/10-2026 (Jonas: «klikker gjort på et skridt, så lukker målet»): «nået»
+    er KUN status = 'completed' (erMarkeretNaaet); progress >= 100 står kun i
+    skyderens skriveregel (statusEfterFremgang — et menneskes klik). */
 const MOTORENS_EGNE_LINJER = [
-  'const faerdig = !parkeret && (input.status === "completed" || progress >= 100);',
+  'return status === "completed";',
+  "const faerdig = !parkeret && erMarkeretNaaet(input.status);",
+  'return progress >= 100 ? "completed" : "active";',
 ];
 
 const AFVIGERE: Array<{ sti: string; regel: string; hvorfor: string }> = [
@@ -103,7 +108,9 @@ describe("milepælenes dom — de dækkede flader bærer ingen egen regel", () =
   it("de dækkede flader, der viser milepæle, kalder motoren (direkte eller gennem useMilestones)", () => {
     expect(laes("src/components/hjemmebane/milestones/useMilestones.ts")).toContain("afgoerMilepael(");
     expect(laes("src/components/hjemmebane/virksomhed/VirksomhedView.tsx")).toContain("afgoerMilepael(");
-    for (const sti of ["HbMaalRaekke.tsx", "MilestoneDialoger.tsx"]) {
+    // MilestoneDialoger.tsx stod her til 1/10-2026 (detaljen læste ms.dom.faerdig); fladen afløste detaljen
+    // med RedigerMaalDialog (tegner motorens MaalKort, ingen tilstand) — filen er nu kun slet-dialogen uden dom.
+    for (const sti of ["HbMaalRaekke.tsx"]) {
       expect(strip(laes(`src/components/hjemmebane/milestones/${sti}`)), `${sti} læser ikke dommen`).toContain(".dom.");
     }
     // Siden dømmer gennem dineMaalDom (→ planenDom → afgoerMilepael) — ikke selv.

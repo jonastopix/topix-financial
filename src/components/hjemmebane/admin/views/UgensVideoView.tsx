@@ -21,6 +21,7 @@ import {
 import { HbField, HbInput, hbControlClasses } from "../HbField";
 import { HbStatusPill } from "../HbStatusPill";
 import { HbAdminSplit } from "../HbAdminShell";
+import { ForsidenRyddetLinje } from "./ForsidenRyddetLinje";
 import { useAdminHotkeys } from "../useAdminHotkeys";
 import {
   EditorBar,
@@ -50,8 +51,10 @@ type SourceMode = "akademi" | "bunny" | "external";
 
 /** Kilde-areas (fix/ugens-video-kilder): alle medlemsvendte content-areas
     der kan bære video — IKKE 'push'/'ugens_video' (kuraterings-kanaler,
-    ikke kilder) og ikke 'rabataftaler'. Labels slås op i AREAS. */
-const SOURCE_AREAS = ["talks", "classroom", "academy", "quick_wins", "start_her"] as const;
+    ikke kilder) og ikke 'rabataftaler'. Labels slås op i AREAS.
+    'quick_wins' udgik 1/10-2026: området er skjult for medlemmer
+    (MEDLEM_SKJULTE_OMRAADER), og forsidens video må ikke pege ind i det. */
+const SOURCE_AREAS = ["talks", "classroom", "academy", "start_her"] as const;
 
 const areaLabel = (key: string) => AREAS.find((a) => a.key === key)?.label ?? key;
 
@@ -498,6 +501,7 @@ export const UgensVideoView = () => {
       onCloseEditor={() => setSelectedId(null)}
       list={
         <div className="flex h-full min-h-0 flex-col">
+          <ForsidenRyddetLinje />
           <div className="min-h-0 flex-1 overflow-y-auto">
             {itemsQuery.isLoading ? (
               <p className="px-4 py-6 text-sm text-hb-ink-soft">Henter…</p>

@@ -178,7 +178,7 @@ export const CollectionEditor = forwardRef<EditorHandle, CollectionEditorProps>(
           </HbField>
         )}
 
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <HbField
             label="Dryp (dage)"
             htmlFor="col-drip"

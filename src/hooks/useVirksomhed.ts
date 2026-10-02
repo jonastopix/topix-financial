@@ -41,7 +41,7 @@
  * company-nøglet læsning på alle tolv kilder (målt 4/9).
  */
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { erForslagGyldigt } from "@/lib/forslagUdloeb";
+import { kraeverAfgoerelse } from "@/lib/forslagFlade";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import type { Json } from "@/integrations/supabase/types";
@@ -75,7 +75,6 @@ export interface VirksomhedsSamtale {
   id: string;
   last_message_at: string | null;
   awaiting_reply_from: string | null;
-  assigned_advisor_id: string | null;
 }
 
 /** company_traek — ALLE betalinger (betalte og fejlede) til «Betaling»-linjen.
@@ -128,8 +127,8 @@ export interface VirksomhedsData {
     address?: string | null;
     industry_code?: string | null;
     cvr_fetched_at?: string | null;
-    /** Ansøgningen som den blev skrevet ved oprettelsen (monday-webhook /
-        import-application): current_situation, goals, help_needed m.fl.
+    /** Ansøgningen som den blev skrevet ved oprettelsen (ansøgningsmotoren /
+        import-application; historisk også monday-webhook, nedlagt 2/10-2026): current_situation, goals, help_needed m.fl.
         Statisk — designets §4 blok 2 vil have den SAMMENFATTET og gemt i
         egen kolonne; den findes ikke endnu, så rå jsonb indtil da. */
     application_context: Json | null;
@@ -191,8 +190,6 @@ export interface VirksomhedsData {
     context_id: string | null;
     created_at: string;
   }[];
-  /** Rådgivernavne pr. user_id (get_all_advisor_profiles) — til «Tildelt» i blok 4. */
-  raadgiverNavne: Record<string, string>;
   /** KPI-mål pr. nøgle med oprindelse (kilde «aftalt»/«standard») — fletKpiMaal (lib/kpiMaal), samme som useKpiTargets. */
   kpiMaal: ResolvedTargets;
   /** company_actions der venter: open/proposed/active (BoardroomView:1686). */
@@ -238,7 +235,7 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
   const [
     companyRes, membersRes, invitationsRes, convsRes, budgetRes, milestonesRes,
     handoutsRes, actionsRes, skridtRes, proposalsRes, traekRes, perioderRes, linkRes, fornyelseRes,
-    rapporterRes, kpiMaalRes, refleksionRes, kommentarRes, raadgivereRes, udloebneRes,
+    rapporterRes, kpiMaalRes, refleksionRes, kommentarRes, udloebneRes,
   ] = await Promise.all([
     supabase
       .from("companies")
@@ -253,7 +250,7 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
       .order("created_at", { ascending: false }),
     supabase
       .from("conversations")
-      .select("id, last_message_at, awaiting_reply_from, assigned_advisor_id")
+      .select("id, last_message_at, awaiting_reply_from")
       .eq("company_id", companyId),
     // Budgettet gennem hentAlleSider (17/9, recon-tal-der-ikke-kan-passe.md
     // §5 B): PostgREST giver højst 1.000 rækker stille, og remm. har 1.378
@@ -306,9 +303,11 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
     // uden at kopiere ISO-uge-beregningen til SQL (to domme). Derfor er
     // count/head erstattet af rækker med proposed_at, og tallet regnes i
     // kode nedenfor med samme funktion som panelet og afgørelsen.
+    // tool hentes med (30/9, design §9): kun GODKENDBARE forslag kræver
+    // rådgiveren — samme dom som AdvisorDashboard (kraeverAfgoerelse).
     supabase
       .from("agent_proposals")
-      .select("proposed_at")
+      .select("proposed_at, tool")
       .eq("company_id", companyId)
       .eq("status", "proposed")
       .limit(500),
@@ -370,12 +369,6 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
       .eq("conversations.company_id", companyId)
       .order("created_at", { ascending: true })
       .limit(500),
-    // Rådgivernes navne til «Tildelt: {rådgiver}» (blok 4). conversations
-    // har ingen FK på assigned_advisor_id at embedde over, og id'et kendes
-    // først når samtalerne er hentet — så alle rådgivere hentes i SAMME
-    // runde via RPC'en forsiden bruger (AdvisorDashboard:370), og navnet
-    // slås op i kode. Få rækker (rådgivere + admins).
-    supabase.rpc("get_all_advisor_profiles"),
     // Forslag der udløb uden svar — tallet OG de seneste fem titler (fase 0b,
     // «Én plan»: udløbne synlige for rådgiveren). Udløb er bogført af cronen
     // opgave-udloeb som status 'expired' (20260901090000). accepted_at IS
@@ -428,11 +421,6 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
     }
   }
 
-  const raadgiverNavne: Record<string, string> = {};
-  for (const r of (kraevRaekker(raadgivereRes, "get_all_advisor_profiles") as { user_id: string; full_name: string | null }[])) {
-    if (r.user_id && r.full_name) raadgiverNavne[r.user_id] = r.full_name;
-  }
-
   // «Vejen ind» (18/9 aften): ansøgningen bag virksomheden — eget opslag, fail-soft (ansøgningerne må
   // aldrig vælte virksomhedssiden). Rådgivere har SELECT på ansoegninger.
   const ansoegningRes = await supabase
@@ -447,7 +435,6 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
   return {
     ansoegning: ansoegningRes.error ? null : ((ansoegningRes.data as unknown) as VirksomhedsData["ansoegning"]),
     company: companyRes.data,
-    raadgiverNavne,
     refleksion: kraevRaekke(refleksionRes, "pulse_checkins"),
     medlemmer: memberRows.map((m) => ({
       user_id: m.user_id,
@@ -464,9 +451,10 @@ async function hentVirksomhed(companyId: string): Promise<VirksomhedsData | null
     handouts: kraevRaekker(handoutsRes, "handouts"),
     opgaver: kraevRaekker(actionsRes, "company_actions"),
     skridt: kraevRaekker(skridtRes, "company_actions"),
-    // Kun forslag der stadig kan afgøres (udløbsdommen, se hentningen).
-    agentforslagVenter: (kraevRaekker(proposalsRes, "agent_proposals") as { proposed_at: string }[]).filter((p) =>
-      erForslagGyldigt(p.proposed_at, nu),
+    // Kun forslag der KRÆVER rådgiveren (gyldige OG godkendbare, 30/9 —
+    // design §9); de øvrige står til orientering i Agent-loggen.
+    agentforslagVenter: (kraevRaekker(proposalsRes, "agent_proposals") as { proposed_at: string; tool: string | null }[]).filter((p) =>
+      kraeverAfgoerelse(p, nu),
     ).length,
     udloebneForslag: (() => { if (udloebneRes.error) throw new HentningsFejl("agent_proposals", udloebneRes.error.message); return udloebneRes.count ?? 0; })(),
     udloebneSeneste: (udloebneRes.data ?? []) as { id: string; title: string; expires_at: string | null }[],

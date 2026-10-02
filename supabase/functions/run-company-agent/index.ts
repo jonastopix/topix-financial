@@ -2,17 +2,25 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateUser, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { aiGatewayFetch } from "../_shared/aiGatewayFetch.ts";
 import { beregnUdloeb } from "../_shared/opgaveUdloeb.ts";
-import { SKRIVE_TOOLS, toerResultat } from "../_shared/agentToerkoersel.ts";
+import {
+  SKRIVE_TOOLS,
+  toerResultat,
+  blokeredeVaerktoejer,
+  annonceredeVaerktoejer,
+  toerPromptTillaeg,
+} from "../_shared/agentToerkoersel.ts";
 import { effektivRapportPeriodeKey, rapporteringsStatus } from "../_shared/rapportStatus.ts";
 import { skrivUgensFokus } from "../_shared/agentSkriveveje.ts";
 import { maaKoereLive } from "../_shared/agentLiveAdgang.ts";
+import { hentTjenestekonti, udenTjenestekonti } from "../_shared/tjenestekonti.ts";
+import { klokkeRaekker } from "../_shared/agentKlokke.ts";
 // Fase 0a («Én plan»): write_company_action dømmer gennem den delte motor
 // (højst ét åbent forslag pr. virksomhed; ingen gentagelse inden for 30 døgn).
 import { doemSkrivning, SKRIVE_SELECT_KOLONNER, skriveFilter } from "../_shared/skridtForslag.ts";
 // Fase 5 («Én plan»): et skridt hører til et aktivt mål — motoren vælger det.
 import { maaForeslaaMod, vaelgMaalForForslag, type MaalTilValg } from "../_shared/maal.ts";
 
-const DEPLOY_STAMP = "run-company-agent v6 live-port (2026-09-30)";
+const DEPLOY_STAMP = "run-company-agent v7 tjenestekonti (2026-09-30)";
 const MODEL = "google/gemini-2.5-flash";
 
 // ARBEJDSGANGS-MINIMUMMET I PROMPTEN — hvorfor det findes: målt mod prod
@@ -530,13 +538,22 @@ async function executeTool(name: string, args: any, adminClient: any, trigger: s
       if (asAdvisor) {
         let advisorId: string | null = conv.assigned_advisor_id ?? null;
         if (!advisorId) {
-          const { data: advisorRole } = await adminClient
+          // Tjenestekonti (claude@topix.dk, 30/9) er aldrig afsender over for et
+          // medlem — de er ingen person (_shared/tjenestekonti.ts). Fail-closed:
+          // kan tabellen ikke læses, postes intet som rådgiver.
+          const { data: advisorRoles } = await adminClient
             .from("user_roles")
             .select("user_id")
-            .in("role", ["advisor", "admin"])
-            .limit(1)
-            .maybeSingle();
-          advisorId = advisorRole?.user_id ?? null;
+            .in("role", ["advisor", "admin"]);
+          let tjenestekonti: Set<string>;
+          try {
+            tjenestekonti = await hentTjenestekonti(adminClient);
+          } catch (e) {
+            console.error("[run-company-agent] tjenestekonti:", e instanceof Error ? e.message : e);
+            return { ok: false, reason: "tjenestekonti_ukendt" };
+          }
+          const ids = [...new Set(((advisorRoles ?? []) as { user_id: string }[]).map((r) => r.user_id))];
+          advisorId = udenTjenestekonti(ids, tjenestekonti)[0] ?? null;
         }
         if (!advisorId) return { ok: false, reason: "no_advisor_available" };
         senderId = advisorId;
@@ -584,15 +601,14 @@ async function executeTool(name: string, args: any, adminClient: any, trigger: s
     }
 
     case "notify_advisor": {
-      // Find assigned advisor for this company
+      // Rådgiverne er sammen om alle medlemmer (tildelingen er fjernet 1/10-2026):
+      // klokken ringer hos HVER rådgiver, tjenestekonti inkluderet (de skal se alt).
       const { data: conv } = await adminClient
         .from("conversations")
-        .select("assigned_advisor_id, member_id")
+        .select("member_id")
         .eq("company_id", args.company_id)
         .maybeSingle();
-
-      const advisorId = conv?.assigned_advisor_id;
-      const memberId = conv?.member_id;
+      const memberId = conv?.member_id ?? null;
 
       // Trigger-aware title so the notification reflects the actual event
       // (not always "ny rapport").
@@ -604,23 +620,29 @@ async function executeTool(name: string, args: any, adminClient: any, trigger: s
       };
       const notificationTitle = titleByTrigger[trigger] || "AI-agent har analyseret ny rapport";
 
-      // In-app notification (always, regardless of Slack)
-      if (advisorId) {
-        await adminClient
-          .from("advisor_notifications")
-          .insert({
-            type: "agent_insight",
-            title: notificationTitle,
-            body: args.message,
-            company_id: args.company_id,
-            member_id: memberId || advisorId,
-            advisor_id: advisorId || null,
-            reference_type: "agent",
-          });
+      const { data: roller, error: rolleFejl } = await adminClient
+        .from("user_roles")
+        .select("user_id")
+        .in("role", ["advisor", "admin"]);
+      if (rolleFejl) {
+        console.error("[run-company-agent] notify_advisor: rådgiveropslag fejlede:", rolleFejl.message);
+        return { ok: false, reason: `raadgiveropslag: ${rolleFejl.message}` };
+      }
+      const raekker = klokkeRaekker(
+        ((roller ?? []) as { user_id: string }[]).map((r) => r.user_id),
+        { title: notificationTitle, body: args.message, company_id: args.company_id, member_id: memberId },
+      );
+      if (raekker.length === 0) return { ok: true, in_app: false, slack: false, modtagere: 0 };
+
+      // In-app notification (always, regardless of Slack) — ét batch-insert.
+      const { error: insFejl } = await adminClient.from("advisor_notifications").insert(raekker);
+      if (insFejl) {
+        console.error("[run-company-agent] notify_advisor: insert fejlede:", insFejl.message);
+        return { ok: false, reason: `insert: ${insFejl.message}` };
       }
 
       // Agent insight stays in-app only (advisor bell + company chat). No Slack post.
-      return { ok: true, in_app: !!advisorId, slack: false };
+      return { ok: true, in_app: true, slack: false, modtagere: raekker.length };
     }
 
     // Den idempotente skrivevej bor i _shared/agentSkriveveje.ts — delt
@@ -849,7 +871,6 @@ const INDHOLDS_OMRAADER: Array<{ key: string; label: string }> = [
   { key: "start_her", label: "Start her" },
   { key: "classroom", label: "Fundamentet" },
   { key: "academy", label: "Kurser" },
-  { key: "quick_wins", label: "Quick Wins" },
 ];
 
 /** Whitespace-normaliseret enkeltlinje (beskrivelser kan indeholde linjeskift). */
@@ -1056,12 +1077,16 @@ Deno.serve(async (req) => {
     // rapport- og anomali-kørslerne.
     company_review: ["write_chat_message", "notify_advisor"],
   };
-  const blocked = POOL_BLOCKLIST[trigger] ?? [];
-  const activeTools = blocked.length
-    ? tools.filter((t) => !blocked.includes(t.function.name))
-    : tools;
+  // TØR-KØRSLEN FORESLÅR KUN DET, DER KAN AFGØRES (30/9-2026, design §9):
+  // i tør-tilstand blokeres ogsaa hvert skrivetool, forslagEngine ikke kan
+  // godkende (i dag alt undtagen update_weekly_focus) — ét sted,
+  // _shared/agentToerkoersel.ts:blokeredeVaerktoejer. Samme liste bærer
+  // annonceringen OG afvisningen ved eksekvering. Live er uændret.
+  const blocked = blokeredeVaerktoejer(POOL_BLOCKLIST[trigger] ?? [], dryRun);
+  const annoncerede = annonceredeVaerktoejer(tools.map((t) => t.function.name), blocked);
+  const activeTools = tools.filter((t) => annoncerede.includes(t.function.name));
   if (blocked.length) {
-    console.log(`[run-company-agent] trigger=${trigger} blocking tools: ${blocked.join(", ")} (${activeTools.length}/${tools.length} tools available)`);
+    console.log(`[run-company-agent] trigger=${trigger} dry_run=${dryRun} blocking tools: ${blocked.join(", ")} (${activeTools.length}/${tools.length} tools available)`);
   }
 
   // Verify caller has RLS access to this company before any admin operations
@@ -1219,7 +1244,7 @@ Deno.serve(async (req) => {
     }
 
     const messages: any[] = [
-      { role: "system", content: `${SYSTEM_PROMPT}\n\n${indholdsbibliotek}` },
+      { role: "system", content: `${SYSTEM_PROMPT}\n\n${indholdsbibliotek}${dryRun ? `\n\n${toerPromptTillaeg(annoncerede)}` : ""}` },
       {
         role: "user",
         content: `VIRKSOMHED: ${companyData.name}
@@ -1236,7 +1261,7 @@ ${trigger === "pulse_submitted"
   : trigger === "anomaly_detected"
   ? `KRITISK ALERT: Der er detekteret en finansiel anomali for ${period_label}.\n\nDetaljer: ${period_key}\n\nHent get_financial_alerts og get_company_facts omgående. Er der et klart, konkret næste skridt founder bør tage, så opret det som handlingsopgave med write_company_action. Du må IKKE skrive i founderens chat. Opdatér IKKE weekly focus med negativ information.`
   : trigger === "onboarding"
-  ? `Founder ${founderFirstName} logger ind i The Boardroom for første gang.\n\nDette er en onboarding-kørsel. Du skriver IKKE i founderens chat — velkomsten er rådgiverens egen opgave. Gør følgende i rækkefølge:\n1. Hent ansøgningskontekst med get_application_context\n2. Hent virksomhedens brancheinfo\n3. Læs eventuelle mål med get_milestones — målene sættes af rådgiveren sammen med medlemmet, du opretter ingen\n4. Opret én konkret første handlingsopgave (fx upload første rapport)\n5. Sæt weekly focus med en velkomst-headline\n6. Kald finish`
+  ? `Founder ${founderFirstName} logger ind i The Boardroom for første gang.\n\nDette er en onboarding-kørsel. Du skriver IKKE i founderens chat — velkomsten er rådgiverens egen opgave. Gør følgende i rækkefølge:\n1. Hent ansøgningskontekst med get_application_context\n2. Hent virksomhedens brancheinfo\n3. Læs eventuelle mål med get_milestones — målene sættes af rådgiveren sammen med medlemmet, du opretter ingen\n4. Sæt weekly focus med en velkomst-headline — det er kørslens eneste forslag (en opgave som «upload første rapport» står allerede i medlemmets næste skridt og onboarding-tjekliste)\n5. Kald finish`
   : trigger === "company_review"
   ? `Rådgiveren har bedt om en samlet gennemgang af virksomheden — et blik på virksomheden som helhed, ikke på et enkelt dokument.\n\n${rapportStatusBlok}\n\nFølg din arbejdsgang: get_previous_agent_messages først, dernæst minimum get_company_facts, get_handout_levers, get_application_context og get_member_content_progress — plus pulse, milestones og KPI-mål.\n\nHvis rapporteringsstatussen ovenfor viser at virksomheden mangler at rapportere, eller har uploadet uden at godkende, SKAL du adressere det som et af dine punkter: at rapportere og forholde sig til sine egne tal ER rådgivning, og et hul i rapporteringen er en observation på linje med et hul i tallene. Findes der ingen godkendte tal overhovedet, er DET dit vigtigste punkt — analysér ikke videre på estimater som om de var friske tal.\n\nVIGTIGT: weekly focus-kortet er FOUNDER-SYNLIGT. Opdatér det kun hvis gennemgangen giver et medlemsrettet fokus at sætte — det må ALDRIG bære rådgiver-intern gennemgang. Rådgiver-forberedelses-sporet findes ikke længere; har kørslen intet medlemsrettet at skrive, så kald finish uden yderligere output. Du må IKKE skrive i founderens chat.`
   : `Ny rapport committed: ${period_label} (${period_key})\n\nFølg din arbejdsgang: get_previous_agent_messages først, og dernæst — gerne parallelt — get_company_facts, get_handout_levers, get_application_context, get_member_content_progress, get_milestones, get_kpi_targets og get_budget_vs_actual, så du har det fulde billede før du skriver. Hvis der er budget-afvigelser over 20%, prioritér disse.\n\nOpdatér weekly focus med dit vigtigste nøglefund. Du må IKKE skrive i founderens chat.\n\nBemærk: Hvis dette er virksomhedens første rapport, er der automatisk oprettet et udkast-budget og en årsbaseline baseret på de committede tal (annualiseret x12 med jævn fordeling). Tag dette med i din vurdering, fx at budgetmåneder der afviger fra gennemsnittet kan skulle justeres. Hvis der findes historiske årsrapport-facts (data_quality='estimat_fra_årsrapport_divideret_med_12') for tidligere år, så sammenlign årets udvikling med det historiske niveau.`
@@ -1333,7 +1358,7 @@ ${trigger === "pulse_submitted"
           // founder-chatten eller klokken for de fire rutine-triggers. Svaret fortaeller
           // modellen at kaldet blev afvist, saa den kan vaelge et tilladt tool naeste gang.
           console.log(`[run-company-agent] trigger=${trigger} BLOCKED tool call afvist: ${toolName}`);
-          toolResult = { ok: false, blocked: true, reason: `tool '${toolName}' ikke tilladt for trigger '${trigger}'` };
+          toolResult = { ok: false, blocked: true, reason: `tool '${toolName}' ikke tilladt for trigger '${trigger}'${dryRun ? " i tør-kørsel" : ""}` };
         } else if (dryRun && SKRIVE_TOOLS.has(toolName)) {
           // Tør-kørslens snit (design §4.1): skrivekaldet registreres som
           // forslag og udføres IKKE. Blocklist-tjekket står bevidst FØR —
@@ -1442,6 +1467,7 @@ ${trigger === "pulse_submitted"
           run_id: null,
           iterations,
           proposals: proposals.length,
+          annoncerede_vaerktoejer: annoncerede, // beviset for udrulningen (30/9, design §9)
           error: `run_log_failed: ${runLogError} — tør-kørslens forslag er IKKE gemt (er agent_runs-migrationen kørt i Lovable?)`,
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -1475,6 +1501,7 @@ ${trigger === "pulse_submitted"
             run_id: runId,
             iterations,
             proposals: proposals.length,
+            annoncerede_vaerktoejer: annoncerede, // beviset for udrulningen (30/9, design §9)
             error: `proposals_log_failed: ${propErr.message} — kørslen er logget (agent_runs), men forslagene er IKKE oprettet som beslutningsrækker (er agent_proposals-migrationen kørt i Lovable?)`,
           }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -1495,6 +1522,7 @@ ${trigger === "pulse_submitted"
           dry_run: dryRun,
           run_id: runId,
           proposals: proposals.length,
+          annoncerede_vaerktoejer: annoncerede, // beviset for udrulningen (30/9, design §9)
           error: lastError || "Agent fuldførte uden at producere output (weekly focus, handlingsopgave eller chat-besked)",
           diagnostics: { stop_reason: stopReasonFinal, produced_output: false },
         }),
@@ -1520,6 +1548,7 @@ ${trigger === "pulse_submitted"
         dry_run: dryRun,
         run_id: runId,
         proposals: proposals.length,
+        annoncerede_vaerktoejer: annoncerede, // beviset for udrulningen (30/9, design §9)
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
