@@ -32,7 +32,7 @@ Områderne er defineret i koden (`AREAS`). Samlingerne og videoerne ligger i dat
 | `start_her` | Start her | 3 videoer. Den 3. er «Din målsætning», som er koblet til handoutet `overordnet` (**målt 1/10**) | Synlig |
 | `classroom` | Fundamentet | Jonas' og Mortens egen undervisning. Samlingerne Bogholderi, Administration, Salg og Marketing svarer til handout-modulerne (**målt 1/10**) | Synlig |
 | `academy` | Kurser | Eksterne eksperter, enkeltstående kurser | Synlig |
-| `quick_wins` | Quick Wins | «Korte, hurtige videoer» | Skjult for medlemmer (**målt 1/10**). I koden står området stadig med `akademi: true` (**kodelæst**), så hvordan det skjules, er ikke læst ud |
+| `quick_wins` | Quick Wins | «Korte, hurtige videoer» | Skjult for medlemmer siden #1224 (2/10 nat): `akademi: false` + `medlemSkjult: true` i `AREAS`; 0 elementer i prod (målt 1/10). Intet er slettet |
 | `talks` | Optagelser | Optagelser af events. Vises kun på eventet | Ikke i Akademiet |
 
 Tal i alt: **77 videoer**, og **14 af dem bærer `handout_module`** (**målt 1/10**).
@@ -161,7 +161,7 @@ findes — de otte samlinger er discipliner, ikke trin». Det betyder to ting:
 | F4 | **Øvelsen afslutter hver samling.** Bygger på nattens punkt 2 (handouts → øvelser i Akademiet). Øvelsen står som sidste element i samlingen, og samlingen tæller først som gennemført, når øvelsen er udfyldt (spørgsmål 3). | Afhænger af punkt 2. Dommen for «samling gennemført» skal ligge ét sted. | Mellem | Blandt medlemmer, der selv har gennemført alle videoer i en samling: andelen, der også udfylder øvelsen. |
 | F5 | **En målstreg for Fundamentet.** Ikke 12-måneders-certifikatet, som allerede er lovet alle 29/9. I stedet et trofæ «Fundamentet gennemført» i `trofaeer.ts` (findes fra 1/10, læser kun tidspunkter). | Ny dom i trofæerne. Bruger kun egne rækker og forudsætter F0. | Lille | Antal medlemmer med trofæet. Andelen, der går fra modul 1 til «alle moduler». |
 | F6 | **Start her bliver én dør ind i Fundamentet.** Når «Din målsætning» er flyttet: én kort video, der slutter med «gå til Modul 1». Alternativt nedlægges området, og forsidens næste-lektion (F2) overtager. | Indhold, eventuelt `AREAS` | Lille | Samme mål som F2 (egen aktivitet i Fundamentet inden 14 dage). |
-| F7 | **Quick Wins ud af Akademiet.** Flaget `akademi: false` (som `talks`) eller arkivering. Hver video gennemgås: flyt den ind i den samling i Fundamentet, den hører til, eller arkivér den. Slet intet. | `AREAS`. Tjek først Community-links til `/akademiet/quick_wins/…` (`communityDokument.ts` og `CommunityLinkKort.tsx` kender området). | Lille | Kontrol, ikke effekt: 0 Quick Wins-kort for medlemmer, og 0 døde links i Community. |
+| F7 | **Quick Wins ud af Akademiet — BYGGET (#1224, 2/10).** Flaget `akademi: false` (som `talks`) eller arkivering. Hver video gennemgås: flyt den ind i den samling i Fundamentet, den hører til, eller arkivér den. Slet intet. | `AREAS`. Tjek først Community-links til `/akademiet/quick_wins/…` (`communityDokument.ts` og `CommunityLinkKort.tsx` kender området). | Lille (gjort) | Kontrol, ikke effekt: 0 Quick Wins-kort for medlemmer, og 0 døde links i Community. Værn: `quickWinsSkjult.guard`. |
 
 Rækkefølgen, vi anbefaler: **F0 → F7 → F1 → F6 → F2 → F4 → F5 → F3**. Begrundelsen:
 
