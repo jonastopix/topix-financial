@@ -1,4 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { SAET_MAAL_PARAM, SAET_MAAL_VAERDI } from "@/lib/hjemmebane/forsideMaal";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -216,6 +218,17 @@ export const DineMaalView = () => {
   const [kvartalEfterGem, setKvartalEfterGem] = useState<{ maalId: string; kvartal: Kvartal } | null>(null);
   const [sletId, setSletId] = useState<string | null>(null);
   const aabnGuide = (tilstand: GuideTilstand) => setGuide({ tilstand, nu: new Date() });
+  // Forsidens mørke kort «Sæt jeres første mål» (2/10 aften) lander her med ?saet=maal: guiden åbnes ÉN gang,
+  // og parameteren fjernes (replace), så «tilbage» og en genindlæsning ikke åbner den igen.
+  const [soegeParams, setSoegeParams] = useSearchParams();
+  const vilSaetteMaal = soegeParams.get(SAET_MAAL_PARAM) === SAET_MAAL_VAERDI;
+  useEffect(() => {
+    if (!vilSaetteMaal) return;
+    setGuide({ tilstand: GUIDE_NY, nu: new Date() });
+    const naeste = new URLSearchParams(soegeParams);
+    naeste.delete(SAET_MAAL_PARAM);
+    setSoegeParams(naeste, { replace: true });
+  }, [vilSaetteMaal, soegeParams, setSoegeParams]);
   // Runde 2, fund 7: guidens frosne åbningstidspunkt bærer også dommen i skriverne.
   const guideNu = guide?.nu ?? nu;
 

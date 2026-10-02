@@ -7,11 +7,10 @@ import { ArrowRight, ChevronDown, ChevronUp, ExternalLink, Play } from "lucide-r
 import { toast } from "sonner";
 import { HentningsFejl, kraevRaekker } from "@/lib/kraevRaekker";
 import { erManglendeKolonne } from "@/lib/manglendeTabel";
-import { dineMaalKvartalstjekKey, hentKvartalstjek, useDineMaalSkrivning } from "@/hooks/dineMaalGrundlag";
-import { BEKRAEFT_ORD, delBekraeftelser, erBekraeftet, KVARTAL_ORD, statusEfterKvartalValg, ventendeKvartalstjekAlle, type Kvartal } from "@/lib/hjemmebane/maalBekraeft";
-import { useMaalPladsdom } from "@/hooks/maalPladsdom";
-import { bekraeftelseSpaerret } from "@/lib/hjemmebane/maalPladsdom";
-import { BekraeftMaalKort, type BekraeftHandling, type KvartalHandling } from "@/components/hjemmebane/milestones/BekraeftMaalKort";
+import { dineMaalKvartalstjekKey, hentKvartalstjek, useDineMaalGrundlag } from "@/hooks/dineMaalGrundlag";
+import { delBekraeftelser, ventendeKvartalstjekAlle } from "@/lib/hjemmebane/maalBekraeft";
+import { FORSIDE_MAAL_ORD, forsideMaalTilstand, forslagListe, SAET_MAAL_STI } from "@/lib/hjemmebane/forsideMaal";
+import { ForsideMaalKort, VenterLinje } from "./ForsideMaalKort";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewMode } from "@/hooks/useViewMode";
@@ -70,7 +69,7 @@ import { maaskeRelevant, MAASKE_RELEVANT_PRAEFIKS } from "@/lib/hjemmebane/maask
 import { afgoerMilepael } from "@/lib/milepaelDom";
 import { ALLE_SKRIDT_GJORT_TEKST, dineMaalDom, DINE_MAAL_FEJL_TEKST, DINE_SKRIDT_FEJL_TEKST, TILFOEJ_SKRIDT_FEJL_TEKST, TILFOEJ_SKRIDT_KNAP_TEKST, TILFOEJ_SKRIDT_OK_TEKST, udskudtToastTekst, type SkridtTilDineMaal } from "@/lib/hjemmebane/dineMaal";
 import {
-  ANDRE_MAAL_OVERSKRIFT, FEJRING_VARIGHED_MS, fejring as lavFejring, forsidePlanDom, MAAL_UDEN_SKRIDT_TEKST, PLAN_INGEN_AKTIVE_TEKST, PLAN_TOM_BOOK, PLAN_TOM_SAET_MAAL, PLAN_TOM_TEKST, SE_HELE_PLANEN, UDEN_MAAL_OVERSKRIFT, VENTER_PAA_JA_OVERSKRIFT,
+  ANDRE_MAAL_OVERSKRIFT, FEJRING_VARIGHED_MS, fejring as lavFejring, forsidePlanDom, MAAL_UDEN_SKRIDT_TEKST, PLAN_INGEN_AKTIVE_TEKST, PLAN_TOM_BOOK, PLAN_TOM_TEKST, SE_HELE_PLANEN, UDEN_MAAL_OVERSKRIFT, VENTER_PAA_JA_OVERSKRIFT,
   type Fejring, type PlanSkridt,
 } from "@/lib/hjemmebane/forsidePlan";
 import { TilfoejSkridtForm } from "../milestones/HbMaalRaekke";
@@ -1397,8 +1396,6 @@ export const BoardroomView = () => {
     () => (milestonesQuery.data && kvartalstjekQuery.data ? ventendeKvartalstjekAlle(milestonesQuery.data, kvartalstjekQuery.data, new Date()) : []),
     [milestonesQuery.data, kvartalstjekQuery.data],
   );
-  // Skive 3: medlemmets skrivninger (bekræft/slip/nået/kvartalstjek) — hookets, med invalidering af alle kilder.
-  const maalSkriv = useDineMaalSkrivning({ companyId });
   // Skive 3: de ubekræftede aktive mål (forslag + gamle) — kortet i «Din plan» OG forsidens fokuspunkt
   // «N mål venter på jeres ja» (runde 2, fund 5) læser samme deling.
   const bekraeftelser = useMemo(() => (milestonesQuery.data ? delBekraeftelser(milestonesQuery.data) : { forslag: [], gamle: [] }), [milestonesQuery.data]);
@@ -1784,10 +1781,12 @@ export const BoardroomView = () => {
         : null,
       // Skive 3 (2/10): kvartalstjekket som fokuspunkt under hastende skridt — dømt ovenfor.
       kvartalstjek: ventendeKvartalstjek,
-      // Skive 3 (runde 2, fund 5): «N mål venter på jeres ja» → Dine mål — ét punkt under hastende skridt.
-      ubekraeftedeMaal,
+      // Skive 3 (runde 2, fund 5) gav «N mål venter på jeres ja» som fokuspunkt. 2/10 aften (Jonas' ja til
+      // mockuppen): «Din plan» bærer forslagene selv (linjen over kortene / forslagskortet) — samme besked
+      // to steder var mockuppens fund 2. Motoren er urørt; forsiden giver den ikke tallet.
+      ubekraeftedeMaal: null,
     });
-  }, [companyId, processedQuery.data, committedKeys, pulseQuery.data, unreadQuery.data, weeklyFocusQuery.data, actionsQuery.data, leversQuery.data, akademi.orderedByArea, ownProfileQuery.data, contractStartQuery.data, tjeklisteData.tjekliste, tjeklisteData.medlemSiden, milestonesQuery.data, skridtQuery.data, ventendeKvartalstjek, ubekraeftedeMaal]);
+  }, [companyId, processedQuery.data, committedKeys, pulseQuery.data, unreadQuery.data, weeklyFocusQuery.data, actionsQuery.data, leversQuery.data, akademi.orderedByArea, ownProfileQuery.data, contractStartQuery.data, tjeklisteData.tjekliste, tjeklisteData.medlemSiden, milestonesQuery.data, skridtQuery.data, ventendeKvartalstjek]);
 
   // Markér ugens fokus som SET når punktet faktisk vises — samme mekanik
   // som DashboardActionCenter:87-98 (mutation + engangs-ref).
@@ -1994,50 +1993,18 @@ export const BoardroomView = () => {
     [milestonesQuery.data, skridtQuery.data],
   );
   const plan = useMemo(() => (dineMaal ? forsidePlanDom(dineMaal, aftaleRaekker, new Date()) : null), [dineMaal, aftaleRaekker]);
-  // Pladsens regel, MÅLT (maalPladsdom; migration 20261002241000): under «kun_bekraeftede» afviser
-  // triggeren en bekræftelse ved 3 bekræftede aktive — kortet viser grunden i stedet (rådets fund 2/10).
-  const pladsdom = useMaalPladsdom();
-  const antalBekraeftedeAktive = useMemo(
-    () => (milestonesQuery.data ?? []).filter((m) => m.status === "active" && erBekraeftet(m)).length,
-    [milestonesQuery.data],
-  );
-
-  // SKIVE 3 (2/10-2026): forslag, gamle mål og kvartalstjek øverst i «Din plan» —
-  // SAMME komponent og SAMME skrivninger som /milestones (BekraeftMaalKort →
-  // dineMaalGrundlag). «Nået» her går gennem hookets markerMaalNaaet (ingen
-  // useMilestones på forsiden — fejringen hører /milestones til); «Justér» er
-  // et link til /milestones (redigeringen bor dér). Rådgiveren læser (isAdvisor).
-  const bekraeftHandling = async (maalId: string, handling: BekraeftHandling): Promise<string | null> => {
-    if (!user || !companyId) return "Du er ikke logget ind";
-    if (isAdvisor) return BEKRAEFT_ORD.kunMedlemmet;
-    const s = handling === "bekraeft" ? await maalSkriv.bekraeft({ maalId, userId: user.id, nu: new Date() }) : await maalSkriv.slip({ maalId });
-    if (s.ok === false) return s.grund;
-    toast.success(handling === "bekraeft" ? BEKRAEFT_ORD.bekraeftet : BEKRAEFT_ORD.slippet);
-    return null;
-  };
-  const kvartalHandling = async (h: KvartalHandling): Promise<string | null> => {
-    if (!user || !companyId) return "Du er ikke logget ind";
-    if (isAdvisor) return BEKRAEFT_ORD.kunMedlemmet;
-    // Handlingen FØR rækken (dineMaalGrundlag.registrerKvartalstjek).
-    if (h.valg === "parkeret") {
-      const s = await maalSkriv.slip({ maalId: h.maalId });
-      if (s.ok === false) return s.grund;
-    } else if (h.valg === "naaet") {
-      const s = await maalSkriv.markerNaaet({ maalId: h.maalId });
-      if (s.ok === false) return s.grund;
-    }
-    // Runde 2, fund 9: klientens dom (= policyens) FØR INSERT'en — grunden vises i stedet for en generisk fejl.
-    const maal = (milestonesQuery.data ?? []).find((m) => m.id === h.maalId);
-    const r = await maalSkriv.registrerKvartalstjek({
-      maalId: h.maalId, companyId, userId: user.id, kvartal: h.kvartal as Kvartal, valg: h.valg,
-      maal: maal ? { id: maal.id, status: statusEfterKvartalValg(maal.status, h.valg), bekraeftet_at: maal.bekraeftet_at } : null,
-      tjek: kvartalstjekQuery.data ?? [],
-      nu: new Date(),
-    });
-    if (r.ok === false) return r.grund;
-    toast.success(KVARTAL_ORD.registreret);
-    return null;
-  };
+  // ── DIN PLAN I TRE TILSTANDE (2/10-2026 aften — Jonas' ja til mockuppen «Din
+  // plan i tre tilstande»): motorens kort fra SAMME hook som /milestones
+  // (useDineMaalGrundlag → maalTal.maalKort; Score-hentningen deles), og den rene
+  // dom forsideMaalTilstand afgør «maal» · «forslag» · «tom». Behold/Slip og
+  // kvartalstjekkene er flyttet til Dine mål (BekraeftMaalKort tegnes ikke her):
+  // forsiden viser én linje eller ét kort med «Tag stilling». Topblokken (React #310).
+  const maalGrundlag = useDineMaalGrundlag(companyId ?? undefined);
+  const maalKortFor = (id: string) => maalGrundlag.kort.find((k) => k.id === id) ?? null;
+  const maalTilstand = forsideMaalTilstand({ bekraeftedeViste: plan?.maal.length ?? 0, ubekraeftede: ubekraeftedeMaal });
+  const forslagTitler = forslagListe([...bekraeftelser.forslag, ...bekraeftelser.gamle]);
+  // Kvartalstjekket står i «Dit næste skridt» (slot e2) — ikke også her.
+  const venterTekster = ubekraeftedeMaal > 0 ? [FORSIDE_MAAL_ORD.forslagLinje(ubekraeftedeMaal)] : [];
 
   // FEJRINGEN (PR 3, analyse §5 «intet bliver fejret»): når et skridt lukkes
   // som gjort, står det kort med ✓ og «Godt gået — {mål} er nu {N} %» under
@@ -2203,96 +2170,104 @@ export const BoardroomView = () => {
         </HbSection>
       )}
       {!actionsQuery.isError && !milestonesQuery.isError && !skridtQuery.isError && plan && (
-        <HbSection id="din-plan" eyebrow="Din plan" hairline linkLabel={SE_HELE_PLANEN} linkTo="/milestones" className="mt-10 md:mt-12" data-din-plan={plan.maal.length} data-din-plan-tom={plan.tom ? "1" : "0"}>
+        <HbSection id="din-plan" eyebrow="Din plan" hairline linkLabel={SE_HELE_PLANEN} linkTo="/milestones" className="mt-10 md:mt-12" data-din-plan={plan.maal.length} data-din-plan-tom={plan.tom ? "1" : "0"} data-din-plan-tilstand={maalTilstand}>
           <span id="dine-skridt" data-anker /><span id="dine-maal" data-anker />
-          {/* «Hvad er et mål?» (tillæg 17/9) — med mål: et lille link ved
-              sektionens header der folder forklaringen ud (native <details>,
-              lukket som standard). Uden mål står den ÅBEN i tom-tilstanden. */}
-          {!plan.tom && (
-            <details className="-mt-2 mb-4" data-maal-forklaring-fold>
-              <summary className="inline-block cursor-pointer list-none text-sm text-hb-evergreen underline-offset-4 hover:underline [&::-webkit-details-marker]:hidden">{MAAL_FORKLARING_OVERSKRIFT}</summary>
-              <HbMaalForklaring udenOverskrift className="mt-3" />
-            </details>
-          )}
-          {/* SKIVE 3: forslag, gamle mål og kvartalstjek — kræver medlemmets klik, før de tæller. */}
-          <BekraeftMaalKort bekraeftelser={bekraeftelser} kvartalstjek={ventendeKvartalstjek} kanKlikke={!isAdvisor} bekraeftSpaerret={bekraeftelseSpaerret(pladsdom, antalBekraeftedeAktive)} onBekraeft={bekraeftHandling} onKvartal={kvartalHandling} className="mb-6" />
           {/* FEJRINGEN øverst i sektionen — ét sted, uanset om målet stadig er
               blandt de aktive (ved 100 % er det nået i planens dom og rykker ud). */}
           {fejring && (
             <ul className="mb-3"><FejringRaekke fejring={fejring} /></ul>
           )}
-          {/* TOM — invitationen (medlemmet ejer sine mål, Jonas 16/9): ikke «I har ikke sat mål endnu». */}
-          {plan.tom && (
-            <div data-plan-tom>
-              <p className="max-w-2xl text-sm leading-relaxed text-hb-ink-soft">{PLAN_TOM_TEKST}</p>
-              <HbMaalForklaring className="mt-5" />
-              <div className="mt-5 flex flex-wrap gap-2">
-                <Link to="/milestones"><HbButton className="h-9 px-4 text-sm">{PLAN_TOM_SAET_MAAL}</HbButton></Link>
-                <Link to="/book-session"><HbButton variant="secondary" className="h-9 px-4 text-sm">{PLAN_TOM_BOOK}</HbButton></Link>
+          {/* TILSTAND A (2/10 aften, Jonas' ja til mockuppen): forslag og kvartalstjek
+              som ÉN linje over kortene — Behold/Slip bor på Dine mål. */}
+          {maalTilstand === "maal" && venterTekster.length > 0 && <VenterLinje tekster={venterTekster} />}
+          {/* TILSTAND B: kun forslag — ét roligt kort med titlerne og «Tag stilling». */}
+          {maalTilstand === "forslag" && (
+            <HbCard className="p-5 md:p-6" data-plan-forslag={ubekraeftedeMaal}>
+              <p className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
+                <span className="h-2 w-2 rounded-full bg-hb-amber" aria-hidden />{VENTER_PAA_JA_OVERSKRIFT}
+              </p>
+              <h3 className="mt-3 font-editorial text-xl font-medium leading-snug text-hb-ink md:text-2xl">{FORSIDE_MAAL_ORD.forslagOverskrift(ubekraeftedeMaal)}</h3>
+              <ul className="mt-4 space-y-2">
+                {forslagTitler.titler.map((t, i) => (
+                  <li key={`${i}-${t}`} className="flex items-baseline gap-3 text-[15px] leading-snug text-hb-ink">
+                    <span className="h-1.5 w-1.5 shrink-0 translate-y-[-2px] rounded-full bg-hb-ink/40" aria-hidden />{t}
+                  </li>
+                ))}
+                {forslagTitler.flere > 0 && <li className="pl-[18px] text-sm text-hb-ink-soft">{FORSIDE_MAAL_ORD.forslagFlere(forslagTitler.flere)}</li>}
+              </ul>
+              <p className="mt-4 max-w-xl text-sm leading-relaxed text-hb-ink-soft">{FORSIDE_MAAL_ORD.forslagTekst}</p>
+              <Link to="/milestones" className="mt-5 inline-block"><HbButton className="h-10 gap-1.5 px-5 text-sm">{FORSIDE_MAAL_ORD.tagStilling}<ArrowRight className="h-4 w-4" aria-hidden /></HbButton></Link>
+            </HbCard>
+          )}
+          {/* TILSTAND C: intet mål — det mørke kort (Jeres retning-fladen); guiden åbnes på /milestones. */}
+          {maalTilstand === "tom" && (
+            <div className="relative overflow-hidden rounded-[20px] bg-hb-evergreen px-[22px] py-7 text-hb-paper md:px-10 md:py-9" data-plan-tom>
+              <span aria-hidden className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full border border-hb-sage/20" />
+              <p className="relative text-[11px] font-semibold uppercase tracking-[0.14em] text-hb-amber">{FORSIDE_MAAL_ORD.tomEyebrow}</p>
+              <h3 className="relative mt-3 max-w-xl font-editorial text-2xl font-medium leading-snug md:text-[28px]">{plan.ingenAktive ? FORSIDE_MAAL_ORD.ingenAktiveOverskrift : FORSIDE_MAAL_ORD.tomOverskrift}</h3>
+              <p className="relative mt-3 max-w-xl text-sm leading-relaxed text-hb-paper/80">{plan.ingenAktive ? PLAN_INGEN_AKTIVE_TEKST : `${FORSIDE_MAAL_ORD.tomTekst} ${PLAN_TOM_TEKST}`}</p>
+              <div className="relative mt-6 flex flex-wrap gap-2">
+                <Link to={SAET_MAAL_STI}><HbButton className="h-10 bg-hb-paper px-5 text-sm text-hb-evergreen hover:bg-hb-paper/90">{plan.ingenAktive ? FORSIDE_MAAL_ORD.saetNytMaal : FORSIDE_MAAL_ORD.saetFoersteMaal}</HbButton></Link>
+                {plan.ingenAktive ? (
+                  <Link to="/milestones"><HbButton variant="secondary" className="h-10 border-hb-paper/40 px-5 text-sm text-hb-paper hover:bg-hb-paper/10">{FORSIDE_MAAL_ORD.seParkerede}</HbButton></Link>
+                ) : (
+                  <Link to="/book-session"><HbButton variant="secondary" className="h-10 border-hb-paper/40 px-5 text-sm text-hb-paper hover:bg-hb-paper/10">{PLAN_TOM_BOOK}</HbButton></Link>
+                )}
               </div>
             </div>
           )}
-          {plan.ingenAktive && (
-            <p className="text-sm text-hb-ink-soft" data-plan-ingen-aktive>
-              {PLAN_INGEN_AKTIVE_TEKST}{" "}
-              <Link to="/milestones" className="text-hb-evergreen underline-offset-4 hover:underline">{PLAN_TOM_SAET_MAAL}</Link>
-            </p>
-          )}
           {plan.maal.length > 0 && (
-            <ul data-plan-maal={plan.maal.length}>
+            <ul className="space-y-4" data-plan-maal={plan.maal.length}>
               {plan.maal.map((x) => (
-                <li key={x.plan.plan.maal.id} className="border-t border-hb-line py-4 first:border-t-0 last:border-b" data-maal-id={x.plan.plan.maal.id} data-maal-fremdrift={x.plan.plan.fremdrift} data-maal-beregnet={x.plan.plan.beregnet ? "1" : "0"}>
-                  <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-                    <p className="min-w-0 flex-1 basis-64 text-[15px] font-medium leading-snug text-hb-ink">{x.plan.plan.maal.title}</p>
-                    {x.plan.plan.dom.forfalden ? (
-                      <span className="text-sm font-medium text-hb-rust">{fristTekst(x.plan.plan.maal.deadline!, tilDatoStreng(new Date()))}</span>
-                    ) : x.plan.plan.maal.deadline ? (
-                      <span className="text-sm text-hb-ink-soft">{fristTekst(x.plan.plan.maal.deadline, tilDatoStreng(new Date()))}</span>
-                    ) : null}
-                  </div>
-                  <div className="mt-2 h-[3px] overflow-hidden rounded-full bg-hb-line">
-                    <div className="h-full rounded-full bg-hb-evergreen/70" style={{ width: `${x.plan.plan.fremdrift}%` }} />
-                  </div>
-                  <p className="mt-1 text-sm text-hb-ink-soft">
-                    {x.plan.fremdriftTekst}
-                    {x.forslag.length > 0 && <span> · {x.forslag.length} {x.forslag.length === 1 ? "forslag venter" : "forslag venter"}</span>}
-                  </p>
-                  {x.alleGjort && (
-                    <p className="mt-1 text-sm" data-alle-gjort>
-                      <Link to="/milestones" className="text-hb-evergreen underline-offset-4 hover:underline">{ALLE_SKRIDT_GJORT_TEKST}</Link>
-                    </p>
-                  )}
-                  {/* Skridtene under målet: aktive, så forslag. */}
-                  {(x.aktive.length > 0 || x.forslag.length > 0) && (
-                    <ul className="mt-3 border-l-2 border-hb-line pl-4">
-                      {x.aktive.map((a) => (
-                        <PlanSkridtRaekke key={a.id} skridt={a} slags="aktiv" busy={planBusy} maalFrist={maalFristFor(a)} onKald={(kald) => opgaveMutation.mutate(kald)} />
-                      ))}
-                      {x.forslag.map((f) => (
-                        <PlanSkridtRaekke key={f.id} skridt={f} slags="forslag" ansigt={raadgiverAnsigt(f, raadgivere)} busy={planBusy} maalFrist={maalFristFor(f)} onKald={(kald) => opgaveMutation.mutate(kald)} />
-                      ))}
-                    </ul>
-                  )}
-                  {/* «+ Tilføj skridt» — #946's formular (samme function). Uden skridt: «Tilføj det første skridt». */}
-                  {tilfoejAaben === x.plan.plan.maal.id ? (
-                    <div className="mt-3 max-w-xl">
-                      <TilfoejSkridtForm maalId={x.plan.plan.maal.id} maalFrist={x.plan.plan.maal.deadline} busy={planBusy} onTilfoej={(titel, dueDate) => tilfoejSkridt(x.plan.plan.maal.id, titel, dueDate)} onLuk={() => setTilfoejAaben(null)} knapTekst={x.udenSkridt ? MAAL_UDEN_SKRIDT_TEKST : undefined} />
-                    </div>
-                  ) : (
-                    <button type="button" disabled={planBusy} onClick={() => setTilfoejAaben(x.plan.plan.maal.id)} className="mt-3 text-xs text-hb-evergreen underline-offset-4 hover:underline disabled:opacity-50" data-handling="tilfoej-skridt">
-                      + {x.udenSkridt ? MAAL_UDEN_SKRIDT_TEKST : TILFOEJ_SKRIDT_KNAP_TEKST}
-                    </button>
-                  )}
+                <li key={x.plan.plan.maal.id} data-maal-id={x.plan.plan.maal.id} data-maal-fremdrift={x.plan.plan.fremdrift} data-maal-beregnet={x.plan.plan.beregnet ? "1" : "0"}>
+                  <ForsideMaalKort
+                    kort={maalKortFor(x.plan.plan.maal.id)}
+                    titel={x.plan.plan.maal.title}
+                    fremdrift={x.plan.plan.fremdrift}
+                    fristTekst={x.plan.plan.maal.deadline ? fristTekst(x.plan.plan.maal.deadline, tilDatoStreng(new Date())) : null}
+                    fristForfalden={x.plan.plan.dom.forfalden}
+                  >
+                    {/* Skridtene under målet: det NÆSTE aktive (forfaldne øverst), så forslagene — resten bor på Dine mål. */}
+                    {(x.aktive.length > 0 || x.forslag.length > 0) && (
+                      <ul className="mt-1">
+                        {x.aktive.slice(0, 1).map((a) => (
+                          <PlanSkridtRaekke key={a.id} skridt={a} slags="aktiv" busy={planBusy} maalFrist={maalFristFor(a)} onKald={(kald) => opgaveMutation.mutate(kald)} />
+                        ))}
+                        {x.forslag.map((f) => (
+                          <PlanSkridtRaekke key={f.id} skridt={f} slags="forslag" ansigt={raadgiverAnsigt(f, raadgivere)} busy={planBusy} maalFrist={maalFristFor(f)} onKald={(kald) => opgaveMutation.mutate(kald)} />
+                        ))}
+                      </ul>
+                    )}
+                    {x.aktive.length > 1 && (
+                      <Link to="/milestones" className="mt-1 inline-block text-xs text-hb-ink-soft underline-offset-4 hover:text-hb-ink hover:underline" data-flere-skridt={x.aktive.length - 1}>{FORSIDE_MAAL_ORD.flereSkridt(x.aktive.length - 1)}</Link>
+                    )}
+                    {x.alleGjort && (
+                      <p className="mt-2 text-sm" data-alle-gjort>
+                        <Link to="/milestones" className="text-hb-evergreen underline-offset-4 hover:underline">{ALLE_SKRIDT_GJORT_TEKST}</Link>
+                      </p>
+                    )}
+                    {/* «+ Tilføj skridt» — #946's formular (samme function). Uden skridt: «Tilføj det første skridt». */}
+                    {tilfoejAaben === x.plan.plan.maal.id ? (
+                      <div className="mt-3">
+                        <TilfoejSkridtForm maalId={x.plan.plan.maal.id} maalFrist={x.plan.plan.maal.deadline} busy={planBusy} onTilfoej={(titel, dueDate) => tilfoejSkridt(x.plan.plan.maal.id, titel, dueDate)} onLuk={() => setTilfoejAaben(null)} knapTekst={x.udenSkridt ? MAAL_UDEN_SKRIDT_TEKST : undefined} />
+                      </div>
+                    ) : (
+                      <button type="button" disabled={planBusy} onClick={() => setTilfoejAaben(x.plan.plan.maal.id)} className={cn("text-xs text-hb-evergreen underline-offset-4 hover:underline disabled:opacity-50", x.aktive.length + x.forslag.length === 0 ? "mt-2 block font-editorial text-base" : "mt-3 block")} data-handling="tilfoej-skridt">
+                        + {x.aktive.length + x.forslag.length === 0 ? MAAL_UDEN_SKRIDT_TEKST : TILFOEJ_SKRIDT_KNAP_TEKST}
+                      </button>
+                    )}
+                  </ForsideMaalKort>
                 </li>
               ))}
             </ul>
           )}
           {plan.flere > 0 && (
-            <p className="mt-3 text-sm text-hb-ink-soft">+{plan.flere} {plan.flere === 1 ? "aktivt mål mere" : "aktive mål mere"} — se dem alle under Din plan.</p>
+            <p className="mt-3 text-sm"><Link to="/milestones" className="text-hb-ink-soft underline-offset-4 hover:text-hb-ink hover:underline">{FORSIDE_MAAL_ORD.flereMaal(plan.flere)}</Link></p>
           )}
           {plan.overGraensen && <p className="mt-1 text-sm text-hb-rust">{plan.graenseTekst}</p>}
+          {/* JERES SKRIDT: skridt uden mål, under andre mål og under mål, der venter på et ja — med forsidens knapper. */}
           {(plan.udenMaal.aktive.length > 0 || plan.udenMaal.forslag.length > 0) && (
-            <div className="mt-6" data-plan-uden-maal>
+            <div className="mt-8" data-plan-uden-maal>
               <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{UDEN_MAAL_OVERSKRIFT}</p>
               <ul className="mt-2">
                 {plan.udenMaal.aktive.map((a) => (
@@ -2304,9 +2279,9 @@ export const BoardroomView = () => {
               </ul>
             </div>
           )}
-          {/* Skive 3 (rådets fund 7): skridt under et UBEKRÆFTET mål venter med målet — kortet øverst — ikke «Uden mål». */}
+          {/* Skive 3 (rådets fund 7): skridt under et UBEKRÆFTET mål venter med målet — ikke «Uden mål». */}
           {(plan.venterPaaJa.aktive.length > 0 || plan.venterPaaJa.forslag.length > 0) && (
-            <div className="mt-6" data-plan-venter-paa-ja>
+            <div className="mt-8" data-plan-venter-paa-ja>
               <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{VENTER_PAA_JA_OVERSKRIFT}</p>
               <ul className="mt-2">
                 {plan.venterPaaJa.aktive.map((a) => (
@@ -2319,7 +2294,7 @@ export const BoardroomView = () => {
             </div>
           )}
           {(plan.andre.aktive.length > 0 || plan.andre.forslag.length > 0) && (
-            <div className="mt-6" data-plan-andre>
+            <div className="mt-8" data-plan-andre>
               <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{ANDRE_MAAL_OVERSKRIFT}</p>
               <ul className="mt-2">
                 {plan.andre.aktive.map((a) => (
@@ -2331,6 +2306,12 @@ export const BoardroomView = () => {
               </ul>
             </div>
           )}
+          {/* «Hvad er et mål?» (tillæg 17/9) — foldet nederst i alle tre tilstande (2/10 aften: før stod den åben i
+              tom-tilstanden og øverst med mål; nu bærer det mørke kort invitationen, og forklaringen er et opslag). */}
+          <details className="mt-6" data-maal-forklaring-fold>
+            <summary className="inline-block cursor-pointer list-none text-sm text-hb-evergreen underline-offset-4 hover:underline [&::-webkit-details-marker]:hidden">{MAAL_FORKLARING_OVERSKRIFT}</summary>
+            <HbMaalForklaring udenOverskrift className="mt-3" />
+          </details>
         </HbSection>
       )}
 

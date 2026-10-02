@@ -15,8 +15,12 @@ import { resolve } from "node:path";
 //      (ordene bor i kpiMaal.PEJLEMAERKE_ORD); Score-løfteren peger på /milestones.
 //   4. Kvartalstjekket — ordforrådet (KVARTALER, KVARTAL_VALG) står ORDRET i
 //      migrationens CHECK'e; handlingen skrives FØR rækken (parkér/nået →
-//      registrér); tjekket er i begge flader (Dine mål + forsiden) gennem
-//      SAMME komponent, og rådgiverens forside bærer linjen.
+//      registrér); tjekket TAGES på Dine mål (BekraeftMaalKort), og rådgiverens
+//      forside bærer linjen. RETTET 2/10-2026 aften (Jonas' ja til mockuppen
+//      «Din plan i tre tilstande»): før var tjekket også på medlemmets forside
+//      gennem samme komponent; nu peger forsidens fokuspunkt (slot e2) på
+//      /milestones#kvartalstjek, og forsiden skriver hverken bekræftelser eller
+//      tjek — den har ingen BekraeftMaalKort og ingen registrerKvartalstjek.
 //   5. Fail-soft — hentningerne falder tilbage ved en manglende kolonne/tabel
 //      (erManglendeKolonne/erManglendeTabel), og erBekraeftet dømmer undefined
 //      som «i dag» (bekræftet).
@@ -134,8 +138,10 @@ export const kvartalstjekHolder = (motor: string, migration: string, view: strin
   return (
     !!kvartaler && kvartaler === sqlKvartal && !!valg && valg === sqlValg &&
     /UNIQUE \(milestone_id, kvartal\)/.test(sql) &&
-    handlingFoerRaekke(v) && handlingFoerRaekke(f) &&
-    /<BekraeftMaalKort/.test(v) && /<BekraeftMaalKort/.test(f) &&
+    handlingFoerRaekke(v) &&
+    /<BekraeftMaalKort/.test(v) &&
+    // 2/10 aften: forsiden tager ikke tjekket — kun Dine mål skriver det.
+    !/<BekraeftMaalKort/.test(f) && !/registrerKvartalstjek|const kvartalHandling/.test(f) &&
     /kvartalstjek: ventendeKvartalstjek,/.test(f) &&
     /kind: "kvartalstjek"/.test(udenKommentarer(nextStep)) &&
     /<KvartalstjekVenter hentning=\{kvartalstjekQuery\}/.test(udenKommentarer(raadgiverForside))
@@ -230,7 +236,8 @@ export const domFoerInsert = (hook: string, motor: string, view: string, forside
     /return doemKvartalstjek\(maal, tjek, kvartal, valg, nu\)\.ok;/.test(m) &&
     // Begge flader giver målet som det står EFTER handlingen og de registrerede rækker med.
     /status: statusEfterKvartalValg\(raa\.status, valg\)/.test(udenKommentarer(view)) &&
-    /status: statusEfterKvartalValg\(maal\.status, h\.valg\)/.test(udenKommentarer(forside))
+    // 2/10 aften: forsiden registrerer intet tjek (det tages på Dine mål).
+    !/registrerKvartalstjek/.test(udenKommentarer(forside))
   );
 };
 
@@ -283,6 +290,8 @@ describe("dineMaalSkive3.guard", () => {
     expect(kvartalstjekHolder(motor.replace('["behold", "justeret", "parkeret", "naaet"]', '["behold", "justeret", "parkeret", "naaet", "slettet"]'), migration, view, forside, nextStep, raadgiver)).toBe(false);
     expect(kvartalstjekHolder(motor, migration, view, forside.replace("kvartalstjek: ventendeKvartalstjek,", ""), nextStep, raadgiver)).toBe(false);
     expect(kvartalstjekHolder(motor, migration, view, forside, nextStep, raadgiver.replace("<KvartalstjekVenter hentning={kvartalstjekQuery}", "<div"))).toBe(false);
+    // 2/10 aften: kortet tilbage på forsiden fælder.
+    expect(kvartalstjekHolder(motor, migration, view, forside + "\n<BekraeftMaalKort />", nextStep, raadgiver)).toBe(false);
   });
 
   it("dom 5: fail-soft på en manglende kolonne/tabel — klienten opfører sig som i dag", () => {
@@ -318,7 +327,7 @@ describe("dineMaalSkive3.guard", () => {
     expect(naaetGuardet(view.replace(/\n\s*fejr\(msAf[^\n]*\n/, "\n"))).toBe(false);
   });
 
-  it("dom 9: doemKvartalstjek FØR INSERT'en (grunden vises), i begge flader", () => {
+  it("dom 9: doemKvartalstjek FØR INSERT'en (grunden vises) — på Dine mål; forsiden registrerer intet", () => {
     const hook = laes(HOOK);
     const motor = laes(MOTOR);
     const view = laes(VIEW);
@@ -328,6 +337,7 @@ describe("dineMaalSkive3.guard", () => {
     expect(domFoerInsert(hook.replace("const dom = doemKvartalstjek(args.maal, args.tjek, args.kvartal, args.valg, args.nu);\n    if (dom.ok === false) return { ok: false, grund: dom.grund, afventerMigration: false };", ""), motor, view, forside)).toBe(false);
     expect(domFoerInsert(hook, motor.replace("return doemKvartalstjek(maal, tjek, kvartal, valg, nu).ok;", "return true;"), view, forside)).toBe(false);
     expect(domFoerInsert(hook, motor, view.replace("status: statusEfterKvartalValg(raa.status, valg)", "status: raa.status"), forside)).toBe(false);
+    expect(domFoerInsert(hook, motor, view, forside + "\nawait maalSkriv.registrerKvartalstjek({});")).toBe(false);
   });
 
   it("dom 10: Genåbn og Aktivér bekræfter ved klikket (aktiverFelter); GAMLE_MAAL_FOER udledes af KVARTALSTJEK_FRA", () => {
