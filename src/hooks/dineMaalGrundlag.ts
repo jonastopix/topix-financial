@@ -58,6 +58,7 @@ import { boardroomScoreKey, GRUNDLAG_GENHENT_MS, DOM_UR_MS, hentScoreGrundlag, t
 import { kraevRaekke, kraevRaekker } from "@/lib/kraevRaekker";
 import { erManglendeKolonne, erManglendeTabel } from "@/lib/manglendeTabel";
 import { markerMaalNaaetKlik } from "@/hooks/maalNaaetKlik";
+import { TJEKLISTE_QUERY_KEY } from "@/hooks/useOnboardingTjekliste";
 import { maalFejlTekst } from "@/lib/hjemmebane/maalFejl";
 import { doemMaalFristModSkridt } from "@/lib/hjemmebane/skridtForslag";
 import type { ScoreMaaned } from "@/lib/boardroomScore";
@@ -665,13 +666,17 @@ export async function gemRetning(args: {
 }
 
 /** Nøglerne, en mål-skrivning gør forældede (fund 17). useMilestones har ingen — den genhenter selv.
-    Skive 3: også forsidens kilder (["boardroom"] — milestonesQuery/fokus) og Score (harMaal læser målene). */
+    Skive 3: også forsidens kilder (["boardroom"] — milestonesQuery/fokus) og Score (harMaal læser målene).
+    Kom godt i gang (rådets fund 2/10): også tjeklisten — «Det er vores mål» krydser punktet «Sæt dit
+    første mål» af, og uden invalidering stod cachen (staleTime 60 s) med det gamle svar i op til et
+    minut. Samme mønster som CommunityView efter præsentationen: hele nøglen [TJEKLISTE_QUERY_KEY]. */
 export const maalSkrivningNoegler = (companyId: string): readonly (readonly unknown[])[] => [
   ["dine-maal"],
   ["virksomhed", companyId],
   ["pulse-milestones", companyId],
   ["boardroom"],
   ["boardroom-score"],
+  [TJEKLISTE_QUERY_KEY],
 ];
 
 export async function invaliderEfterMaalSkrivning(qc: Pick<QueryClient, "invalidateQueries">, companyId: string): Promise<void> {

@@ -26,6 +26,7 @@ function kaede(tabel: string) {
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: (t: string) => kaede(t) } }));
 
+import { TJEKLISTE_QUERY_KEY } from "@/hooks/useOnboardingTjekliste";
 import {
   AFVENTER_MIGRATION_TEKST,
   ALLEREDE_SKARPT_TEKST,
@@ -362,8 +363,10 @@ describe("invalidering (fund 17)", () => {
   it("dine-maal, virksomhedssiden og pulsens mål", async () => {
     const noegler: unknown[] = [];
     await invaliderEfterMaalSkrivning({ invalidateQueries: (f: { queryKey: unknown }) => (noegler.push(f.queryKey), Promise.resolve()) } as never, "c1");
-    expect(noegler).toEqual([["dine-maal"], ["virksomhed", "c1"], ["pulse-milestones", "c1"], ["boardroom"], ["boardroom-score"]]);
-    expect(maalSkrivningNoegler("c1")).toHaveLength(5);
+    // Tjeklisten (rådets fund 2/10): «Det er vores mål» krydser «Sæt dit første mål» af med det samme.
+    expect(noegler).toEqual([["dine-maal"], ["virksomhed", "c1"], ["pulse-milestones", "c1"], ["boardroom"], ["boardroom-score"], [TJEKLISTE_QUERY_KEY]]);
+    expect(TJEKLISTE_QUERY_KEY).toBe("onboarding-tjekliste");
+    expect(maalSkrivningNoegler("c1")).toHaveLength(6);
   });
 });
 

@@ -181,7 +181,7 @@ export function komIGangTekst(fornavn: string | null | undefined, harVelkomstvid
     `Upload og godkend din første rapport — ${historikSaetning(nu)}`,
     "Sæt dit første mål — ét mål med en frist, så I ved hvad I arbejder hen imod.",
     "Fortæl, hvad man kan spørge dig om — og sig hej: et foto af dig, hvad de andre i netværket kan spørge dig om, og et opslag om hvem du er.",
-    "Gennemfør din første lektion med øvelse — øvelsen ligger under lektionen i Akademiet.",
+    "Lav din første øvelse i Akademiet — øvelsen ligger under lektionen; udfyld den, og tag den med til din rådgiver.",
   ];
   return {
     emne: "Sådan kommer du i gang i The Boardroom",

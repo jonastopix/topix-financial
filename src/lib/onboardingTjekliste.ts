@@ -30,7 +30,7 @@
  *   3. tal         Dine tal      · Upload og godkend din første rapport
  *   4. maal        Dine mål      · Sæt dit første mål (bekræftet)
  *   5. netvaerk    Netværket     · «Spørg mig om» + sig hej i Community
- *   6. akademi     Akademiet     · Gennemfør din første lektion med øvelse
+ *   6. akademi     Akademiet     · Lav din første øvelse i Akademiet
  * Rækkefølgen er låst af testen i src/lib/__tests__/onboardingTjekliste.test.ts
  * mod SEKS_STEDER i hbNav.ts.
  *
@@ -41,9 +41,10 @@
  *                            og CVR er sat)
  *   besked                 → raadgiver  (uændret dom: last_member_message_at)
  *   rapport                → tal        (uændret dom: en facts-række)
- *   NYT                    → maal       (et AKTIVT, BEKRÆFTET mål — dommen
- *                            er Dine måls egen, maalBekraeft.erBekraeftet;
- *                            kun for medlemmer fra MAAL_PUNKT_FRA, se nedenfor)
+ *   NYT                    → maal       (et BEKRÆFTET mål, aktivt, nået
+ *                            eller parkeret — dommen er Dine måls egen,
+ *                            maalBekraeft.erBekraeftet; kun for medlemmer fra
+ *                            MAAL_PUNKT_FRA, se nedenfor)
  *   profil + praesentation → netvaerk   (gjort når BEGGE er: tekst OG foto —
  *                            profilUdfyldt — OG en aktiv præsentationstråd;
  *                            uden trådret kun profilen)
@@ -78,7 +79,15 @@
  * boksen, som før) så længe den ikke er set, ellers /settings; netvaerk →
  * profilen (/settings?fane=profil) så længe tekst eller foto mangler, ellers
  * composeren (/community?praesentation=1). `mangler` siger, hvad der er
- * tilbage, så medlemmet aldrig er i tvivl om, hvorfor punktet ikke er krydset.
+ * tilbage, så medlemmet aldrig er i tvivl om, hvorfor punktet ikke er krydset
+ * — og `gjort_dele` det, der ER gjort (rådets fund 2/10: «Velkomsten er set ✓
+ * — mangler: …»), så ingen oplever at miste et flueben ved sammenlægningen.
+ *
+ * STEDER KUN FOR DET FULDE MEDLEM (rådets fund 2/10): abonnent og legat har
+ * hverken Netværket eller Akademiet. Punkterne bliver (de gjaldt dem før
+ * 2/10), mærkerne går (sted = null), og Akademi-punktet fører til
+ * handout-listen som «Udfyld dit første handout». Begrundelsen står ved
+ * `fuldtMedlem` i byggTjekliste.
  *
  * DATAGRUNDLAG (målt 2/9, recon-onboarding-tjekliste.md §1): hvert felt i
  * TjeklisteInput har en kommentar om hvor det kommer fra. Kalderen henter
@@ -104,12 +113,19 @@ import { afsluttedeMaanederTekst, erMaanedAfsluttet } from "./maanedsnoegle";
 export type TjeklistePunktId = "boardroom" | "raadgiver" | "tal" | "maal" | "netvaerk" | "akademi";
 
 /**
- * Mål-punktet gælder for medlemmer oprettet fra denne dag og frem
- * (UTC-midnat). Sat 2/10 til dagen efter bygningen — som DELING_PUNKT_FRA
- * blev 14/9. Rettes kun med vilje — flyttes den bagud, åbner listen igen
+ * Mål-punktet gælder for medlemmer oprettet fra dette øjeblik og frem.
+ * Sat til Update-klikket: Update klikkes 2/10-2026 ca. kl. 11:00 dansk tid
+ * (rådets fund 2/10 — før stod her 3/10 00:00Z, som gav et medlem oprettet
+ * 2/10 efter Update fem punkter, skønt listen med seks var i drift).
+ * Regnestykket: 2/10 er dansk sommertid (CEST = UTC+2; sommertiden slutter
+ * sidste søndag i oktober, 25/10-2026), så 11:00 dansk = 11:00 − 2 t =
+ * 09:00 UTC → "2026-10-02T09:00:00.000Z". Et medlem oprettet FØR det
+ * øjeblik fik den gamle liste (uden mål) og får fem punkter; et medlem
+ * oprettet fra 09:00Z og frem får seks (grænsen er inklusiv, maalPunktGaelder
+ * bruger >=). Rettes kun med vilje — flyttes den bagud, åbner listen igen
  * for dem der var færdige (filhovedet).
  */
-export const MAAL_PUNKT_FRA = "2026-10-03T00:00:00.000Z";
+export const MAAL_PUNKT_FRA = "2026-10-02T09:00:00.000Z";
 
 /** Gælder mål-punktet for et medlem oprettet på dette tidspunkt? Null/ugyldig → nej. */
 export function maalPunktGaelder(medlemSiden: string | null | undefined): boolean {
@@ -117,6 +133,9 @@ export function maalPunktGaelder(medlemSiden: string | null | undefined): boolea
   const t = new Date(medlemSiden).getTime();
   return Number.isFinite(t) && t >= new Date(MAAL_PUNKT_FRA).getTime();
 }
+
+/** Status, et bekræftet mål tæller som «sat» med (rådets fund 2/10): aktivt, nået eller parkeret. */
+export const MAAL_GJORT_STATUS: readonly string[] = ["active", "completed", "parked"];
 
 /** Det af milestones-rækken tjeklisten læser — samme felter som Dine måls bekræftelsesdom. */
 export interface MaalTilTjekliste {
@@ -220,8 +239,13 @@ export interface TjeklisteInput {
 
 export interface TjeklistePunkt {
   id: TjeklistePunktId;
-  /** Stedet i menuen, punktet hører til — mærket over titlen. */
-  sted: Sted;
+  /**
+   * Stedet i menuen, punktet hører til — mærket over titlen. null = intet
+   * mærke: stedet findes ikke i medlemmets menu (abonnent og legat har
+   * hverken Netværket eller Akademiet — se STEDER KUN FOR DET FULDE MEDLEM
+   * i filhovedet). Et mærke, der peger på et sted, man ikke har, er usandt.
+   */
+  sted: Sted | null;
   /** «Skriv din første besked» */
   titel: string;
   /** Én kort linje. */
@@ -236,6 +260,15 @@ export interface TjeklistePunkt {
    * er gjort.
    */
   mangler?: string[];
+  /**
+   * Kun for de SAMMENLAGTE punkter (boardroom, netvaerk — rådets fund
+   * 2/10): den halvdel, der allerede er gjort, så ingen oplever at miste et
+   * flueben ved sammenlægningen. Før 2/10 var «Velkomsten» sit eget krydsede
+   * punkt; nu står den i punktet som «Velkomsten er set ✓». Tom liste, når
+   * intet er gjort — og uden betydning, når punktet er gjort (fladen viser
+   * da kun det krydsede punkt). Linjen bygges af manglerLinje.
+   */
+  gjort_dele?: string[];
 }
 
 export interface Tjekliste {
@@ -290,6 +323,11 @@ export const TJEKLISTE_STIER = {
   // har ingen handout-liste). Tællingen (antal_udfyldte_handouts) er uændret:
   // øvelsen ER handoutet.
   akademi: "/akademiet",
+  // Abonnent og legat (rådets fund 2/10): ingen lektioner i Akademiet
+  // (content_items bag har_aktivt_medlemskab, som udelukker legat og ikke
+  // læser abonnementet — docs/adgangsdomme.md dom 4), men handout-listen
+  // (/handouts, «Handouts» under Dine tal i abonnentens menu, hbNav.ts).
+  handouts: "/handouts",
 } as const;
 
 /** Teksterne for det der kan mangle — eksporteret så fladen og testen bruger samme ord. */
@@ -305,6 +343,33 @@ export const MANGLER_TEKST = {
   afsluttet_maaned: "en afsluttet måned",
   bekraeftelse: "at sige ja til det mål, der venter",
 } as const;
+
+/** Det gjorte i et sammenlagt punkt (TjeklistePunkt.gjort_dele) — én liste, så fladen og testen bruger samme ord. */
+export const GJORT_TEKST = {
+  velkomst: "Velkomsten er set",
+  virksomhed: "Virksomheden er udfyldt",
+  profil: "Profilen er udfyldt",
+  praesentation: "Du har sagt hej i Community",
+} as const;
+
+/**
+ * Linjen under et ikke-gjort punkt: det gjorte med flueben, så det, der
+ * mangler — «Velkomsten er set ✓ — mangler: virksomhedens website,
+ * branchen». Uden noget gjort: «Mangler: …», som før. null = ingen linje
+ * (intet mangler, eller punktet er gjort). Ren, så fladen ikke regner.
+ */
+export function manglerLinje(punkt: Pick<TjeklistePunkt, "gjort" | "mangler" | "gjort_dele">): string | null {
+  const mangler = punkt.mangler ?? [];
+  if (punkt.gjort || mangler.length === 0) return null;
+  const gjorte = punkt.gjort_dele ?? [];
+  if (gjorte.length === 0) return `Mangler: ${mangler.join(", ")}`;
+  return `${gjorte.map((d) => `${d} ✓`).join(" · ")} — mangler: ${mangler.join(", ")}`;
+}
+
+/** Akademi-punktets titel for det fulde medlem — mailen (onboardingRytme, begge spejle) begynder med den. */
+export const AKADEMI_TITEL = "Lav din første øvelse i Akademiet";
+/** Samme punkt for abonnent og legat — ingen lektioner, handout-listen (se STEDER KUN FOR DET FULDE MEDLEM). */
+export const HANDOUT_TITEL = "Udfyld dit første handout";
 
 /** Sat = ikke null OG ikke kun mellemrum. Et website på « » er ikke et website. */
 function erSat(vaerdi: string | null | undefined): boolean {
@@ -330,6 +395,11 @@ export function byggTjekliste(input: TjeklisteInput, nu: Date = new Date()): Tje
   // 1. DIT BOARDROOM = velkomsten (med video) + virksomheden. Stien er den
   // første handling, der mangler: videoen i boksen, ellers /settings.
   const boardroomMangler = [...(velkomstMangler ? [MANGLER_TEKST.velkomst] : []), ...virksomhedMangler];
+  // Det gjorte (rådets fund 2/10): velkomsten kun, når der ER en video.
+  const boardroomGjortDele = [
+    ...(input.har_velkomstvideo && !velkomstMangler ? [GJORT_TEKST.velkomst] : []),
+    ...(virksomhedMangler.length === 0 ? [GJORT_TEKST.virksomhed] : []),
+  ];
 
   // 2. DIN RÅDGIVER — triggeren sætter stemplet kun for beskeder fra ikke-
   // rådgivere, så det kan ikke krydses af ved at rådgiveren skriver først.
@@ -362,12 +432,15 @@ export function byggTjekliste(input: TjeklisteInput, nu: Date = new Date()): Tje
       ? [MANGLER_TEKST.godkendelse]
       : [];
 
-  // 4. DINE MÅL — et AKTIVT, BEKRÆFTET mål: Dine måls egen dom (maalBekraeft.
+  // 4. DINE MÅL — et BEKRÆFTET mål: Dine måls egen dom (maalBekraeft.
   // erBekraeftet — kolonnen ulæst = bekræftet, som i Dine mål). «Nået» er
-  // ikke kravet; at have sat målet er. Venter et aktivt mål på medlemmets ja
-  // (en rådgivers forslag), siger punktet det og fører til Dine mål.
+  // ikke kravet; at have sat målet er. Gjort = ethvert bekræftet mål med
+  // status active, completed ELLER parked (rådets fund 2/10): et mål, der
+  // siden er NÅET eller PARKERET, har medlemmet stadig sat — kun «active»
+  // ville åbne listen igen den dag, målet blev nået. Kun teksten «venter på
+  // dit ja» kræver et aktivt mål: et ubekræftet forslag, der venter.
   const maalRaekker = input.maal ?? [];
-  const maalGjort = maalRaekker.some((m) => m.status === "active" && erBekraeftet(m));
+  const maalGjort = maalRaekker.some((m) => MAAL_GJORT_STATUS.includes(m.status) && erBekraeftet(m));
   const maalVenter = !maalGjort && maalRaekker.some((m) => m.status === "active" && !erBekraeftet(m));
   const maalMangler: string[] = maalVenter ? [MANGLER_TEKST.bekraeftelse] : [];
 
@@ -379,6 +452,28 @@ export function byggTjekliste(input: TjeklisteInput, nu: Date = new Date()): Tje
   const profilMangler = profilManglerDom(input);
   const praesentationMangler = input.kan_oprette_traad && !input.har_praesentation;
   const netvaerkMangler = [...profilMangler, ...(praesentationMangler ? [MANGLER_TEKST.praesentation] : [])];
+  // Det gjorte: præsentationen kun med trådret (uden er den ikke en del af punktet).
+  const netvaerkGjortDele = [
+    ...(profilMangler.length === 0 ? [GJORT_TEKST.profil] : []),
+    ...(input.kan_oprette_traad && input.har_praesentation ? [GJORT_TEKST.praesentation] : []),
+  ];
+
+  // STEDER KUN FOR DET FULDE MEDLEM (rådets fund 2/10). kan_oprette_traad er
+  // klientens sammensatte dom !isLegat && membershipTier === "full" — samme
+  // dom afgør, om medlemmet HAR stederne Netværket og Akademiet:
+  //   abonnent: menuen er «Dine tal» + «Rabataftaler» (hbNav.medlemmetsNav)
+  //             — intet Netværket, intet Akademiet; indholdet er kun talks
+  //             (har_aktivt_abonnement, adgangsdomme.md dom 5).
+  //   legat:    MemberRoute sender til /legat (App.tsx), og
+  //             har_aktivt_medlemskab udelukker legat fra community og
+  //             indhold (dom 4).
+  // Valget: PUNKTERNE bliver, MÆRKERNE går. Punkterne gjaldt dem i forvejen
+  // (før 2/10 havde både abonnent og legat «Din profil» og «Udfyld dit
+  // første handout»), og at fjerne dem ville ændre tallet uden at medlemmet
+  // har gjort noget. Det usande er mærket — et sted, de ikke har — og for
+  // Akademiet også stien og titlen: /akademiet har ingen lektioner til dem,
+  // så punktet fører til handout-listen og hedder det, menuen kalder det.
+  const fuldtMedlem = input.kan_oprette_traad;
 
   // 6. AKADEMIET — udfyldt, ikke startet. En påbegyndt række (in_progress)
   // findes så snart et enkelt felt er gemt; «Markér udfyldt» er den
@@ -397,6 +492,7 @@ export function byggTjekliste(input: TjeklisteInput, nu: Date = new Date()): Tje
       gjort: boardroomMangler.length === 0,
       sti: velkomstMangler ? TJEKLISTE_STIER.velkomst : TJEKLISTE_STIER.virksomhed,
       mangler: boardroomMangler,
+      gjort_dele: boardroomGjortDele,
     },
     raadgiver: {
       id: "raadgiver",
@@ -432,7 +528,7 @@ export function byggTjekliste(input: TjeklisteInput, nu: Date = new Date()): Tje
     },
     netvaerk: {
       id: "netvaerk",
-      sted: TJEKLISTE_STED.netvaerk,
+      sted: fuldtMedlem ? TJEKLISTE_STED.netvaerk : null,
       titel: input.kan_oprette_traad ? "Fortæl, hvad man kan spørge dig om — og sig hej" : "Fortæl, hvad man kan spørge dig om",
       beskrivelse: input.kan_oprette_traad
         ? "Et foto, hvad de andre kan spørge dig om — og et opslag om hvem du er."
@@ -440,14 +536,19 @@ export function byggTjekliste(input: TjeklisteInput, nu: Date = new Date()): Tje
       gjort: netvaerkMangler.length === 0,
       sti: profilMangler.length > 0 ? TJEKLISTE_STIER.profil : TJEKLISTE_STIER.praesentation,
       mangler: netvaerkMangler,
+      gjort_dele: netvaerkGjortDele,
     },
     akademi: {
       id: "akademi",
-      sted: TJEKLISTE_STED.akademi,
-      titel: "Gennemfør din første lektion med øvelse",
-      beskrivelse: "Øvelsen ligger under lektionen — udfyld den, og tag den med til din rådgiver.",
+      sted: fuldtMedlem ? TJEKLISTE_STED.akademi : null,
+      // «Lav din første øvelse» (rådets fund 2/10): dommen måler et UDFYLDT
+      // handout (øvelsen), ikke en gennemført lektion — titlen siger det, den måler.
+      titel: fuldtMedlem ? AKADEMI_TITEL : HANDOUT_TITEL,
+      beskrivelse: fuldtMedlem
+        ? "Øvelsen ligger under lektionen — udfyld den, og tag den med til din rådgiver."
+        : "Dine handouts ligger under Handouts — udfyld ét, og tag det med til din rådgiver.",
       gjort: handoutGjort,
-      sti: TJEKLISTE_STIER.akademi,
+      sti: fuldtMedlem ? TJEKLISTE_STIER.akademi : TJEKLISTE_STIER.handouts,
     },
   };
 

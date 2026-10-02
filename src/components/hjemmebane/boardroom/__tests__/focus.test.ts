@@ -673,7 +673,7 @@ describe("slot (0) — tjeklisten som fokuskortets kilde", () => {
     });
     const items = deriveFocus(nulData({ tjekliste, contractStartDate: "2025-01-01" }));
     expect(items.map((i) => i.sourceId)).toEqual([...TJEKLISTE_RAEKKEFOELGE]);
-    expect(items[items.length - 1]).toMatchObject({ sourceId: "akademi", ctaHref: "/akademiet", title: "Gennemfør din første lektion med øvelse" });
+    expect(items[items.length - 1]).toMatchObject({ sourceId: "akademi", ctaHref: "/akademiet", title: "Lav din første øvelse i Akademiet" });
     expect(items[0].title).toBe("Se velkomsten og udfyld din virksomhed");
     expect(items.map((i) => i.title)).not.toContain("Fortæl det videre");
     expect(items.map((i) => i.kind)).not.toContain("missing-report");

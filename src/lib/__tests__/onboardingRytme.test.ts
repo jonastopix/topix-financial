@@ -212,6 +212,11 @@ describe("teksterne — systemets stemme", () => {
     // Begge begynder med medlemmets handling («Skriv …») — ingen af dem lover at rådgiveren skriver først.
     expect(besked!.titel).toMatch(/^Skriv /);
     expect(LOEFTET).toMatch(/^Skriv /);
+    // Låst mod den eksplicitte streng igen (rådets fund 2/10): før 2/10 låste
+    // LOEFTET.startsWith("Skriv til din rådgiver") — værnet må ikke være svagere end før.
+    expect(LOEFTET).toBe("Skriv til din rådgiver i chatten, når du vil — Jonas eller Morten svarer.");
+    expect(LOEFTET.startsWith("Skriv til din rådgiver")).toBe(true);
+    expect(komIGangTekst(null, false, NU).efterKnap).toEqual(["Skriv til din rådgiver i chatten, når du vil — Jonas eller Morten svarer."]);
     expect(komIGangTekst(null, false, NU).punkter[1].startsWith(besked!.titel)).toBe(true);
     expect(fladt(komIGangTekst(null, false, NU))).not.toMatch(/(Jonas|Morten) (eller (Jonas|Morten) )?skriver til dig/);
   });
