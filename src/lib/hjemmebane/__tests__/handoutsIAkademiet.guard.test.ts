@@ -130,6 +130,9 @@ describe("handouts i Akademiet — dom 4: ingen medlemsflade linker til /handout
     const forside = udenKommentarer(laes("src/components/hjemmebane/boardroom/BoardroomView.tsx"));
     expect(forside).not.toMatch(/["'`]\/handouts/);
     expect(forside).toContain("sti: oevelseLektionSti(");
+    // Den tomme målside (DineMaalView) peger på Akademiet, ikke /handouts (fund 6, 2/10).
+    const maal = udenKommentarer(laes("src/components/hjemmebane/milestones/DineMaalView.tsx"));
+    expect(maal).not.toMatch(/to="\/handouts"/);
     const nav = udenKommentarer(laes("src/lib/hjemmebane/hbNav.ts"));
     // Ét sted bærer stien: HANDOUTS_PUNKT, som kun rådgiverens dineTal(…, true) tager med.
     expect(nav.match(/"\/handouts"/g) ?? []).toHaveLength(1);
