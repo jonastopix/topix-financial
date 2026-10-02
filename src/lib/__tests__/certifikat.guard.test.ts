@@ -165,9 +165,10 @@ describe("certifikat.guard — dom 5: menupunktet bygges ét sted, kun når tils
     // (a) rådgiverens punkt peger på /certifikat (som skjuler siden for rådgivere)
     expect(punktetKunNaarSat(k.replace(RAAD, '{ label: CERTIFIKAT_LABEL, to: "/certifikat", active: active === "certifikat", blok: medlem },'))).toBe(false);
     // (b) en fjerde forekomst i medlemmetsNav uden for certifikatPunkt
+    // (ankeret er medlemmets «Akademiet»-linje — seks steder, 2/10; før «Fortæl det videre»).
     const fjerde = k.replace(
-      '{ label: "Fortæl det videre", to: "/deling", active: active === "deling" },',
-      '{ label: "Fortæl det videre", to: "/deling", active: active === "deling" },\n    { label: CERTIFIKAT_LABEL, to: "/certifikat", active: active === "certifikat" },',
+      '{ label: "Akademiet", to: "/akademiet", active: active === "akademiet" },',
+      '{ label: "Akademiet", to: "/akademiet", active: active === "akademiet" },\n    { label: CERTIFIKAT_LABEL, to: "/certifikat", active: active === "certifikat" },',
     );
     expect(fjerde).not.toBe(k);
     expect(punktetKunNaarSat(fjerde)).toBe(false);

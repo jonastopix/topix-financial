@@ -55,16 +55,18 @@ export const kortHooksFoerst = (kort: string): boolean => {
   return retur > -1 && hooks.every((h) => h > -1 && h < retur);
 };
 
-/** Dom 2: sektionen mellem toppen (tiles) og «Din plan». */
+/** Dom 2: sektionen mellem toppen og «Din plan». (Til 2/10 var toppens slut
+    tiles — data-forside-tiles; båndet er væk (seks steder), så toppens slut er
+    nu «Dit næste skridt»-sektionens afslutning.) */
 export const placering = (forside: string): boolean => {
-  const tiles = forside.indexOf("data-forside-tiles");
+  const top = forside.indexOf("data-forside-top");
+  const hoejre = forside.indexOf("data-forside-hoejre", top);
+  const skridt = forside.indexOf("data-forside-naeste-skridt", hoejre);
   const score = forside.indexOf("data-forside-score");
   const plan = forside.indexOf('id="din-plan"');
-  const top = forside.indexOf("data-forside-top");
-  const hoejreSlut = forside.indexOf("data-forside-tiles", top);
-  return tiles > -1 && score > tiles && plan > score && hoejreSlut > -1 &&
+  return top > -1 && hoejre > top && skridt > hoejre && score > skridt && plan > score &&
     // Kortet står ikke i toppens højre kolonne (Din måned / Dit næste skridt er urørt).
-    forside.slice(forside.indexOf("data-forside-hoejre"), hoejreSlut).indexOf("<ScoreKort") === -1 &&
+    forside.slice(hoejre, score).indexOf("<ScoreKort") === -1 &&
     (forside.match(/<ScoreKort\b/g) ?? []).length === 1;
 };
 

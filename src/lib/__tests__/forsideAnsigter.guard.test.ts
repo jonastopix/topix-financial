@@ -6,9 +6,11 @@ import { resolve } from "node:path";
 // alle»), valg 6: rådgiverens ansigt ved næste skridt og forslag; analyse §5:
 // ansigter i fællesskabet. Fem ting låses:
 //   1. ÉN hentning: get_all_advisor_profiles kaldes præcis én gang på
-//      forsiden (["boardroom","raadgivere"]) og føder pushets afsender
-//      (afsender), «Dit næste skridt» (fokusAnsigt) og forslagene i «Din
-//      plan» — den gamle push-sender-query er væk.
+//      forsiden (["boardroom","raadgivere"]) og føder «Dit næste skridt»
+//      (fokusAnsigt) og forslagene i «Din plan» — den gamle push-sender-query
+//      er væk. (Pushets afsender (afsender) var den tredje aftager til 2/10,
+//      hvor båndet «Fra os til dig» forlod forsiden — seks steder,
+//      seksSteder.guard; forsiden kalder ikke længere afsender.)
 //   2. proposed_by er MED i forsidens company_actions-select — uden den er
 //      der intet at slå op.
 //   3. Dommen er REN: hvem der får et ansigt afgøres i ansigter.raadgiverAnsigt
@@ -35,7 +37,7 @@ export const enHentning = (forside: string): boolean =>
   (forside.match(/rpc\("get_all_advisor_profiles"/g) ?? []).length === 1 &&
   forside.includes('queryKey: ["boardroom", "raadgivere"]') &&
   forside.includes('raadgiverOpslag(kraevRaekker(await supabase.rpc("get_all_advisor_profiles" as any), "get_all_advisor_profiles")') &&
-  forside.includes("const pushSender = afsender(pushAuthorUserId, raadgivere);") &&
+  !forside.includes("afsender(") &&
   !forside.includes('"push-sender"');
 
 /** Dom 2: proposed_by i select. */
@@ -82,7 +84,7 @@ describe("forsideAnsigter.guard — PR 4: én hentning, proposed_by, ren dom, f�
   const dom = udenKommentarer(laes(DOM));
   const avatar = udenKommentarer(laes(AVATAR));
 
-  it("dom 1: get_all_advisor_profiles hentes én gang og føder push, næste skridt og planen; push-sender-queryen er væk", () => {
+  it("dom 1: get_all_advisor_profiles hentes én gang og føder næste skridt og planen; push-sender-queryen er væk (og pushets afsender med båndet, 2/10)", () => {
     expect(enHentning(forside)).toBe(true);
   });
   it("dom 2: proposed_by står i forsidens company_actions-select", () => {
@@ -101,6 +103,7 @@ describe("forsideAnsigter.guard — PR 4: én hentning, proposed_by, ren dom, f�
   it("selvbevis 1: en ekstra rpc-hentning, eller push-sender-queryen tilbage, falder", () => {
     expect(enHentning(forside + '\nawait supabase.rpc("get_all_advisor_profiles" as any);')).toBe(false);
     expect(enHentning(forside.replace('queryKey: ["boardroom", "raadgivere"]', 'queryKey: ["boardroom", "push-sender", pushAuthorUserId]'))).toBe(false);
+    expect(enHentning(forside + "\nconst pushSender = afsender(pushAuthorUserId, raadgivere);")).toBe(false);
   });
   it("selvbevis 2: proposed_by ude af select falder", () => {
     expect(selectBaererProposedBy(forside.replace("source_type, maal_id, proposed_by", "source_type, maal_id"))).toBe(false);

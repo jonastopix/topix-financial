@@ -4,10 +4,13 @@ import { resolve } from "node:path";
 
 // Kildeværn for medlemmets forside PR 2 (17/9-2026) — JONAS (ordret: «A på
 // alle») til analyse-medlemmets-forside.md §6.4. Fire ting låses:
-//   1. TOPPEN er et to-kolonne-grid (md:grid-cols-12): venstre (md:col-span-7)
-//      bærer nyheden («Fra os til dig» med StoryCard variant="main"), højre
-//      (md:col-span-5) bærer «Din måned» FØR «Dit næste skridt» (kompakt) —
-//      og venstre står før højre i DOM (mobil: nyheden først).
+//   1. TOPPEN — OMSKREVET 2/10-2026 (seks steder, seksSteder.guard; Jonas 1/10
+//      22:50 «Det var fyld»): båndet «Fra os til dig», tiles og «Se tidligere»
+//      er taget af forsiden. Toppen er nu ÉN kolonne (grid grid-cols-1, ingen
+//      md:grid-cols-12, ingen data-forside-venstre/-nyheden/-tiles) med
+//      «Din måned» FØR «Dit næste skridt» (kompakt) i data-forside-hoejre —
+//      og intet StoryCard tegnes i BoardroomView. Var (17/9–2/10): to kolonner,
+//      venstre (md:col-span-7) nyheden, højre (md:col-span-5) Din måned/skridt.
 //   2. «Din måned» viser INGEN procent: hverken dommen (dinMaaned.ts) eller
 //      kortet (DinMaaned i BoardroomView) skriver «%»; retningen er ord.
 //   3. Sparklinen har INGEN nul-punkter: sparkline() filtrerer på `!= null`
@@ -35,45 +38,46 @@ function blok(kode: string, navn: string): string {
   return m === -1 ? kode.slice(fra) : kode.slice(fra, fra + 1 + m);
 }
 
-/** Dom 1: toppen. */
+/** Dom 1 (omskrevet 2/10): toppen uden bånd — én kolonne, Din måned før Dit
+    næste skridt (kompakt), ingen nyhed/tiles/StoryCard i BoardroomView, ingen
+    tal-strip. */
 export const toppenHolder = (forside: string): boolean => {
+  const krop = forside.slice(forside.indexOf("export const BoardroomView = () => {"));
   const top = forside.indexOf("data-forside-top");
-  const venstre = forside.indexOf("data-forside-venstre", top);
-  const nyheden = forside.indexOf("data-forside-nyheden", venstre);
-  const main = forside.indexOf('variant="main"', nyheden);
-  const hoejre = forside.indexOf("data-forside-hoejre", venstre);
+  const hoejre = forside.indexOf("data-forside-hoejre", top);
   const maaned = forside.indexOf("data-forside-din-maaned", hoejre);
   const skridt = forside.indexOf("data-forside-naeste-skridt", maaned);
   const topLinje = forside.slice(forside.lastIndexOf("\n", top), forside.indexOf("\n", top));
-  return top > -1 && venstre > top && nyheden > venstre && main > nyheden && hoejre > main && maaned > hoejre && skridt > maaned &&
-    /md:grid-cols-12/.test(topLinje) && /grid grid-cols-1/.test(topLinje) &&
-    // Før (PR 2): /className="min-w-0 md:col-span-7" data-forside-venstre/ og
-    // /"md:col-span-5" : "md:col-span-12"\)\} data-forside-hoejre/ — tiles lå i venstre kolonne.
-    /className="min-w-0 md:col-span-7 md:col-start-1 md:row-start-1" data-forside-venstre/.test(forside) &&
-    /"md:col-span-5 md:col-start-8 md:row-span-2 md:row-start-1" : "md:col-span-12"\)\} data-forside-hoejre/.test(forside) &&
+  return krop.length > 0 && top > -1 && hoejre > top && maaned > hoejre && skridt > maaned &&
+    /grid grid-cols-1/.test(topLinje) && !/md:grid-cols-12/.test(topLinje) && !/hasBand/.test(topLinje) &&
+    /<div className="min-w-0 space-y-8 md:col-span-12" data-forside-hoejre>/.test(forside) &&
+    !/data-forside-venstre|data-forside-nyheden|data-forside-tiles/.test(forside) &&
+    !/<StoryCard\b|variant="main"|variant="side"|hasBand|band\.main|band\.side|redaktioneltHistory|historikOpen/.test(krop) &&
+    !/"Fra os til dig"|Se tidligere|Skjul tidligere/.test(krop) &&
     /<FocusCard\s+variant="kompakt"/.test(forside.slice(skridt)) &&
     /<DinMaaned dom=\{dinMaaned\} \/>/.test(forside.slice(maaned, skridt)) &&
     !/<TalStrip/.test(forside);
 };
 
-/** Dom 5 (PR 3, Jonas' skærm 17/9 11:28): MOBIL-RÆKKEFØLGEN. Tiles er ET
-    grid-barn (data-forside-tiles) der står EFTER højre kolonne i DOM (mobil:
-    nyheden → Din måned → Dit næste skridt → tiles) og på md får række 2 i
-    venstre kolonne (md:col-start-1 md:row-start-2); ingen `order-*`, og
-    side-tiles renderes præcis ÉN gang (ingen md:hidden-dublet). */
+/** Dom 5 (PR 3, Jonas' skærm 17/9 11:28; OMSKREVET 2/10): MOBIL-RÆKKEFØLGEN
+    var tiles EFTER højre kolonne — nu er der ingen tiles. DOM-ordenen ER
+    stadig mobil-ordenen: hilsen → stedsætningen → (fornyelsen) → Din måned →
+    Dit næste skridt → Score → Din plan; ingen `order-*`, ingen md:hidden-
+    dublet, og stedsætningen står under hilsenen og FØR toppen. */
 export const mobilRaekkefoelge = (forside: string): boolean => {
-  const top = forside.indexOf("data-forside-top");
-  const venstre = forside.indexOf("data-forside-venstre", top);
-  const hoejre = forside.indexOf("data-forside-hoejre", venstre);
-  const tiles = forside.indexOf("data-forside-tiles", hoejre);
-  const slut = forside.indexOf('id="din-plan"', tiles);
+  const hilsen = forside.indexOf("<PageHeader");
+  const sted = forside.indexOf('<HbStedsSaetning sti="/"', hilsen);
+  const top = forside.indexOf("data-forside-top", sted);
+  const hoejre = forside.indexOf("data-forside-hoejre", top);
+  const scoreSektion = forside.indexOf('eyebrow="Boardroom Score"', hoejre);
+  const score = forside.indexOf("data-forside-score", hoejre);
+  const slut = forside.indexOf('id="din-plan"', score);
   const topBlok = forside.slice(top, slut === -1 ? undefined : slut);
-  return top > -1 && venstre > top && hoejre > venstre && tiles > hoejre &&
-    /className="min-w-0 md:col-span-7 md:col-start-1 md:row-start-2" data-forside-tiles/.test(forside) &&
+  return hilsen > -1 && sted > hilsen && top > sted && hoejre > top && scoreSektion > hoejre && score > scoreSektion && slut > score &&
+    (forside.match(/data-forside-score/g) ?? []).length === 1 &&
+    (forside.match(/<HbStedsSaetning sti="\/"/g) ?? []).length === 1 &&
     !/\border-\d|md:order-|\bord[e]r-(first|last|none)\b/.test(topBlok) &&
-    (topBlok.match(/variant="side"/g) ?? []).length === 1 &&
-    !/md:hidden|hidden md:block/.test(topBlok) &&
-    forside.indexOf('variant="side"', tiles) > tiles;
+    !/md:hidden|hidden md:block/.test(topBlok);
 };
 
 /** Dom 2: ingen procent i «Din måned». */
@@ -105,7 +109,7 @@ describe("forsideTop.guard — PR 2: to kolonner, Din måned uden procent, spark
   const forside = udenKommentarer(laes(FORSIDE));
   const dom = udenKommentarer(laes(DOM));
 
-  it("dom 1: toppen er md:grid-cols-12 — nyheden venstre (7), Din måned før Dit næste skridt højre (5); tal-strippen er væk", () => {
+  it("dom 1 (omskrevet 2/10): toppen er én kolonne uden bånd — Din måned før Dit næste skridt; intet StoryCard, ingen tiles, tal-strippen er væk", () => {
     expect(toppenHolder(forside)).toBe(true);
   });
   it("dom 2: ingen procent i Din måned — retningen er ord", () => {
@@ -117,15 +121,14 @@ describe("forsideTop.guard — PR 2: to kolonner, Din måned uden procent, spark
   it("dom 4: hovedhistorien er stående — ingen 42 %-spalte", () => {
     expect(staaende(forside)).toBe(true);
   });
-  it("dom 5 (PR 3): mobil-rækkefølgen — tiles EFTER højre kolonne i DOM, række 2 venstre på md, ingen order-*, tiles renderet én gang", () => {
+  it("dom 5 (omskrevet 2/10): mobil-rækkefølgen — hilsen → stedsætning → top → Score → Din plan; ingen order-*, ingen dublet", () => {
     expect(mobilRaekkefoelge(forside)).toBe(true);
   });
 
-  it("selvbevis 1: højre før venstre, Dit næste skridt før Din måned, en fuld FocusCard i toppen, eller tal-strippen tilbage falder", () => {
-    const v = forside.indexOf("data-forside-venstre");
-    const h = forside.indexOf("data-forside-hoejre");
-    const byttet = forside.slice(0, v) + forside.slice(h).replace("data-forside-hoejre", "data-forside-venstre-x") + forside.slice(v, h);
-    expect(toppenHolder(byttet)).toBe(false);
+  it("selvbevis 1: båndet tilbage (StoryCard, to kolonner, tiles), Dit næste skridt før Din måned, en fuld FocusCard i toppen, eller tal-strippen tilbage falder", () => {
+    expect(toppenHolder(forside.replace('<div className="min-w-0 space-y-8 md:col-span-12" data-forside-hoejre>', '<div className="min-w-0 md:col-span-7" data-forside-venstre><StoryCard story={band.main} variant="main" pushSender={null} pushCoverUrl={null} onVelkomstSet={async () => {}} /></div><div className="min-w-0 space-y-8 md:col-span-12" data-forside-hoejre>'))).toBe(false);
+    expect(toppenHolder(forside.replace('className="mt-10 grid grid-cols-1 gap-8 md:mt-12 md:items-start" data-forside-top', 'className={cn("mt-10 grid grid-cols-1 gap-8 md:mt-12 md:items-start", hasBand && "md:grid-cols-12")} data-forside-top'))).toBe(false);
+    expect(toppenHolder(forside.replace("data-forside-hoejre>", "data-forside-hoejre><div data-forside-tiles />"))).toBe(false);
     expect(toppenHolder(forside.replace('<FocusCard\n              variant="kompakt"', '<FocusCard\n              variant="fuld"'))).toBe(false);
     expect(toppenHolder(forside + "\n<TalStrip hasFacts={false} />")).toBe(false);
     expect(toppenHolder(forside.replace("data-forside-din-maaned", "x").replace("data-forside-naeste-skridt", "data-forside-din-maaned"))).toBe(false);
@@ -140,18 +143,12 @@ describe("forsideTop.guard — PR 2: to kolonner, Din måned uden procent, spark
     expect(ingenNulPunkter(dom.replace('.filter((r) => r.basis === "measured")', '.filter((r) => r.basis === "measured" || r.basis === "estimated")'))).toBe(false);
     expect(ingenNulPunkter(dom.replace(".map((r) => ({ key: r.key, value: r[felt] as number }))", ".map((r) => ({ key: r.key, value: r[felt] ?? 0 }))"))).toBe(false);
   });
-  it("selvbevis 5: tiles tilbage i venstre kolonne (før højre), en order-klasse, eller tiles renderet to gange falder", () => {
-    const t = forside.indexOf("data-forside-tiles");
-    const h = forside.indexOf("data-forside-hoejre");
-    // Tiles-blokken flyttet op FØR højre kolonne.
-    const tilesBlokStart = forside.lastIndexOf("{hasBand && (band.side.length", t);
-    const tilesBlokSlut = forside.indexOf('id="din-plan"', t);
-    const tilesBlok = forside.slice(tilesBlokStart, forside.lastIndexOf("</div>", tilesBlokSlut));
-    const hoejreStart = forside.lastIndexOf("<div className={cn(\"min-w-0 space-y-8\"", h);
-    const flyttet = forside.slice(0, hoejreStart) + tilesBlok + "\n" + forside.slice(hoejreStart, tilesBlokStart) + forside.slice(forside.lastIndexOf("</div>", tilesBlokSlut));
-    expect(mobilRaekkefoelge(flyttet)).toBe(false);
-    expect(mobilRaekkefoelge(forside.replace('md:col-start-1 md:row-start-2" data-forside-tiles', 'order-3 md:order-none" data-forside-tiles'))).toBe(false);
-    expect(mobilRaekkefoelge(forside.replace("data-forside-tiles>", 'data-forside-tiles>{band.side.map((story) => <StoryCard key={story.kind} story={story} variant="side" pushSender={null} pushCoverUrl={null} />)}'))).toBe(false);
+  it("selvbevis 5: stedsætningen over hilsenen eller tegnet to gange, Score i toppen, eller en order-klasse falder", () => {
+    const sted = '<HbStedsSaetning sti="/" className="mt-4" />';
+    expect(mobilRaekkefoelge(forside.replace(sted, "").replace("<PageHeader", `${sted}<PageHeader`))).toBe(false);
+    expect(mobilRaekkefoelge(forside.replace("<FornyelsesBaand />", `<FornyelsesBaand />${sted}`))).toBe(false);
+    expect(mobilRaekkefoelge(forside.replace("data-forside-hoejre>", "data-forside-hoejre><div data-forside-score />"))).toBe(false);
+    expect(mobilRaekkefoelge(forside.replace('"min-w-0 space-y-8 md:col-span-12" data-forside-hoejre', '"min-w-0 space-y-8 md:col-span-12 order-2" data-forside-hoejre'))).toBe(false);
   });
   it("selvbevis 4: 42 %-spalten tilbage i MainStoryShell falder", () => {
     expect(staaende(forside.replace('<div className="relative aspect-video w-full">', '<div className="relative aspect-[3/2] md:aspect-auto md:w-[42%] md:shrink-0">'))).toBe(false);
