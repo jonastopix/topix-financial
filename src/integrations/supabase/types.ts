@@ -5504,6 +5504,13 @@ export type Database = {
         }
       }
       community_json_til_tekst: { Args: { p_doc: Json }; Returns: string }
+      community_mest_laest_uge: {
+        Args: never
+        Returns: {
+          laesere: number
+          traad_id: string
+        }[]
+      }
       compute_facts_metrics_hash: { Args: { _metrics: Json }; Returns: string }
       drift_agent_kerne: { Args: { p_indhold: string }; Returns: Json }
       drift_agent_laes: { Args: never; Returns: Json }
