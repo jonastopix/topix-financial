@@ -1,4 +1,4 @@
--- IKKE KØRT. KRÆVER JONAS' GRØNNE LYS (SECURITY DEFINER/trigger). DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod 2/10-2026 ca. 12:00 (Claude via Lovable-MCP, Jonas' grønne lys «Klar» 11:31). FØR: kroppen som 20260917150000, 4 triggere. EFTER: markøren kun_bekraeftede, 4 triggere uændret, RPC maal_pladser_kun_bekraeftede true (også som authenticated), ikke definer.
 --
 -- «DINE MÅL», SKIVE 3 — ÅBENT PUNKT 13 LUKKES: triggeren «højst tre aktive mål»
 -- tæller KUN BEKRÆFTEDE (Jonas, morgenlisten 2/10-2026: «Ja, kun bekræftede»;

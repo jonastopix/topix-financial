@@ -1,4 +1,4 @@
--- IKKE KØRT. KRÆVER JONAS' GRØNNE LYS (SECURITY DEFINER/trigger). DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).
+-- KØRT i prod 2/10-2026 ca. 12:20 (Claude via Lovable-MCP, Jonas' grønne lys «Klar» 11:31). FØR: de fem prod-kroppe logisk lig kildefilerne (kun kommentarer afveg — prod-kopien er gemt i chatten/scratchpad), politikker 16, gæster 0. EFTER: dom 1 (definer+stable+search_path), fem porte «false / true», skrivevejene urørte, politikker 16, læsere 27/27. RLS-prøve (rullet tilbage): medlem true/11 tråde/feed 5, udløbet false/0/0.
 --
 -- GÆSTEN LÆSER COMMUNITY, SKRIVER IKKE — en NY LÆSE-DOM (Jonas, morgenlisten
 -- 2/10-2026: «Gæsten læser, skriver ikke (ny læse-dom)»; beslutningen 14/9:
