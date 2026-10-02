@@ -117,6 +117,8 @@ const STRIKS: readonly string[] = [
   "nyhed-udkast-afgoer",
   // Driftsagenten, skive 1 (30/9): kun dry_run, alt andet afvises.
   "drift-agent-cron",
+  // «Må vi ringe til dig?» (2/10): t, handling, navn, telefon og samtykke — alt andet afvises.
+  "ring-mig-op",
 ];
 
 /**

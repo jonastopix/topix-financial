@@ -83,6 +83,8 @@ const Forside = lazy(() => import("./pages/Forside"));
 const Oekonomi = lazy(() => import("./pages/Oekonomi"));
 const Webinar = lazy(() => import("./pages/Webinar"));
 const Nyheder = lazy(() => import("./pages/Nyheder"));
+const Opkald = lazy(() => import("./pages/Opkald"));
+const RingMigOp = lazy(() => import("./pages/RingMigOp"));
 const DeltWebinar = lazy(() => import("./pages/DeltWebinar"));
 
 // Lazy — demo routes (no auth)
@@ -273,6 +275,11 @@ const App = () => (
                   alle kald går gennem edge-funktionen webinar-delt, som kun svarer
                   med det færdige dashboard. Ingen skal, ingen navigation. */}
               <Route path="/delt/webinar" element={<DeltWebinar />} />
+              {/* «Må vi ringe til dig?» (2/10): en webinarDELTAGER uden konto lander
+                  her fra Klaviyos «Deltog»-mail med ?t=<token>. Uguardet som /aftale —
+                  alle kald går gennem edge-funktionen ring-mig-op, som verificerer
+                  tokenet og dømmer, om tilmeldingen deltog. */}
+              <Route path="/ring-mig-op" element={<RingMigOp />} />
               <Route path="/onboarding" element={<OnboardingRedirect />} />
               <Route path="/" element={<MemberRoute><Index /></MemberRoute>} />
               {/* Rapportering-GO (2026-08-06): /reports bærer Hb-rapporteringen.
@@ -349,6 +356,8 @@ const App = () => (
               <Route path="/webinar" element={<AdvisorRoute><Webinar /></AdvisorRoute>} />
               {/* Nyhedsagenten (30/9, skive 1): rådgiverens godkendelse af ugens nyhedsudkast — N1, intet publiceres uden klik her. Nås fra klokken. */}
               <Route path="/nyheder" element={<AdvisorRoute><Nyheder /></AdvisorRoute>} />
+              {/* «Må vi ringe til dig?» (2/10): rådgivernes kø af dem, der bad om et opkald — nås fra klokken, intet menupunkt. */}
+              <Route path="/opkald" element={<AdvisorRoute><Opkald /></AdvisorRoute>} />
               {/* Kontoen i Hjemmebane (9/9): navn, adgangskode, login, log ud — for alle roller. */}
               <Route path="/konto" element={<ProtectedRoute><Konto /></ProtectedRoute>} />
               {/* Delingskreativen (14/9, første skridt): én kreativ på skærmen. Intet menupunkt endnu. */}

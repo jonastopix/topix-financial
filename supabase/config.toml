@@ -393,6 +393,15 @@ project_id = "loiavmastgeieqyiwyyr"
   # noget fra URL'en, så functionen er ingen åben viderestilling.
   [functions.webinar-video]
     verify_jwt = false
+  # «Må vi ringe til dig?» (2/10-2026, docs/samtykke-og-opkald.md del 2). verify_jwt =
+  # FALSE, bevidst — af samme grund som webinar-afmeld: kalderen er en webinarDELTAGER
+  # uden konto, der kommer fra linket i Klaviyos «Deltog»-mail. Legitimationen er
+  # tokenet i body (laesRingToken, _shared/ringToken.ts: HMAC over ewebinar_id,
+  # konstant tid) FØR service role — og rækken i webinar_tilmeldinger skal have
+  # DELTAGET (harDeltaget), ellers ét svar (403). STRIKS body, IP-dagsloft, nummeret
+  # gemmes kun i E.164 og forlader aldrig serveren (klokke uden nummer, Klaviyo uden nummer).
+  [functions.ring-mig-op]
+    verify_jwt = false
   # Metas Conversions API fra platformen (udkast 21/9-2026 aften). Bucket B,
   # authenticateServiceRole FØRST, kaldt gennem kald_edge hvert 5. minut. Tørkørsel
   # som standard; sender for alvor kun med «dry_run: false» OG (låsen

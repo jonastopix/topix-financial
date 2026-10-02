@@ -132,6 +132,16 @@ export interface FremmoedeInput {
   webinarTitel: string | null;
   sessionTid: string | null;
   tid?: Date;
+  /**
+   * «Må vi ringe til dig?» (2/10-2026): linket til /ring-mig-op med tokenet
+   * (ringToken.ringOpUrlHvisSecret — null uden RING_SECRET). Lægges KUN på en
+   * «deltog»-hændelse: det er beviset for, at personen var der, og «mødte ikke op»
+   * må aldrig bære et token, der åbner for en anmodning. Linket skrives to steder i
+   * SAMME kald: som PROFILEGENSKAB `ring_op_url` (Jonas 08:17 — `{{ person.ring_op_url }}`
+   * i Klaviyos eksisterende «Deltog»-mail) og som hændelsesegenskab (`{{ event.ring_op_url }}`,
+   * altid den session, der udløste flowet). Ingen ny mail, intet nyt cron-pas.
+   */
+  ringOpUrl?: string | null;
 }
 
 /**
@@ -167,7 +177,13 @@ export function byggFremmoede(o: Overgang, i: FremmoedeInput): HaendelseInput | 
       ewebinar_id: i.ewebinarId,
       // «ja» eller fraværende — aldrig «nej». byggHaendelse udelader null.
       frisk: erFrisk(i.sessionTid, i.tid ?? new Date()) ? FRISK_VAERDI : null,
+      // Kun «deltog» (2/10): tokenet er adgangen til at bede om et opkald — og kun
+      // en deltager må kunne det. byggHaendelse udelader null.
+      ring_op_url: o === "deltog" ? (i.ringOpUrl ?? null) : null,
     },
+    // Profilegenskaben (2/10, Jonas 08:17): KUN for «deltog» — samme dom som ovenfor.
+    // En senere deltagelse overskriver den med den nyeste tilmeldings link.
+    profilEgenskaber: { ring_op_url: o === "deltog" ? (i.ringOpUrl ?? null) : null },
     // Hændelsen SKETE, da vi dømte den — ikke da vi nåede at sende den.
     tid: i.tid,
   };
