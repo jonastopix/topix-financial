@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { bygHbNav, medLiveMaerke, SEKS_STEDER } from "@/lib/hjemmebane/hbNav";
-import { STEDS_SAETNINGER } from "@/lib/hjemmebane/stedsSaetninger";
+import { skallenTegnerSaetning, STEDER_MED_EGET_HOVED, STEDERNES_STIER, STEDS_SAETNINGER } from "@/lib/hjemmebane/stedsSaetninger";
 
 /**
  * seksSteder.guard — SEKS STEDER, skridt 1 (2/10-2026 nat; FORBEREDT,
@@ -17,9 +17,13 @@ import { STEDS_SAETNINGER } from "@/lib/hjemmebane/stedsSaetninger";
  *      under Dine tal; ingen rute ændret (de tretten links findes).
  *   2. ABONNENT OG RÅDGIVER URØRTE: deres lister er ordret som før 2/10.
  *   3. STEDSÆTNINGERNE ÉT STED: ordene «Det her er stedet, hvor» står i kode
- *      KUN i stedsSaetninger.ts; HbStedsSaetning læser STEDS_SAETNINGER;
- *      skallen tegner komponenten (og springer forsiden over), forsiden
- *      tegner den én gang under hilsenen; rådgiverens forside aldrig.
+ *      KUN i stedsSaetninger.ts; HbStedsSaetning læser STEDS_SAETNINGER og
+ *      gater fail-closed (visStedsSaetning — rådets fund 2); skallen tegner
+ *      komponenten KUN hvor den er den eneste indledning (skallenTegnerSaetning:
+ *      ikke forsiden, ikke de otte steder med eget hoved — rådets fund 7),
+ *      skjult på mobil i «fuld» (chatten — rådets fund 3); forsiden tegner
+ *      den én gang under hilsenen; hvert sted med eget hoved tegner den selv
+ *      under sin h1; rådgiverens forside aldrig.
  *   4. FORSIDEN RYDDET: «Fra os til dig», «Denne uges video», «Værd at se
  *      igen» og «Se tidligere» tegnes ikke i BoardroomView — intet StoryCard,
  *      ingen pickMainStory, ingen tiles; og det, der skulle blive, er der:
@@ -94,14 +98,19 @@ export const abonnentOgRaadgiverUroerte = (abonnent: ReturnType<typeof bygHbNav>
 export const saetningerneEtSted = (kilder: Array<[string, string]>, komponent: string, skal: string, forside: string, raadgiverForside: string): boolean => {
   const medOrdene = kilder.filter(([, k]) => k.includes("Det her er stedet, hvor")).map(([sti]) => sti);
   return medOrdene.length === 1 && medOrdene[0] === ORD &&
-    komponent.includes('import { stedForSti, STEDS_SAETNINGER } from "@/lib/hjemmebane/stedsSaetninger";') &&
+    komponent.includes('import { stedForSti, STEDS_SAETNINGER, visStedsSaetning } from "@/lib/hjemmebane/stedsSaetninger";') &&
     komponent.includes("{STEDS_SAETNINGER[sted]}") &&
     komponent.includes("data-steds-saetning={sted}") &&
     /const \{ isAdvisor, membershipTier \} = useAuth\(\);/.test(komponent) &&
-    komponent.indexOf("useViewMode()") < komponent.indexOf("if (!sted || !vises) return null;") &&
-    komponent.includes('membershipTier !== "subscriber"') &&
+    komponent.indexOf("useViewMode()") < komponent.indexOf("if (!sted) return null;") &&
+    // Gaten ude: `ellers` (sidens gamle intro) — aldrig sætningen.
+    komponent.includes("if (!vises) return <>{ellers}</>;") &&
+    komponent.includes("const vises = visStedsSaetning({ isAdvisor, viewingAsMember, membershipTier });") &&
+    !komponent.includes('"subscriber"') &&
     (skal.match(/<HbStedsSaetning sti=\{stedsSaetningSti\}/g) ?? []).length === 2 &&
-    skal.includes('stedForSti(location.pathname) !== "boardroom" ? location.pathname : null') &&
+    skal.includes("skallenTegnerSaetning(location.pathname) ? location.pathname : null") &&
+    // «fuld» (chatten): skjult under md — på mobil er chatten hele skærmen (rådets fund 3).
+    /<HbStedsSaetning sti=\{stedsSaetningSti\} className="hidden [^"]*md:block[^"]*" \/>/.test(skal) &&
     (forside.match(/<HbStedsSaetning sti="\/"/g) ?? []).length === 1 &&
     forside.indexOf("<PageHeader") < forside.indexOf('<HbStedsSaetning sti="/"') &&
     forside.indexOf('<HbStedsSaetning sti="/"') < forside.indexOf("<FornyelsesBaand />") &&
@@ -119,7 +128,10 @@ export const forsidenRyddet = (forside: string): boolean => {
     /<ScoreKort\b/.test(krop) && /<TrofaeKort\b/.test(krop) && /id="din-plan"/.test(krop) && /id="dine-maal"/.test(krop) &&
     /data-forside-din-maaned/.test(krop) && /data-forside-naeste-skridt/.test(krop) && /<FornyelsesBaand \/>/.test(krop) &&
     // Kortene og dommene er IKKE slettet — de kan tegne «Nyt fra os» i Akademiet.
-    /const StoryCard = \(/.test(forside) && /const VelkomstStory = \(/.test(forside) && /pickMainStory,/.test(forside);
+    /const StoryCard = \(/.test(forside) && /const VelkomstStory = \(/.test(forside) &&
+    // Døde imports er væk (rådets fund 9) — dommene bor i pushSelection.ts og importeres ikke længere.
+    !/pickMainStory,|countNewSince,|pickEvergreen,|velkomstHovedhistorie|useAppConfig|tileColsClass|stripHtml|truncateText/.test(forside) &&
+    /export function pickMainStory</.test(udenKommentarer(laes("src/components/hjemmebane/boardroom/pushSelection.ts")));
 };
 
 describe("seksSteder.guard — skridt 1: menuen, stedsætningerne, forsiden ryddet", () => {
@@ -159,6 +171,34 @@ describe("seksSteder.guard — skridt 1: menuen, stedsætningerne, forsiden rydd
   it("dom 4: «Fra os til dig», «Denne uges video», «Værd at se igen» og «Se tidligere» tegnes ikke på medlemmets forside — Score, Din plan, Din måned, Dit næste skridt står", () => {
     expect(forsidenRyddet(forside)).toBe(true);
   });
+  it("dom 6 (rådets fund 7): de otte steder med eget hoved tegner sætningen selv under h1 — og skallen springer dem over; de fem andre får den fra skallen", () => {
+    const VIEWS: Record<string, string> = {
+      "/reports": "src/components/hjemmebane/rapportering/RapporteringView.tsx",
+      "/kpis": "src/components/hjemmebane/noegletal/NoegletalView.tsx",
+      "/budget": "src/components/hjemmebane/budget/BudgetteringView.tsx",
+      "/milestones": "src/components/hjemmebane/milestones/DineMaalView.tsx",
+      "/events": "src/components/hjemmebane/events/EventsView.tsx",
+      "/medlemmer": "src/components/hjemmebane/members/MemberDirectoryView.tsx",
+      "/rabataftaler": "src/components/hjemmebane/rabataftaler/RabataftalerView.tsx",
+      "/akademiet": "src/components/hjemmebane/akademi/views/ForsideView.tsx",
+    };
+    expect([...STEDER_MED_EGET_HOVED].sort()).toEqual(Object.keys(VIEWS).sort());
+    for (const [sti, fil] of Object.entries(VIEWS)) {
+      const k = udenKommentarer(laes(fil));
+      // Én gang, og EFTER h1 — eyebrow → h1 → sætningen.
+      expect((k.match(new RegExp(`<HbStedsSaetning\\s+sti="${sti}"`, "g")) ?? []).length, fil).toBe(1);
+      expect(k.indexOf("<h1"), fil).toBeLessThan(k.indexOf(`sti="${sti}"`));
+      expect(skallenTegnerSaetning(sti), sti).toBe(false);
+    }
+    for (const sti of ["/community", "/deling", "/chat", "/book-session"]) expect(skallenTegnerSaetning(sti), sti).toBe(true);
+    expect(skallenTegnerSaetning("/")).toBe(false);
+    expect(skallenTegnerSaetning("/community/abc")).toBe(false);
+    // Ingen anden flade tegner komponenten med en fast sti (ud over forsiden og de otte).
+    const medFastSti = kilder.filter(([sti, k]) => /<HbStedsSaetning\s+sti="/.test(k) && !Object.values(VIEWS).includes(sti) && sti !== FORSIDE).map(([sti]) => sti);
+    expect(medFastSti).toEqual([]);
+    // Hver sti i STEDER_MED_EGET_HOVED er et steds forside.
+    for (const sti of STEDER_MED_EGET_HOVED) expect(STEDERNES_STIER[sti], sti).toBeDefined();
+  });
   it("dom 5: «Live nu» lander på Events under Netværket for medlemmet — og på toppunktet for rådgiveren; intet andet punkt røres", () => {
     const maerke = { tekst: "Live nu", to: "/events/x", titel: "x" };
     const m = medLiveMaerke(medlem, maerke);
@@ -188,10 +228,12 @@ describe("seksSteder.guard — skridt 1: menuen, stedsætningerne, forsiden rydd
   });
   it("selvbevis 3: sætningen skrevet i en flade, komponenten uden gate, eller forsiden med to sætninger falder", () => {
     expect(saetningerneEtSted([...kilder, ["src/pages/X.tsx", 'const t = "Det her er stedet, hvor du …";']], komponent, skal, forside, raadgiverForside)).toBe(false);
-    expect(saetningerneEtSted(kilder, komponent.replace('membershipTier !== "subscriber"', "true"), skal, forside, raadgiverForside)).toBe(false);
+    expect(saetningerneEtSted(kilder, komponent.replace("const vises = visStedsSaetning({ isAdvisor, viewingAsMember, membershipTier });", "const vises = true;"), skal, forside, raadgiverForside)).toBe(false);
+    expect(saetningerneEtSted(kilder, komponent.replace("const vises = visStedsSaetning({ isAdvisor, viewingAsMember, membershipTier });", 'const vises = membershipTier !== "subscriber";'), skal, forside, raadgiverForside)).toBe(false);
     expect(saetningerneEtSted(kilder, komponent, skal, forside.replace("<FornyelsesBaand />", '<FornyelsesBaand /><HbStedsSaetning sti="/" />'), raadgiverForside)).toBe(false);
     expect(saetningerneEtSted(kilder, komponent, skal, forside, raadgiverForside + '\n<HbStedsSaetning sti="/" />')).toBe(false);
-    expect(saetningerneEtSted(kilder, komponent, skal.replace('stedForSti(location.pathname) !== "boardroom" ? location.pathname : null', "location.pathname"), forside, raadgiverForside)).toBe(false);
+    expect(saetningerneEtSted(kilder, komponent, skal.replace("skallenTegnerSaetning(location.pathname) ? location.pathname : null", "location.pathname"), forside, raadgiverForside)).toBe(false);
+    expect(saetningerneEtSted(kilder, komponent, skal.replace('className="hidden shrink-0 px-6 pt-6 md:block md:pt-8"', 'className="shrink-0 px-6 pt-6 md:pt-8"'), forside, raadgiverForside)).toBe(false);
   });
   it("selvbevis 4: båndet tilbage på forsiden, eller Score-kortet fjernet, falder", () => {
     expect(forsidenRyddet(forside.replace("<FornyelsesBaand />", '<FornyelsesBaand /><HbSection eyebrow="Fra os til dig"><StoryCard story={band.main} variant="main" /></HbSection>'))).toBe(false);

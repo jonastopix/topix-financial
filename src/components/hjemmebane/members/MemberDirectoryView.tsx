@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { listMemberDirectory, type MemberProfile } from "@/lib/hjemmebane/memberProfile";
 import { kortLinje } from "@/lib/hjemmebane/netvaerksprofil";
 import { HbCard } from "../HbCard";
+import { HbStedsSaetning } from "../HbStedsSaetning";
 
 /** Medlemsoversigten (/medlemmer): hele netværket som kort-grid med
     klient-side søgning — 31 medlemmer er for lidt til server-søgning.
@@ -116,13 +117,21 @@ export const MemberDirectoryView = () => {
       {/* ── Header (Events-mønstret): fladens navn som eyebrow, en
           SÆTNING som rubrik. ── */}
       <section className="max-w-3xl">
-        <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">Netværket</p>
+        {/* «Medlemmerne» (rådets fund 6, 2/10): samme ord som menuen (hbNav.ts) — «Netværket» er nu stedet, denne side er ét af dets børn. */}
+        <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">Medlemmerne</p>
         <h1 className="mt-3 font-editorial text-4xl font-medium leading-[1.1] tracking-tight text-hb-ink md:text-5xl">
           Folk der står, hvor du står.
         </h1>
-        <p className="mt-3 text-sm text-hb-ink-soft">
-          Find de andre medlemmer — se hvad de laver og har været igennem, og tag fat i dem der har prøvet det, du står i.
-        </p>
+        {/* Stedsætningen under h1 (rådets fund 7, 2/10): eyebrow → h1 → én sætning — sidens gamle intro kun for dem, sætningen ikke taler til (ellers). */}
+        <HbStedsSaetning
+          sti="/medlemmer"
+          className="mt-3"
+          ellers={
+            <p className="mt-3 text-sm text-hb-ink-soft">
+              Find de andre medlemmer — se hvad de laver og har været igennem, og tag fat i dem der har prøvet det, du står i.
+            </p>
+          }
+        />
       </section>
 
       <div className="mt-10">

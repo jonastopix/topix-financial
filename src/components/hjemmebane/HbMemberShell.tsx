@@ -22,7 +22,7 @@ import { listAllUpcomingEvents } from "@/lib/hjemmebane/akademiApi";
 import { LIVE_MAERKE, liveEvent, liveEventSti, liveEventTitel } from "@/lib/hjemmebane/liveEvent";
 import { useCertificate } from "@/hooks/useCertificate";
 import { HbStedsSaetning } from "./HbStedsSaetning";
-import { stedForSti } from "@/lib/hjemmebane/stedsSaetninger";
+import { skallenTegnerSaetning } from "@/lib/hjemmebane/stedsSaetninger";
 
 /** Fælles Hb-medlemsskal for forsiden ("/") og de øvrige medlemsflader
     (generalisering af den tidligere HbAkademiShell): V0-layoutmodellen
@@ -197,8 +197,12 @@ export const HbMemberShell = ({
      ikke af `active`, så undersider tier. Hvem der ser den (det fulde medlem,
      en rådgiver i «Se som medlem», aldrig abonnenten) afgør komponenten selv —
      skallen gater ikke. Forsiden («/») tegner selv sætningen under hilsenen
-     (BoardroomView), så den springes over her. */
-  const stedsSaetningSti = stedForSti(location.pathname) !== "boardroom" ? location.pathname : null;
+     (BoardroomView), og de otte steder med eget redaktionelt hoved
+     (STEDER_MED_EGET_HOVED: Dine tal, Dine mål, Events, Medlemmerne, Fordele,
+     Akademiet) tegner den selv under deres h1 (rådets fund 7, 2/10) — så
+     skallen tegner den KUN, hvor den er den eneste indledning: Community,
+     Anbefal, chatten, booking. */
+  const stedsSaetningSti = skallenTegnerSaetning(location.pathname) ? location.pathname : null;
 
   /* «LIVE NU» VED EVENTS (Jonas 10/9). Hentningen deler cache-nøgle med
      /events og Community-composeren (["events", "upcoming-all"]), så
@@ -260,8 +264,11 @@ export const HbMemberShell = ({
           />
           {fuld ? (
             <main className={`flex min-h-0 flex-1 flex-col ${tjeklisteBundluft}`}>
-              {/* I «fuld» har main ingen padding (chatten tager højden) — sætningen får sin egen, og krymper aldrig. */}
-              {stedsSaetningSti && <HbStedsSaetning sti={stedsSaetningSti} className="shrink-0 px-6 pt-6 md:pt-8" />}
+              {/* I «fuld» har main ingen padding (chatten tager højden) — sætningen får sin egen, og krymper aldrig.
+                  `hidden md:block` (rådets fund 3, 2/10): på mobil ER chatten hele skærmen (100dvh, beskedlisten
+                  + feltet), og tre linjer sætning over den æder beskeder — på desktop er der luft. Valgt frem for
+                  at tage /chat ud af stederne: «Din rådgiver» skal stadig have sin sætning dér, hvor den har plads. */}
+              {stedsSaetningSti && <HbStedsSaetning sti={stedsSaetningSti} className="hidden shrink-0 px-6 pt-6 md:block md:pt-8" />}
               {children}
             </main>
           ) : (

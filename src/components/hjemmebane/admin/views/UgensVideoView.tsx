@@ -21,6 +21,7 @@ import {
 import { HbField, HbInput, hbControlClasses } from "../HbField";
 import { HbStatusPill } from "../HbStatusPill";
 import { HbAdminSplit } from "../HbAdminShell";
+import { ForsidenRyddetLinje } from "./ForsidenRyddetLinje";
 import { useAdminHotkeys } from "../useAdminHotkeys";
 import {
   EditorBar,
@@ -500,6 +501,7 @@ export const UgensVideoView = () => {
       onCloseEditor={() => setSelectedId(null)}
       list={
         <div className="flex h-full min-h-0 flex-col">
+          <ForsidenRyddetLinje />
           <div className="min-h-0 flex-1 overflow-y-auto">
             {itemsQuery.isLoading ? (
               <p className="px-4 py-6 text-sm text-hb-ink-soft">Henter…</p>

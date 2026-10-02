@@ -39,6 +39,7 @@ import ReportManualOverride from "@/components/ReportManualOverride";
 import PulseCheckinModal from "@/components/PulseCheckinModal";
 import { HbAdvisorCompanyPrompt } from "../HbAdvisorCompanyPrompt";
 import { HbCard } from "../HbCard";
+import { HbStedsSaetning } from "../HbStedsSaetning";
 import { HbButton } from "../HbButton";
 import { hbControlClasses } from "../admin/HbField";
 import { deriveReportCardView, type CardAction, erForTidligt, godkendSpaerret, rapportFejlgrund, rapportNaesteSkridt } from "./reportCardView";
@@ -523,6 +524,8 @@ export const RapporteringView = () => {
         <h1 className="mt-3 font-editorial text-4xl font-medium leading-[1.1] tracking-tight text-hb-ink md:text-5xl">
           Rapportering
         </h1>
+        {/* Stedsætningen under h1 (rådets fund 7, 2/10): eyebrow → h1 → én sætning; status-linjen under er meta, ikke intro. */}
+        <HbStedsSaetning sti="/reports" className="mt-3" />
         <p className="mt-3 text-sm text-hb-ink-soft">
           {godkendelseUkendt
             ? "Vi kan ikke se hvilke tal der er godkendt lige nu. Godkendelse venter, til de er tilbage — prøv igen om lidt."

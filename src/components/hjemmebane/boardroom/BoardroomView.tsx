@@ -28,7 +28,7 @@ import { getISOWeekKey } from "@/lib/hjemmebane/week";
 import { denneUgesFredag, efterMaalFrist, fraDatoStreng, naesteUgesFredag, omEnMaaned, tilDatoStreng } from "@/lib/hjemmebane/opgaveDato";
 import { danskDato, senesteSkridtFrist } from "@/lib/hjemmebane/skridtForslag";
 import { forslagMetaLinje, fristTekst } from "@/lib/hjemmebane/aftaler";
-import { afsender, aktiveMedlemmer, INGEN_RAADGIVERE, raadgiverAnsigt, raadgiverOpslag, synligeMedlemmer, type Ansigt } from "@/lib/hjemmebane/ansigter";
+import { aktiveMedlemmer, INGEN_RAADGIVERE, raadgiverAnsigt, raadgiverOpslag, synligeMedlemmer, type Ansigt } from "@/lib/hjemmebane/ansigter";
 import { listMemberDirectory } from "@/lib/hjemmebane/memberProfile";
 import { vaerterForEvent } from "@/lib/hjemmebane/vaerter";
 import { listVaerterForEvents } from "@/lib/hjemmebane/vaerterApi";
@@ -56,8 +56,7 @@ import { HbCard } from "../HbCard";
 import { EstimatMaerke } from "../EstimatMaerke";
 import { dinMaanedDom, sparklineKoordinater, type DinMaanedDom, type MaanedsRaekke } from "@/lib/hjemmebane/dinMaaned";
 import { erDag1, hilsenLinje } from "@/lib/hjemmebane/forsideHilsen";
-import { VELKOMST_EYEBROW, VELKOMST_MANCHET, VELKOMST_SET_HJAELP, VELKOMST_SET_KNAP, VELKOMST_TITEL, velkomstHovedhistorie } from "@/lib/hjemmebane/velkomstHistorie";
-import { useAppConfig } from "@/hooks/useAppConfig";
+import { VELKOMST_EYEBROW, VELKOMST_MANCHET, VELKOMST_SET_HJAELP, VELKOMST_SET_KNAP, VELKOMST_TITEL } from "@/lib/hjemmebane/velkomstHistorie";
 import { HbVelkomstVideoEmbed } from "../HbVelkomstVideoEmbed";
 import { HbSection } from "../HbSection";
 import { HbStedsSaetning } from "../HbStedsSaetning";
@@ -81,18 +80,10 @@ import { lektionsSti } from "@/lib/hjemmebane/lektionerForModul";
 import { oevelseLektionSti } from "@/lib/hjemmebane/oevelse";
 import { HbVideoEmbed } from "../akademi/HbVideoEmbed";
 import { deriveFocus, filtrerUdloebneForslag, type FocusItem } from "./nextStep";
-import {
-  byPublishedDesc,
-  countNewSince,
-  pickActiveItem,
-  pickActivePush,
-  pickActiveWeekVideo,
-  pickEvergreen,
-  pickMainStory,
-  type NewsCandidate,
-  type StoryCandidate,
-  type StoryKind,
-} from "./pushSelection";
+// Dommene (pickMainStory m.fl.) bor stadig i ./pushSelection.ts — forsiden
+// kalder dem ikke siden 2/10 (båndet er væk); kun typen StoryCandidate bruges
+// af kortene nedenfor. Døde imports fjernet efter rådets fund 9.
+import { type StoryCandidate } from "./pushSelection";
 import { pushMedie, spotifyEmbedUrl, youtubeIdAf, youtubeNocookieEmbedUrl, youtubeThumbnailUrl } from "./pushMedie";
 import { pushOverlinje } from "./pushOverlinje";
 
@@ -676,14 +667,6 @@ const useCoverUrl = (coverPath: string | null): string | null =>
     staleTime: 30 * 60_000,
   }).data ?? null;
 
-/** Anchor-feedets beskrivelser er HTML i CDATA — strippes til ren tekst
-    til teaseren (DOMParser findes i browser og jsdom). */
-const stripHtml = (html: string): string =>
-  new DOMParser().parseFromString(html, "text/html").body.textContent?.trim() ?? "";
-
-const truncateText = (value: string, max: number): string =>
-  value.length <= max ? value : `${value.slice(0, max).trimEnd()}…`;
-
 /** Redaktionelt indslag (PR B3): cover + titel + hvorfor-linje + evt.
     citat + "Læs artiklen" i nyt vindue. Felterne er B1's metadata-
     konvention (link/quote — jsonb, ingen kolonner). */
@@ -856,28 +839,6 @@ const VelkomstStory = ({ guid, variant, onSet }: { guid: string; variant: StoryV
       <p className="mt-1 text-[15px] font-medium leading-snug text-hb-ink">{VELKOMST_TITEL}</p>
     </div>
   );
-};
-
-/** Polering #2 (begrundet valg): kolonneantal AFHÆNGIGT af antallet frem
-    for fast grid. Fast cols-3 efterlader én enlig ved 4 (3+1), og fast
-    cols-4 gør det samme ved 5 (4+1) — ingen fast værdi dækker hele
-    intervallet. Mapningen 2→2 · 3→3 · 4→4 på lg (2+2 på md) · 5-6→3
-    (3+2 / 3+3) efterlader ALDRIG præcis én tile alene på sidste række
-    for 2-6 elementer — på hverken md eller lg. 1 element → fuld bredde. */
-const tileColsClass = (count: number): string => {
-  switch (count) {
-    case 2:
-      return "md:grid-cols-2";
-    case 3:
-      return "md:grid-cols-3";
-    case 4:
-      return "md:grid-cols-2 lg:grid-cols-4";
-    case 5:
-    case 6:
-      return "md:grid-cols-3";
-    default:
-      return count <= 1 ? "" : "md:grid-cols-3";
-  }
 };
 
 /** Dispatcher: én kandidat → det rigtige kort i den rigtige variant.
@@ -2184,7 +2145,6 @@ export const BoardroomView = () => {
     [milestonesQuery.data, skridtQuery.data],
   );
   const plan = useMemo(() => (dineMaal ? forsidePlanDom(dineMaal, aftaleRaekker, new Date()) : null), [dineMaal, aftaleRaekker]);
-  const maalTitler = milestonesQuery.data ?? [];
 
   // SKIVE 3 (2/10-2026): forslag, gamle mål og kvartalstjek øverst i «Din plan» —
   // SAMME komponent og SAMME skrivninger som /milestones (BekraeftMaalKort →

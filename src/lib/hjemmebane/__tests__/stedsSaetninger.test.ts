@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { STEDERNES_STIER, STEDS_SAETNINGER, stedForSti, stedsSaetning, type Sted } from "@/lib/hjemmebane/stedsSaetninger";
+import { STEDERNES_STIER, STEDS_SAETNINGER, stedForSti, stedsSaetning, visStedsSaetning, type Sted } from "@/lib/hjemmebane/stedsSaetninger";
 
 /* «Det her er stedet, hvor …» (seks steder, 2/10-2026): den rene dom. Låser
    (1) at alle seks steder har en sætning, der begynder med forslagets ord,
@@ -44,5 +44,25 @@ describe("stedsSaetninger — seks sætninger, ét sted", () => {
   it("stedsSaetning giver stedets ord — ordret fra listen", () => {
     expect(stedsSaetning("/milestones")).toBe(STEDS_SAETNINGER.dine_maal);
     expect(stedsSaetning("/chat")).toBe(STEDS_SAETNINGER.din_raadgiver);
+  });
+
+  describe("visStedsSaetning — gaten er fail-closed (rådets fund 2)", () => {
+    const tiers = ["full", "subscriber", "expired", null] as const;
+    it("medlemmet: KUN tier «full» — null (mens useAuth henter, og en abonnent i første render), abonnent og udløbet giver intet", () => {
+      expect(visStedsSaetning({ isAdvisor: false, viewingAsMember: false, membershipTier: "full" })).toBe(true);
+      for (const tier of ["subscriber", "expired", null] as const) {
+        expect(visStedsSaetning({ isAdvisor: false, viewingAsMember: false, membershipTier: tier }), String(tier)).toBe(false);
+      }
+    });
+    it("rådgiveren: KUN i «Se som medlem» — tieren («full» hos rådgiveren) afgør intet", () => {
+      for (const tier of tiers) {
+        expect(visStedsSaetning({ isAdvisor: true, viewingAsMember: true, membershipTier: tier }), String(tier)).toBe(true);
+        expect(visStedsSaetning({ isAdvisor: true, viewingAsMember: false, membershipTier: tier }), String(tier)).toBe(false);
+      }
+    });
+    it("viewingAsMember uden isAdvisor ændrer intet for medlemmet", () => {
+      expect(visStedsSaetning({ isAdvisor: false, viewingAsMember: true, membershipTier: null })).toBe(false);
+      expect(visStedsSaetning({ isAdvisor: false, viewingAsMember: true, membershipTier: "subscriber" })).toBe(false);
+    });
   });
 });
