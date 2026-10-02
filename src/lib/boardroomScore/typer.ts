@@ -4,7 +4,8 @@
  * Designet står i docs/boardroom-score.md (30/9-2026). Motoren er REN:
  * ingen React, ingen Supabase. Hooken (src/hooks/useBoardroomScore.ts)
  * bygger ScoreGrundlag af financial_report_facts, companies.contract_start_date,
- * budget_targets og kpi_targets — alt læst med medlemmets egen RLS.
+ * budget_targets og milestones (skive 3: Dine mål; før 2/10 kpi_targets) — alt
+ * læst med medlemmets egen RLS.
  */
 
 export interface ScoreMaaned {
@@ -30,7 +31,7 @@ export interface ScoreGrundlag {
   kontraktStart: string | null;
   /** Mindst én værdirække i budget_targets for indeværende år. */
   harBudgetForAaret: boolean;
-  /** Mindst én række i kpi_targets. */
+  /** Mindst ét mål på Dine mål, der tæller (maalBekraeft.taellerSomScoreMaal: aktivt · bekræftet · art · frist · tal-mål med måltal og udgangspunkt). Før skive 3-migrationen: mindst én række i kpi_targets. */
   harMaal: boolean;
 }
 
@@ -106,7 +107,8 @@ export interface Handling {
   tekst: string;
   /** Gevinst i SAMLET score (0–1000-skalaen); null når den ikke kan regnes (søjlen mangler data). */
   gevinst: number | null;
-  sti: "/reports" | "/budget" | "/kpis" | null;
+  /** Skive 3 (2/10-2026): «Sæt dit første mål» peger på Dine mål (/milestones); /kpis er pejlemærkerne og bruges ikke længere af en løfter. */
+  sti: "/reports" | "/budget" | "/milestones" | null;
 }
 
 export interface ScoreDom {

@@ -209,7 +209,8 @@ export const forsidenHolder = (forside: string): boolean =>
   forside.includes("dineMaalDom(milestonesQuery.data, skridtQuery.data, new Date())") &&
   forside.includes("forsidePlanDom(dineMaal, aftaleRaekker, new Date())") &&
   forside.includes('kraevRaekker(skridtRes, "company_actions")') &&
-  forside.includes('kraevRaekker(res, "milestones") as MaalRaekke[]') &&
+  // Skive 3 (2/10-2026): hentningen læser også bekraeftet_at (fail-soft) — svaret er typet som planens form FØR kraevRaekker.
+  forside.includes('kraevRaekker(res, "milestones")') && forside.includes("type Svar = { data: MaalRaekke[] | null;") && forside.includes("if (res.error && erManglendeKolonne(res.error)) res = await hent(gamle);") &&
   /id="din-plan"/.test(forside) &&
   /id="dine-maal"/.test(forside) && /id="dine-skridt"/.test(forside) && !/id="dine-aftaler"/.test(forside);
 

@@ -29,6 +29,7 @@
 import { fremdriftTekst, planenDom, type MaalIPlanen, type MaalRaekke, type SkridtRaekke } from "./planen";
 import { kanOpretteMaal, MAX_AKTIVE_MAAL } from "./maal";
 import { danskDato } from "./skridtForslag";
+import { erBekraeftet } from "./maalBekraeft";
 
 /** Det af company_actions-rækken medlemmets flader læser: planens skridt +
     closed_at (historik: «gjort 12. sep.»). */
@@ -85,16 +86,25 @@ export interface MaalForMedlem {
 }
 
 export interface DineMaalDom {
+  /** De BEKRÆFTEDE aktive mål (skive 3) — dem, der tæller i pladserne og vises som kort. */
   aktive: MaalForMedlem[];
+  /** Aktive mål uden bekræftelse (skive 3, Jonas 1/10: «Ja, ét klik»): forslag/gamle mål, der venter
+      på «Det er vores mål» / «Behold». Tæller ikke i pladserne. Tom, når kolonnen ikke er læst. */
+  ubekraeftede: MaalForMedlem[];
   parkerede: MaalForMedlem[];
   naaede: MaalForMedlem[];
   /** Ingen mål overhovedet. */
   tom: boolean;
-  /** Under tre aktive. */
+  /** Under tre aktive — DATABASENS tælling (triggeren milestones_hoejst_tre_aktive tæller ALLE status =
+      'active', også ubekræftede; migration 20261002100000 rører den ikke). Fladen lover aldrig en plads,
+      databasen afviser. */
   kanOprette: boolean;
-  /** Grænsen på tre i klart sprog — altid én sætning. */
+  /** Pladserne er ledige blandt de bekræftede, men de ubekræftede fylder databasens tre: fladen siger
+      «Plads, når I har taget stilling» (BEKRAEFT_ORD.pladsOptaget) i stedet for «Sæt et mål». */
+  pladsOptagetAfUbekraeftede: boolean;
+  /** Grænsen på tre i klart sprog — altid én sætning. Tæller de bekræftede. */
   graenseTekst: string;
-  /** Flere end tre aktive (mål fra før grænsen). */
+  /** Flere end tre aktive (mål fra før grænsen) — databasens tælling (planen.gennemgang). */
   overGraensen: boolean;
 }
 
@@ -162,15 +172,20 @@ export function dineMaalDom(maal: readonly MaalRaekke[], skridt: readonly Skridt
     liste.push(s);
     skridtAf.set(s.maal_id, liste);
   }
+  // Skive 3: pladsen dømmes som databasen (alle aktive) — se DineMaalDom.kanOprette.
   const plads = kanOpretteMaal(plan.aktive.length);
   const til = (x: MaalIPlanen) => medHandlinger(x, skridtAf, plads);
+  const bekraeftede = plan.aktive.filter((x) => erBekraeftet(x.maal));
+  const ubekraeftede = plan.aktive.filter((x) => !erBekraeftet(x.maal));
   return {
-    aktive: plan.aktive.map(til),
+    aktive: bekraeftede.map(til),
+    ubekraeftede: ubekraeftede.map(til),
     parkerede: plan.parkerede.map(til),
     naaede: plan.naaede.map(til),
     tom: maal.length === 0,
     kanOprette: plads,
-    graenseTekst: graenseTekst(plan.aktive.length),
+    pladsOptagetAfUbekraeftede: !plads && kanOpretteMaal(bekraeftede.length),
+    graenseTekst: graenseTekst(bekraeftede.length),
     overGraensen: plan.gennemgang,
   };
 }

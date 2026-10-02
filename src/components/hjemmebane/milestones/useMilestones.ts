@@ -58,6 +58,9 @@ export interface Milestone {
   /** Dine mål (1/10-2026, migration 20261001190000): målets art. NULL = mål fra før designet — KUN dem viser
       og skriver den gamle talvisning («X af Y enhed», maalTal.gammelTalvisning). Før migrationen: altid null. */
   art: string | null;
+  /** Skive 3 (2/10-2026, migration 20261002100000): bekræftelsen. undefined = kolonnen ikke i svaret (select *
+      før migrationen) → tæller som i dag; null = ubekræftet forslag (maalBekraeft.erBekraeftet). */
+  bekraeftet_at?: string | null;
   /** Fase 3 («Dine mål»): planens felter — fremdriftens stempel, nået-dato og oprettelse (lib/hjemmebane/planen.MaalRaekke). */
   progress_updated_at: string | null;
   completed_at: string | null;
@@ -127,6 +130,7 @@ export function useMilestones({ userId, companyId, isAdvisor }: Args) {
         baseline: string | null; target_value: number | null; current_value: number | null; unit: string | null;
         progress_updated_at: string | null; completed_at: string | null; created_at: string;
         art?: string | null;
+        bekraeftet_at?: string | null;
       };
       const nu = new Date();
       const mapped: Milestone[] = ((data || []) as unknown as Raekke[]).map((m) => ({
@@ -145,6 +149,8 @@ export function useMilestones({ userId, companyId, isAdvisor }: Args) {
         current_value: m.current_value ?? null,
         unit: m.unit ?? null,
         art: m.art ?? null,
+        // Skive 3: KUN når kolonnen er i svaret — undefined er «modellen slået fra».
+        ...("bekraeftet_at" in m ? { bekraeftet_at: m.bekraeftet_at ?? null } : {}),
         progress_updated_at: m.progress_updated_at ?? null,
         completed_at: m.completed_at ?? null,
         created_at: m.created_at,

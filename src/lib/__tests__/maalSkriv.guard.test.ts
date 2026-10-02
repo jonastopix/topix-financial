@@ -50,7 +50,18 @@ const BOGFOERTE_KLIENTSKRIVERE: Record<string, RegExp[]> = {
   "src/components/hjemmebane/rapportering/RapporteringView.tsx": [/from\("milestones"\)\.delete\(\)\.eq\("source_report"/],
   // 1/10-2026 (Dine mål, tal-mål — Jonas 21:04): guidens oprettelse og «Gør målet skarpt»,
   // medlemmets egen vej som useMilestones; dømt af maalTal.doemNytMaal, «højst tre» af databasen.
-  "src/hooks/dineMaalGrundlag.ts": [/\.from\("milestones"\)\.insert\(payload\)/, /\.from\("milestones"\)\.update\(payload\)\.eq\("id", args\.maalId\)\.is\("art", null\)/],
+  "src/hooks/dineMaalGrundlag.ts": [
+    /\.from\("milestones"\)\.insert\(payload\)/,
+    /\.from\("milestones"\)\.update\(payload\)\.eq\("id", args\.maalId\)\.is\("art", null\)/,
+    // Skive 3 (2/10-2026, Jonas 1/10): medlemmets bekræftelse (guardet på bekraeftet_at IS NULL + aktiv),
+    // «Slip»/«Ikke nu»/«Parkér» = parkér (aldrig delete), og guidens insert MED bekræftelsen (fail-soft uden).
+    /\.from\("milestones"\)\.insert\(medBekraeftelse as never\)/,
+    /\.update\(\{ bekraeftet_at: args\.nu\.toISOString\(\), bekraeftet_af: args\.userId \} as never\)\s*\.eq\("id", args\.maalId\)\s*\.is\("bekraeftet_at" as never, null\)\s*\.eq\("status", "active"\)/,
+    /\.from\("milestones"\)\.update\(\{ status: "parked" \}\)\.eq\("id", args\.maalId\)\.eq\("status", "active"\)/,
+  ],
+  // Skive 3: kvartalstjekkets «Nået» på forsiden — et menneskes klik (samme skrivning som useMilestones.markerNaaet),
+  // i egen fil fordi dineMaalGrundlag aldrig skriver 'completed' (maalTal.guard dom 7).
+  "src/hooks/maalNaaetKlik.ts": [/\.from\("milestones"\)\.update\(\{ status: "completed" \}\)\.eq\("id", args\.maalId\)\.eq\("status", "active"\)/],
 };
 
 function alleFiler(rod: string, endelse: RegExp = /\.tsx?$/): string[] {

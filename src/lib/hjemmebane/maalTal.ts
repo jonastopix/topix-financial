@@ -422,6 +422,10 @@ export interface MaalMedTal {
   maal_noegle: string | null;
   udgangspunkt: number | null;
   udgangspunkt_dato: string | null;
+  /** Skive 3 (migration 20261002100000): bekræftelsen. undefined = kolonnen ikke læst (fail-soft, tæller som i dag); null = ubekræftet. */
+  bekraeftet_at?: string | null;
+  /** milestones.source — hvem skrev målet (maalBekraeft.maalKilde). Valgfri. */
+  source?: string | null;
 }
 
 export interface SporDom {

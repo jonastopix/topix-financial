@@ -190,6 +190,10 @@ export function vaekst(g: ScoreGrundlag, nu: Date): SoejleDom<"vaekst"> {
 //   rytme       = 150 × maalte / vindue.length
 //   rettidighed =  50 × rettidige / maalte          (0 når maalte = 0)
 //   budget      =  25 hvis harBudgetForAaret ; maal = 25 hvis harMaal
+//   harMaal (skive 3, 2/10-2026): mindst ét mål på DINE MÅL, der er aktivt, bekræftet af medlemmet,
+//   har en art (tal/begivenhed) og en frist — og for et tal-mål både måltal og udgangspunkt
+//   (lib/hjemmebane/maalBekraeft.ts:taellerSomScoreMaal; hooken useBoardroomScore.hentHarMaal).
+//   Et ubekræftet forslag og et gammelt mål uden art giver INGEN point.
 export function disciplinVindue(kontraktStart: string | null, nu: Date, maaneder: readonly ScoreMaaned[] = []): string[] {
   const foerste = foersteTaellendeMaaned(kontraktStart, maaneder);
   const ud: string[] = [];

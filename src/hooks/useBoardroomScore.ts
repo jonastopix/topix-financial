@@ -23,7 +23,12 @@
  *   - companies.contract_start_date — afgrænser disciplin og streak.
  *   - budget_targets: findes mindst én værdirække for indeværende år?
  *     (base-scenariet, period «YYYY-base-idx»; markører har ikke den form.)
- *   - kpi_targets: findes mindst én række?
+ *   - milestones (skive 3, 2/10-2026 — Jonas 1/10: «flyt Score-pointet til Dine
+ *     mål»): findes mindst ét mål, der taellerSomScoreMaal (aktivt · bekræftet ·
+ *     med art · med frist · tal-mål med måltal og udgangspunkt —
+ *     lib/hjemmebane/maalBekraeft.ts)? FAIL-SOFT: mangler kolonnen
+ *     bekraeftet_at (42703/PGRST204 — migration 20261002100000 ikke kørt),
+ *     læses kpi_targets som før («opfør dig som i dag»).
  *
  * Fejl er en fejl (husets regel): hver hentning kaster HentningsFejl med
  * kildens navn — et fejlet kald må ikke ligne «ingen tal» og give en
@@ -41,7 +46,28 @@ import { HentningsFejl, kraevRaekker } from "@/lib/kraevRaekker";
 import { erManglendeTabel } from "@/lib/manglendeTabel";
 import { kbhDele } from "@/lib/hverdage";
 import { boardroomScore, tidligsteGodkendelse, type ScoreDom, type ScoreGrundlag, type ScoreMaaned } from "@/lib/boardroomScore";
+import { taellerSomScoreMaal, type MaalTilScore } from "@/lib/hjemmebane/maalBekraeft";
+import { erManglendeKolonne } from "@/lib/manglendeTabel";
 import type { Json } from "@/integrations/supabase/types";
+
+/** Kolonnerne, Score læser af milestones (skive 3). bekraeftet_at er den, der kan mangle. */
+export const SCORE_MAAL_KOLONNER = "status, bekraeftet_at, art, deadline, target_value, udgangspunkt";
+
+/**
+ * «Har virksomheden et mål?» til disciplinens 25 point — af Dine mål (skive 3).
+ * Fail-soft: mangler kolonnen, tælles kpi_targets som før skive 3. Enhver anden
+ * fejl kaster HentningsFejl.
+ */
+export async function hentHarMaal(companyId: string): Promise<boolean> {
+  const maal = await supabase.from("milestones").select(SCORE_MAAL_KOLONNER).eq("company_id", companyId).eq("status", "active");
+  if (maal.error && erManglendeKolonne(maal.error)) {
+    const kpi = await supabase.from("kpi_targets").select("id", { count: "exact", head: true }).eq("company_id", companyId);
+    if (kpi.error) throw new HentningsFejl("kpi_targets", kpi.error.message);
+    return (kpi.count ?? 0) > 0;
+  }
+  if (maal.error) throw new HentningsFejl("milestones", maal.error.message);
+  return ((maal.data ?? []) as unknown as MaalTilScore[]).some(taellerSomScoreMaal);
+}
 
 /** Hvor tit grundlaget genhentes, og hvor tit dommen regnes om af samme grundlag. */
 export const GRUNDLAG_GENHENT_MS = 5 * 60_000;
@@ -100,8 +126,7 @@ export async function hentScoreGrundlag(companyId: string, nu: Date): Promise<Sc
     .like("period", `${aar}-base-%`);
   if (budget.error) throw new HentningsFejl("budget_targets", budget.error.message);
 
-  const maal = await supabase.from("kpi_targets").select("id", { count: "exact", head: true }).eq("company_id", companyId);
-  if (maal.error) throw new HentningsFejl("kpi_targets", maal.error.message);
+  const harMaal = await hentHarMaal(companyId);
 
   const maaneder: ScoreMaaned[] = facts.map((f) => ({
     key: f.period_key,
@@ -116,7 +141,7 @@ export async function hentScoreGrundlag(companyId: string, nu: Date): Promise<Sc
       maaneder,
       kontraktStart: (virksomhed.data as { contract_start_date?: string | null } | null)?.contract_start_date ?? null,
       harBudgetForAaret: (budget.count ?? 0) > 0,
-      harMaal: (maal.count ?? 0) > 0,
+      harMaal,
     },
   };
 }

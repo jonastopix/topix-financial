@@ -85,6 +85,7 @@ import { afgoerMilepael } from "@/lib/milepaelDom";
 import { TAELLENDE_SKRIDT } from "./maal";
 import { visteFremdrift } from "./planen";
 import { dagsdatoDansk } from "./skridtForslag";
+import { erBekraeftet } from "./maalBekraeft";
 
 /** Målets frist inden for så mange dage nævnes (kilde (3) og tillægget i (1)). */
 export const MAAL_FRIST_DAGE = 30;
@@ -106,6 +107,9 @@ export interface MaalFokusMaal {
   progress: number | null;
   deadline: string | null;
   created_at: string;
+  /** Skive 3 (2/10-2026): et UBEKRÆFTET mål (null) er ikke medlemmets endnu og giver intet punkt
+      (Jonas 1/10: «ikke i forsidens fokus»). undefined = kolonnen ikke læst → som i dag. */
+  bekraeftet_at?: string | null;
 }
 
 /** Det af company_actions-rækken dommen læser (forsidens skridtQuery). */
@@ -151,7 +155,8 @@ const erVentendeForslag = (s: MaalFokusSkridt, nu: Date): boolean =>
 
 /** Målenes ÉT punkt — eller null. Kilderne og rækkefølgen står i filhovedet. */
 export function maalFokus(maal: readonly MaalFokusMaal[], skridt: readonly MaalFokusSkridt[], nu: Date): MaalFokus | null {
-  const aktive = maal.filter((m) => afgoerMilepael(m, nu).aktiv);
+  // Skive 3: kun BEKRÆFTEDE aktive mål (maalBekraeft.erBekraeftet — fail-soft på en ulæst kolonne).
+  const aktive = maal.filter((m) => afgoerMilepael(m, nu).aktiv && erBekraeftet(m));
   if (aktive.length === 0) return null;
   const aktivtMaal = new Map(aktive.map((m) => [m.id, m]));
   const fristDage = new Map(aktive.map((m) => [m.id, dageTilMaalFrist(m.deadline, nu)]));

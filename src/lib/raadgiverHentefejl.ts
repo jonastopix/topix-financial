@@ -46,6 +46,7 @@ export const RAADGIVER_KILDE_ORD: Readonly<Record<string, string>> = {
   kpi_targets: "KPI-målene",
   budget_targets: "budgetterne",
   milestones: "milepælene",
+  maal_kvartalstjek: "kvartalstjekkene",
   handouts: "handouts",
   pulse_checkins: "refleksionerne",
   agent_proposals: "forslagene",

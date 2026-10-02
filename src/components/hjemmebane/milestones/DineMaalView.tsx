@@ -34,6 +34,8 @@ import { Chip, MaalKort, TomPladsKort } from "./MaalKort";
 import { Rejsen } from "./Rejsen";
 import { SaetMaalGuide, type GuideTilstand } from "./SaetMaalGuide";
 import { RedigerMaalDialog } from "./RedigerMaalDialog";
+import { BekraeftMaalKort, type BekraeftHandling, type KvartalHandling } from "./BekraeftMaalKort";
+import { BEKRAEFT_ORD, KVARTAL_ORD, type Kvartal } from "@/lib/hjemmebane/maalBekraeft";
 
 /**
  * «Dine mål» — /milestones (fladen 1/10-2026; designet Jonas sagde ja til kl.
@@ -74,6 +76,19 @@ import { RedigerMaalDialog } from "./RedigerMaalDialog";
  * guiden får ÅBNINGSTIDSPUNKTET, så dens nulstilling ikke tikker; (21) «Gør
  * målet skarpt» er låst, når den rå række mangler.
  *
+ * SKIVE 3 (2/10-2026, Jonas' svar 1/10 kl. 22:04–22:09; maalBekraeft.ts):
+ * ØVERST — før hovedet — står BekraeftMaalKort: nye forslag («Det er vores
+ * mål» / «Ikke nu»), de gamle mål («Er det stadig jeres mål?» — Behold / Slip)
+ * og kvartalstjekkene (Behold · Justér tal og dato · Parkér · Nået).
+ * Skrivningerne er hookets (skriv.bekraeft/slip/registrerKvartalstjek —
+ * medlemmets klientvej, samme RLS); «Nået» går gennem useMilestones'
+ * markerNaaet (fejringen som altid); «Justér» åbner RedigerMaalDialog, og
+ * tjekket registreres som 'justeret' FØRST når dialogen har gemt (kvartalEfterGem).
+ * Rådgiveren læser kortene (kanKlikke = !rawAdvisor — som retningen).
+ * Kortene (g.kort) er KUN de bekræftede aktive mål; pladsen dømmes af
+ * databasens tælling, og «Plads, når I har taget stilling» står, når de
+ * ubekræftede fylder (dom.pladsOptagetAfUbekraeftede).
+ *
  * Rådets runde 2: (2) «kan rette retningen» dømmes af den RÅ rådgiverrolle
  * (useAuth's isAdvisor, som HbMemberShell's hjerteslag) — ikke af «Se som
  * medlem»: gemRetning skriver på den indloggedes eget user_id, og i «Se som
@@ -97,6 +112,8 @@ const tilMaalRaekke = (m: Milestone): MaalRaekke => ({
   progress_updated_at: m.progress_updated_at,
   completed_at: m.completed_at,
   created_at: m.created_at,
+  // Skive 3: bekræftelsen følger med til dommen (undefined = kolonnen ikke læst).
+  ...("bekraeftet_at" in m ? { bekraeftet_at: m.bekraeftet_at ?? null } : {}),
 });
 
 const fejlBesked = async (error: { message: string; context?: { json?: () => Promise<{ error?: string }> } }): Promise<string> => {
@@ -171,6 +188,8 @@ export const DineMaalView = () => {
   // Guiden bærer sit ÅBNINGSTIDSPUNKT (fund 16/20): dens nulstilling afhænger af `nu`, som derfor ikke må tikke, mens den er åben.
   const [guide, setGuide] = useState<{ tilstand: GuideTilstand; nu: Date } | null>(null);
   const [redigerId, setRedigerId] = useState<string | null>(null);
+  // Skive 3: et kvartalstjek, hvis «Justér» åbnede redigeringen — registreres som 'justeret', når dialogen har gemt.
+  const [kvartalEfterGem, setKvartalEfterGem] = useState<{ maalId: string; kvartal: Kvartal } | null>(null);
   const [sletId, setSletId] = useState<string | null>(null);
   const aabnGuide = (tilstand: GuideTilstand) => setGuide({ tilstand, nu: new Date() });
   // Runde 2, fund 7: guidens frosne åbningstidspunkt bærer også dommen i skriverne.
@@ -219,6 +238,39 @@ export const DineMaalView = () => {
   };
   const busy = gjortMutation.isPending || tilfoejMutation.isPending;
 
+  // Skive 3 — bekræftelsen og kvartalstjekket (medlemmets klientvej; rådgiveren læser).
+  const kanBekraefte = !rawAdvisor;
+  const bekraeftHandling = async (maalId: string, handling: BekraeftHandling): Promise<string | null> => {
+    if (!user || !companyId) return "Du er ikke logget ind";
+    if (!kanBekraefte) return BEKRAEFT_ORD.kunMedlemmet;
+    const s = handling === "bekraeft" ? await skriv.bekraeft({ maalId, userId: user.id, nu: new Date() }) : await skriv.slip({ maalId });
+    if (s.ok === false) return s.grund;
+    toast.success(handling === "bekraeft" ? BEKRAEFT_ORD.bekraeftet : BEKRAEFT_ORD.slippet);
+    return null;
+  };
+  const registrerKvartal = async (maalId: string, kvartal: Kvartal, valg: KvartalHandling["valg"]): Promise<string | null> => {
+    if (!user || !companyId) return "Du er ikke logget ind";
+    const s = await skriv.registrerKvartalstjek({ maalId, companyId, userId: user.id, kvartal, valg });
+    if (s.ok === false) return s.grund;
+    toast.success(KVARTAL_ORD.registreret);
+    return null;
+  };
+  const kvartalHandling = async (h: KvartalHandling): Promise<string | null> => {
+    if (!kanBekraefte) return BEKRAEFT_ORD.kunMedlemmet;
+    // Handlingen FØR rækken (filhovedet i dineMaalGrundlag.registrerKvartalstjek).
+    if (h.valg === "parkeret") {
+      const s = await skriv.slip({ maalId: h.maalId });
+      if (s.ok === false) return s.grund;
+    } else if (h.valg === "naaet") {
+      await markerNaaetOgRyd(h.maalId);
+    }
+    return registrerKvartal(h.maalId, h.kvartal, h.valg);
+  };
+  const aabnJuster = (maalId: string, kvartal: Kvartal) => {
+    setKvartalEfterGem({ maalId, kvartal });
+    setRedigerId(maalId);
+  };
+
   if (isAdvisor && !companyId) {
     return <HbAdvisorCompanyPrompt />;
   }
@@ -263,7 +315,20 @@ export const DineMaalView = () => {
   };
 
   return (
-    <div data-dine-maal-aktive={kort.length} data-dine-maal-over-graensen={dom.overGraensen ? "1" : "0"}>
+    <div data-dine-maal-aktive={kort.length} data-dine-maal-over-graensen={dom.overGraensen ? "1" : "0"} data-dine-maal-ubekraeftede={g.bekraeftelser.forslag.length + g.bekraeftelser.gamle.length}>
+      {/* ── 0. Skive 3: forslag, gamle mål og kvartalstjek — kræver medlemmets klik, før alt andet ── */}
+      {!henter && !g.isError && (
+        <BekraeftMaalKort
+          bekraeftelser={g.bekraeftelser}
+          kvartalstjek={g.kvartalstjek}
+          kanKlikke={kanBekraefte}
+          onBekraeft={bekraeftHandling}
+          onKvartal={kvartalHandling}
+          onJuster={aabnJuster}
+          className="mb-8"
+        />
+      )}
+
       {/* ── 1. Hovedet ── */}
       <section className="max-w-3xl">
         <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">{eyebrowTekst(nu)}</p>
@@ -352,6 +417,12 @@ export const DineMaalView = () => {
                 );
               })}
               {tomPlads && <TomPladsKort onSaetMaal={() => aabnGuide(GUIDE_NY)} />}
+              {/* Skive 3: pladsen er optaget af ubekræftede mål (databasens tælling) — sig det, lov ingen plads. */}
+              {!tomPlads && dom.pladsOptagetAfUbekraeftede && (
+                <div className="flex min-h-[14rem] items-center rounded-hb border border-dashed border-hb-ink/25 p-5 md:p-6" data-maal-plads-optaget>
+                  <p className="text-sm text-hb-ink-soft">{BEKRAEFT_ORD.pladsOptaget}</p>
+                </div>
+              )}
             </div>
           </>
         )}
@@ -411,12 +482,23 @@ export const DineMaalView = () => {
       <RedigerMaalDialog
         kort={tilRedigering}
         open={tilRedigering !== null}
-        onClose={() => setRedigerId(null)}
+        onClose={() => { setRedigerId(null); setKvartalEfterGem(null); }}
         nu={nu}
         doemFrist={(dato) => (tilRedigering ? maalFristGrund(tilRedigering.id, dato) : null)}
         tastetTal={tilRedigering ? (maalMedTalAf.get(tilRedigering.id)?.current_value ?? null) : null}
         enhed={tilRedigering ? (maalMedTalAf.get(tilRedigering.id)?.unit ?? null) : null}
-        onGem={async (felter) => (tilRedigering ? opdaterMaalFelt(tilRedigering.id, felter) : "Målet findes ikke længere — genindlæs siden.")}
+        onGem={async (felter) => {
+          if (!tilRedigering) return "Målet findes ikke længere — genindlæs siden.";
+          const grund = await opdaterMaalFelt(tilRedigering.id, felter);
+          // Skive 3: «Justér tal og dato» fra et kvartalstjek — registreres som 'justeret' FØRST når gemt.
+          if (!grund && kvartalEfterGem?.maalId === tilRedigering.id) {
+            const k = kvartalEfterGem;
+            setKvartalEfterGem(null);
+            const r = await registrerKvartal(k.maalId, k.kvartal, "justeret");
+            if (r) toast.error(r);
+          }
+          return grund;
+        }}
       />
       <SletMilestoneDialog
         ms={tilSletning}

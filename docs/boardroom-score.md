@@ -50,7 +50,7 @@ tallene eller i disciplinen (`docs/data-basis-kontrakt.md`).
 | Likviditet | `cash` (bank), omkostningerne via `omkostningerIAlt(CANONICAL)` | `cash` kun når rapporten bærer balancen — mange saldobalancer gør; PDF-resultatopgørelser gør ikke. **Ikke målt i prod** hvor mange rækker der har `cash`; motoren siger «ikke nok data» når den mangler. |
 | Indtjening | `revenue`, `ebt` (ellers `ebtRegnet(gross_profit, m, CANONICAL)`) | Ja — omsætning og resultat er kernen i hver rapport. |
 | Vækst | `revenue` over 12+ måneder | Ja, når historikken er der. |
-| Disciplin | `period_key`, `data_basis`, `created_at`, hukommelsen `maaned_foerste_godkendelse` (§4a); `budget_targets` (findes for året?), `kpi_targets` (findes mindst ét mål?) | Ja. |
+| Disciplin | `period_key`, `data_basis`, `created_at`, hukommelsen `maaned_foerste_godkendelse` (§4a); `budget_targets` (findes for året?), `milestones` (findes mindst ét mål på Dine mål, der tæller? — skive 3, 2/10; før: `kpi_targets`) | Ja. |
 
 **Alle omkostningssummer går gennem `src/lib/omkostningsnoegler.ts`**
 (husets regel, 17/9): motoren har ingen lokal liste. Omkostninger er
@@ -198,8 +198,20 @@ godkendelserne — sæt den, hvor den mangler, så dommen ikke skal gætte.
 rytme        = 150 × (målte måneder i vinduet / måneder i vinduet)
 rettidighed  =  50 × (målte måneder godkendt senest fristen / målte måneder i vinduet)   — 0 når ingen målt
 budget       =  25 hvis budget_targets har mindst én værdirække i base-scenariet for indeværende år (period «YYYY-base-idx»)
-maal         =  25 hvis kpi_targets har mindst én række
+maal         =  25 hvis mindst ét mål på DINE MÅL tæller (skive 3, 2/10-2026 — Jonas 1/10: «flyt Score-pointet til Dine mål»)
 ```
+
+**Målpointets definition (skive 3, `lib/hjemmebane/maalBekraeft.ts:taellerSomScoreMaal`):** et mål
+tæller, når det er **aktivt** (`status = 'active'`), **bekræftet af medlemmet** (`bekraeftet_at`
+sat — et forslag fra rådgiver/agent/handout tæller først, når medlemmet har sagt «Det er vores
+mål»), **har en art** (`tal` eller `begivenhed` — et mål fra før designet uden art tæller ikke; «Gør
+målet skarpt» er vejen), **har en frist** (`deadline`), og for et tal-mål **både måltal og
+udgangspunkt** (`target_value`, `udgangspunkt`). Regnestykket: `maal = 25 × [∃ mål: aktivt ∧
+bekræftet ∧ art ∧ frist ∧ (art ≠ tal ∨ (måltal ∧ udgangspunkt))]`. Hooken (`useBoardroomScore.hentHarMaal`)
+læser `milestones` med `status, bekraeftet_at, art, deadline, target_value, udgangspunkt`; mangler
+kolonnen `bekraeftet_at` (migration `20261002100000` ikke kørt), læses `kpi_targets` som før —
+fail-soft, aldrig en score uden grund. Løfteren «Sæt dit første mål.» peger på `/milestones` (ikke
+`/kpis`, hvor KPI-målene nu hedder **pejlemærker**).
 
 «Ikke nok data» når vinduet er tomt (starten så ny, at ingen hel måneds
 frist er passeret).
@@ -276,7 +288,7 @@ søjler»). En score på 750 med to søjler er ikke det samme som 750 med fire.~
   uden kendt godkendelse var der ikke). En måned godkendt 15/9 påvirker
   ikke «forrige» set 30/8 — retningen er den, medlemmet faktisk gik.
   Fladen kan sige «op fra 612» — uden at noget gemmes. **Begrænsning:**
-  `budget_targets` og `kpi_targets` bærer intet tidspunkt i grundlaget
+  `budget_targets` og målene (`harMaal`, skive 3: Dine mål) bærer intet tidspunkt i grundlaget
   (kun «findes der?»), så budget- og målpoint regnes som NU også i
   `forrige`; et budget lagt i går kan derfor ikke ses som en stigning. Og
   en erstattet måneds TAL er de nuværende, mens godkendelsen er den første

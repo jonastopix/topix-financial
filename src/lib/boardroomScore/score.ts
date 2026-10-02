@@ -117,7 +117,8 @@ function handlingerFor(g: ScoreGrundlag, nu: Date, soejler: Soejler): Handling[]
     ud.push({ soejle: "disciplin", tekst: `Læg et budget for ${kbhDele(nu).aar}.`, gevinst: gevinstVed(soejler, med.disciplin), sti: "/budget" });
   } else if (!g.harMaal) {
     const med = alleSoejler({ ...g, harMaal: true }, nu);
-    ud.push({ soejle: "disciplin", tekst: "Sæt dit første mål.", gevinst: gevinstVed(soejler, med.disciplin), sti: "/kpis" });
+    // Skive 3 (2/10-2026): målet bor på Dine mål (/milestones) — ikke KPI-pejlemærkerne på /kpis.
+    ud.push({ soejle: "disciplin", tekst: "Sæt dit første mål.", gevinst: gevinstVed(soejler, med.disciplin), sti: "/milestones" });
   }
 
   // ── Likviditet: én måneds omkostninger mere i banken ──

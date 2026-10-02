@@ -7,6 +7,7 @@ import {
   MAAL_FOKUS_MAAL_CTA, MAAL_FOKUS_SKRIDT_CTA, MAAL_FOKUS_STI, MAAL_FOKUS_TILFOEJ_CTA,
   type MaalFokusMaal, type MaalFokusSkridt,
 } from "@/lib/hjemmebane/maalFokus";
+import { KVARTAL_ORD, type VentendeKvartalstjek } from "@/lib/hjemmebane/maalBekraeft";
 
 /** FOKUS-MOTOREN (forside PR 1, hb-forside-recon §D/§G): ÉN samlet,
     testbar prioriteringsdom for forsidens lag 1 — nu som PRIORITERET
@@ -164,6 +165,11 @@ export interface FocusInputs extends NextStepInputs {
       en af de to hentninger fejlede — et halvt billede må ikke give et
       forkert «tilføj det første skridt»). */
   maalPlan?: { maal: readonly MaalFokusMaal[]; skridt: readonly MaalFokusSkridt[] } | null;
+  /** Skive 3 (2/10-2026, Jonas 1/10: kvartalstjekket sker hos «medlemmet selv» — og som fokuspunkt
+      på forsiden UNDER hastende skridt): de ventende kvartalstjek, dømt af maalBekraeft.
+      ventendeKvartalstjekAlle (ren, tiden = `now`). Kun det FØRSTE (ældste forfaldne) bliver et punkt —
+      ét kort, aldrig en liste. Valgfri: udeladt/null/tom = intet punkt (også når tabellen ikke findes). */
+  kvartalstjek?: readonly VentendeKvartalstjek[] | null;
 }
 
 export type FocusKind =
@@ -174,6 +180,7 @@ export type FocusKind =
   | "unread-agent"
   | "weekly-focus"
   | "maal"
+  | "kvartalstjek"
   | "company-action"
   | "pulse"
   | "unlinked-lever"
@@ -538,6 +545,26 @@ export function deriveFocus(inputs: FocusInputs): FocusItem[] {
   if (ventendeMaalItem) {
     if (sidsteHastende >= 0) items.splice(sidsteHastende + 1, 0, { ...ventendeMaalItem, priority: 6 });
     else items.splice(fStart, 0, ventendeMaalItem);
+  }
+  // (e2) KVARTALSTJEKKET (skive 3, 2/10-2026): ét punkt for det ældste
+  // forfaldne tjek — SAMME plads som (2)/(3): under det sidste hastende
+  // (f)-skridt (så en aftale, der forfalder, ikke skubbes ned af et tjek),
+  // ellers før (f); altid EFTER målets eget punkt, når det står dér.
+  const tjek = inputs.kvartalstjek?.[0] ?? null;
+  if (tjek) {
+    const punkt: FocusItem = {
+      key: `kvartalstjek:${tjek.maalId}:${tjek.kvartal}`,
+      kind: "kvartalstjek",
+      priority: 5,
+      title: KVARTAL_ORD.fokusTitel(tjek.maalTitel, tjek.maaned),
+      description: KVARTAL_ORD.fokusTekst,
+      ctaLabel: KVARTAL_ORD.fokusCta,
+      ctaHref: KVARTAL_ORD.fokusSti,
+      sourceId: tjek.maalId,
+    };
+    const efterHastende = sidsteHastende >= 0 ? sidsteHastende + 1 + (ventendeMaalItem ? 1 : 0) : -1;
+    if (efterHastende >= 0) items.splice(efterHastende, 0, { ...punkt, priority: 6 });
+    else items.splice(fStart + (ventendeMaalItem ? 1 : 0), 0, punkt);
   }
 
   // (g) Pulse-nudgen — GATED bag committed rapport (ActionCenter:166-176:

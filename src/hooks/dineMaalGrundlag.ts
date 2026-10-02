@@ -29,6 +29,17 @@
  *      'overordnet' (handouts.responses, nyeste række — hentRetning). Egen
  *      query under «dine-maal»; en fejl giver retningFejlede, ikke en sidefejl.
  *
+ * SKIVE 3 (2/10-2026, Jonas' svar 1/10 kl. 22:04–22:09; lib/hjemmebane/
+ * maalBekraeft.ts; migration 20261002100000): målene læses også med
+ * `bekraeftet_at` og `source` (MAAL_KOLONNER_SKIVE3) — fail-soft i TRE lag:
+ * skive 3 → skive 2 (art m.fl.) → de gamle. Mangler skive 3-kolonnerne, er
+ * `bekraeftet_at` undefined på rækkerne, og bekræftelsesmodellen er slået
+ * fra (alle mål tæller som i dag; `bekraeftelseAfventer` er sand). Kortene
+ * er KUN de bekræftede aktive mål; de ubekræftede står i `bekraeftelser`
+ * (forslag/gamle). Kvartalstjekkene læses af `maal_kvartalstjek`
+ * (fail-soft: en manglende tabel er en tom liste — kvartalstjekFejlede for
+ * enhver anden fejl) og dømmes af ventendeKvartalstjekAlle.
+ *
  * SKRIVNINGEN går gennem den EKSISTERENDE vej: medlemmets klientskrivning på
  * milestones (som useMilestones — RLS uændret, politikkerne er på rækken;
  * migrationens filhoved). Rådgiveren skriver gennem maal-skriv, som IKKE kender
@@ -45,7 +56,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { boardroomScoreKey, GRUNDLAG_GENHENT_MS, DOM_UR_MS, hentScoreGrundlag, type ScoreHentning } from "@/hooks/useBoardroomScore";
 import { kraevRaekke, kraevRaekker } from "@/lib/kraevRaekker";
-import { erManglendeKolonne } from "@/lib/manglendeTabel";
+import { erManglendeKolonne, erManglendeTabel } from "@/lib/manglendeTabel";
+import { markerMaalNaaetKlik } from "@/hooks/maalNaaetKlik";
 import { maalFejlTekst } from "@/lib/hjemmebane/maalFejl";
 import { doemMaalFristModSkridt } from "@/lib/hjemmebane/skridtForslag";
 import type { ScoreMaaned } from "@/lib/boardroomScore";
@@ -65,6 +77,17 @@ import {
   type TidslinjeDom,
 } from "@/lib/hjemmebane/maalTal";
 import {
+  delBekraeftelser,
+  erBekraeftet,
+  laesKvartalValg,
+  ventendeKvartalstjekAlle,
+  type BekraeftelsesDeling,
+  type Kvartal,
+  type KvartalstjekRaekke,
+  type KvartalValg,
+  type VentendeKvartalstjek,
+} from "@/lib/hjemmebane/maalBekraeft";
+import {
   RETNING_MODUL,
   RETNING_NOEGLER,
   retningFraHandout,
@@ -78,8 +101,12 @@ import {
 
 /** Kolonnerne FØR migrationen — dem, alle mål har i dag. */
 export const MAAL_KOLONNER_GAMLE = "id, title, status, deadline, created_at, target_value, current_value, unit";
-/** Kolonnerne EFTER migrationen 20261001190000. */
+/** Kolonnerne EFTER migrationen 20261001190000 (skive 2, KØRT 1/10). */
 export const MAAL_KOLONNER_NYE = `${MAAL_KOLONNER_GAMLE}, art, maal_noegle, udgangspunkt, udgangspunkt_dato`;
+/** Kolonnerne EFTER migrationen 20261002100000 (skive 3: bekræftelsen; source er gammel, men læses først her). */
+export const MAAL_KOLONNER_SKIVE3 = `${MAAL_KOLONNER_NYE}, bekraeftet_at, bekraeftet_af, source`;
+/** Kvartalstjekkets kolonner (maal_kvartalstjek, migration 20261002100000). */
+export const KVARTALSTJEK_KOLONNER = "milestone_id, kvartal, valg, valgt_at";
 /** source_type (fladen 1/10): «foreslået af …» under det næste skridt — maalTal.skridtKilde. */
 export const SKRIDT_KOLONNER = "id, title, status, due_date, maal_id, closed_at, created_at, expires_at, source_type";
 /** Mål-id'er pr. `.in("maal_id", …)` — URL'en holdes kort (200 uuid'er ≈ 7,4 kB). */
@@ -94,12 +121,14 @@ export interface MaalHentning {
   maal: MaalMedTal[];
   /** Migrationen 20261001190000 er ikke kørt: de nye kolonner findes ikke (læst som null). */
   afventerMigration: boolean;
+  /** Migrationen 20261002100000 (skive 3) er ikke kørt: bekraeftet_at er undefined på rækkerne — modellen er slået fra. */
+  bekraeftelseAfventer: boolean;
 }
 
 type Raekke = Partial<MaalMedTal> & { id: string; title: string; status: string; created_at: string };
 
 function tilMaal(r: Raekke): MaalMedTal {
-  return {
+  const m: MaalMedTal = {
     id: r.id,
     title: r.title,
     status: r.status,
@@ -113,18 +142,48 @@ function tilMaal(r: Raekke): MaalMedTal {
     udgangspunkt: r.udgangspunkt ?? null,
     udgangspunkt_dato: r.udgangspunkt_dato ?? null,
   };
+  // Skive 3: KUN når kolonnen er læst — undefined betyder «modellen er slået fra» (maalBekraeft.erBekraeftet).
+  if ("bekraeftet_at" in r) m.bekraeftet_at = r.bekraeftet_at ?? null;
+  if ("source" in r) m.source = r.source ?? null;
+  return m;
 }
 
-/** Virksomhedens mål — med de nye kolonner, eller de gamle + afventerMigration. */
+/**
+ * Virksomhedens mål — fail-soft i tre lag (skive 3 → skive 2 → de gamle):
+ * mangler skive 3-kolonnerne (42703/PGRST204), læses skive 2's, og
+ * `bekraeftelseAfventer` er sand; mangler også de, læses de gamle, og
+ * `afventerMigration` er sand. Enhver ANDEN fejl kaster.
+ */
 export async function hentMaalMedTal(companyId: string): Promise<MaalHentning> {
-  const ny = await supabase.from("milestones").select(MAAL_KOLONNER_NYE).eq("company_id", companyId).order("created_at", { ascending: true });
+  const hent = (kolonner: string) => supabase.from("milestones").select(kolonner).eq("company_id", companyId).order("created_at", { ascending: true });
+  const skive3 = await hent(MAAL_KOLONNER_SKIVE3);
+  if (!(skive3.error && erManglendeKolonne(skive3.error))) {
+    const raekker = kraevRaekker(skive3 as unknown as { data: Raekke[] | null; error: { message: string } | null }, "milestones");
+    return { maal: raekker.map(tilMaal), afventerMigration: false, bekraeftelseAfventer: false };
+  }
+  const ny = await hent(MAAL_KOLONNER_NYE);
   if (ny.error && erManglendeKolonne(ny.error)) {
-    const gammel = await supabase.from("milestones").select(MAAL_KOLONNER_GAMLE).eq("company_id", companyId).order("created_at", { ascending: true });
-    const raekker = kraevRaekker(gammel as { data: Raekke[] | null; error: { message: string } | null }, "milestones");
-    return { maal: raekker.map(tilMaal), afventerMigration: true };
+    const gammel = await hent(MAAL_KOLONNER_GAMLE);
+    const raekker = kraevRaekker(gammel as unknown as { data: Raekke[] | null; error: { message: string } | null }, "milestones");
+    return { maal: raekker.map(tilMaal), afventerMigration: true, bekraeftelseAfventer: true };
   }
   const raekker = kraevRaekker(ny as unknown as { data: Raekke[] | null; error: { message: string } | null }, "milestones");
-  return { maal: raekker.map(tilMaal), afventerMigration: false };
+  return { maal: raekker.map(tilMaal), afventerMigration: false, bekraeftelseAfventer: true };
+}
+
+export const dineMaalKvartalstjekKey = (companyId: string | undefined | null) => ["dine-maal", "kvartalstjek", companyId] as const;
+
+/**
+ * Virksomhedens registrerede kvartalstjek (maal_kvartalstjek). FAIL-SOFT:
+ * findes tabellen ikke (PGRST205/42P01), er svaret tomt — ingen tjek venter,
+ * før migrationen er kørt. Enhver anden fejl kaster.
+ */
+export async function hentKvartalstjek(companyId: string): Promise<KvartalstjekRaekke[]> {
+  // Tabellen er født i 20261002100000 og står ikke i types.ts endnu — derfor `as any`.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const res = await (supabase.from("maal_kvartalstjek" as any).select(KVARTALSTJEK_KOLONNER).eq("company_id", companyId) as any);
+  if (res?.error && erManglendeTabel(res.error)) return [];
+  return kraevRaekker(res as { data: KvartalstjekRaekke[] | null; error: { message: string } | null }, "maal_kvartalstjek");
 }
 
 /** Bidder á `stoerrelse` — ren. */
@@ -179,16 +238,27 @@ export async function hentRetning(companyId: string): Promise<Retning> {
 export interface DineMaalGrundlag {
   maal: MaalMedTal[];
   skridt: SkridtTilMaal[];
+  /** Registrerede kvartalstjek (skive 3); tom før migrationen. */
+  kvartalstjek: KvartalstjekRaekke[];
   /** De målte måneder fra Score-grundlaget; null mens Score afventer sin migration, eller når Score-hentningen fejlede. */
   maaneder: ScoreMaaned[] | null;
   kontraktStart: string | null;
   afventerMigration: boolean;
+  bekraeftelseAfventer: boolean;
 }
 
 export interface DineMaalSvar {
   grundlag: DineMaalGrundlag | undefined;
-  /** Ét kort pr. AKTIVT mål (højst tre vises af fladen — MAX_AKTIVE_MAAL), ældste først. */
+  /** Ét kort pr. AKTIVT, BEKRÆFTET mål (højst tre vises af fladen — MAX_AKTIVE_MAAL), ældste først. */
   kort: MaalKort[];
+  /** Skive 3: de ubekræftede aktive mål — nye forslag og gamle mål (maalBekraeft.delBekraeftelser). */
+  bekraeftelser: BekraeftelsesDeling;
+  /** Skive 3: ventende kvartalstjek, ældste forfaldne først. */
+  kvartalstjek: VentendeKvartalstjek[];
+  /** Skive 3-migrationen er ikke kørt: bekræftelsesmodellen er slået fra (alle mål tæller som i dag). */
+  bekraeftelseAfventer: boolean;
+  /** Kvartalstjek-hentningen fejlede (ikke «tabellen mangler») — ikke en sidefejl. */
+  kvartalstjekFejlede: boolean;
   tidslinje: TidslinjeDom | null;
   afventerMigration: boolean;
   /** Score-hentningen fejlede: tal-målene står «Tallet kan ikke læses endnu» — IKKE en sidefejl. */
@@ -207,11 +277,17 @@ export interface DineMaalSvar {
   nu: Date;
 }
 
-/** Den rene samling: kort for de aktive mål + tidslinjen. Eksporteret, så den kan prøves uden React. */
-export function byggDineMaal(g: DineMaalGrundlag, nu: Date): { kort: MaalKort[]; tidslinje: TidslinjeDom } {
-  const aktive = g.maal.filter((m) => m.status === "active");
+/**
+ * Den rene samling: kort for de aktive, BEKRÆFTEDE mål (skive 3 — et ubekræftet
+ * mål er et forslag, ikke et kort), de ubekræftede delt i forslag/gamle,
+ * kvartalstjekkene og tidslinjen. Eksporteret, så den kan prøves uden React.
+ */
+export function byggDineMaal(g: DineMaalGrundlag, nu: Date): { kort: MaalKort[]; bekraeftelser: BekraeftelsesDeling; kvartalstjek: VentendeKvartalstjek[]; tidslinje: TidslinjeDom } {
+  const aktive = g.maal.filter((m) => m.status === "active" && erBekraeftet(m));
   return {
     kort: aktive.map((m) => maalKort(m, g.skridt, g.maaneder, nu)),
+    bekraeftelser: delBekraeftelser(g.maal),
+    kvartalstjek: ventendeKvartalstjekAlle(g.maal, g.kvartalstjek, nu),
     tidslinje: tidslinje(g.maal, g.skridt, tidslinjeStart(g.kontraktStart, g.maal, nu), nu),
   };
 }
@@ -225,16 +301,21 @@ export function samlGrundlag(
   maal: MaalHentning | undefined,
   skridt: SkridtTilMaal[] | undefined,
   score: { data: ScoreHentning | undefined; isError: boolean },
+  // Skive 3: kvartalstjekkene må mangle, når hentningen har FEJLET (tom liste — intet tjek vises); venter, mens den henter.
+  kvartalstjek: { data: KvartalstjekRaekke[] | undefined; isError: boolean } = { data: [], isError: false },
 ): DineMaalGrundlag | undefined {
   if (!maal || !skridt) return undefined;
   if (!score.data && !score.isError) return undefined;
+  if (!kvartalstjek.data && !kvartalstjek.isError) return undefined;
   const klar = score.data?.tilstand === "klar" ? score.data.grundlag : null;
   return {
     maal: maal.maal,
     skridt,
+    kvartalstjek: kvartalstjek.data ?? [],
     maaneder: klar ? [...klar.maaneder] : null,
     kontraktStart: klar?.kontraktStart ?? null,
     afventerMigration: maal.afventerMigration,
+    bekraeftelseAfventer: maal.bekraeftelseAfventer,
   };
 }
 
@@ -260,6 +341,8 @@ export function useDineMaalGrundlag(overrideCompanyId?: string): DineMaalSvar {
     staleTime: 60_000,
   });
   const retning = useQuery({ queryKey: dineMaalRetningKey(companyId), queryFn: () => hentRetning(companyId!), enabled: aktiv, staleTime: 60_000 });
+  // Skive 3: kvartalstjekkene — egen nøgle under «dine-maal»; fail-soft (tabellen mangler → tom).
+  const kvartalstjek = useQuery({ queryKey: dineMaalKvartalstjekKey(companyId), queryFn: () => hentKvartalstjek(companyId!), enabled: aktiv, staleTime: 60_000 });
 
   // Uret (som Score): sporet og fristerne afhænger af `nu`.
   const [nuMs, setNuMs] = useState(() => Date.now());
@@ -269,8 +352,8 @@ export function useDineMaalGrundlag(overrideCompanyId?: string): DineMaalSvar {
   }, []);
 
   const grundlag = useMemo(
-    () => samlGrundlag(maal.data, skridt.data, { data: score.data, isError: score.isError }),
-    [maal.data, skridt.data, score.data, score.isError],
+    () => samlGrundlag(maal.data, skridt.data, { data: score.data, isError: score.isError }, { data: kvartalstjek.data, isError: kvartalstjek.isError }),
+    [maal.data, skridt.data, score.data, score.isError, kvartalstjek.data, kvartalstjek.isError],
   );
 
   const nu = useMemo(() => new Date(nuMs), [nuMs]);
@@ -279,10 +362,14 @@ export function useDineMaalGrundlag(overrideCompanyId?: string): DineMaalSvar {
   return {
     grundlag,
     kort: bygget?.kort ?? [],
+    bekraeftelser: bygget?.bekraeftelser ?? { forslag: [], gamle: [] },
+    kvartalstjek: bygget?.kvartalstjek ?? [],
+    bekraeftelseAfventer: maal.data?.bekraeftelseAfventer ?? false,
+    kvartalstjekFejlede: kvartalstjek.isError,
     tidslinje: bygget?.tidslinje ?? null,
     afventerMigration: maal.data?.afventerMigration ?? false,
     tallenFejlede: score.isError,
-    isLoading: (score.isLoading && !score.isError) || maal.isLoading || (!!maal.data && skridt.isLoading),
+    isLoading: (score.isLoading && !score.isError) || maal.isLoading || (!!maal.data && skridt.isLoading) || (kvartalstjek.isLoading && !kvartalstjek.isError),
     isError: maal.isError || skridt.isError,
     error: maal.error ?? skridt.error,
     retning: retning.data ?? null,
@@ -342,9 +429,67 @@ export async function opretMaalMedTal(args: {
     progress: 0,
     status: "active",
   };
-  const { data, error } = await supabase.from("milestones").insert(payload).select("id").maybeSingle();
+  // Skive 3: et mål, medlemmet selv sætter, er bekræftet fra fødslen (bekraeftet_at = nu, bekraeftet_af =
+  // medlemmet). Mangler kolonnerne (migrationen ikke kørt: PGRST204), skrives målet UDEN dem — som i dag.
+  const medBekraeftelse = { ...payload, bekraeftet_at: args.nu.toISOString(), bekraeftet_af: args.userId };
+  let svar = await supabase.from("milestones").insert(medBekraeftelse as never).select("id").maybeSingle();
+  if (svar.error && erManglendeKolonne(svar.error)) svar = await supabase.from("milestones").insert(payload).select("id").maybeSingle();
+  const { data, error } = svar;
   if (error) return fejlSvar(error, "Kunne ikke oprette målet");
   return { ok: true, id: (data as { id: string } | null)?.id ?? null };
+}
+
+// ── Skive 3: bekræftelsen, slip og kvartalstjekket (medlemmets klientvej, samme RLS) ──
+
+export const BEKRAEFT_NUL_RAEKKER_TEKST = "Målet blev ikke bekræftet — det er allerede bekræftet, ikke længere aktivt, eller du har ikke adgang til det.";
+export const SLIP_NUL_RAEKKER_TEKST = "Målet blev ikke parkeret — det er ikke længere aktivt, eller du har ikke adgang til det.";
+export const KVARTALSTJEK_UGYLDIG_TEKST = "Kvartalstjekket kunne ikke registreres — ugyldigt valg.";
+export const KVARTALSTJEK_IKKE_GEMT_TEKST = "Valget er gemt, men kvartalstjekket blev ikke registreret — det vises igen næste gang.";
+
+/**
+ * «Det er vores mål» / «Behold»: bekraeftet_at = nu, bekraeftet_af = medlemmet.
+ * Gennem den eksisterende RLS («Company members can update company milestones»
+ * dækker også et mål, en rådgiver skrev). UPDATE guardet på
+ * `.is("bekraeftet_at", null).eq("status", "active")` — nul rækker er en
+ * tydelig fejl, aldrig en stille overskrivning.
+ */
+export async function bekraeftMaal(args: { maalId: string; userId: string; nu: Date }): Promise<SkriveSvar> {
+  const { data, error } = await supabase
+    .from("milestones")
+    .update({ bekraeftet_at: args.nu.toISOString(), bekraeftet_af: args.userId } as never)
+    .eq("id", args.maalId)
+    .is("bekraeftet_at" as never, null)
+    .eq("status", "active")
+    .select("id");
+  if (error) return fejlSvar(error, "Kunne ikke bekræfte målet");
+  if (!data || (data as unknown[]).length === 0) return { ok: false, grund: BEKRAEFT_NUL_RAEKKER_TEKST, afventerMigration: false };
+  return { ok: true, id: args.maalId };
+}
+
+/** «Ikke nu» / «Slip» / kvartalstjekkets «Parkér»: status 'parked' — SLET aldrig. Guardet på status 'active'. */
+export async function slipMaal(args: { maalId: string }): Promise<SkriveSvar> {
+  const { data, error } = await supabase.from("milestones").update({ status: "parked" }).eq("id", args.maalId).eq("status", "active").select("id");
+  if (error) return fejlSvar(error, "Kunne ikke parkere målet");
+  if (!data || (data as unknown[]).length === 0) return { ok: false, grund: SLIP_NUL_RAEKKER_TEKST, afventerMigration: false };
+  return { ok: true, id: args.maalId };
+}
+
+/**
+ * Registrér et kvartalstjek: én række i maal_kvartalstjek (RLS: medlem af
+ * virksomheden, valgt_af = auth.uid(), målet hører til virksomheden). Kaldes
+ * EFTER handlingen (behold: ingen; justeret: efter gemt; parkeret/naaet: efter
+ * statusskrivningen) — fejler rækken, står kortet igen næste gang (harmløst);
+ * UNIQUE (milestone_id, kvartal) gør en gentagelse til 23505, som også er «ikke gemt».
+ */
+export async function registrerKvartalstjek(args: { maalId: string; companyId: string; userId: string; kvartal: Kvartal; valg: KvartalValg }): Promise<SkriveSvar> {
+  if (laesKvartalValg(args.valg) === null) return { ok: false, grund: KVARTALSTJEK_UGYLDIG_TEKST, afventerMigration: false };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const res = await (supabase.from("maal_kvartalstjek" as any).insert({ milestone_id: args.maalId, company_id: args.companyId, kvartal: args.kvartal, valg: args.valg, valgt_af: args.userId }).select("id").maybeSingle() as any);
+  if (res?.error) {
+    if (erManglendeTabel(res.error)) return { ok: false, grund: AFVENTER_MIGRATION_TEKST, afventerMigration: true };
+    return { ok: false, grund: KVARTALSTJEK_IKKE_GEMT_TEKST, afventerMigration: false };
+  }
+  return { ok: true, id: (res?.data as { id: string } | null)?.id ?? null };
 }
 
 /**
@@ -495,11 +640,14 @@ export async function gemRetning(args: {
   return { ok: true, id: (data as { id: string } | null)?.id ?? null };
 }
 
-/** Nøglerne, en mål-skrivning gør forældede (fund 17). useMilestones har ingen — den genhenter selv. */
+/** Nøglerne, en mål-skrivning gør forældede (fund 17). useMilestones har ingen — den genhenter selv.
+    Skive 3: også forsidens kilder (["boardroom"] — milestonesQuery/fokus) og Score (harMaal læser målene). */
 export const maalSkrivningNoegler = (companyId: string): readonly (readonly unknown[])[] => [
   ["dine-maal"],
   ["virksomhed", companyId],
   ["pulse-milestones", companyId],
+  ["boardroom"],
+  ["boardroom-score"],
 ];
 
 export async function invaliderEfterMaalSkrivning(qc: Pick<QueryClient, "invalidateQueries">, companyId: string): Promise<void> {
@@ -526,6 +674,12 @@ export function useDineMaalSkrivning(opts: { companyId: string | null | undefine
       goerSkarpt: async (args: Parameters<typeof goerMaalSkarpt>[0]) => ryd(await goerMaalSkarpt(args)),
       // Retningens nøgle står under «dine-maal» (dineMaalRetningKey) — samme invalidering.
       gemRetning: async (args: Parameters<typeof gemRetning>[0]) => ryd(await gemRetning(args)),
+      // Skive 3.
+      bekraeft: async (args: Parameters<typeof bekraeftMaal>[0]) => ryd(await bekraeftMaal(args)),
+      slip: async (args: Parameters<typeof slipMaal>[0]) => ryd(await slipMaal(args)),
+      // «Nået» er et menneskes klik og bor i hooks/maalNaaetKlik (maalTal.guard dom 7: denne fil skriver aldrig completed).
+      markerNaaet: async (args: Parameters<typeof markerMaalNaaetKlik>[0]) => ryd(await markerMaalNaaetKlik(args)),
+      registrerKvartalstjek: async (args: Parameters<typeof registrerKvartalstjek>[0]) => ryd(await registrerKvartalstjek(args)),
     };
   }, [qc, companyId, efter]);
 }
