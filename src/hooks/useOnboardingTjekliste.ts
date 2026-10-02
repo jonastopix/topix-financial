@@ -1,21 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { byggTjekliste, type Tjekliste, type TjeklisteInput } from "@/lib/onboardingTjekliste";
+import { byggTjekliste, type MaalTilTjekliste, type Tjekliste, type TjeklisteInput } from "@/lib/onboardingTjekliste";
 import { harVelkomstvideo as doemVelkomstvideo } from "@/lib/appConfig";
 import { KILDE_PRAESENTATION } from "@/lib/hjemmebane/praesentation";
 import { RETNING_MODUL } from "@/lib/hjemmebane/oevelse";
+import { erManglendeKolonne } from "@/lib/manglendeTabel";
 import { getEffectiveReportPeriodKey, type ReportData } from "@/lib/financialUtils";
 
 /**
- * Datalaget for onboarding-tjeklisten: henter de seks datastykker for den
- * indloggede bruger og kører motoren (src/lib/onboardingTjekliste.ts).
- * Fladen regner INTET selv — den viser det motoren afgør.
+ * Datalaget for onboarding-tjeklisten: henter datastykkerne for den
+ * indloggede bruger og kører motoren (src/lib/onboardingTjekliste.ts —
+ * seks punkter, seks steder, 2/10). Fladen regner INTET selv — den viser
+ * det motoren afgør.
  *
  * Samme mønster som useAkademiData: react-query, nøgle pr. bruger, kun
- * aktiv når der er en bruger. De seks opslag kører samlet i ÉN queryFn med
- * Promise.all (Members.tsx-mønstret), så boksen ikke tegner sig i seks
- * trin.
+ * aktiv når der er en bruger. Opslagene kører samlet i ÉN queryFn med
+ * Promise.all (Members.tsx-mønstret), så boksen ikke tegner sig i trin.
  *
  * RÅDGIVERE HENTER IKKE: tjeklisten er medlemmets, og en rådgiver med
  * virksomheds-override ville ellers få et medlems tal blandet med sin
@@ -26,12 +27,14 @@ import { getEffectiveReportPeriodKey, type ReportData } from "@/lib/financialUti
  *   profiles.avatar_url                          — samme opslag (17/9, Jonas «C»): fotoet er
  *     en del af «Din profil» (profilUdfyldt: tekst OG foto).
  *   profiles.created_at                          — samme opslag (14/9): grænsen
- *     for delingspunktet (kun medlemmer fra DELING_PUNKT_FRA).
- *   profiles.deling_hentet_at                    — EGET opslag, IKKE fatalt (14/9):
- *     stemplet fra «Hent PNG» (useDelingHentet). Kolonnen kommer med
- *     migration 20260914220000, som køres i hånden — klikkes «Update» før
- *     SQL'en er kørt, må tjeklisten ikke vælte for alle 30 medlemmer.
- *     Fejler opslaget, er svaret null (punktet ikke gjort) og en warn.
+ *     for mål-punktet (kun medlemmer fra MAAL_PUNKT_FRA, 2/10 — før: delings-
+ *     punktet, som udgik 2/10; deling_hentet_at læses ikke længere her).
+ *   milestones: status, bekraeftet_at            — virksomhedens mål (2/10, punkt 4
+ *     «Sæt dit første mål»). FAIL-SOFT som Dine mål (dineMaalGrundlag.
+ *     hentMaalMedTal): mangler kolonnen bekraeftet_at (42703/PGRST204 —
+ *     migration 20261002100000 ikke kørt), læses status alene, og
+ *     bekraeftet_at er undefined på rækkerne = bekræftet (maalBekraeft.
+ *     erBekraeftet). Enhver anden fejl er fatal som de andre opslag.
  *   member_profiles.ask_me_about                — rækken findes ikke før første gem → null
  *   companies.website, industry_label, cvr_number — brugerens egen virksomhed (companyId)
  *   financial_reports: report_period, manual_report_period_key,
@@ -94,7 +97,7 @@ async function hentInput(
   companyId: string,
   kanOpretteTraad: boolean,
 ): Promise<{ input: TjeklisteInput; velkomstvideoSetAt: string | null }> {
-  const [profilRes, memberProfilRes, companyRes, rapporterRes, godkendteRes, handoutsRes, samtaleRes, velkomstRes, praesentationRes, delingRes] = await Promise.all([
+  const [profilRes, memberProfilRes, companyRes, rapporterRes, godkendteRes, handoutsRes, samtaleRes, velkomstRes, praesentationRes, maalRes] = await Promise.all([
     // velkomstvideo_set_at er ikke i de genererede typer endnu (se filhovedet).
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase.from("profiles") as any)
@@ -142,13 +145,8 @@ async function hentInput(
       .eq("forfatter_id", userId)
       .eq("kilde_type", KILDE_PRAESENTATION)
       .eq("status", "aktiv"),
-    // Delingsstemplet — eget opslag, holdes UDEN FOR den fatale fejl-liste
-    // nedenfor (se filhovedet: kolonnen kan mangle indtil migrationen er kørt).
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (supabase.from("profiles") as any)
-      .select("deling_hentet_at")
-      .eq("user_id", userId)
-      .maybeSingle(),
+    // Målene (2/10, punkt 4): fail-soft på kolonnen bekraeftet_at — se filhovedet og hentMaal.
+    hentMaal(companyId),
   ]);
 
   // Fejl i ét opslag vælter hele hentningen — en tjekliste med et gættet
@@ -158,12 +156,6 @@ async function hentInput(
 
   const profil = (profilRes.data ?? null) as { velkomstvideo_set_at: string | null; created_at: string | null; avatar_url: string | null } | null;
   const velkomstvideoSetAt = profil?.velkomstvideo_set_at ?? null;
-  let delingHentetAt: string | null = null;
-  if (delingRes.error) {
-    console.warn("[useOnboardingTjekliste] deling_hentet_at kunne ikke læses (migration 20260914220000 kørt?) — punktet regnes som ikke gjort:", delingRes.error.message);
-  } else {
-    delingHentetAt = ((delingRes.data ?? null) as { deling_hentet_at: string | null } | null)?.deling_hentet_at ?? null;
-  }
   // config_value er JSON (jsonb), ikke text: '""'::json er en TOM streng —
   // parset "" (nul tegn), rå «""» (to tegn). Begge skal give «ingen video»,
   // ellers vises en tom overlejring og punktet tælles med. Dommen er den
@@ -190,9 +182,30 @@ async function hentInput(
       antal_udfyldte_handouts: handoutsRes.count ?? 0,
       last_member_message_at: samtaleRes.data?.last_member_message_at ?? null,
       medlem_siden: profil?.created_at ?? null,
-      deling_hentet_at: delingHentetAt,
+      maal: maalRes,
     },
   };
+}
+
+/**
+ * Virksomhedens mål til punkt 4 — status og bekraeftet_at. Samme fail-soft
+ * som Dine mål (dineMaalGrundlag.hentMaalMedTal, to lag her): svarer
+ * databasen «kolonnen findes ikke» på bekraeftet_at, læses status alene, og
+ * rækkerne bærer INGEN bekraeftet_at (undefined = modellen slået fra =
+ * bekræftet, maalBekraeft.erBekraeftet). Enhver anden fejl kaster — en
+ * tjekliste med et gættet punkt er værre end ingen (filhovedet). Kolonnen
+ * står ikke i de genererede typer før migrationen — derfor `as unknown`.
+ */
+async function hentMaal(companyId: string): Promise<MaalTilTjekliste[]> {
+  const medBekraeftelse = await supabase.from("milestones").select("status, bekraeftet_at").eq("company_id", companyId);
+  if (!medBekraeftelse.error) {
+    const raekker = (medBekraeftelse.data ?? []) as unknown as { status: string; bekraeftet_at: string | null }[];
+    return raekker.map((m) => ({ status: m.status, bekraeftet_at: m.bekraeftet_at ?? null }));
+  }
+  if (!erManglendeKolonne(medBekraeftelse.error)) throw new Error(medBekraeftelse.error.message);
+  const kunStatus = await supabase.from("milestones").select("status").eq("company_id", companyId);
+  if (kunStatus.error) throw new Error(kunStatus.error.message);
+  return (kunStatus.data ?? []).map((m) => ({ status: m.status }));
 }
 
 export function useOnboardingTjekliste(): OnboardingTjeklisteResultat {

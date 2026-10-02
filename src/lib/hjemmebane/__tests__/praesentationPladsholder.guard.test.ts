@@ -125,12 +125,14 @@ describe("praesentationPladsholder.guard — ét sted, én vej, tom composer", (
   });
 
   it("5. tjeklistens beskrivelse og mail A's linje lover ikke et udkast — i motoren og i kilden, begge spejle", () => {
-    const punkt = byggTjekliste(TOM, NU).punkter.find((p) => p.id === "praesentation")!;
-    expect(punkt.beskrivelse).toBe("Et opslag om hvem du er.");
+    // Seks steder (2/10): præsentationen er en del af Netværkets punkt («netvaerk»); før: punktet «praesentation».
+    const punkt = byggTjekliste(TOM, NU).punkter.find((p) => p.id === "netvaerk")!;
+    expect(punkt.beskrivelse).toBe("Et foto, hvad de andre kan spørge dig om — og et opslag om hvem du er.");
+    expect(punkt.mangler).toContain("et opslag om hvem du er");
     expect(loverUdkast(punkt.beskrivelse)).toBe(false);
     for (const tekst of [komIGangTekst, komIGangTekstDeno]) {
-      const linje = tekst("Mette", true, NU).punkter.find((p) => p.startsWith("Præsentér dig i fællesskabet"))!;
-      expect(linje).toBe("Præsentér dig i fællesskabet — et opslag om hvem du er.");
+      const linje = tekst("Mette", true, NU).punkter.find((p) => p.startsWith(punkt.titel))!;
+      expect(linje).toBe("Fortæl, hvad man kan spørge dig om — og sig hej: et foto af dig, hvad de andre i netværket kan spørge dig om, og et opslag om hvem du er.");
       expect(loverUdkast(linje)).toBe(false);
     }
     for (const sti of [TJEKLISTE, ...SPEJLE]) {

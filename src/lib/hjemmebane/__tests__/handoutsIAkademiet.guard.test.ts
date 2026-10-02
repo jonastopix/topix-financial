@@ -31,7 +31,8 @@ import { moduleOrder } from "@/lib/handoutConfig";
         og 10, 2/10).
      5. Lektionen og samlingen tegner øvelsen gennem den delte motor
         (OevelseKort, oevelserForSamling) — ikke en egen handout-sektion.
-     6. Tjeklistens punkt hedder «Din første øvelse», og kom-i-gang-mailen
+     6. Tjeklistens punkt hedder «Gennemfør din første lektion med øvelse»
+        (seks steder, 2/10 — før «Din første øvelse»), og kom-i-gang-mailen
         (begge spejle) begynder med samme ord. */
 
 const ROD = resolve(__dirname, "../../../../");
@@ -102,8 +103,8 @@ describe("handouts i Akademiet — dom 3: ruterne lever", () => {
 });
 
 describe("handouts i Akademiet — dom 4: ingen medlemsflade linker til /handouts fra menu eller forside", () => {
-  it("tjeklisten: handout-punktets sti er Akademiet", () => {
-    expect(TJEKLISTE_STIER.handout).toBe("/akademiet");
+  it("tjeklisten: øvelsespunktets sti er Akademiet (2/10: punktet hedder «akademi»; før «handout»)", () => {
+    expect(TJEKLISTE_STIER.akademi).toBe("/akademiet");
     expect(Object.values(TJEKLISTE_STIER).some((s) => s.startsWith("/handout"))).toBe(false);
   });
 
@@ -179,17 +180,20 @@ describe("handouts i Akademiet — dom 5: lektion og samling tegner øvelsen gen
 });
 
 describe("handouts i Akademiet — dom 6: tjeklistens ord og mailen", () => {
-  it("punktet hedder «Din første øvelse», og begge spejle af kom-i-gang-mailen begynder med det", () => {
+  it("punktet hedder «Gennemfør din første lektion med øvelse» (2/10; før «Din første øvelse»), og begge spejle af kom-i-gang-mailen begynder med det — aldrig «handout»", () => {
     const punkt = byggTjekliste({
       har_velkomstvideo: true, velkomstvideo_set_at: null, kan_oprette_traad: true, har_praesentation: false,
       ask_me_about: null, avatar_url: null, website: null, industry_label: null, cvr_number: null,
       antal_rapporter: 0, antal_godkendte: 0, antal_udfyldte_handouts: 0, last_member_message_at: null,
-    }).punkter.find((p) => p.id === "handout");
-    expect(punkt?.titel).toBe("Din første øvelse");
+    }).punkter.find((p) => p.id === "akademi");
+    expect(punkt?.titel).toBe("Gennemfør din første lektion med øvelse");
+    expect(punkt?.sted).toBe("akademiet");
+    expect(`${punkt?.titel} ${punkt?.beskrivelse}`).not.toMatch(/handout/i);
     for (const sti of ["src/lib/onboardingRytme.ts", "supabase/functions/_shared/onboardingRytme.ts"]) {
       const kilde = laes(sti);
-      expect(kilde).toContain('"Din første øvelse — øvelserne ligger under lektionerne i Akademiet.",');
+      expect(kilde).toContain('"Gennemfør din første lektion med øvelse — øvelsen ligger under lektionen i Akademiet.",');
       expect(kilde).not.toContain("Dit første handout");
+      expect(kilde).not.toContain("Din første øvelse —");
     }
   });
 
