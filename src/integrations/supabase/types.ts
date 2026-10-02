@@ -1207,6 +1207,7 @@ export type Database = {
           kilde_item_id: string | null
           kilde_type: string | null
           sidste_svar_at: string | null
+          spoergsmaal_markeret_at: string | null
           status: string
           titel: string
           updated_at: string
@@ -1224,6 +1225,7 @@ export type Database = {
           kilde_item_id?: string | null
           kilde_type?: string | null
           sidste_svar_at?: string | null
+          spoergsmaal_markeret_at?: string | null
           status?: string
           titel: string
           updated_at?: string
@@ -1241,6 +1243,7 @@ export type Database = {
           kilde_item_id?: string | null
           kilde_type?: string | null
           sidste_svar_at?: string | null
+          spoergsmaal_markeret_at?: string | null
           status?: string
           titel?: string
           updated_at?: string
@@ -3661,6 +3664,8 @@ export type Database = {
           created_at: string
           id: string
           last_position_seconds: number | null
+          markeret_af: string | null
+          markeret_at: string | null
           seen_at: string | null
           skipped_at: string | null
           updated_at: string
@@ -3674,6 +3679,8 @@ export type Database = {
           created_at?: string
           id?: string
           last_position_seconds?: number | null
+          markeret_af?: string | null
+          markeret_at?: string | null
           seen_at?: string | null
           skipped_at?: string | null
           updated_at?: string
@@ -3687,6 +3694,8 @@ export type Database = {
           created_at?: string
           id?: string
           last_position_seconds?: number | null
+          markeret_af?: string | null
+          markeret_at?: string | null
           seen_at?: string | null
           skipped_at?: string | null
           updated_at?: string
@@ -4349,6 +4358,59 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      opkaldsanmodninger: {
+        Row: {
+          id: string
+          ip_hash: string | null
+          navn: string
+          oprettet_at: string
+          ringet_af: string | null
+          ringet_at: string | null
+          runde_id: string
+          samtykke_at: string
+          samtykke_ordlyd: string
+          sidst_indsendt_at: string
+          telefon: string
+          tilmelding_id: string
+        }
+        Insert: {
+          id?: string
+          ip_hash?: string | null
+          navn: string
+          oprettet_at?: string
+          ringet_af?: string | null
+          ringet_at?: string | null
+          runde_id?: string
+          samtykke_at?: string
+          samtykke_ordlyd: string
+          sidst_indsendt_at?: string
+          telefon: string
+          tilmelding_id: string
+        }
+        Update: {
+          id?: string
+          ip_hash?: string | null
+          navn?: string
+          oprettet_at?: string
+          ringet_af?: string | null
+          ringet_at?: string | null
+          runde_id?: string
+          samtykke_at?: string
+          samtykke_ordlyd?: string
+          sidst_indsendt_at?: string
+          telefon?: string
+          tilmelding_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "opkaldsanmodninger_tilmelding_id_fkey"
+            columns: ["tilmelding_id"]
+            isOneToOne: true
+            referencedRelation: "webinar_tilmeldinger"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       partners: {
         Row: {
@@ -5465,6 +5527,7 @@ export type Database = {
         Returns: {
           antal_reaktioner: number
           antal_svar: number
+          antal_svarere: number
           antal_visninger: number
           created_at: string
           fastgjort: boolean
@@ -5475,11 +5538,13 @@ export type Database = {
           indhold: string
           indhold_json: Json
           jeg_har_reageret: boolean
+          jeg_har_svaret: boolean
           kilde_event_id: string
           kilde_item_id: string
           kilde_type: string
           seneste_aktivitet_at: string
           sidste_svar_at: string
+          spoergsmaal_markeret_at: string
           status: string
           titel: string
           updated_at: string
@@ -5516,6 +5581,7 @@ export type Database = {
         Returns: {
           antal_reaktioner: number
           antal_svar: number
+          antal_svarere: number
           antal_visninger: number
           created_at: string
           fastgjort: boolean
@@ -5526,11 +5592,13 @@ export type Database = {
           indhold: string
           indhold_json: Json
           jeg_har_reageret: boolean
+          jeg_har_svaret: boolean
           kilde_event_id: string
           kilde_item_id: string
           kilde_type: string
           seneste_aktivitet_at: string
           sidste_svar_at: string
+          spoergsmaal_markeret_at: string
           status: string
           titel: string
           updated_at: string
@@ -5703,6 +5771,7 @@ export type Database = {
       }
       kald_edge_loft_ms: { Args: never; Returns: number }
       kald_edge_standard_ms: { Args: never; Returns: number }
+      kan_laese_community: { Args: { _user_id: string }; Returns: boolean }
       legat_day: { Args: { _user_id: string }; Returns: number }
       legat_unlocked_modules: { Args: { _user_id: string }; Returns: string[] }
       log_user_login: { Args: never; Returns: undefined }
@@ -5719,6 +5788,7 @@ export type Database = {
         Args: { _sti: string; _user_id: string }
         Returns: boolean
       }
+      maal_pladser_kun_bekraeftede: { Args: never; Returns: boolean }
       mark_messages_read: {
         Args: { p_conversation_id: string }
         Returns: number
@@ -5728,6 +5798,10 @@ export type Database = {
         Returns: boolean
       }
       mark_notifications_seen: { Args: never; Returns: number }
+      marker_community_spoergsmaal: {
+        Args: { p_markeret: boolean; p_traad_id: string }
+        Returns: undefined
+      }
       meta_hentning_vagt: { Args: never; Returns: string }
       online_hjerteslag_friske: {
         Args: { vindue_sekunder: number }
