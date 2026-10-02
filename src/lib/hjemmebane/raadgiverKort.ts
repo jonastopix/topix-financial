@@ -44,7 +44,9 @@ export const RAADGIVER_KORT = {
   ukendtAfsender: "Rådgiver",
   foersteBesked: "Skriv din første besked til dine rådgivere",
   ingenSamtale: "Din samtale med dine rådgivere er ikke klar endnu. Åbn chatten for at se den.",
-  hentefejl: "Din seneste besked kunne ikke hentes.",
+  hentefejl: "Rådgivernes seneste besked kunne ikke hentes.",
+  /** Medlemmet har skrevet, ingen rådgiver har svaret endnu (forside v3). */
+  venterPaaSvar: "Din besked er sendt — svaret kommer her og i chatten.",
   sendefejl: "Beskeden blev ikke sendt. Prøv igen.",
   udloebet: "Dit medlemskab er udløbet — beskeder kan ikke sendes.",
   forLang: `Beskeden er for lang (højst ${MAX_MESSAGE_LENGTH} tegn).`,

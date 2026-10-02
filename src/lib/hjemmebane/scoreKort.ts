@@ -279,6 +279,8 @@ export const SCORE_FORSIDE_FORBEHOLD = "Et helbredstal, ikke en kreditvurdering.
 export const FORSIDE_RING_RADIUS = 38;
 /** Mikro-mærket foran forside-kortets ene løfter. */
 export const LOEFTER_MEST_MAERKE = "Løfter mest";
+/** Når den øverste løfter er forsidens primære handling og derfor ikke gentages, er den viste ikke «mest». */
+export const LOEFTER_OGSAA_MAERKE = "Løfter også";
 
 /**
  * Streaken som ÉN linje på forsiden, med forsidens ene datoformat (kortDato):

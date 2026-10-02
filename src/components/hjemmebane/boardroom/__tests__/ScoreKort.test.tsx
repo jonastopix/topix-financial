@@ -372,7 +372,9 @@ describe("ScoreKort variant=\"forside\" (docs/forside-v3.md §3 «Score kompakt�
     // Motoren 30/9: «Fem procent mere omsætning …» (mål, ingen sti), «Upload og godkend september …» (/reports), ….
     expect(linjer.some((h) => h.sti === "/reports")).toBe(true);
     const { container, unmount } = forside({ dom });
-    expect(container.querySelector("[data-score-loefter-mest]")!.textContent).toContain(linjer[0].tekst);
+    // Motorens sætning står uden sit slutpunktum (før «· +N point»), under «Løfter mest».
+    expect(container.querySelector("[data-score-loefter-mest]")!.textContent).toContain(linjer[0].tekst.replace(/\.$/, ""));
+    expect(container.querySelector("[data-score-loefter-mest]")!.textContent).toContain("Løfter mest");
     unmount();
     // Forsidens primære handling peger på /reports, og /reports står ØVERST: den næste vises.
     const rapport = { soejle: "disciplin" as const, tekst: "Upload og godkend september senest 20/10.", gevinst: 50, sti: "/reports" as const };
@@ -380,8 +382,11 @@ describe("ScoreKort variant=\"forside\" (docs/forside-v3.md §3 «Score kompakt�
     const anden = forside({ dom: { ...dom, handlinger: [rapport, maal], loefterMest: rapport }, undgaaSti: "/reports" });
     const vist = anden.container.querySelector("[data-score-loefter-mest]")!;
     expect(vist.getAttribute("data-loefter-sti")).toBe("ingen");
-    expect(vist.textContent).toContain(maal.tekst);
-    expect(vist.textContent).not.toContain(rapport.tekst);
+    expect(vist.textContent).toContain(maal.tekst.replace(/\.$/, ""));
+    expect(vist.textContent).not.toContain(rapport.tekst.replace(/\.$/, ""));
+    // Den viste er ikke den øverste — mærket siger «Løfter også», aldrig «Løfter mest».
+    expect(vist.textContent).toContain("Løfter også");
+    expect(vist.textContent).not.toContain("Løfter mest");
     anden.unmount();
     // Er /reports den eneste løfter, står der ingen linje.
     const ingen = forside({ dom: { ...dom, handlinger: [rapport], loefterMest: rapport }, undgaaSti: "/reports" });

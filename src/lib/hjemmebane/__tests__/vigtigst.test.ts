@@ -41,6 +41,9 @@ describe("tjeklisteLinje", () => {
   it("primært punkt er selv fra listen → intet «næste»", () => {
     expect(tjeklisteLinje(t, true)?.tekst).toBe("Kom godt i gang · 3 af 5");
   });
+  it("lukket af medlemmet → null (forsiden nager ikke)", () => {
+    expect(tjeklisteLinje(t, false, true)).toBeNull();
+  });
   it("færdig eller ingen → null", () => {
     expect(tjeklisteLinje({ ...t, faerdig: true }, false)).toBeNull();
     expect(tjeklisteLinje(null, false)).toBeNull();

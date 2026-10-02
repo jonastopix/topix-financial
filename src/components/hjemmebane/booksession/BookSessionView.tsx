@@ -313,6 +313,8 @@ export const BookSessionView = () => {
         setFreeUrl({ url: data.url, advisor });
         queryClient.invalidateQueries({ queryKey: ["company-intro-session", companyId] });
         queryClient.invalidateQueries({ queryKey: ["my-inkluderede-bookinger", user.id] });
+        // Forsidens «Til gode» (forside v3) — en brugt session må ikke stå som til gode efter bookingen.
+        queryClient.invalidateQueries({ queryKey: ["forside", "til-gode", companyId] });
       } else {
         toast.error("Ingen URL modtaget. Prøv igen.");
       }

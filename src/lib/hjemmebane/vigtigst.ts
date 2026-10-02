@@ -70,8 +70,9 @@ export interface VigtigstLinje {
 /** Hashen, der folder «Kom godt i gang»-boksen ud (HbOnboardingTjekliste læser og rydder den). */
 export const TJEKLISTE_HASH = "#kom-godt-i-gang";
 
-export function tjeklisteLinje(t: TjeklisteKilde | null | undefined, primaerErTjekliste: boolean): VigtigstLinje | null {
-  if (!t || t.faerdig || t.antal_i_alt <= 0) return null;
+/** `lukket`: medlemmet har lukket boksen (krydset) — så nager forsiden ikke med linjen (CTO-rådets fund 4, 2/10). */
+export function tjeklisteLinje(t: TjeklisteKilde | null | undefined, primaerErTjekliste: boolean, lukket = false): VigtigstLinje | null {
+  if (!t || t.faerdig || t.antal_i_alt <= 0 || lukket) return null;
   const tal = `${VIGTIGST_ORD.komGodtIGang} · ${t.antal_gjort} af ${t.antal_i_alt}`;
   const naeste = primaerErTjekliste ? null : t.punkter.find((p) => !p.gjort)?.titel ?? null;
   return { tekst: naeste ? `${tal} — næste: ${naeste}` : tal, til: VIGTIGST_ORD.seListen, href: TJEKLISTE_HASH, key: "tjekliste-linje" };

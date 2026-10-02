@@ -33,6 +33,7 @@ import { foreslaaetKort, fristKort } from "@/lib/hjemmebane/forsideDato";
 import { rapportFristTekst, stilleLinjer, tjeklisteLinje, VIGTIGST_LINJER_MAKS, VIGTIGST_ORD } from "@/lib/hjemmebane/vigtigst";
 import { Felt, Pakning, TalOgScore, TilGodeKort } from "./forsideV3";
 import { useSessionerTilGode } from "@/hooks/tilGode";
+import { useTjeklisteLukket } from "@/hooks/useTjeklisteLukket";
 import { useCertificate } from "@/hooks/useCertificate";
 import { dinMaanedDom, senesteNoegle, talAlderTekst, type MaanedsRaekke } from "@/lib/hjemmebane/dinMaaned";
 import { factsToDanishMetrics } from "@/lib/factsAdapter";
@@ -950,9 +951,10 @@ const OpgaveKnapper = ({
     );
   }
 
-  // Tekstknapperne (forside v3): den positive handling i evergreen, resten stille — B7 («drop den» lige så
-  // pænt et svar) holdes ved at alle står i samme størrelse og linje; kun farven skiller dem.
-  const tk = (primaer: boolean) => cn("rounded-sm text-sm underline-offset-4 hover:underline disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hb-evergreen", primaer ? "font-medium text-hb-evergreen" : "text-hb-ink-soft");
+  // Tekstknapperne (forside v3): «Gjort» og «Drop den» står ens (B7 — drop den er et lige så pænt svar);
+  // «Udskyd» og «Nej tak» er stille. Forslagets «Tag den» er den positive handling.
+  // min-h-6 (24 px): klikfladen holder WCAG 2.5.8 uden polstring i rækken (CTO-rådets fund 5).
+  const tk = (primaer: boolean) => cn("inline-flex min-h-6 items-center rounded-sm text-sm underline-offset-4 hover:underline disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hb-evergreen", primaer ? "font-medium text-hb-evergreen" : "text-hb-ink-soft");
   if (tekst) {
     const forfaldenT = handling.slags === "aktiv" && handling.dueDate != null && handling.dueDate < tilDatoStreng(idag);
     return handling.slags === "forslag" ? (
@@ -966,7 +968,8 @@ const OpgaveKnapper = ({
         {forfaldenT && (
           <button type="button" className={tk(false)} disabled={busy} onClick={() => (handling.deferralCount === 0 ? onKald({ type: "udskyd", opgaveId: handling.opgaveId }) : setDatoFormaal("udskyd"))}>Udskyd</button>
         )}
-        <button type="button" className={tk(false)} disabled={busy} onClick={() => onKald({ type: "luk", opgaveId: handling.opgaveId, udfald: "dropped" })}>Drop den</button>
+        {/* B7: «drop den» er et lige så pænt svar som «gjort» — samme vægt og farve (CTO-rådets fund 5). */}
+        <button type="button" className={tk(true)} disabled={busy} onClick={() => onKald({ type: "luk", opgaveId: handling.opgaveId, udfald: "dropped" })}>Drop den</button>
       </div>
     );
   }
@@ -1047,6 +1050,8 @@ export interface VigtigstRaekke {
   tekst: string;
   til: string;
   href: string;
+  /** Et punkt, der folder ud PÅ forsiden (ugens fokus, ctaHref "/") — teksten bag en native <details>. */
+  fold?: string;
 }
 const VigtigstKort = ({
   loading,
@@ -1108,7 +1113,15 @@ const VigtigstKort = ({
         <ul className="mt-7 divide-y divide-hb-line border-t border-hb-line" data-vigtigst-linjer={linjer.length}>
           {linjer.map((l) => (
             <li key={l.key}>
-              {linkTil(
+              {l.fold ? (
+                <details className="group py-3 text-sm" data-vigtigst-fold={l.key}>
+                  <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-x-4 gap-y-1 [&::-webkit-details-marker]:hidden">
+                    <span className="min-w-0 text-hb-ink">{l.tekst}</span>
+                    <span className="inline-flex shrink-0 items-center gap-1 text-hb-evergreen">{l.til}<ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden /></span>
+                  </summary>
+                  <p className="mt-2 leading-relaxed text-hb-ink-soft">{l.fold}</p>
+                </details>
+              ) : linkTil(
                 l.href,
                 <>
                   <span className="min-w-0 text-hb-ink">{l.tekst}</span>
@@ -1933,6 +1946,8 @@ export const BoardroomView = () => {
   // ── FORSIDE V3 (2/10-2026 aften, docs/forside-v3.md) — topblokken (React #310) ──────────────────────
   // «Til gode» (§2): ÉN regel med backenden (lib/sessionRet → lib/hjemmebane/tilGode).
   const tilGode = useSessionerTilGode(companyId);
+  // Har medlemmet lukket «Kom godt i gang»-boksen? Så står tjekliste-linjen ikke i «Det vigtigste» (fund 4).
+  const { lukket: tjeklisteLukket } = useTjeklisteLukket();
   // Certifikatets linje i Score-kortet (§3): husets dom (useCertificate → certifikatKort), ikke et eget kort.
   const certifikat = useCertificate();
   const certifikatScore = certifikatTilScore(certifikatKort({ loading: certifikat.loading, fejl: certifikat.fejl, dom: certifikat.dom }));
@@ -1963,13 +1978,18 @@ export const BoardroomView = () => {
   // ── «DET VIGTIGSTE LIGE NU» (forside v3 §1) — afledt af motorens punkter, ingen hooks herunder ──────────
   const primaer = focus[0] ?? null;
   const primaerTekst = primaer ? rapportFristTekst(primaer, boardroomScore.dom?.streak ?? null, new Date()) : null;
-  const tjekLinje = tjeklisteLinje(tjeklisteData.tjekliste, primaer?.kind === "tjekliste");
+  const tjekLinje = tjeklisteLinje(tjeklisteData.tjekliste, primaer?.kind === "tjekliste", tjeklisteLukket);
   const harSideHref = (h: string) => h !== "/" && h !== "";
   const vigtigstLinjer: VigtigstRaekke[] = [
     ...(tjekLinje ? [{ key: tjekLinje.key, tekst: tjekLinje.tekst, til: tjekLinje.til, href: tjekLinje.href }] : []),
-    ...stilleLinjer(focus.slice(1), !!tjekLinje)
-      .filter((i) => harSideHref(fokusCtaHref(i)))
-      .map((i) => ({ key: i.key, tekst: i.title, til: i.ctaLabel, href: fokusCtaHref(i) })),
+    // Et punkt, der peger på forsiden selv («/»), folder ud på stedet — i dag kun ugens fokus med sin opsummering
+    // (CTO-rådets fund 6: ellers forsvandt «Ugens fokus er klar» som stille punkt). Uden tekst at folde: ingen linje.
+    ...stilleLinjer(focus.slice(1), !!tjekLinje).flatMap((i): VigtigstRaekke[] => {
+      const href = fokusCtaHref(i);
+      if (harSideHref(href)) return [{ key: i.key, tekst: i.title, til: i.ctaLabel, href }];
+      const fold = i.kind === "weekly-focus" ? weeklyFocusQuery.data?.summary ?? i.description : null;
+      return fold ? [{ key: i.key, tekst: i.title, til: "Læs", href: "", fold }] : [];
+    }),
     ...(forloebsLinje ? [{ key: "forloeb", tekst: forloebsLinje.tekst, til: "Se", href: forloebsLinje.sti }] : []),
     ...(maaskeRelevante ?? []).slice(0, 1).map((l) => ({ key: `relevant:${l.id}`, tekst: `${MAASKE_RELEVANT_PRAEFIKS}: ${l.title}`, til: "Se", href: lektionsSti(l) })),
   ].slice(0, VIGTIGST_LINJER_MAKS);

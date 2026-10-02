@@ -9,6 +9,7 @@ import {
   FORSIDE_RING_RADIUS,
   ikkeNokDataTekst,
   LOEFTER_MEST_MAERKE,
+  LOEFTER_OGSAA_MAERKE,
   LOEFTER_MAAL_MAERKE,
   loefterLinjer,
   loefterMest,
@@ -574,7 +575,9 @@ function ScoreKortForside({ dom, loefter: linjer, vist, bevaegelse, aaben, onSki
 
       {valgt && (
         <p className="mt-3 border-t border-hb-line pt-3 text-sm text-hb-ink" data-score-loefter-mest={valgt.soejle} data-loefter-sti={valgt.sti ?? "ingen"}>
-          <span className={cn(mikro, "mr-2")}>{LOEFTER_MEST_MAERKE}</span>
+          {/* «Løfter mest» kun om den ØVERSTE løfter — er den sprunget over (samme sti som forsidens primære
+              handling), er den viste den næste, og mærket siger «Løfter også» (CTO-rådets fund 8, 2/10). */}
+          <span className={cn(mikro, "mr-2")}>{valgt === linjer[0] ? LOEFTER_MEST_MAERKE : LOEFTER_OGSAA_MAERKE}</span>
           {/* Motorens sætning slutter med punktum — før «· +50 point» læses det som to sætninger (set på Topix' data). */}
           {valgt.tekst.replace(/\.$/, "")} <span className="text-hb-ink-soft">· {valgt.effekt}</span>
         </p>

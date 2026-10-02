@@ -113,6 +113,19 @@ export const mobilRaekkefoelge = (forside: string): boolean => {
     !/md:hidden|hidden md:block/.test(blokP);
 };
 
+/** Dom 7 (FORSIDE V3, docs/forside-v3.md §0): pakningen bruger EKSPLICITTE kolonner (xl:col-start) og
+    målte rækker (--span) — aldrig `order-*` eller `display: contents` (begge bryder skærmlæserens orden). */
+export const PAKNING = "src/components/hjemmebane/boardroom/forsideV3.tsx";
+export const pakningenHolder = (v3: string): boolean => {
+  const felt = v3.slice(v3.indexOf("export const Felt = ("), v3.indexOf("export const Pakning"));
+  const pakning = v3.slice(v3.indexOf("export const Pakning"), v3.indexOf("/* ── TIL GODE"));
+  return felt.includes('kol === 1 ? "xl:col-start-1" : "xl:col-start-2"') &&
+    felt.includes("Math.ceil((el.getBoundingClientRect().height + MELLEM_PX) / RAEKKE_PX)") &&
+    felt.includes("self-start") &&
+    pakning.includes("xl:grid-flow-dense") && pakning.includes("xl:[&>div]:[grid-row-end:var(--span)]") &&
+    !/\bcontents\b|\border-\d|md:order-|xl:order-/.test(felt + pakning);
+};
+
 /** Dom 2: ingen procent i «Din måned» — kortet læses af DinMaaned.tsx (skridt 2). */
 export const ingenProcent = (dom: string, kortfil: string): boolean => {
   const kort = blok(kortfil, "DinMaaned") + blok(kortfil, "Sparkline");
@@ -196,6 +209,13 @@ describe("forsideTop.guard — PR 2 (omskrevet 2/10): toppen, Din måned (på /r
     expect(mobilRaekkefoelge(forside.replace('data-felt="plan"', 'data-felt="X"').replace('data-felt="raadgiver"', 'data-felt="plan"').replace('data-felt="X"', 'data-felt="raadgiver"'))).toBe(false);
     expect(mobilRaekkefoelge(forside.replace("<Pakning>", "<Pakning><div data-forside-score />"))).toBe(false);
     expect(mobilRaekkefoelge(forside.replace('<Felt kol={1} data-felt="vigtigst">', '<Felt kol={1} data-felt="vigtigst"><div className="order-2" />'))).toBe(false);
+  });
+  it("dom 7 (v3): pakningen — eksplicitte kolonner, målte rækker, ingen order-* og ingen display: contents", () => {
+    const v3 = udenKommentarer(laes(PAKNING));
+    expect(pakningenHolder(v3)).toBe(true);
+    expect(pakningenHolder(v3.replace("self-start", "self-start contents"))).toBe(false);
+    expect(pakningenHolder(v3.replace('"xl:col-start-2"', '"xl:col-start-2 xl:order-first"'))).toBe(false);
+    expect(pakningenHolder(v3.replace("self-start", ""))).toBe(false);
   });
   it("selvbevis 4: 42 %-spalten tilbage i MainStoryShell falder", () => {
     expect(staaende(forside.replace('<div className="relative aspect-video w-full">', '<div className="relative aspect-[3/2] md:aspect-auto md:w-[42%] md:shrink-0">'))).toBe(false);

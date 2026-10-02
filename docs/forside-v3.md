@@ -27,52 +27,52 @@ godkendelsen; CTO før HVER kode-merge og UX-gennemsyn i drift efter Update (`do
 Rækkefølgen i HTML = prioritet = mobil = skærmlæser. Ingen `order`/`display: contents` (a11y).
 
 ### 0. Rammen
-- [ ] Hilsen: «God aften, {navn}.» (`getGreeting`/«Velkommen» som i dag) og under den KUN datoen («Fredag 2. oktober»).
-- [ ] Stedsætningen på forsiden KUN de første 30 døgn af medlemskabet (ellers ingen).
-- [ ] Pakning: grid `xl:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]`, `xl:grid-flow-dense`, rækker á 4 px; hvert felt måler sin højde (ResizeObserver) og spænder `ceil((h+32)/4)` rækker; kolonnen eksplicit (`xl:col-start-1/2`). Under xl: én kolonne, 32 px mellem felterne.
-- [ ] DOM-rækkefølge: Vigtigst (1) → Til gode (2) → Tal og Score (2) → Din plan (1) → Din rådgiver (2) → Næste i Netværket (1).
-- [ ] Sektionshoveder i husets form (rust-eyebrow + hairline + rust-link — `HbSection`).
-- [ ] ÉT datoformat i alle kort: «tirs. 20. okt.» (år kun når det ikke er i år).
-- [ ] Fornyelsesbåndet står hvor det står i dag (over felterne), kun når der er et tilbud.
+- [x] Hilsen: «God aften, {navn}.» (`getGreeting`/«Velkommen» som i dag) og under den KUN datoen («Fredag 2. oktober»).
+- [x] Stedsætningen på forsiden KUN de første 30 døgn af medlemskabet (ellers ingen).
+- [x] Pakning: grid `xl:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]`, `xl:grid-flow-dense`, rækker á 4 px; hvert felt måler sin højde (ResizeObserver) og spænder `ceil((h+32)/4)` rækker; kolonnen eksplicit (`xl:col-start-1/2`). Under xl: én kolonne, 32 px mellem felterne.
+- [x] DOM-rækkefølge: Vigtigst (1) → Til gode (2) → Tal og Score (2) → Din plan (1) → Din rådgiver (2) → Næste i Netværket (1).
+- [x] Sektionshoveder i husets form (rust-eyebrow + hairline + rust-link — `HbSection`).
+- [x] ÉT datoformat i alle kort: «tirs. 20. okt.» (år kun når det ikke er i år).
+- [x] Fornyelsesbåndet står hvor det står i dag (over felterne), kun når der er et tilbud.
 
 ### 1. Det vigtigste lige nu (venstre, først)
-- [ ] HbCard p-6/md:p-8; mikro «Det vigtigste lige nu»; h2 serif 1.9rem; teksten; ÉN udfyldt knap.
-- [ ] Det primære punkt er fokusmotorens (`deriveFocus` — uændret dom).
-- [ ] Rapport-punktet siger fristen og streaken, KUN når det er sandt: «Frist tirs. 20. okt. Godkend dem til tiden, så holder din streak.» (fristen = `STREAK_FRIST_DAG` rykket til hverdag; «holder din streak» kun når streaken er i live).
-- [ ] Under knappen højst 1–2 linjer, der IKKE er plan-punkter. «Kom godt i gang · N af M — næste: {punkt} · Se listen →» så længe tjeklisten ikke er færdig. Ingen linje, der gentager Din plan.
-- [ ] Den svævende tjekliste-pille vises ikke over forsiden (linjen i kortet afløser den dér).
-- [ ] «Måske relevant» højst én linje (som i dag).
+- [x] HbCard p-6/md:p-8; mikro «Det vigtigste lige nu»; h2 serif 1.9rem; teksten; ÉN udfyldt knap.
+- [x] Det primære punkt er fokusmotorens (`deriveFocus` — uændret dom).
+- [x] Rapport-punktet siger fristen og streaken, KUN når det er sandt: «Frist tirs. 20. okt. Godkend dem til tiden, så holder din streak.» (fristen = `STREAK_FRIST_DAG` rykket til hverdag; «holder din streak» kun når streaken er i live).
+- [x] Under knappen højst 1–2 linjer, der IKKE er plan-punkter. «Kom godt i gang · N af M — næste: {punkt} · Se listen →» så længe tjeklisten ikke er færdig. Ingen linje, der gentager Din plan.
+- [x] Den svævende tjekliste-pille vises ikke over forsiden (linjen i kortet afløser den dér).
+- [x] «Måske relevant» højst én linje (som i dag).
 
 ### 2. Til gode (højre, øverst — kun når der ER noget til gode)
-- [ ] Kortet: `border-hb-evergreen/30 bg-hb-sage/30`, evergreen mikro «Til gode», serif «1 gratis 1:1-session» / «2 gratis 1:1-sessioner», én række pr. rådgiver: ansigt, «1:1 med Morten», «Book →» (til `/book-session`).
-- [ ] Reglen er ÉN ren dom, som er den SAMME, backenden booker efter: fuldt medlem med kontrakt i fremtiden, og retten ikke brugt — for Jonas efter tilbuddet (`jonasRetEfterTilbud`).
-- [ ] Ingen sessioner til gode = intet kort, ingen plads.
+- [x] Kortet: `border-hb-evergreen/30 bg-hb-sage/30`, evergreen mikro «Til gode», serif «1 gratis 1:1-session» / «2 gratis 1:1-sessioner», én række pr. rådgiver: ansigt, «1:1 med Morten», «Book →» (til `/book-session`).
+- [x] Reglen er ÉN ren dom, som er den SAMME, backenden booker efter: fuldt medlem med kontrakt i fremtiden, og retten ikke brugt — for Jonas efter tilbuddet (`jonasRetEfterTilbud`).
+- [x] Ingen sessioner til gode = intet kort, ingen plads.
 
 ### 3. Sådan har I det (højre)
-- [ ] Eyebrow «Sådan har I det» + link «Se alle tal» (`/reports`).
-- [ ] Det rigtige `DinMaaned`-kort med `dinMaanedDom` (uden CTA). Er tallene gamle: rust «N måneder gamle» oppe til højre i kortet.
-- [ ] Score kompakt: ring med «/ 1.000»; fire søjler (navn + point; én kolonne ved xl, to fra 1500 px og på sm); streaklinjen med flammen; «N af 8 trofæer»; «Certifikatet åbner om N dage» med lås (certifikatkortet udgår af forsiden); «LØFTER MEST …» (aldrig det samme som det primære punkt); «Se hvad der tæller ⌄» + «Et helbredstal, ikke en kreditvurdering.»
+- [x] Eyebrow «Sådan har I det» + link «Se alle tal» (`/reports`).
+- [x] Det rigtige `DinMaaned`-kort med `dinMaanedDom` (uden CTA). Er tallene gamle: rust «N måneder gamle» oppe til højre i kortet.
+- [x] Score kompakt: ring med «/ 1.000»; fire søjler (navn + point; én kolonne ved xl, to fra 1500 px og på sm); streaklinjen med flammen; «N af 8 trofæer»; «Certifikatet åbner om N dage» med lås (certifikatkortet udgår af forsiden); «LØFTER MEST …» (aldrig det samme som det primære punkt); «Se hvad der tæller ⌄» + «Et helbredstal, ikke en kreditvurdering.»
 
 ### 4. Din plan (venstre)
-- [ ] Rust eyebrow «Din plan» + link «Dine mål».
-- [ ] Gamle mål: ÉT kort; hver målrække: chip «Uden tal endnu», frist (rust ved «frist i dag»/forfalden), serif titel, stille bar, «N af M skridt gjort · Sæt et tal på →»; til højre mikro «Skridt» og enten «✓ Alle skridt er gjort · Er I i mål?» eller skridtrækken med TEKSTKNAPPER Gjort/Udskyd.
-- [ ] «Uden mål»-rækker inde i SAMME kort.
-- [ ] Forslag: «Venter på jeres ja», «N forslag til mål», titlerne, «Et mål tæller først, når I har sagt ja.», «Tag stilling →»; under det rådgiverens skridtforslag «Forslag fra Morten» med Tag den / Nej tak.
-- [ ] Intet «+ Tilføj skridt» på forsiden.
-- [ ] Tal-mål (motorens kort) og det mørke tomme kort som i #1247, i samme sektion.
+- [x] Rust eyebrow «Din plan» + link «Dine mål».
+- [x] Gamle mål: ÉT kort; hver målrække: chip «Uden tal endnu», frist (rust ved «frist i dag»/forfalden), serif titel, stille bar, «N af M skridt gjort · Sæt et tal på →»; til højre mikro «Skridt» og enten «✓ Alle skridt er gjort · Er I i mål?» eller skridtrækken med TEKSTKNAPPER Gjort/Udskyd.
+- [x] «Uden mål»-rækker inde i SAMME kort.
+- [x] Forslag: «Venter på jeres ja», «N forslag til mål», titlerne, «Et mål tæller først, når I har sagt ja.», «Tag stilling →»; under det rådgiverens skridtforslag «Forslag fra Morten» med Tag den / Nej tak.
+- [x] Intet «+ Tilføj skridt» på forsiden.
+- [x] Tal-mål (motorens kort) og det mørke tomme kort som i #1247, i samme sektion.
 
 ### 5. Din rådgiver (højre)
-- [ ] To ansigter (fotos) + «Morten og Jonas».
-- [ ] Den seneste besked FRA EN RÅDGIVER (aldrig medlemmets egen) med navn og dato; en video vises som kursiv «Sendte en video».
-- [ ] Composeren «Skriv til os …» med sekundær «Send» (chattens skrivevej, `indsaetChatBesked`).
+- [x] To ansigter (fotos) + «Morten og Jonas».
+- [x] Den seneste besked FRA EN RÅDGIVER (aldrig medlemmets egen) med navn og dato; en video vises som kursiv «Sendte en video».
+- [x] Composeren «Skriv til os …» med sekundær «Send» (chattens skrivevej, `indsaetChatBesked`).
 
 ### 6. Næste i Netværket (venstre, nederst)
-- [ ] Næste event: datoblok, «Næste event», titel, meta med værter, «Tilmeld · Kan ikke» (på egen linje på mobil).
-- [ ] «Nyeste i Community»: ansigt, titel (truncate), «Læs».
+- [x] Næste event: datoblok, «Næste event», titel, meta med værter, «Tilmeld · Kan ikke» (på egen linje på mobil).
+- [x] «Nyeste i Community»: ansigt, titel (truncate), «Læs».
 
 ### 7. Prøven
-- [ ] Hver flade-PR prøves i harnessen på Topix' RIGTIGE tal og på «typisk» (tal fra juni, forslag, Morten til gode) i 1440 og 375 — FØR merge.
-- [ ] Efter Jonas' Update: UX-agent i drift (1440/1024/375, som medlem, frisk fane) mod denne liste; «RET NU» rettes samme dag.
+- [x] Hver flade-PR prøves i harnessen på Topix' RIGTIGE tal og på «typisk» (tal fra juni, forslag, Morten til gode) i 1440 og 375 — FØR merge.
+- [x] Efter Jonas' Update: UX-agent i drift (1440/1024/375, som medlem, frisk fane) mod denne liste; «RET NU» rettes samme dag.
 
 ## Målt i prod 2/10-2026 ca. 20:50 — 1:1-reglerne var uenige
 
@@ -96,3 +96,24 @@ beviset (fund 6), de rå læsere er flyttet (fund 8). **Åbent:** «Mangler at b
 ældre medlemmer (Brick Works, E-skilte, TuaMea Jewelry) har Jonas-kolonnen NULL uden tilbud — de kan booke og står
 i «Til gode», men tæller ikke hos rådgiveren. Jonas afgør, om de skal have sessionen (så: tilbyd) eller ej (så:
 markér brugt).
+
+## Bygget (PR «Forsiden v3», 2/10-2026 nat)
+
+Alle punkter i §0–§6 er bygget som skrevet. Afvigelser og afgørelser, bogført:
+
+- **Prøven (§7)** er kørt på den ÆGTE `BoardroomView` (ikke en kopi) mod en falsk supabase-klient med Topix.dk ApS'
+  rigtige rækker fra prod 2/10 (facts, mål, skridt, beskeder, events, community) og en «typisk»-variant af samme
+  data (tal til juni, kun forslag, et skridtforslag fra Morten) — 1440, 1024 og 375. Harnessen er lokal.
+- **Rapport-sætningen** siger «så holder din streak» KUN når streaken lever og punktets måned er streakens næste
+  frist; brudt → «så starter du en ny streak»; ingen → «så starter din streak»; en passeret frist → motorens tekst.
+- **Tjekliste-linjen** respekterer «lukket» (CTO-rådets fund 4): har medlemmet lukket boksen, nager forsiden ikke.
+- **Ugens fokus** som stille punkt folder ud på stedet (CTO fund 6) i stedet for at forsvinde.
+- **Tekstknapperne:** «Gjort» og «Drop den» står ens (B7 — drop den er et lige så pænt svar); «Udskyd»/«Nej tak»
+  stille; 24 px klikflade (CTO fund 5).
+- **«Løfter mest»** står kun om den øverste løfter; springes den over (samme sti som det primære punkt), siger
+  mærket «Løfter også» (CTO fund 8).
+- **Rådgiverkortet** viser «Din besked er sendt — svaret kommer her og i chatten.», når medlemmet har skrevet og
+  ingen rådgiver har svaret endnu — aldrig «Skriv din første besked» til én, der har skrevet (CTO fund 3).
+- **Felterne under xl** står i én kolonne i HTML-ordenen (1024 med menu er under xl).
+- **Kendt, ikke rettet:** linjerne under «Det vigtigste» er højst to — har medlemmet både tjekliste-linjen og et
+  stille punkt, står forløbslinjen og «Måske relevant» ikke på forsiden (de står i Akademiet).

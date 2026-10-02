@@ -258,14 +258,14 @@ export const HbOnboardingTjekliste = ({
   }, [hash, tjekliste, harVelkomstvideo, navigate, pathname, search]);
 
   // «SE LISTEN» FRA FORSIDEN (forside v3, 2/10-2026): «Det vigtigste lige nu» linker til TJEKLISTE_HASH,
-  // fordi kortet ikke kan nå boksens state (samme greb som #velkomst ovenfor). Boksen hentes frem (også en
-  // lukket), foldes ud, og hashen ryddes med replace.
+  // fordi kortet ikke kan nå boksens state (samme greb som #velkomst ovenfor). Boksen foldes ud, og hashen
+  // ryddes med replace. «Lukket» rører linket IKKE (CTO-rådets fund 4): forsiden viser kun linjen, når boksen
+  // ikke er lukket — et medlem, der har lukket den, skal ikke have den åbnet på alle enheder af et klik.
   useEffect(() => {
     if (hash !== TJEKLISTE_HASH || !tjekliste) return;
-    setLukket(false);
     setUdfoldet(true);
     navigate({ pathname, search }, { replace: true });
-  }, [hash, tjekliste, setLukket, navigate, pathname, search]);
+  }, [hash, tjekliste, navigate, pathname, search]);
 
   if (!tjekliste) return null;
 

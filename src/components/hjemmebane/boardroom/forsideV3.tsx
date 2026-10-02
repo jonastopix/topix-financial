@@ -28,8 +28,11 @@ export const MELLEM_PX = 32;
 export const Felt = ({ kol, children, ...data }: { kol: 1 | 2; children: React.ReactNode } & Record<`data-${string}`, string | number | undefined>) => {
   const ref = useRef<HTMLDivElement>(null);
   const [span, setSpan] = useState<number | undefined>(undefined);
+  // Feltet SELV måles (CTO-rådets fund 1, 2/10): et barn, der er null ved mount (rådgiverkortet, mens det
+  // henter), fik aldrig en observer og stod i én række á 4 px. Feltet står `self-start`, så dets højde er
+  // indholdets — aldrig rækkernes (ellers målte det sin egen span, en løkke).
   useLayoutEffect(() => {
-    const el = ref.current?.firstElementChild as HTMLElement | null;
+    const el = ref.current;
     if (!el || typeof ResizeObserver === "undefined") return;
     const maal = () => setSpan(Math.ceil((el.getBoundingClientRect().height + MELLEM_PX) / RAEKKE_PX));
     maal();
@@ -40,7 +43,7 @@ export const Felt = ({ kol, children, ...data }: { kol: 1 | 2; children: React.R
   return (
     <div
       ref={ref}
-      className={cn("min-w-0", kol === 1 ? "xl:col-start-1" : "xl:col-start-2")}
+      className={cn("min-w-0 self-start", kol === 1 ? "xl:col-start-1" : "xl:col-start-2")}
       style={span ? ({ ["--span" as string]: `span ${span}` } as React.CSSProperties) : undefined}
       {...data}
     >
@@ -77,7 +80,7 @@ export const TilGodeKort = ({ sessioner, raadgivere }: { sessioner: readonly Ses
           return (
             <li key={r}>
               <Link to={TIL_GODE_ORD.sti} className="group flex items-center gap-3 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hb-evergreen" data-til-gode={r}>
-                <HbAvatar navn={p?.full_name ?? RAADGIVER_NAVN[r]} avatarUrl={p?.avatar_url ?? null} />
+                <span aria-hidden><HbAvatar navn={p?.full_name ?? RAADGIVER_NAVN[r]} avatarUrl={p?.avatar_url ?? null} /></span>
                 <span className="flex-1 text-sm text-hb-ink">{TIL_GODE_ORD.raekke(r)}</span>
                 <span className="inline-flex items-center gap-1 text-sm font-medium text-hb-evergreen group-hover:underline">
                   {TIL_GODE_ORD.book} <ArrowRight className="h-4 w-4" aria-hidden />

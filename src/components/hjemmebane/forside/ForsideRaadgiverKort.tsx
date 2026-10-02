@@ -114,6 +114,8 @@ export const ForsideRaadgiverKort = ({ className = "mt-10 md:mt-12" }: { classNa
                     </p>
                     <p className={cn("mt-1 break-words text-[15px] leading-relaxed", linje.kursiv ? "italic text-hb-ink-soft" : "text-hb-ink")} data-raadgiver-kort-linje={linje.kursiv ? "kursiv" : "tekst"}>{linje.tekst}</p>
                   </div>
+                ) : data.harSkrevet ? (
+                  <p className={cn("text-sm text-hb-ink-soft", raadgivere.length > 0 && "mt-4 border-t border-hb-line pt-3")} data-raadgiver-kort-venter>{RAADGIVER_KORT.venterPaaSvar}</p>
                 ) : (
                   <p className={cn("text-[15px] text-hb-ink", raadgivere.length > 0 && "mt-4 border-t border-hb-line pt-3")} data-raadgiver-kort-foerste>{RAADGIVER_KORT.foersteBesked}</p>
                 )}

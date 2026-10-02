@@ -31,6 +31,8 @@ export interface RaadgiverKortData {
   seneste: SenesteBesked | null;
   /** De synlige rådgivere (navn + portræt) — ansigterne i kortets top. */
   raadgivere: RaadgiverProfil[];
+  /** Står der en besked fra en, der IKKE er rådgiver (medlemmet selv eller en kollega), blandt de læste? */
+  harSkrevet: boolean;
 }
 
 export function raadgiverKortKey(companyId: string | null | undefined, userId: string | null | undefined) {
@@ -67,18 +69,23 @@ export function useRaadgiverKort(companyId: string | null | undefined, userId: s
         .maybeSingle();
       if (samtaleRes.error) throw new Error(`conversations: ${samtaleRes.error.message}`);
       const samtaleId = (samtaleRes.data as { id: string } | null)?.id ?? null;
-      if (!samtaleId) return { samtaleId: null, seneste: null, raadgivere };
+      if (!samtaleId) return { samtaleId: null, seneste: null, raadgivere, harSkrevet: false };
 
       const beskedRes = await supabase
         .from("messages")
         .select("id, sender_id, content, created_at, context_meta")
         .eq("conversation_id", samtaleId)
-        .eq("message_type", "user")
+        // «welcome» (send-welcome-message, skrevet som rådgiveren) tæller som rådgiverens besked — ellers bad
+        // kortet om «din første besked», efter Morten havde budt velkommen (CTO-rådets fund 3, 2/10).
+        .in("message_type", ["user", "welcome"])
         .order("created_at", { ascending: false })
         .limit(BESKEDER_LAEST);
       if (beskedRes.error) throw new Error(`messages: ${beskedRes.error.message}`);
-      const seneste = senesteFraRaadgiver((beskedRes.data as unknown as SenesteBesked[] | null) ?? [], raadgivere);
-      return { samtaleId, seneste, raadgivere };
+      const beskeder = (beskedRes.data as unknown as SenesteBesked[] | null) ?? [];
+      const seneste = senesteFraRaadgiver(beskeder, raadgivere);
+      // Har medlemmet (eller en kollega) selv skrevet? Så er «Skriv din første besked» usandt (fund 3).
+      const harSkrevet = beskeder.some((b) => !raadgivere.some((r) => r.user_id === b.sender_id));
+      return { samtaleId, seneste, raadgivere, harSkrevet };
     },
   });
 
