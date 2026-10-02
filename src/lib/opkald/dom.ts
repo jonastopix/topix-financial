@@ -1,0 +1,164 @@
+/**
+ * opkald/dom — «Må vi ringe til dig?» (2/10-2026): fladens spejl af den rene dom.
+ *
+ * SPEJL af supabase/functions/_shared/opkaldDom.ts. Kroppen efter dette filhoved
+ * er ORDRET ens (paritetsprøven src/lib/__tests__/opkaldDom.paritet.test.ts
+ * sammenligner tegn for tegn OG svarene på samme input). Nul imports i begge.
+ *
+ * Hvorfor et spejl: functionen afgør, hvad der GEMMES (nummerets form, ordlyden,
+ * hvem der har deltaget); fladen skal dømme det samme, før den sender, og vise
+ * den samme ordlyd ved krydset — ellers ville det, personen så, og det, vi
+ * gemte, kunne være to tekster. Begrundelserne står i Deno-filens hoved.
+ */
+
+// ── Ordlyden og konstanterne ─────────────────────────────────────────────────
+
+/** Krydsets tekst — ét sted; gemmes ordret (samtykke_ordlyd). Tomt som standard i fladen. */
+export const SAMTYKKE_ORDLYD = "Ja, Morten eller Jonas må ringe til mig om The Boardroom";
+
+/** Nummeret og navnet slettes 90 dage efter samtykket, uanset udfald (Jonas 2/10). */
+export const OPBEVARING_DAGE = 90;
+
+/** Anmodninger pr. IP-dagshash pr. time og i alt — et hold bag én IP rammer det aldrig; en bot gør. */
+export const ANMODNINGER_PR_IP_PR_TIME = 10;
+export const ANMODNINGER_PR_TIME_I_ALT = 200;
+
+export const NAVN_MAKS = 80;
+
+/** Body'ens kendte felter (kendteFelter.ts-reglen): alt andet afvises. */
+export const KENDTE_FELTER = ["t", "handling", "navn", "telefon", "samtykke"] as const;
+export const HANDLINGER = ["opslag", "indsend"] as const;
+export type Handling = (typeof HANDLINGER)[number];
+
+/** Klokkens type (MORGEN_TYPER i klokkeMail.ts) og reference_type (klokke.ts → /opkald). */
+export const KLOKKE_TYPE = "opkald_anmodet";
+export const KLOKKE_REFERENCE = "opkald";
+export const OPKALD_STI = "/opkald";
+
+// ── Deltog? ──────────────────────────────────────────────────────────────────
+
+/** De to grader, der betyder «var der» — samme ord som webinarDom.SetGrad. */
+export const DELTOG_GRADER = ["set", "delvist"] as const;
+
+export function harDeltaget(grad: string | null | undefined): boolean {
+  return (DELTOG_GRADER as readonly string[]).includes(grad ?? "");
+}
+
+// ── Nummeret ─────────────────────────────────────────────────────────────────
+
+const DK_8 = /^[2-9]\d{7}$/;
+
+/**
+ * «+45 12 34 56 78» · «12345678» · «0045 12345678» · «45 12 34 56 78» → «+4512345678».
+ * Alt andet → null. Kun danske numre: et opkald fra Morten eller Jonas er dansk.
+ */
+export function normaliserTelefon(raa: unknown): string | null {
+  if (typeof raa !== "string") return null;
+  let s = raa.replace(/[\s.\-()]/g, "");
+  if (s === "") return null;
+  if (s.startsWith("+45")) s = s.slice(3);
+  else if (s.startsWith("0045")) s = s.slice(4);
+  else if (s.length === 10 && s.startsWith("45")) s = s.slice(2);
+  if (!DK_8.test(s)) return null;
+  return `+45${s}`;
+}
+
+/** Til fladen og rådgiverlisten: «+4512345678» → «12 34 56 78». */
+export function visTelefon(e164: string | null | undefined): string {
+  if (!e164) return "";
+  const s = e164.startsWith("+45") ? e164.slice(3) : e164;
+  return s.length === 8 ? `${s.slice(0, 2)} ${s.slice(2, 4)} ${s.slice(4, 6)} ${s.slice(6)}` : e164;
+}
+
+// ── Body'en ──────────────────────────────────────────────────────────────────
+
+export type AnmodningGrund = "navn" | "telefon" | "samtykke" | "ordlyd";
+
+export type AnmodningDom =
+  | { ok: true; navn: string; telefon: string; ordlyd: string }
+  | { ok: false; grund: AnmodningGrund };
+
+/**
+ * Formen på «indsend»: samtykke = { kryds: true, ordlyd: "<teksten>" }.
+ * Krydset skal være boolean true, og ordlyden skal være SAMTYKKE_ORDLYD tegn
+ * for tegn — ellers ved vi ikke, hvad personen sagde ja til. Fladen sender
+ * den tekst, den VISTE; functionen gemmer den, den FIK. Afviger de, gemmes intet.
+ */
+export function doemAnmodning(body: Record<string, unknown>): AnmodningDom {
+  const navn = typeof body.navn === "string" ? body.navn.trim().replace(/\s+/g, " ") : "";
+  if (navn.length < 1 || navn.length > NAVN_MAKS) return { ok: false, grund: "navn" };
+  const telefon = normaliserTelefon(body.telefon);
+  if (telefon === null) return { ok: false, grund: "telefon" };
+  const s = body.samtykke;
+  if (!s || typeof s !== "object" || Array.isArray(s)) return { ok: false, grund: "samtykke" };
+  const kryds = (s as { kryds?: unknown }).kryds;
+  if (kryds !== true) return { ok: false, grund: "samtykke" };
+  const ordlyd = (s as { ordlyd?: unknown }).ordlyd;
+  if (ordlyd !== SAMTYKKE_ORDLYD) return { ok: false, grund: "ordlyd" };
+  return { ok: true, navn, telefon, ordlyd };
+}
+
+export function erHandling(v: unknown): v is Handling {
+  return (HANDLINGER as readonly string[]).includes(typeof v === "string" ? v : "");
+}
+
+// ── Loftet ───────────────────────────────────────────────────────────────────
+
+/** Rate-dommen: er loftet nået? Et ukendt antal (tællingen fejlede) er ALTID nået. */
+export function loftetNaaet(antalIp: number | null, antalIAlt: number | null): boolean {
+  if (antalIp === null || antalIAlt === null) return true;
+  return antalIp >= ANMODNINGER_PR_IP_PR_TIME || antalIAlt >= ANMODNINGER_PR_TIME_I_ALT;
+}
+
+// ── Klokken ──────────────────────────────────────────────────────────────────
+
+/** «22/9» i dansk tid — uden Intl-ugedag (isoUge-værnet). */
+function datoKort(iso: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const p: Record<string, string> = {};
+  for (const x of new Intl.DateTimeFormat("da-DK", { timeZone: "Europe/Copenhagen", day: "numeric", month: "numeric" }).formatToParts(d)) p[x.type] = x.value;
+  return p.day && p.month ? `${p.day}/${p.month}` : null;
+}
+
+/**
+ * Klokkens titel: «Mette Hansen bad om et opkald — så webinaret 22/9».
+ * ALDRIG nummeret: det står på /opkald, bag rådgiverens login.
+ */
+export function klokkeTitel(navn: string, sessionTid: string | null): string {
+  const dato = datoKort(sessionTid);
+  return `${navn} bad om et opkald${dato ? ` — så webinaret ${dato}` : ""}`;
+}
+
+export const KLOKKE_BODY = "Nummeret står på /opkald. Ring én gang, om The Boardroom.";
+
+// ── Rådgiverlisten ───────────────────────────────────────────────────────────
+
+export interface Anmodning {
+  id: string;
+  navn: string;
+  telefon: string;
+  samtykke_at: string;
+  oprettet_at: string;
+  ringet_at: string | null;
+  ringet_af: string | null;
+  /** Fra tilmeldingen (join): sessionens tid, hvis kendt. */
+  session_tid?: string | null;
+}
+
+export const erAaben = (a: Pick<Anmodning, "ringet_at">): boolean => a.ringet_at === null;
+
+/** Åbne først, nyeste øverst; ringede nederst. */
+export function sorterAnmodninger<T extends Pick<Anmodning, "ringet_at" | "oprettet_at">>(liste: readonly T[]): T[] {
+  return [...liste].sort((a, b) => {
+    const aa = erAaben(a) ? 0 : 1, bb = erAaben(b) ? 0 : 1;
+    if (aa !== bb) return aa - bb;
+    return b.oprettet_at.localeCompare(a.oprettet_at);
+  });
+}
+
+/** Hvornår rækken forsvinder (cron-jobbet): samtykke_at + OPBEVARING_DAGE. */
+export function slettesAt(samtykkeAt: string): string {
+  return new Date(Date.parse(samtykkeAt) + OPBEVARING_DAGE * 86_400_000).toISOString();
+}

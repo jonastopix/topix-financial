@@ -207,6 +207,9 @@ export function raadgiverSti(n: Pick<RaadgiverNotifikation, "type" | "reference_
     // Nyhedsagenten (30/9): ugens udkast venter på rådgiverens klik — én side, udkastet står øverst.
     case "nyhed_udkast":
       return "/nyheder";
+    // «Må vi ringe til dig?» (2/10): én klokke pr. anmodning, til alle rådgivere — kortet med nummeret står på /opkald (intet menupunkt).
+    case "opkald":
+      return "/opkald";
     default:
       return virksomhed;
   }

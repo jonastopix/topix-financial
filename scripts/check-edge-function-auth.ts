@@ -180,6 +180,11 @@ const AUTH_PREDICATES: Predicate[] = [
   // logges; viderestillingens mål bygges af app_config, aldrig af URL'en.
   // Se _shared/webinarVideo.ts.
   { name: "verifyVideoKlik()",            pattern: /\bverifyVideoKlik\s*\(/ },
+  // «Må vi ringe til dig?» (2/10-2026): HMAC over tilmeldingens ewebinar_id,
+  // sammenlignet i konstant tid FØR service role — samme klasse som
+  // laesAfmeldToken. Tokenet åbner ikke alene: rækken i webinar_tilmeldinger
+  // skal have DELTAGET (opkaldDom.harDeltaget). Se _shared/ringToken.ts.
+  { name: "laesRingToken()",              pattern: /\blaesRingToken\s*\(/ },
 
   // Shape-based: `Bearer ${...}` template compared against a request
   // header (=== or !==). Excludes outbound fetch-header assignments
