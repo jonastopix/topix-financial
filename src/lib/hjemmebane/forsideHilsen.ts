@@ -3,7 +3,9 @@
  * forside (forside PR 2, 17/9-2026 — analyse §5.1: «hilsen + én linje der er
  * sand i dag»). REN dom, ingen React.
  *
- *   - Dag 1: «Du er inde. Her er de tre ting der giver mest den første uge.»
+ *   - Dag 1: «Du er inde. Herunder er det, der giver mest den første uge.»
+ *     (Rettet 2/10-2026, designgennemsynet i drift: «de tre ting» var usandt —
+ *     «Kom godt i gang» har seks punkter siden 2/10.)
  *     DAG 1 = medlemskabets start inden for de seneste 14 døgn (dansk tid) —
  *     companies.contract_start_date, som forsiden allerede henter
  *     (contractStartQuery; stripe-webhook sætter den på betalingsdagen; null
@@ -18,7 +20,7 @@
  * __tests__/forsideHilsen.test.ts.
  */
 
-export const DAG1_LINJE = "Du er inde. Her er de tre ting der giver mest den første uge.";
+export const DAG1_LINJE = "Du er inde. Herunder er det, der giver mest den første uge.";
 export const TIDSZONE = "Europe/Copenhagen";
 
 /** «Torsdag 17. september» — ugedag med stort, dato uden år. */

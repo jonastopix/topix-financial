@@ -61,7 +61,7 @@ export const WebinarDelinger = ({ nu = new Date() }: { nu?: Date }) => {
           Modtageren ser alt på denne side og intet andet — skrivebeskyttet, uden konto. Linket gælder {STANDARD_DAGE} dage og kan forlænges eller lukkes her. Hver åbning logges.
         </p>
         <HbCard className="p-5 md:p-6">
-          <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_8rem_auto] md:items-end">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_8rem_auto] md:items-end">
             <HbField label="Hvem får linket" htmlFor="deling-navn" help="Navnet er til jer — det vises ikke for modtageren.">
               <HbInput id="deling-navn" value={navn} onChange={(e) => setNavn(e.target.value)} maxLength={80} placeholder="fx Marketingkonsulenten" disabled={handling.isPending} />
             </HbField>

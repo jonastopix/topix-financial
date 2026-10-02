@@ -294,7 +294,7 @@ export function VirksomhedPlanen({
             <HbField label="Målet" htmlFor="planen-titel" help="Ét mål, kort — som medlemmet selv ville sige det. Højst 120 tegn.">
               <HbInput id="planen-titel" value={titel} maxLength={120} onChange={(e) => setTitel(e.target.value)} autoFocus />
             </HbField>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <HbField label="Kategori" htmlFor="planen-kategori" help="Fri tekst (fx økonomi, salg). Tom = «other».">
                 <HbInput id="planen-kategori" value={kategori} onChange={(e) => setKategori(e.target.value)} />
               </HbField>

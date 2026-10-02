@@ -137,7 +137,7 @@ export const JeresRetning = ({ retning, isLoading, fejlede, onGem, kanRette, skr
           <div className="mt-5 space-y-2.5">
             {[0, 1, 2].map((i) => <div key={i} className="h-4 w-2/3 rounded bg-hb-paper/15" />)}
           </div>
-          <div className="mt-7 grid gap-3 md:grid-cols-2">
+          <div className="mt-7 grid grid-cols-1 gap-3 md:grid-cols-2">
             {[0, 1].map((i) => <div key={i} className="h-20 rounded-[14px] bg-hb-paper/10" />)}
           </div>
         </div>
@@ -152,7 +152,7 @@ export const JeresRetning = ({ retning, isLoading, fejlede, onGem, kanRette, skr
         <p id={`${idRod}-overskrift`} className={cn("relative", eyebrow)}>{RETNING_ORD.overskrift}</p>
         <form
           noValidate
-          className="relative mt-4 grid gap-4 rounded-[14px] bg-hb-surface p-4 text-hb-ink md:grid-cols-3 md:p-5"
+          className="relative mt-4 grid grid-cols-1 gap-4 rounded-[14px] bg-hb-surface p-4 text-hb-ink md:grid-cols-3 md:p-5"
           onSubmit={(e) => { e.preventDefault(); void gem(); }}
         >
           {RETNING_NOEGLER.map((n) => (
@@ -261,7 +261,7 @@ export const JeresRetning = ({ retning, isLoading, fejlede, onGem, kanRette, skr
         <p className="relative mt-4 text-base italic text-hb-sage">{RETNING_FELT_ORD.ikkeSvaret}</p>
       )}
 
-      <div className="relative mt-[26px] grid gap-3 md:grid-cols-2">
+      <div className="relative mt-[26px] grid grid-cols-1 gap-3 md:grid-cols-2">
         {kort("anderledes_hverdag", RETNING_FELT_ORD.hverdagen, hverdagen, false)}
         {kort("konsekvenser_ingen_aendring", RETNING_FELT_ORD.prisen, prisen, true)}
       </div>

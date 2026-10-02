@@ -582,7 +582,7 @@ const Blok2 = ({ d, samtaleId }: { d: VirksomhedsData; samtaleId: string | null 
 
   return (
     <HbSection eyebrow="Deres ord og din forberedelse" hairline className="mt-12">
-      <div className="grid gap-4 md:grid-cols-[3fr_2fr]">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-[3fr_2fr]">
         {/* 1. Refleksionen — deres egne ord, i fuld længde */}
         <HbCard id="section-refleksion" className="p-5">
           <div className="flex items-baseline justify-between gap-3">
@@ -1356,7 +1356,7 @@ const Blok6 = ({
   return (
     <HbSection eyebrow="Aktivitet" hairline className="mt-12">
       {/* PR 1 (17/9): to kort — Planen er sin egen sektion (plads 3, fuld bredde). */}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <HbCard className="p-5">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-hb-ink-soft">Rapportering</p>
           {d.rapporter.length === 0 ? (
@@ -1832,7 +1832,7 @@ const Blok7 = ({
           </span>
           <span className="ml-auto text-hb-evergreen underline-offset-4 hover:underline">{aaben ? "Skjul aftalen" : "Vis aftalen"}</span>
         </summary>
-      <div className="mt-4 grid gap-4 md:grid-cols-2">
+      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
         <HbCard className="p-5">
           <div className="flex items-baseline justify-between gap-3">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-hb-ink-soft">Kontrakt</p>

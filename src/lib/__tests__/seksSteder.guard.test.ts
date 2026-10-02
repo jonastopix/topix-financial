@@ -29,7 +29,8 @@ import { netvaerkFaner, visNetvaerkFaner } from "@/lib/hjemmebane/netvaerkFaner"
  *      igen» og «Se tidligere» tegnes ikke i BoardroomView — intet StoryCard,
  *      ingen pickMainStory, ingen tiles; og det, der skulle blive, er der:
  *      Score, Din plan, Dine mål-ankeret, Dit næste skridt, fornyelsen,
- *      trofæerne. Kortene og dommene (pushSelection.ts) er IKKE slettet — de
+ *      trofæerne (siden 2/10 eftermiddag inde i ScoreKortets «Se hvad der
+ *      tæller», ikke som egen sektion — designgennemsynet i drift). Kortene og dommene (pushSelection.ts) er IKKE slettet — de
  *      kan tegne «Nyt fra os» i Akademiet. SKRIDT 2 (dom 8): «Din måned»,
  *      «Kommende» og «Fra fællesskabet» er heller ikke på forsiden — nederst
  *      står ÉT kort «Næste i Netværket» (næste event + nyeste opslag).
@@ -163,7 +164,11 @@ export const forsidenRyddet = (forside: string): boolean => {
     !/<StoryCard\b|pickMainStory\(|pickMainStory</.test(krop) &&
     !/pickActivePush\(|pickActiveWeekVideo\(|pickActiveItem\(|pickEvergreen\(|velkomstHovedhistorie\(/.test(krop) &&
     !/data-forside-venstre|data-forside-nyheden|data-forside-tiles|hasBand|band\.main|band\.side|redaktioneltHistory|countNewSince\(/.test(krop) &&
-    /<ScoreKort\b/.test(krop) && /<TrofaeKort\b/.test(krop) && /id="din-plan"/.test(krop) && /id="dine-maal"/.test(krop) &&
+    /<ScoreKort\b/.test(krop) &&
+    // Trofæerne (2/10 eftermiddag, designgennemsynet i drift): de BLIVER på forsiden, men inde i
+    // ScoreKortets «Se hvad der tæller» — givet ind som props; ingen separat <TrofaeKort> på forsiden.
+    /<ScoreKort\b[^/]*\btrofaeer=\{trofaeer\.data\}[^/]*\btrofaeerFejl=\{trofaeer\.isError\}/.test(krop) && !/<TrofaeKort\b/.test(krop) &&
+    /id="din-plan"/.test(krop) && /id="dine-maal"/.test(krop) &&
     /data-forside-naeste-skridt/.test(krop) && /<FornyelsesBaand \/>/.test(krop) &&
     // Kortene og dommene er IKKE slettet — de kan tegne «Nyt fra os» i Akademiet.
     /const StoryCard = \(/.test(forside) && /const VelkomstStory = \(/.test(forside) &&
@@ -377,6 +382,9 @@ describe("seksSteder.guard — skridt 1: menuen, stedsætningerne, forsiden rydd
     expect(forsidenRyddet(forside.replace("<FornyelsesBaand />", '<FornyelsesBaand /><HbSection eyebrow="Fra os til dig"><StoryCard story={band.main} variant="main" /></HbSection>'))).toBe(false);
     expect(forsidenRyddet(forside.replace("<FornyelsesBaand />", "<FornyelsesBaand />{pickEvergreen([], new Date())}"))).toBe(false);
     expect(forsidenRyddet(forside.replace(/<ScoreKort\b/, "<ScoreKortX"))).toBe(false);
+    // Trofæerne som egen sektion igen (2/10: fyldte en mobilskærm over «Din plan»), eller ikke givet til ScoreKortet, falder.
+    expect(forsidenRyddet(forside.replace("<FornyelsesBaand />", "<FornyelsesBaand /><TrofaeKort trofaeer={trofaeer.data} isError={trofaeer.isError} />"))).toBe(false);
+    expect(forsidenRyddet(forside.replace("trofaeer={trofaeer.data}", ""))).toBe(false);
     // Sletter nogen kortene, falder værnet også — de skal blive til Akademiet.
     expect(forsidenRyddet(forside.replace("const StoryCard = (", "const StoryCardX = ("))).toBe(false);
   });

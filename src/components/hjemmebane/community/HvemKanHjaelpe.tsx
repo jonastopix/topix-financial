@@ -51,7 +51,7 @@ export const HvemKanHjaelpe = ({
   const minLinje = h.mig ? hjaelperLinje(h.mig) : null;
   return (
     <HbSection eyebrow={HJAELPERE_EYEBROW} linkLabel={HJAELPERE_LINK_LABEL} linkTo={HJAELPERE_LINK_TO} hairline className="mt-14">
-      <ul className="grid list-none gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <ul className="grid grid-cols-1 list-none gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {h.andre.map((p) => (
           <li key={p.user_id}>
             <Link to={`/medlemmer/${p.user_id}`} className="block h-full">

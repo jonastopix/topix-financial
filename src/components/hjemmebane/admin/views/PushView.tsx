@@ -389,7 +389,7 @@ const PushEditor = forwardRef<
         </div>
       </HbField>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <HbField label="Forfatter" htmlFor="push-author" help="Vises i bylinen — overstyrer afsender-navnet hvis udfyldt anderledes.">
           <HbInput
             id="push-author"

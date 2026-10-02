@@ -49,7 +49,6 @@ import { handoutConfigs, moduleOrder, type HandoutModule } from "@/lib/handoutCo
 import { HbButton } from "../HbButton";
 import { FornyelsesBaand } from "./FornyelsesBaand";
 import { ScoreKort } from "./ScoreKort";
-import { TrofaeKort } from "./TrofaeKort";
 import { ForsideCertifikatKort } from "../forside/ForsideCertifikatKort";
 import { ForsideRaadgiverKort } from "../forside/ForsideRaadgiverKort";
 import { useMedlemmetsTrofaeer } from "@/hooks/trofaeer";
@@ -2175,11 +2174,12 @@ export const BoardroomView = () => {
             isLoading={boardroomScore.isLoading}
             isError={boardroomScore.isError}
             onProevIgen={boardroomScore.refetch}
+            trofaeer={trofaeer.data}
+            trofaeerFejl={trofaeer.isError}
           />
-          {/* Trofæer (1/10, docs/boardroom-score.md «Trofæer»): milepæle under scoren. */}
-          <div className="mt-4">
-            <TrofaeKort trofaeer={trofaeer.data} isError={trofaeer.isError} />
-          </div>
+          {/* Trofæer (1/10, docs/boardroom-score.md «Trofæer»): siden 2/10 eftermiddag INDE i
+              ScoreKortets «Se hvad der tæller» — den separate sektion fyldte en hel mobilskærm
+              over «Din plan» (designgennemsynet i drift; mockuppen «ind bag ‹Se hvad der tæller›»). */}
         </HbSection>
       )}
 

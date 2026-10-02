@@ -406,7 +406,9 @@ export function deriveFocus(inputs: FocusInputs): FocusItem[] {
   }
 
   // (c) Ubesvarede beskeder — rådgiver før agent (ActionCenter:150-163,
-  // tekster ordret; tælle-bøjningen fra :155).
+  // tælle-bøjningen fra :155). Beskrivelsen rettet 2/10-2026 (designgennemsynet
+  // i drift: «Du har ubesvaret kommunikation fra dine rådgivere» var stiv og
+  // blev skåret af på 375 px).
   if (inputs.unreadUserMessages > 0) {
     const count = inputs.unreadUserMessages;
     items.push({
@@ -414,7 +416,7 @@ export function deriveFocus(inputs: FocusInputs): FocusItem[] {
       kind: "unread-messages",
       priority: 3,
       title: `${count} ulæst${count > 1 ? "e" : ""} besked${count > 1 ? "er" : ""}`,
-      description: "Du har ubesvaret kommunikation fra dine rådgivere",
+      description: "Dine rådgivere har skrevet til dig.",
       ctaLabel: "Åbn chatten",
       ctaHref: "/chat",
     });

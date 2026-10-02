@@ -33,7 +33,7 @@ export const EventSvaroversigt = ({ eventId }: { eventId: string }) => {
       ) : query.isPending ? (
         <p className="mt-4 text-sm text-hb-ink-soft">Henter …</p>
       ) : (
-        <div className="mt-4 grid gap-6 md:grid-cols-3">
+        <div className="mt-4 grid grid-cols-1 gap-6 md:grid-cols-3">
           {SVARGRUPPER.map((gruppe) => {
             const raekker = query.data.raekker.filter((r) => r.gruppe === gruppe);
             return (
