@@ -2,7 +2,8 @@
  * Dag 0 — indgangens betalingsmail som delt funktion.
  *
  * HVORFOR DEN LIGGER HER og ikke kun i send-indgangs-betalingsmail:
- * monday-webhook skal udløse dag 0 ved «Godkendt», og et HTTP-kald fra
+ * den daværende monday-webhook (nedlagt 2/10-2026, svarer 410) skulle
+ * udløse dag 0 ved «Godkendt», og et HTTP-kald fra
  * en edge function til en anden bag verify_jwt = true kan IKKE bære
  * edge-runtimens SUPABASE_SERVICE_ROLE_KEY — den er en sb_secret-nøgle
  * uden JWT-claims (målt 10/8, se _shared/edgeFunctionAuth.ts), og
@@ -10,12 +11,14 @@
  * intern function-til-function-kald rammer en verify_jwt = true-funktion.
  * Derfor deles LOGIKKEN, og hver kalder bringer sin egen service-role-
  * klient: send-indgangs-betalingsmail (HTTP, Bucket B) til prissætningen
- * og manuelle kald, monday-webhook (Bucket C) i samme proces ved
- * «Godkendt».
+ * og manuelle kald, saet-indgangs-prisniveau (prissætningen) og
+ * ansøgningsmotoren (_shared/ansoegningMotor.ts) i samme proces ved
+ * «underskrevet».
  *
- * KALDERNE er de to udløsere fra docs/indgangen-design.md §19: Monday-
- * grenen ved «Godkendt» og prissætningen på en virksomhed der manglede
- * pris. Begge giver et company_id og intet andet — motoren afgør.
+ * KALDERNE i dag: ansøgningsmotoren ved underskrift og prissætningen på en
+ * virksomhed der manglede pris (docs/indgangen-design.md §19; Monday-grenen
+ * ved «Godkendt» var den første udløser, nedlagt 2/10-2026). Hver giver et
+ * company_id og intet andet — motoren afgør.
  *
  * IDEMPOTENSEN bæres af betalingsmail_sendt_at (§19): afgoerBetalingsfrist
  * giver klar_til_mail KUN når prisen er sat og stemplet er tomt. Efter

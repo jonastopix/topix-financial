@@ -928,7 +928,8 @@ skrivende edge functions bruger `SUPABASE_SERVICE_ROLE_KEY`.
 
 ### Fail-closed webhook rule (Patches 7–8)
 - Edge functions that receive external webhooks verify signatures before
-  any processing (HMAC-SHA256 for Monday.com, `verifyWebhookRequest` for auth hooks)
+  any processing (Stripe-signature, `verifyCalendlySignature`, `verifyEwebinarSignature`,
+  `verifyWebhookRequest` for auth hooks; Monday.com's HMAC-JWT er historie — opsagt 2/10-2026)
 - User-triggered functions validate JWT via `getClaims()` before any
   service-role reads/writes/side effects
 - Service-role/cron functions gate on `SUPABASE_SERVICE_ROLE_KEY` comparison
@@ -1021,11 +1022,16 @@ skrivende edge functions bruger `SUPABASE_SERVICE_ROLE_KEY`.
   dom 6 fælder, hvis `BUNNY_STREAM_*` eller en collection bruges igen).
   Status spørges hos Bunny (ingen webhook, ingen statustabel).
 - `auth-email-hook` — system webhook, signature-verified
-- `monday-webhook` — to veje (14/9-2026, `_shared/mondayVaern.ts`): med
-  Authorization-header HMAC-SHA256-JWT mod `MONDAY_SIGNING_SECRET` (uændret);
-  uden header (Mondays board-webhook sender ingen) den delte hemmelighed
-  `?noegle=` i URL'en mod `MONDAY_WEBHOOK_SECRET`, sammenlignet i konstant
-  tid (`_shared/konstantTidLighed.ts`). Challenge-svaret ligger før værnet.
+- `monday-webhook` — **NEDLAGT 2/10-2026** (Jonas 1/10: «Vi bruger ikke Monday
+  mere. Det er opsagt.»): svarer 410 Gone på alt uden parsing, env, service-role
+  eller database — derfor uden auth-prædikat (CI: «skip-no-sr»); `verify_jwt =
+  false` med begrundelse i config.toml, så 410-beviset kan måles. Værnet
+  `mondayVaek.guard` låser formen og at ingen function kalder `api.monday.com`
+  eller læser `MONDAY_API_TOKEN`/`MONDAY_SIGNING_SECRET`/`MONDAY_WEBHOOK_SECRET`
+  (de tre secrets er ubrugte hos Lovable og kan fjernes dér). Historik: 14/9–2/10
+  to veje (`_shared/mondayVaern.ts`, slettet) — HMAC-SHA256-JWT eller `?noegle=`
+  i konstant tid (`_shared/konstantTidLighed.ts`, som lever videre for
+  aftale-underskrift, webhookSignatur, ewebinarSignatur, delingstokenAuth).
 - `ewebinar-webhook` (udkast 19/9-2026) — Bucket C: `verifyEwebinarSignature`
   (`_shared/ewebinarSignatur.ts`) over den RÅ body (`req.text()`) FØR
   `JSON.parse` og FØR service-role-klienten; HMAC-SHA256 over

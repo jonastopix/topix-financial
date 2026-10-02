@@ -3,7 +3,8 @@
 // Body: { company_id }.
 //
 // Logikken ligger i _shared/indgangsBetalingsmail.ts og deles med
-// monday-webhook, som kalder den i samme proces ved «Godkendt» — et
+// ansøgningsmotoren og prissætningen (før 2/10-2026 også monday-webhook,
+// nu nedlagt), som kalder den i samme proces — et
 // HTTP-kald hertil kan ikke bære edge-runtimens sb_secret-nøgle gennem
 // verify_jwt-gaten (se filhovedet dér). Denne indgang er til
 // prissætningen (§19, udløser 2) og til manuelle kald med service-role-

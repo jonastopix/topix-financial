@@ -11,7 +11,7 @@ Prod: `app.theboardroom.dk`
 - Hosting: Lovable Cloud
 - Observability: Sentry
 - Data: TanStack Query, react-hook-form + zod
-- Integrationer: Stripe, Slack, Circle, Monday.com webhook
+- Integrationer: Stripe, Slack, Circle, Calendly, eWebinar, Klaviyo, Mailgun (Monday.com opsagt 2/10-2026)
 
 For komplet liste: se CLAUDE.md.
 

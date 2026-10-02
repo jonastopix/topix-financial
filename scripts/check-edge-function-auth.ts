@@ -130,7 +130,9 @@ const AUTH_PREDICATES: Predicate[] = [
 
   // External webhook signature verification (per-integration scheme)
   { name: "verifyStripeSignature()",      pattern: /\bverifyStripeSignature\s*\(/ },
-  { name: "verifyMondayJwt()",            pattern: /\bverifyMondayJwt\s*\(/ },
+  // verifyMondayJwt() stod her 14/9 → 2/10-2026. Monday er opsagt; monday-webhook
+  // svarer 410 uden service-role og springes over som «skip-no-sr». Et prædikat,
+  // ingen fil kan opfylde, er taget ud (mondayVaek.guard låser det).
   { name: "verifyWebhookRequest()",       pattern: /\bverifyWebhookRequest\s*\(/ },
   { name: "verifyCalendlySignature()",    pattern: /\bverifyCalendlySignature\s*\(/ },
   // eWebinar (udkast 19/9): HMAC-SHA256 «t=,v1=» over den rå body — samme

@@ -1,22 +1,23 @@
 /**
- * Kildeværn (14/9 2026): companies.contact_person sættes ad BEGGE veje ind
+ * Kildeværn (14/9 2026): companies.contact_person sættes ad alle veje ind
  * fra samme kilde-logik.
  *
  * MÅLT: byggVirksomhedsRaekke skrev aldrig contact_person; navnet landede i
  * application_context.contact_name, og 35 af 39 virksomheder stod med
- * kolonnens DEFAULT ''. Bevist 14/9: Monday-vejen satte feltet (B5, en
- * separat opdatering efter rækken), import-vejen gjorde ikke. Nu bærer
- * rækken feltet, Monday-vejens navnesamling går gennem bygKontaktperson, og
- * begge kaldere sender contact_name ind til rækkebyggeren.
+ * kolonnens DEFAULT ''. Bevist 14/9: den daværende Monday-vej satte feltet
+ * (en separat opdatering efter rækken), import-vejen gjorde ikke. Nu bærer
+ * rækken feltet, og hver kalder sender contact_name ind til rækkebyggeren.
  *
- * Kildelæsning for de to functions (de importerer npm:/esm.sh-moduler);
- * direkte import af mondayAnsoegning.ts, som er ren.
+ * 2/10-2026: Monday-vejen er nedlagt (monday-webhook svarer 410,
+ * mondayAnsoegning.ts er slettet — mondayVaek.guard). Dommene om den er
+ * taget ud; bygKontaktperson (delt navn → ét) lever videre i
+ * virksomhedsraekke.ts og prøves i virksomhedsraekke.test.ts.
+ *
+ * Kildelæsning for functions (de importerer npm:/esm.sh-moduler).
  */
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { bygKontaktnavn } from "../../../supabase/functions/_shared/mondayAnsoegning.ts";
-import { bygKontaktperson } from "../../../supabase/functions/_shared/virksomhedsraekke.ts";
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
 const udenKommentarer = (k: string) =>
@@ -30,28 +31,6 @@ describe("contactPerson.guard — rækkebyggeren bærer feltet i begge kopier", 
       expect(kode).toContain("export function bygKontaktperson(...dele: Array<string | null | undefined>): string {");
     });
   }
-});
-
-describe("contactPerson.guard — Monday-vejen (delt navn) går gennem samme funktion", () => {
-  it("bygKontaktnavn i mondayAnsoegning.ts delegerer til bygKontaktperson og oversætter kun tomt til null", () => {
-    const kode = udenKommentarer(laes("supabase/functions/_shared/mondayAnsoegning.ts"));
-    expect(kode).toContain('import { bygKontaktperson } from "./virksomhedsraekke.ts";');
-    expect(kode).toContain("return bygKontaktperson(fornavn, efternavn) || null;");
-  });
-
-  it("Fornavn + Efternavn giver samme streng som den delte funktion; tomt giver null til kalderen", () => {
-    expect(bygKontaktnavn("Anne Marie", "Møller Jensen")).toBe(bygKontaktperson("Anne Marie", "Møller Jensen"));
-    expect(bygKontaktnavn("Anne Marie", "Møller Jensen")).toBe("Anne Marie Møller Jensen");
-    expect(bygKontaktnavn("Caspar", null)).toBe("Caspar");
-    expect(bygKontaktnavn(null, "")).toBeNull();
-  });
-
-  it("monday-webhook sender det samlede navn ind som contact_name til rækkebyggeren — og B5 står stadig for genbrug", () => {
-    const kode = udenKommentarer(laes("supabase/functions/monday-webhook/index.ts"));
-    expect(kode).toContain("const kontaktnavn = bygKontaktnavn(felter.fornavn, felter.efternavn);");
-    expect(kode).toContain("contact_name: kontaktnavn,");
-    expect(kode).toContain("if (kontaktnavn) opdatering.contact_person = kontaktnavn;");
-  });
 });
 
 describe("contactPerson.guard — import-vejen (samlet navn) sender contact_name ind", () => {

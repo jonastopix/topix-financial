@@ -24,7 +24,7 @@
  * mulighed, og «jeg ignorerede det» er ikke en af dem.
  *
  * ── DEN ENE UNDTAGELSE: EKSTERNE WEBHOOKS ───────────────────────────────────
- * Stripe, Monday, Calendly, eWebinar, Slack og Supabases auth-hook sender
+ * Stripe, Calendly, eWebinar, Slack og Supabases auth-hook sender
  * payloads, VI ikke bestemmer formen på. De tilføjer felter uden at spørge, og
  * en afvisning ville lukke integrationen ned ved deres næste opdatering. Dem
  * gælder reglen IKKE for — se listen i src/lib/__tests__/bodyFelter.guard.test.ts,
