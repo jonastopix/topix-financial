@@ -149,7 +149,10 @@ describe("communityMestLaest.guard — «N fandt det nyttigt» og «Mest læst d
     expect(likeKnappenSkriverOrdet(laes(LIKE))).toBe(true);
     expect(ordeneErIkkeHaardkodet(komponentFiler())).toEqual([]);
   });
-  it("5. migrationen sorterer efter den seneste kørte", () => {
+  it("5. migrationen sorterer efter den seneste kørte — så længe den ikke selv er kørt", () => {
+    // KØRT 2/10 kl. 18:05: derefter er det metaSend.guard dom 11 (ingen ikke-kørt før en kørt), der holder rækkefølgen.
+    const egen = migrationsFiler().find((f) => f.navn === MIG_NAVN);
+    if (egen && /^--\s*KØRT i prod/.test(egen.foerste)) return;
     expect(staarEfterSidsteKoerte(migrationsFiler(), MIG_NAVN)).toBe(true);
   });
   it("6. SECURITY_BASELINE.md og CLAUDE.md nævner funktionen", () => {
