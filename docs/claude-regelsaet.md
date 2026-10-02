@@ -113,6 +113,13 @@ Jonas: «Lav et teknisk råd: Lav en CTO og en der kigger på UX og design på p
 - **(hh) En agents researchpåstand er ikke et fund, før én bærende påstand er stikprøvet mod kilden.** 1/10: podcast-papiret påstod, at Riversides Magic Clips kun kan fem sprog — kilden viste hjælpecentrets sprogvalg, ikke funktionens. Rettet i papiret. Omvendt holdt prod-hjem-papirets påstand om legacy-nøglerne (stikprøvet i Supabases changelog). Regel: stikprøv den påstand, konklusionen hviler på, før papiret lander.
 - **(jj) Mål en udrulning i en FRISK fane.** 1/10 ~06 målte Claude bundlen i en fane, der havde stået åben siden før nattens `deploy_project`-kald, og konkluderede «uden virkning — upålidelig». En åben fane viser den `index-*.js`, den blev indlæst med; en `fetch` derfra kan ramme cache. Mål altid i en ny fane (`preview_start`) eller med `cache: "no-store"`, og skriv fanens oprindelse ved målingen. Målt rigtigt 1/10 14:37: `index-BwUVZgTc.js` i en frisk fane, 248 chunks, alle fem markører.
 
+## 4d. Lærestreger 2/10
+
+- **(kk) Tørkør en migration i prod i en DO-blok, der slutter med `RAISE EXCEPTION`.** Alle sætninger kører, og intet bliver tilbage. RLS kan prøves i samme blok med `SET LOCAL ROLE authenticated` og `request.jwt.claims` sat til en rigtig bruger. Målt 2/10 på skive 3 (`20261002100000`): blokken gav 42501 som forventet, før migrationen blev kørt for alvor.
+- **(ll) En ukørt migration må aldrig sortere før en kørt.** Omdøb den ukørte og lad indholdet være uændret. Lad den ikke stå. 2/10 sorterede `20261001200000_kald_edge_apikey` og `20261002090000_milestones_with_check` før den kørte `20261002100000`. De blev omdøbt til `20261002200000` og `20261002210000`, og grunden står i filhovedet (`metaSend.guard` dom 11; forsiden var nede i 12 timer 19/9).
+- **(mm) pg_net-svar lever cirka 6 timer.** En driftshændelse skal tilskrives samme dag, ellers kan den ikke tilskrives. Målt 2/10 06:18: timeouten 1/10 kl. 17:00 kunne ikke længere kobles til et job. Det ældste svar i `net._http_response` var fra 00:19, og vagtens række bærer ikke jobnavnet. Kort `a02-vagt-jobnavn`.
+- **(nn) Et valg på en liste er ikke grønt lys til en SECURITY DEFINER-ændring, der giver mere end valget beskrev.** STOP og vis sandhedstabellen: hvem der får hvad før og efter. Eksempel fra 2/10: aftenlistens gæst-«(b)» ville også give skriveadgang, Akademi og events til alle uden slutdato, i strid med 14/9 «En gæst ser Community, men skriver ikke». Ikke bygget; tre muligheder ligger hos Jonas (kort `w13`).
+
 ## 5. Modelvalg
 
 Den største model bruges kun, hvor den gør forskel.

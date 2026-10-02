@@ -11455,6 +11455,78 @@ En recon-agent (kun læsning) gik alle kort igennem med bevis fra `git log` og O
 - Fase 3a (legacy-nøglerne) — beslutning D1 i `docs/prod-hjem-plan.md`.
 - lh@-koblingen (manuel webinarkobling) — forslag, ikke bygget.
 
+### 2. oktober nat — samlet (hvad der skete, hvad der venter)
+
+Samleoversigten for natten 1.–2. oktober. Detaljen står i emnernes egne sektioner og dokumenter, som der henvises til; den gentages ikke her. Klokkeslæt er dansk tid.
+
+**1. Merget i nat (main, nyeste øverst):**
+
+| PR | Commit | Hvad | Drift |
+|---|---|---|---|
+| #1230 | `08feadd8` | Dine mål skive 3: bekræft med ét klik, behold/slip gamle mål, pejlemærker, kvartalstjek | Migration `20261002100000_maal_bekraeft_kvartal.sql` **KØRT 2/10 ~05:05** (FØR/EFTER i filhovedet). Fladen afventer Update. `docs/dine-maal-design.md` «Skive 3» |
+| #1229 | `69c2b366` | Monday væk: `monday-webhook` svarer 410, Monday-koden fjernet | Udrullet og bevist (punkt 2). Teksten i importdialogen afventer Update. Sektionen «2. oktober nat — Monday væk» nedenfor |
+| #1228 | `9a809f4b` | Beslutningspapir: samtykke-rate og «må vi ringe til dig?» | Kun docs. `docs/samtykke-og-opkald.md` |
+| #1227 | `b35b138c` | Akademiet: beslutningsgrundlag til Jonas og Morten | Forespørgslen er **KØRT i prod**. «22 af 29 har aldrig åbnet en video» kan **IKKE** bekræftes: fingeraftrykket finder 18 af 29 med egen aktivitet, og kun 6 af 29 har haft egen aktivitet de sidste 30 dage. Begge tal er usikre, indtil F0 er bygget (punkt 8). `docs/akademi-grundlag.md` |
+| #1226 | `8f55c099` | Handouts er lektionens øvelse, ude af medlemmets menu | Afventer Update. Sektionen «1. oktober nat — handouts i Akademiet» nedenfor |
+| #1225 | `d02669a0` | Dine mål: den nye flade (kort med tal og spor, Jeres retning, guiden, Rejsen) | Afventer Update. `docs/dine-maal-design.md` |
+| #1224 | `e77dab64` | Quick Wins skjult for medlemmer (ikke slettet) | Afventer Update. Sektionen «1. oktober aften — Quick Wins skjult» nedenfor |
+| #1223 | `f6dbae57` | Dine mål-motoren (tal-mål, sporet, retning) | Migration `20261001190000` **KØRT 1/10 ~23:40**. `docs/dine-maal-design.md` |
+
+**Bemærk om #1212** (`55950cf1`, merget 1/10 aften): squash-titlen siger «Foreslå skridt kræver et mål». Det krav blev **trukket tilbage før merge** (Jonas 1/10 20:13: «Nej, foreslå skridt kræver ikke et mål»). PR-kroppen og `CLAUDE.md` («Dine mål på forsiden og i «Foreslå skridt»») er rigtige. Titlen kan ikke rettes i historikken, så det er denne linje, der retter den.
+
+**2. Udrullet i nat:** `monday-webhook` («Successfully deployed edge functions: monday-webhook»). **Bevist 2/10 05:08:** pg_net-kald 28882 → **410** «gone». Den gamle kode kunne ikke have svaret 410. Secrets `MONDAY_SIGNING_SECRET`, `MONDAY_WEBHOOK_SECRET` og `MONDAY_API_TOKEN` læses ikke længere af nogen kode og **kan slettes af Jonas** (Lovable → Cloud → Secrets).
+
+**3. Afventer Jonas' Update** (ét klik dækker det hele, men verificér først, at `08feadd8` er synket ind; CLAUDE.md «Deployment af frontend»):
+- Dine mål: fladen (#1225) og skive 3 (#1230). Begge migrationer er kørt.
+- Quick Wins skjult (#1224).
+- Handouts i Akademiet (#1226).
+- Monday-teksten i importdialogen (#1229, `importensAdvarsel.ts`).
+- /kpis «pejlemærker» (#1230, aftenlistens maal-kpi).
+
+Efter Update: mål bundlen rekursivt i en FRISK fane (regelsættet (ee), (jj)), og lav designgennemsyn i drift (§4b).
+
+**4. Forberedt, IKKE merget:** grenen `feat/seks-steder` (menuen, stedsætningerne og forsiden). Den **afventer Jonas' ja kl. 08:15**. Et klikbart forslag er publiceret som artifact «Ny struktur». Intet af det er i drift.
+
+**5. Aftenlistens svar (Jonas 1/10 22:04–22:19) — og hvad der skete med hvert:**
+
+| Punkt | Jonas' svar | Hvad der skete |
+|---|---|---|
+| maal-bekraeft | «Ja, ét klik» | Bygget i #1230 |
+| maal-gamle | «Bekræft eller slip» (ved næste login) | Bygget i #1230 |
+| maal-kpi | «pejlemærker» + Score-pointet flyttes til Dine mål | Bygget i #1230 |
+| maal-kvartal | «Medlemmet selv» + rådgiverne skal have det som en linje på forsiden | Bygget i #1230 (`KvartalstjekVenter`) |
+| capi | «Kun med samtykke» + «seriøst kig på samtykke-rate» | Papiret #1228, del 1 (`docs/samtykke-og-opkald.md`). Nicklas' «send alle fra serveren» siges der nej til (§0 pkt. 3) |
+| sms | Ikke før webinaret er i egen platform. Spørg efter webinaret, om de vil ringes op | Papiret #1228, del 2 («må vi ringe til dig?») og del 3 (forudsætningerne for SMS). Ikke bygget |
+| sms-slet | «tænk igennem før vi retter ind efter Nicklas» | Papiret #1228 (§1.5) |
+| bogh | «Ja» + note: «e-conomic. Den er forbundet via connectors allerede. Det samme er Pleo. Og Stripe. Fakturaer via Corpay kommer ind i kasseklasse i e-conomic automatisk.» | Skrevet ind som Jonas' beslutning i `docs/analyser-30-09/bogholderi-agent-design.md` §7.6 |
+| gaest | «(b)» | **STOP, ikke bygget.** (b) giver også skriveadgang, Akademi og events til ALLE uden slutdato, uden udløb. Det strider mod Jonas' beslutning 14/9: «En gæst ser Community, men skriver ikke». Tre muligheder ligger hos Jonas (punkt 8). Lærestreg (nn) |
+| monday | «kald fra Monday skal bare væk» | Bygget i #1229, udrullet og bevist (punkt 2) |
+| 3a | «I morgen, sammen med mig» | Venter. Fase 3a i `docs/prod-hjem-plan.md`; migrationen `20261002200000_kald_edge_apikey.sql` er ikke kørt |
+
+**6. Omdøbt (indholdet er uændret, ingen af dem er kørt):**
+- `20261001200000_kald_edge_apikey` → `20261002200000_kald_edge_apikey`
+- `20261002090000_milestones_with_check` → `20261002210000_milestones_with_check`
+
+Grunden: begge sorterede før `20261002100000`, som ER kørt. En ukørt migration må aldrig sortere før en kørt (`metaSend.guard` dom 11, lærestreg (ll)). Omdøbningen står i hver fils filhoved.
+
+**7. Drift (målt 2/10 06:18):**
+- **Cron de sidste 24 timer:** 1.934 kørsler og 0 fejl. De eneste HTTP-svar, der ikke var 200, var nattens to bevidste prøvekald (401 og 410).
+- **Timeouten 1/10 kl. 17:00 kan IKKE længere tilskrives et job.** pg_net gemmer kun svar i ca. 6 timer (ældste svar 2/10 00:19). Vagtens række (17:07, grøn, `timeouts_60m: 1`, `jobs_ikke_200: 1`) bærer ikke jobnavnet.
+- **ÅBENT:** vagten eller driftsagenten skal gemme jobnavnet, når et svar ikke er 200, og en tilskrivning skal ske inden for 6 timer. Lærestreg (mm). Kort [`a02-vagt-jobnavn`](mangelliste.html#a02-vagt-jobnavn).
+
+**8. Kendt og åbent:**
+- **Triggeren `milestones_hoejst_tre_aktive` tæller også ubekræftede mål** med i loftet på tre aktive, selv om fladen ikke regner dem som aktive. En ændring af triggeren kræver grønt lys. Kort [`a02-trigger-ubekraeftede`](mangelliste.html#a02-trigger-ubekraeftede).
+- **RLS-stramningen `20261002210000_milestones_with_check`** (WITH CHECK, SECURITY_BASELINE fund 6) afventer grønt lys. Kort [`a02-milestones-with-check`](mangelliste.html#a02-milestones-with-check).
+- **F0 i akademi-grundlaget:** rådgiverens kvittering (`batchAcknowledge`) skal skilles fra medlemmets egen aktivitet, før akademitallene kan læses ærligt. Kort [`a02-akademi-f0`](mangelliste.html#a02-akademi-f0).
+- **Gæsten (aftenlistens «(b)»):** tre muligheder til Jonas.
+  1. **Fuld adgang** for gæster. Det er et bevidst brud med beslutningen fra 14/9.
+  2. **En ny læse-dom** i SQL: gæsten kan læse Community uden slutdato, men har ingen skrivning, Akademi eller events. Det er en ny SECURITY DEFINER-funktion og kræver grønt lys.
+  3. **En grænse i klienten:** composeren skjules for gæsten, og SQL forbliver uændret. Gæsten ser dog stadig en tom liste, fordi `get_community_feed` kræver `har_aktivt_medlemskab` (recon 1/10 aften på kortet).
+
+  Kortet [`w13`](mangelliste.html#w13) er ført à jour.
+
+---
+
 ### 1. oktober — «Dine mål»: målet lukkede sig selv ved «Gjort», og et skridt kunne have frist efter målet (gren `fix/maal-skridt`)
 
 Medlemmerne var netop bedt om at arbejde aktivt med målene; to fejl rettet samme dag.

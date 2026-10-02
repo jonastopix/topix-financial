@@ -369,6 +369,19 @@ Fejler et trin, standser lukningen dér, og rapporten siger hvilket.
 3. **e-conomic-kort / betalingskort:** bruger Topix et kort med egen feed?
 4. **Anlægsaktiver:** har Topix aktiver, der afskrives i dag? Revisor afgør levetider og metode én gang.
 
+### 7.6 Jonas' beslutning (aftenlisten 1/10-2026, kl. 22:04–22:19)
+Jonas svarede **«Ja»** på punktet «bogh» og skrev denne note (ordret):
+
+> «e-conomic. Den er forbundet via connectors allerede. Det samme er Pleo. Og Stripe. Fakturaer via Corpay kommer ind i kasseklasse i e-conomic automatisk.»
+
+Hvad det betyder for designet. Det er Jonas' ord, ikke målinger:
+- **Ja** gælder anbefalingen i 7.5 pkt. 1: kladde-tilstand i oktober, auto pr. regel fra november.
+- **Kilderne er e-conomic, Pleo og Stripe**, som allerede er forbundet via connectors. **Hvad de kan læse og skrive, er ikke målt her.** Målingen fra 30/9 står: e-conomic-MCP'en kunne ikke læse kontoplan eller posteringer (mangellistens `a30-pleo-eksport`).
+- **Corpay:** fakturaer betalt via Corpay lander automatisk i e-conomic. «kasseklasse» læses som **kassekladden**, men det er ikke afklaret med Jonas. Agenten skal derfor ikke hente Corpay selv. Den afstemmer det, der allerede står i kladden, og fravalget i 7.3 (agenten betaler aldrig) står uændret.
+- **Stadig åbent fra 7.5:** pkt. 2 (lønsystemet), pkt. 3 (e-conomic-kort/betalingskort) og pkt. 4 (anlægsaktiver). Noten svarer ikke på dem.
+
+Bogført 2/10-2026 (OVERLEVERING DEL 2 «2. oktober nat — samlet» pkt. 5).
+
 ---
 
 ## Bilag A — Udkast: Beskrivelse af bogføringsprocedurer (bogføringslovens § 6)
