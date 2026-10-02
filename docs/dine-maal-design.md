@@ -420,9 +420,10 @@ eller slip ved næste login» · **3** «Kald dem pejlemærker, og flyt Score-po
 maalBekraeft.ts` (ren, `maalBekraeft.test.ts`); hentning/skrivning: `src/hooks/dineMaalGrundlag.ts`;
 flade: `components/hjemmebane/milestones/BekraeftMaalKort.tsx` (SAMME komponent på /milestones og
 forsidens «Din plan»); rådgiverens forside: `hooks/kvartalstjekOverblik.ts` + `forside/KvartalstjekVenter.tsx`.
-Værn: `dineMaalSkive3.guard.test.ts` (otte domme — 7: ankeret og INSERT-policyen = klientens dom; 8:
-«Nået» guardet). **Rettet 2/10 efter det tekniske råds fund** (1–11, 13, 14 — bogført ved hvert punkt
-herunder).
+Værn: `dineMaalSkive3.guard.test.ts` (ti domme — 7: ankeret og INSERT-policyen = klientens dom; 8:
+«Nået» guardet + fejret; 9: dommen med grund før INSERT; 10: Genåbn/Aktivér bekræfter, skillelinjen
+udledt). **Rettet 2/10 efter det tekniske råds fund** (1–11, 13, 14 — bogført ved hvert punkt
+herunder) **og efter rådets runde 2** (2/10 morgen, fund 1–10 — bogført som «runde 2, fund N»).
 
 ### 1. Bekræftelsen («Ja, ét klik»)
 
@@ -455,7 +456,21 @@ herunder).
   eget mål» (`dineMaalFlade.hovedLinje(bekraeftede, ubekraeftede)`, `TAG_STILLING_TEKST`) — aldrig
   «3 pladser ledige», som databasen ville afvise (målt 2/10: 3 virksomheder har 3 aktive, mest
   maskinskrevne). Forslagskortets tekst siger kun «tæller ikke i jeres score» — ikke «i pladserne»
-  (`forslagTekst`), for det ville lyve. Se åbne punkter.
+  (`forslagTekst`), for det ville lyve. Se åbne punkter. **Runde 2, fund 4 (ordet):** ÉT ord for et
+  ubekræftet mål overalt — **«venter på jeres ja»** (hovedlinjen «· M venter på jeres ja»,
+  `TAG_STILLING_TEKST` «Svar på de mål, der venter på jeres ja, for at få plads til jeres eget»,
+  `BEKRAEFT_ORD.pladsOptaget`, forsidens «Venter på jeres ja», forslagsoverskriften for `manual`);
+  «forslagene» er ude, fordi det gamle kort hedder «Er det stadig jeres mål?». Hovedlinjen siger
+  **«Ingen bekræftede mål endnu»** (ikke «Ingen mål endnu»), når der er ubekræftede — «Ingen mål endnu»
+  ville lyve, når tre står og venter (`INGEN_BEKRAEFTEDE_MAAL_TEKST`). **Rejsen viser IKKE ubekræftede
+  måls frister** (`maalTal.tidslinje`: `bekraeftet_at === null` springes over; undefined = som i dag).
+  VALGT «vis ikke» frem for «mærk»: Rejsen er «de næste 12 måneder» for virksomhedens EGNE mål — et
+  forslag, medlemmet ikke har sagt ja til, har ingen frist, der er lovet; det tæller heller ikke som
+  kort, i Score eller i fokus, og én regel («ubekræftede tæller ikke») er lettere at holde end et
+  mærke, der kun findes ét sted. **Runde 2, fund 5 (forsiden):** fokusmotoren har et slot (e3) «N mål
+  venter på jeres ja» → `/milestones` (`BEKRAEFT_ORD.fokusTitel/fokusTekst/fokusCta`), ét punkt, på
+  samme plads som kvartalstjekket (under hastende skridt, ellers før (f)) og efter det; forsiden giver
+  `delBekraeftelser(milestones).forslag + gamle` ind som `ubekraeftedeMaal` (0/null = intet punkt).
 
 ### 2. De gamle mål («Bekræft eller slip ved næste login»)
 
@@ -481,7 +496,11 @@ herunder).
   en, der ikke længere er medlem». **Rådets fund 13:** «Aktivér» under Parkeret er også et klik — er
   målet ubekræftet, skriver `aktiverFelter` bekræftelsen i samme UPDATE som status (medlemmet; rådgiveren
   får kun status), og «slippet»-teksten siger det («aktiverer I det igen under «Parkeret», tæller det
-  som jeres»).
+  som jeres»). **Runde 2, fund 3:** «Genåbn» under Nået går SAMME vej (`aktiverFelter`) — et nået,
+  ubekræftet mål fra før skive 3, der genåbnes, bekræftes ved medlemmets klik (værn dom 10).
+  **Runde 2, fund 8:** `GAMLE_MAAL_FOER` udledes af `KVARTALSTJEK_FRA` (én kilde: dansk midnat 2/10 som
+  UTC, `kbhTilUtc(KVARTALSTJEK_FRA, 0, 0)` = `2026-10-01T22:00:00.000Z`) — før stod datoen to steder, og
+  skillelinjen var UTC-midnat, ikke dansk; værn dom 7 holder udledningen og at motoren kun bærer én dato.
 
 ### 3. Pejlemærker og Score-pointet
 
@@ -502,7 +521,13 @@ herunder).
   `docs/boardroom-score.md` §2.4; fail-soft'en (kpi_targets, når kolonnen mangler) er uændret. Løfteren
   siger det sande: **«Sæt et mål med en frist.»** og peger på `/milestones`. Værnene flyttet, ikke
   svækket: `boardroomScoreFlade.guard` dom 4 (kilderne: milestones ind, kpi_targets kun bag
-  `erManglendeKolonne`), `score.test` (stien og ordene), `kpiMaal.test` (ordene).
+  `erManglendeKolonne`), `score.test` (stien og ordene), `kpiMaal.test` (ordene). **Runde 2, fund 1:**
+  `hentHarMaal` svarer `{ harMaal, ubekraeftede }` (fail-soft: 0 i kpi_targets-tilbagefaldet), og fylder
+  de ubekræftede databasens pladser (`ubekraeftedeMaal ≥ MAX_AKTIVE_MAAL`), siger løfteren **«Sig ja til
+  et af jeres mål med en frist.»** (vejen er «Behold») — «Sæt et mål» ville databasen afvise.
+  **Runde 2, fund 6 (tabet):** bogført i `docs/boardroom-score.md` §2.4 — et medlem med kpi_targets og
+  uden bekræftet aktivt mål med frist går fra 25 til 0 mål-point efter migration + Update (højst 3
+  virksomheder; de 2 med backfillet manual-mål med frist beholder pointet); `forrige` viser ingen nedgang.
 
 ### 4. Kvartalstjekket («Medlemmet selv» + rådgiverens linje)
 
@@ -536,7 +561,17 @@ herunder).
   `hooks/maalNaaetKlik.ts` (`skriv.markerNaaet`, ok/grund, status `active` → `completed`, nul rækker =
   fejl); rådets fund 1 (2/10): `useMilestones.markerNaaet` svarer void og sluger fejlen, så rækken ville
   blive skrevet efter en fejlet handling — nu registreres rækken KUN efter ok (værn dom 8). Målkortets
-  eget «Markér som nået» går stadig gennem `useMilestones` med fejringen. `dineMaalGrundlag` skriver
+  eget «Markér som nået» går stadig gennem `useMilestones` med fejringen. **Runde 2, fund 7:** på Dine
+  mål FEJRER kvartalstjekkets «Nået» efter ok med SAMME fejring (`useMilestones.fejr` — konfetti, toast,
+  aktivitetsbesked, Slack), før rækken; forsidens kvartalstjek fejrer bevidst IKKE (ingen
+  `useMilestones` på forsiden; fejringen hører /milestones til — som hidtil). **Runde 2, fund 9:** FØR
+  INSERT'en kalder `registrerKvartalstjek` klientens spejl af policyen MED GRUND (`doemKvartalstjek`;
+  `maaRegistrereKvartalstjek` er samme dom uden grund) på målet SOM DET STÅR efter handlingen
+  (`statusEfterKvartalValg`) og de registrerede rækker — grunden («ikke forfaldent», «allerede
+  besvaret», «kun et bekræftet mål …», «status passer ikke», «året er gået»; `KVARTALSTJEK_GRUND`) vises
+  i stedet for policyens 42501; målet ukendt → ingen fordom, databasen dømmer (værn dom 9). **Runde 2,
+  fund 2:** `kvartalEfterGem` nulstilles i `RedigerMaalDialog`s `onClose` (også ved Annuller og ved Gem
+  uden ændringer), så en senere «Redigér» aldrig registrerer et tjek, der ikke blev taget (prøvet). `dineMaalGrundlag` skriver
   stadig aldrig 'completed' — `maalTal.guard` dom 7). **Handlingen FØR rækken:** fejler rækken, står
   kortet igen næste gang (harmløst); fejler handlingen, skrives ingen række. **Fejler hentningen af de
   registrerede tjek** (`kvartalstjekFejlede`, ikke «tabellen mangler»), tegnes INTET tjek i nogen af
@@ -556,6 +591,9 @@ herunder).
 
 ### 5. Rækkefølgen
 
+**Tørkørt 2/10-2026 kl. ~04:30 dansk** (migrationens filhoved «TØRKØRT»): kroppen kørt i prod i en
+DO-blok, rullet tilbage med RAISE EXCEPTION — alle sætninger OK, backfill ville ramme 13 rækker (alle
+statusser), 3 policies; efter: kolonnerne og tabellen findes ikke (målt).
 1. Merge. 2. FØR-SQL (migrationens filhoved; sektion 3 = source-fordelingen, 5–6 = backfillens
 størrelse). 3. KØR `20261002100000` i Lovable → SQL editor. 4. EFTER-SQL. 5. MÅL over REST:
 `milestones?select=bekraeftet_at,bekraeftet_af&limit=0` → 200 og `maal_kvartalstjek?select=id&limit=0`

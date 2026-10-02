@@ -36,7 +36,7 @@ import { Rejsen } from "./Rejsen";
 import { SaetMaalGuide, type GuideTilstand } from "./SaetMaalGuide";
 import { RedigerMaalDialog } from "./RedigerMaalDialog";
 import { BekraeftMaalKort, type BekraeftHandling, type KvartalHandling } from "./BekraeftMaalKort";
-import { aktiverFelter, BEKRAEFT_ORD, KVARTAL_ORD, type Kvartal } from "@/lib/hjemmebane/maalBekraeft";
+import { aktiverFelter, BEKRAEFT_ORD, KVARTAL_ORD, statusEfterKvartalValg, type Kvartal } from "@/lib/hjemmebane/maalBekraeft";
 
 /**
  * «Dine mål» — /milestones (fladen 1/10-2026; designet Jonas sagde ja til kl.
@@ -92,8 +92,13 @@ import { aktiverFelter, BEKRAEFT_ORD, KVARTAL_ORD, type Kvartal } from "@/lib/hj
  * hentningen (kvartalstjekFejlede — ikke «tabellen mangler»), tegnes INTET
  * tjek (fund 6: uden de registrerede rækker ville et taget tjek vises igen),
  * og siden siger det med KVARTALSTJEK_FEJLEDE_TEKST.
- * «Aktivér» under Parkeret (fund 13): er målet ubekræftet, er klikket også
- * bekræftelsen — aktiverFelter skriver bekraeftet_at/bekraeftet_af med status.
+ * «Aktivér» under Parkeret (fund 13) og «Genåbn» under Nået (runde 2, fund 3):
+ * er målet ubekræftet, er klikket også bekræftelsen — aktiverFelter skriver
+ * bekraeftet_at/bekraeftet_af med status. Kvartalstjekkets «Nået» fejrer som
+ * målkortets (useMilestones.fejr — runde 2, fund 7), efter ok og før rækken;
+ * før rækken dømmes doemKvartalstjek (= policyen), så grunden vises (fund 9).
+ * «Justér» nulstilles ved luk uden gem (kvartalEfterGem → null i onClose), så
+ * en senere «Redigér» aldrig registrerer et tjek, der ikke blev taget (fund 2).
  * Rådgiveren læser kortene (kanKlikke = !rawAdvisor — som retningen).
  * Kortene (g.kort) er KUN de bekræftede aktive mål; pladsen dømmes af
  * databasens tælling, og «Plads, når I har taget stilling» står, når de
@@ -145,7 +150,7 @@ export const DineMaalView = () => {
   const queryClient = useQueryClient();
 
   // De gamle skriveveje (medlemmet ejer sine mål — RLS uændret).
-  const { milestones, loading, markerNaaet, slet, opdaterFelt, genhent } = useMilestones({
+  const { milestones, loading, markerNaaet, slet, opdaterFelt, genhent, fejr } = useMilestones({
     userId: user?.id ?? null,
     companyId: companyId ?? null,
     isAdvisor,
@@ -261,7 +266,15 @@ export const DineMaalView = () => {
   };
   const registrerKvartal = async (maalId: string, kvartal: Kvartal, valg: KvartalHandling["valg"]): Promise<string | null> => {
     if (!user || !companyId) return "Du er ikke logget ind";
-    const s = await skriv.registrerKvartalstjek({ maalId, companyId, userId: user.id, kvartal, valg });
+    // Runde 2, fund 9: klientens dom (= policyens) FØR INSERT'en, på målet som det står EFTER handlingen —
+    // grunden («ikke forfaldent», «allerede besvaret» …) vises i stedet for en generisk fejl.
+    const raa = maalMedTalAf.get(maalId);
+    const s = await skriv.registrerKvartalstjek({
+      maalId, companyId, userId: user.id, kvartal, valg,
+      maal: raa ? { id: raa.id, status: statusEfterKvartalValg(raa.status, valg), bekraeftet_at: raa.bekraeftet_at } : null,
+      tjek: g.grundlag?.kvartalstjek ?? [],
+      nu: new Date(),
+    });
     if (s.ok === false) return s.grund;
     toast.success(KVARTAL_ORD.registreret);
     return null;
@@ -276,6 +289,8 @@ export const DineMaalView = () => {
       // Fund 1: den GUARDEDE skriver (ok/grund, status 'active' → 'completed', nul rækker = fejl) — rækken kun efter ok.
       const s = await skriv.markerNaaet({ maalId: h.maalId });
       if (s.ok === false) return s.grund;
+      // Runde 2, fund 7: SAMME fejring som målkortets «Markér som nået» (useMilestones.fejr) — efter ok, før rækken.
+      fejr(msAf.get(h.maalId)?.title ?? maalMedTalAf.get(h.maalId)?.title ?? "");
     }
     return registrerKvartal(h.maalId, h.kvartal, h.valg);
   };
@@ -317,8 +332,9 @@ export const DineMaalView = () => {
         onFremgang={() => undefined}
         onNaaet={() => void markerNaaetOgRyd(ms.id)}
         // Genåbn/aktivér: status active — det fjerde aktive afvises af databasen (husets tekst via maalFejlTekst).
-        onGenaabn={() => void opdaterMaalFelt(ms.id, { status: "active" })}
-        // Fund 13: «Aktivér» er også et klik — et ubekræftet mål bekræftes i samme skrivning (medlemmet; rådgiveren får kun status).
+        // Fund 13 + runde 2 fund 3: BEGGE er et klik — et ubekræftet mål (et nået, ubekræftet mål fra før skive 3,
+        // eller et parkeret forslag) bekræftes i samme skrivning (medlemmet; rådgiveren får kun status).
+        onGenaabn={() => void opdaterMaalFelt(ms.id, aktiverFelter(ms, rawAdvisor ? null : (user?.id ?? null), new Date()))}
         onAktiver={() => void opdaterMaalFelt(ms.id, aktiverFelter(ms, rawAdvisor ? null : (user?.id ?? null), new Date()))}
         onParker={() => void opdaterMaalFelt(ms.id, { status: "parked" })}
         onSlet={() => setSletId(ms.id)}

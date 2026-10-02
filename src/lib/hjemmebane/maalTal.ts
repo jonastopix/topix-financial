@@ -964,7 +964,7 @@ export function tidslinjeStart(kontraktStart: string | null, maal: readonly Maal
  * Punkterne for 12 måneder fra `start` (inklusive begge ender):
  *   start · kvartalsmarkører ved +3, +6, +9 mdr. · slut (+12) ·
  *   gjorte skridt (closed_at som dansk dato) — kun skridt under et af målene ·
- *   målenes frister (ikke parkerede; nåede mærkes naaet).
+ *   målenes frister (ikke parkerede, ikke ubekræftede — skive 3; nåede mærkes naaet).
  * Sorteret efter dato; samme dato: start/kvartal/slut før skridt før frister.
  */
 export function tidslinje(maal: readonly MaalMedTal[], skridt: readonly SkridtTilMaal[], start: string, nu: Date): TidslinjeDom {
@@ -987,6 +987,13 @@ export function tidslinje(maal: readonly MaalMedTal[], skridt: readonly SkridtTi
   }
   for (const m of maal) {
     if (m.status === "parked") continue;
+    // Skive 3 (runde 2, fund 4): et UBEKRÆFTET mål (bekraeftet_at null — kolonnen læst) står IKKE på
+    // Rejsen. VALGT «vis ikke» frem for «mærk»: Rejsen er «de næste 12 måneder» for virksomhedens EGNE
+    // mål — et forslag, medlemmet ikke har sagt ja til, har ingen frist, der er lovet; det tæller heller
+    // ikke som kort, i Score eller i forsidens fokus, og én regel («ubekræftede tæller ikke») er lettere
+    // at holde end et mærke, der kun findes ét sted. undefined (modellen slået fra) = som i dag. Samme
+    // dom som maalBekraeft.erBekraeftet — inlinet, fordi maalBekraeft importerer herfra (ingen cyklus).
+    if (m.bekraeftet_at === null) continue;
     const d = datoAf(m.deadline);
     if (d && inden(d)) punkter.push({ dato: d, art: "maal_frist", titel: m.title, maalId: m.id, naaet: m.status === "completed" });
   }

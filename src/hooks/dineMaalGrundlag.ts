@@ -78,6 +78,7 @@ import {
 } from "@/lib/hjemmebane/maalTal";
 import {
   delBekraeftelser,
+  doemKvartalstjek,
   erBekraeftet,
   laesKvartalValg,
   ventendeKvartalstjekAlle,
@@ -85,6 +86,7 @@ import {
   type Kvartal,
   type KvartalstjekRaekke,
   type KvartalValg,
+  type MaalTilKvartalstjek,
   type VentendeKvartalstjek,
 } from "@/lib/hjemmebane/maalBekraeft";
 import {
@@ -481,9 +483,30 @@ export async function slipMaal(args: { maalId: string }): Promise<SkriveSvar> {
  * EFTER handlingen (behold: ingen; justeret: efter gemt; parkeret/naaet: efter
  * statusskrivningen) — fejler rækken, står kortet igen næste gang (harmløst);
  * UNIQUE (milestone_id, kvartal) gør en gentagelse til 23505, som også er «ikke gemt».
+ *
+ * Runde 2, fund 9: FØR INSERT'en dømmes klientens spejl af policyen
+ * (maalBekraeft.doemKvartalstjek) på målet, SOM DET STÅR efter handlingen
+ * (`maal.status` = statusEfterKvartalValg), og de registrerede rækker — så
+ * grunden (ikke forfaldent · allerede svaret · ikke bekræftet · status) vises
+ * i stedet for policyens 42501. `maal` null (kalderen kender ikke rækken) →
+ * ingen fordom; databasen dømmer stadig.
  */
-export async function registrerKvartalstjek(args: { maalId: string; companyId: string; userId: string; kvartal: Kvartal; valg: KvartalValg }): Promise<SkriveSvar> {
+export async function registrerKvartalstjek(args: {
+  maalId: string;
+  companyId: string;
+  userId: string;
+  kvartal: Kvartal;
+  valg: KvartalValg;
+  /** Målet som det står, når rækken skrives (status EFTER handlingen); null = ukendt (ingen fordom). */
+  maal: Pick<MaalTilKvartalstjek, "id" | "status" | "bekraeftet_at"> | null;
+  tjek: readonly KvartalstjekRaekke[];
+  nu: Date;
+}): Promise<SkriveSvar> {
   if (laesKvartalValg(args.valg) === null) return { ok: false, grund: KVARTALSTJEK_UGYLDIG_TEKST, afventerMigration: false };
+  if (args.maal) {
+    const dom = doemKvartalstjek(args.maal, args.tjek, args.kvartal, args.valg, args.nu);
+    if (dom.ok === false) return { ok: false, grund: dom.grund, afventerMigration: false };
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const res = await (supabase.from("maal_kvartalstjek" as any).insert({ milestone_id: args.maalId, company_id: args.companyId, kvartal: args.kvartal, valg: args.valg, valgt_af: args.userId }).select("id").maybeSingle() as any);
   if (res?.error) {

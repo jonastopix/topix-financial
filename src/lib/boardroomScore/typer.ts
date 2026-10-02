@@ -33,6 +33,12 @@ export interface ScoreGrundlag {
   harBudgetForAaret: boolean;
   /** Mindst ét mål på Dine mål, der tæller (maalBekraeft.taellerSomScoreMaal: aktivt · bekræftet · frist · et tal-mål med måltal; art kræves ikke). Før skive 3-migrationen: mindst én række i kpi_targets. */
   harMaal: boolean;
+  /**
+   * Skive 3 (runde 2, fund 1): antal AKTIVE mål, der venter på medlemmets ja (bekraeftet_at null).
+   * Kun til løfterens ord: fylder de pladserne, er vejen «Behold», ikke «Sæt et mål». Fail-soft:
+   * udeladt/0 før migrationen (kpi_targets-tilbagefaldet) og i alle ældre kaldere.
+   */
+  ubekraeftedeMaal?: number;
 }
 
 export type SoejleNavn = "likviditet" | "indtjening" | "vaekst" | "disciplin";

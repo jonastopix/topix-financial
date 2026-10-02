@@ -691,6 +691,14 @@ describe("tidslinjen", () => {
     expect(t.punkter.find((p) => p.maalId === "m2")?.naaet).toBe(true);
     expect(t.nuAndel).toBeCloseTo(dageMellem("2026-05-15", "2026-10-01") / 365, 10);
   });
+
+  it("skive 3 (runde 2, fund 4): et UBEKRÆFTET måls frist står ikke på Rejsen — ulæst kolonne (undefined) som i dag", () => {
+    const frister = (bekraeftet_at: string | null | undefined) =>
+      tidslinje([maal({ id: "m1", deadline: "2027-04-01", bekraeftet_at })], [], "2026-05-15", NU).punkter.filter((p) => p.art === "maal_frist").map((p) => p.maalId);
+    expect(frister(null)).toEqual([]);
+    expect(frister("2026-09-01T00:00:00Z")).toEqual(["m1"]);
+    expect(frister(undefined)).toEqual(["m1"]);
+  });
 });
 
 describe("«Måltallet er nået» opfordrer kun (fund 16)", () => {

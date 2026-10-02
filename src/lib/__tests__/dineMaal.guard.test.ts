@@ -149,7 +149,8 @@ export const skyderenHolder = (raekke: string, dom: string): boolean =>
     stadig medlemmets egen RLS. Nået/parkér/slet er stadig useMilestones' (markerNaaet, opdaterFelt, slet),
     pakket ind med invalidering af motorens nøgler (markerNaaetOgRyd/opdaterMaalFelt). */
 export const medlemmetEjer = (view: string, migrationer: readonly string[]): boolean =>
-  /const \{ milestones, loading, markerNaaet, slet, opdaterFelt, genhent \} = useMilestones\(/.test(view) &&
+  // Skive 3 (runde 2, fund 7): fejringen (fejr) er også useMilestones' — kvartalstjekkets «Nået» kalder den efter ok.
+  /const \{ milestones, loading, markerNaaet, slet, opdaterFelt, genhent, fejr \} = useMilestones\(/.test(view) &&
   view.includes("const skriv = useDineMaalSkrivning({ companyId, efter: genhent });") &&
   view.includes("await markerNaaet(id);") &&
   view.includes("onNaaet={() => void markerNaaetOgRyd(ms.id)}") &&

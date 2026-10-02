@@ -46,27 +46,35 @@ import { HentningsFejl, kraevRaekker } from "@/lib/kraevRaekker";
 import { erManglendeTabel } from "@/lib/manglendeTabel";
 import { kbhDele } from "@/lib/hverdage";
 import { boardroomScore, tidligsteGodkendelse, type ScoreDom, type ScoreGrundlag, type ScoreMaaned } from "@/lib/boardroomScore";
-import { taellerSomScoreMaal, type MaalTilScore } from "@/lib/hjemmebane/maalBekraeft";
+import { erUbekraeftetAktivt, taellerSomScoreMaal, type MaalTilScore } from "@/lib/hjemmebane/maalBekraeft";
 import { erManglendeKolonne } from "@/lib/manglendeTabel";
 import type { Json } from "@/integrations/supabase/types";
 
 /** Kolonnerne, Score læser af milestones (skive 3). bekraeftet_at er den, der kan mangle. */
 export const SCORE_MAAL_KOLONNER = "status, bekraeftet_at, art, deadline, target_value, udgangspunkt";
 
+/** Svaret fra hentHarMaal: pointets dom + antallet af aktive mål, der venter på medlemmets ja (løfterens ord). */
+export interface HarMaalSvar {
+  harMaal: boolean;
+  /** Aktive mål med bekraeftet_at = null (runde 2, fund 1). 0 i kpi_targets-tilbagefaldet (modellen findes ikke). */
+  ubekraeftede: number;
+}
+
 /**
  * «Har virksomheden et mål?» til disciplinens 25 point — af Dine mål (skive 3).
- * Fail-soft: mangler kolonnen, tælles kpi_targets som før skive 3. Enhver anden
- * fejl kaster HentningsFejl.
+ * Fail-soft: mangler kolonnen, tælles kpi_targets som før skive 3 (og
+ * ubekraeftede er 0 — modellen findes ikke). Enhver anden fejl kaster HentningsFejl.
  */
-export async function hentHarMaal(companyId: string): Promise<boolean> {
+export async function hentHarMaal(companyId: string): Promise<HarMaalSvar> {
   const maal = await supabase.from("milestones").select(SCORE_MAAL_KOLONNER).eq("company_id", companyId).eq("status", "active");
   if (maal.error && erManglendeKolonne(maal.error)) {
     const kpi = await supabase.from("kpi_targets").select("id", { count: "exact", head: true }).eq("company_id", companyId);
     if (kpi.error) throw new HentningsFejl("kpi_targets", kpi.error.message);
-    return (kpi.count ?? 0) > 0;
+    return { harMaal: (kpi.count ?? 0) > 0, ubekraeftede: 0 };
   }
   if (maal.error) throw new HentningsFejl("milestones", maal.error.message);
-  return ((maal.data ?? []) as unknown as MaalTilScore[]).some(taellerSomScoreMaal);
+  const raekker = (maal.data ?? []) as unknown as MaalTilScore[];
+  return { harMaal: raekker.some(taellerSomScoreMaal), ubekraeftede: raekker.filter(erUbekraeftetAktivt).length };
 }
 
 /** Hvor tit grundlaget genhentes, og hvor tit dommen regnes om af samme grundlag. */
@@ -126,7 +134,7 @@ export async function hentScoreGrundlag(companyId: string, nu: Date): Promise<Sc
     .like("period", `${aar}-base-%`);
   if (budget.error) throw new HentningsFejl("budget_targets", budget.error.message);
 
-  const harMaal = await hentHarMaal(companyId);
+  const { harMaal, ubekraeftede } = await hentHarMaal(companyId);
 
   const maaneder: ScoreMaaned[] = facts.map((f) => ({
     key: f.period_key,
@@ -142,6 +150,7 @@ export async function hentScoreGrundlag(companyId: string, nu: Date): Promise<Sc
       kontraktStart: (virksomhed.data as { contract_start_date?: string | null } | null)?.contract_start_date ?? null,
       harBudgetForAaret: (budget.count ?? 0) > 0,
       harMaal,
+      ubekraeftedeMaal: ubekraeftede,
     },
   };
 }

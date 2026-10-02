@@ -346,5 +346,7 @@ export function useMilestones({ userId, companyId, isAdvisor }: Args) {
     return true;
   }, [userId, companyId]);
 
-  return { milestones, loading, saetFremgang, saetNuvaerendeVaerdi, skiftFuldfoert, markerNaaet, slet, opdaterFelt, opret, genhent };
+  // Skive 3 (runde 2, fund 7): kvartalstjekkets «Nået» på /milestones skriver gennem den guardede
+  // hooks/maalNaaetKlik og fejrer bagefter med SAMME fejring som «Markér som nået» — derfor eksponeret.
+  return { milestones, loading, saetFremgang, saetNuvaerendeVaerdi, skiftFuldfoert, markerNaaet, slet, opdaterFelt, opret, genhent, fejr };
 }

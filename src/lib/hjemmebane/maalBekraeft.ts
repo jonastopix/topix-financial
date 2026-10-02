@@ -76,9 +76,19 @@
  *   konstruktion. Før migrationen (kolonnen bekraeftet_at ulæst): hooken
  *   falder tilbage på kpi_targets som før — dommen her kaldes ikke.
  */
-import { kbhDato, laegMaanederTilDato } from "@/lib/hverdage";
+import { kbhDato, kbhTilUtc, laegMaanederTilDato } from "@/lib/hverdage";
 import { erMarkeretNaaet } from "@/lib/milepaelDom";
 import { KVARTAL_MAANEDER, TIDSLINJE_MAANEDER, laesArt } from "./maalTal";
+
+/**
+ * Dagen, skive 3 gik i luften (DANSK dato) — ÉN kilde for to skillelinjer
+ * (rådets runde 2, fund 8): kvartalstjekkets anker er aldrig før den
+ * (regnestykket i filhovedet, rådets fund 9: 2/10 + 3 måneder = 2/1-2027 er
+ * det første tjek for de backfillede), og GAMLE_MAAL_FOER (skillelinjen mellem
+ * «gamle mål» og nye forslag) udledes af den. Migrationens INSERT-policy bærer
+ * den samme dato ordret (dineMaalSkive3.guard dom 7).
+ */
+export const KVARTALSTJEK_FRA = "2026-10-02";
 
 // ── Bekræftelsen ───────────────────────────────────────────────────────────
 
@@ -94,11 +104,14 @@ export interface MaalTilBekraeftelse {
 
 /**
  * Skillelinjen mellem «gamle mål» (punkt 2: «Er det stadig jeres mål?») og
- * nye forslag (punkt 1: «Din rådgiver foreslår et mål»). Dagen, skive 3 blev
- * bygget. Et ubekræftet mål fra før møder «Behold / Slip», et fra efter «Det er
- * vores mål / Ikke nu» — samme to skrivninger.
+ * nye forslag (punkt 1: «Din rådgiver foreslår et mål»): DANSK midnat den dag,
+ * skive 3 gik i luften — udledt af KVARTALSTJEK_FRA (én kilde, runde 2 fund 8),
+ * som ISO-stempel i UTC (2026-10-02 dansk = 2026-10-01T22:00:00.000Z), så den
+ * kan sammenlignes direkte med `created_at`. Et ubekræftet mål fra før møder
+ * «Behold / Slip», et fra efter «Det er vores mål / Ikke nu» — samme to
+ * skrivninger.
  */
-export const GAMLE_MAAL_FOER = "2026-10-02T00:00:00.000Z";
+export const GAMLE_MAAL_FOER = kbhTilUtc(KVARTALSTJEK_FRA, 0, 0).toISOString();
 
 /**
  * Tæller målet som medlemmets? `undefined` = bekræftelsesmodellen er ikke i
@@ -161,8 +174,15 @@ export const BEKRAEFT_ORD = {
     medlem: "skrevet gennem jeres konto af en, der ikke længere er medlem",
     ukendt: "",
   } satisfies Record<MaalKilde | "ukendt", string>,
-  /** Den stiplede plads, når de ubekræftede fylder databasens tre (dineMaal.pladsOptagetAfUbekraeftede). */
-  pladsOptaget: "Plads til et mål mere, når I har taget stilling til forslagene ovenfor.",
+  /** Den stiplede plads, når de ubekræftede fylder databasens tre (dineMaal.pladsOptagetAfUbekraeftede).
+      ÉT ord for et ubekræftet mål overalt (runde 2, fund 4): «venter på jeres ja» — aldrig «forslagene»,
+      for det gamle kort hedder «Er det stadig jeres mål?». */
+  pladsOptaget: "Plads til et mål mere, når I har svaret på de mål, der venter på jeres ja.",
+  /** Forsidens fokuspunkt (runde 2, fund 5): «N mål venter på jeres ja» → Dine mål. */
+  fokusTitel: (antal: number) => (antal === 1 ? "1 mål venter på jeres ja" : `${antal} mål venter på jeres ja`),
+  fokusTekst: "Sig ja til dem, der er jeres — og slip resten. De tæller først, når I har svaret.",
+  fokusCta: "Svar på Dine mål",
+  fokusSti: "/milestones",
   /** Rådgiveren læser — bekræftelsen er medlemmets (RLS: rådgiveren har kun SELECT). */
   kunMedlemmet: "Kun virksomheden kan sige ja til et mål.",
   /** Fund 13: «Aktivér» under Parkeret er også et klik — målet bekræftes i samme skrivning (aktiverFelter). */
@@ -279,15 +299,7 @@ export interface VentendeKvartalstjek {
   dato: string;
 }
 
-/**
- * Dagen, kvartalstjekket gik i luften (DANSK dato) — ankeret er aldrig før den
- * (regnestykket i filhovedet, rådets fund 9): 2/10 + 3 måneder = 2/1-2027 er
- * det første tjek for de backfillede. ÉT sted; migrationens policy bærer den
- * samme dato ordret (dineMaalSkive3.guard dom 7).
- */
-export const KVARTALSTJEK_FRA = "2026-10-02";
-
-/** Ankeret: max(bekraeftet_at som dansk dato, KVARTALSTJEK_FRA); null uden (læseligt) stempel. */
+/** Ankeret: max(bekraeftet_at som dansk dato, KVARTALSTJEK_FRA — defineret øverst, én kilde); null uden (læseligt) stempel. */
 export function kvartalAnker(bekraeftetAt: string | null | undefined): string | null {
   if (typeof bekraeftetAt !== "string" || !bekraeftetAt.trim()) return null;
   const t = new Date(bekraeftetAt);
@@ -323,12 +335,51 @@ export function ventendeKvartalstjek(maal: MaalTilKvartalstjek, tjek: readonly K
   return { maalId: maal.id, maalTitel: maal.title, companyId: maal.company_id ?? null, kvartal: seneste.kvartal, maaned: seneste.maaned, dato: seneste.dato };
 }
 
+/** Grundene, dommen svarer med, når et kvartalstjek IKKE må registreres (runde 2, fund 9) — vises i stedet for en generisk fejl. */
+export const KVARTALSTJEK_GRUND = {
+  status: "Målets status passer ikke til valget — genindlæs siden.",
+  ubekraeftet: "Kun et bekræftet mål har et kvartalstjek — sig ja til målet først.",
+  ikkeForfaldent: "Kvartalstjekket er ikke forfaldent endnu — kortet vises, når det er.",
+  aaretGaaet: "Målets år er gået — der er ikke flere kvartalstjek på det.",
+  alleredeSvaret: "Kvartalstjekket er allerede besvaret — genindlæs siden.",
+} as const;
+
+export type KvartalstjekDom = { ok: true } | { ok: false; grund: string };
+
 /**
  * Klientens spejl af databasens INSERT-policy på maal_kvartalstjek (rådets
- * fund 11; filhovedet «DATABASENS DOM»). Ren; prøvet mod policyens udtryk i
+ * fund 11; filhovedet «DATABASENS DOM») — MED GRUND (runde 2, fund 9): kaldes
+ * FØR INSERT'en, så medlemmet får at vide, HVORFOR rækken ikke skrives (ikke
+ * forfaldent · allerede svaret · ikke bekræftet · status passer ikke · året
+ * gået) i stedet for policyens 42501. Ren; prøvet mod policyens udtryk i
  * dineMaalSkive3.guard dom 7. Målet gives som det STÅR, når rækken skrives —
  * efter handlingen (parkeret → 'parked', naaet → 'completed').
  */
+export function doemKvartalstjek(
+  maal: Pick<MaalTilKvartalstjek, "id" | "status" | "bekraeftet_at">,
+  tjek: readonly KvartalstjekRaekke[],
+  kvartal: Kvartal,
+  valg: KvartalValg,
+  nu: Date,
+): KvartalstjekDom {
+  const statusOk =
+    valg === "parkeret" ? maal.status === "active" || maal.status === "parked"
+    : valg === "naaet" ? maal.status === "active" || maal.status === "completed"
+    : maal.status === "active";
+  if (!statusOk) return { ok: false, grund: KVARTALSTJEK_GRUND.status };
+  if (maal.bekraeftet_at === undefined || !erBekraeftet(maal)) return { ok: false, grund: KVARTALSTJEK_GRUND.ubekraeftet };
+  const anker = kvartalAnker(maal.bekraeftet_at);
+  if (!anker) return { ok: false, grund: KVARTALSTJEK_GRUND.ubekraeftet };
+  const idag = kbhDato(nu);
+  const dato = laegMaanederTilDato(anker, KVARTAL_MAANEDER * kvartal);
+  const slut = laegMaanederTilDato(anker, TIDSLINJE_MAANEDER);
+  if (idag >= slut) return { ok: false, grund: KVARTALSTJEK_GRUND.aaretGaaet };
+  if (!(dato <= idag && idag < slut)) return { ok: false, grund: KVARTALSTJEK_GRUND.ikkeForfaldent };
+  if (tjek.some((t) => t.milestone_id === maal.id && (laesKvartal(t.kvartal) ?? 0) >= kvartal)) return { ok: false, grund: KVARTALSTJEK_GRUND.alleredeSvaret };
+  return { ok: true };
+}
+
+/** Ja/nej-formen af doemKvartalstjek — samme dom, uden grunden. */
 export function maaRegistrereKvartalstjek(
   maal: Pick<MaalTilKvartalstjek, "id" | "status" | "bekraeftet_at">,
   tjek: readonly KvartalstjekRaekke[],
@@ -336,19 +387,14 @@ export function maaRegistrereKvartalstjek(
   valg: KvartalValg,
   nu: Date,
 ): boolean {
-  const statusOk =
-    valg === "parkeret" ? maal.status === "active" || maal.status === "parked"
-    : valg === "naaet" ? maal.status === "active" || maal.status === "completed"
-    : maal.status === "active";
-  if (!statusOk) return false;
-  if (maal.bekraeftet_at === undefined || !erBekraeftet(maal)) return false;
-  const anker = kvartalAnker(maal.bekraeftet_at);
-  if (!anker) return false;
-  const idag = kbhDato(nu);
-  const dato = laegMaanederTilDato(anker, KVARTAL_MAANEDER * kvartal);
-  const slut = laegMaanederTilDato(anker, TIDSLINJE_MAANEDER);
-  if (!(dato <= idag && idag < slut)) return false;
-  return !tjek.some((t) => t.milestone_id === maal.id && (laesKvartal(t.kvartal) ?? 0) >= kvartal);
+  return doemKvartalstjek(maal, tjek, kvartal, valg, nu).ok;
+}
+
+/** Målets status, som rækken ser den EFTER handlingen (handlingen skrives FØR rækken): parkeret → 'parked', naaet → 'completed', ellers uændret. */
+export function statusEfterKvartalValg(status: string, valg: KvartalValg): string {
+  if (valg === "parkeret") return "parked";
+  if (valg === "naaet") return "completed";
+  return status;
 }
 
 /** Alle ventende kvartalstjek — ældste forfaldsdato først, så målets titel. */

@@ -32,7 +32,15 @@ import { resolve } from "node:path";
 //      completed, ellers active).
 //   8. Rådets fund 1 (2/10): kvartalstjekkets «Nået» på Dine mål går gennem
 //      hookets GUARDEDE skriv.markerNaaet (ok/grund), og rækken registreres
-//      KUN efter ok — aldrig useMilestones' void-skriver.
+//      KUN efter ok — aldrig useMilestones' void-skriver. Runde 2, fund 7: efter
+//      ok fejres med SAMME fejring som målkortets «Markér som nået»
+//      (useMilestones.fejr), før rækken.
+//   9. Runde 2, fund 9: FØR INSERT'en i registrerKvartalstjek dømmes klientens
+//      spejl af policyen (doemKvartalstjek), så grunden vises — og
+//      maaRegistrereKvartalstjek er den samme dom uden grund.
+//  10. Runde 2, fund 3 + 8: «Genåbn» (nået → aktiv) og «Aktivér» (parkeret →
+//      aktiv) skriver begge gennem aktiverFelter (et ubekræftet mål bekræftes
+//      ved klikket); GAMLE_MAAL_FOER udledes af KVARTALSTJEK_FRA (én kilde).
 // Selvbevis på kopier: hver regel falder, når kilden ændres tilbage.
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -173,8 +181,10 @@ export const ankerOgPolicyHolder = (motor: string, migration: string): boolean =
   const policy = sql.slice(sql.indexOf('CREATE POLICY "Company members can insert company kvartalstjek"'), sql.indexOf('DROP POLICY IF EXISTS "Advisors can view all kvartalstjek"'));
   const greatest = `greatest((m.bekraeftet_at AT TIME ZONE 'Europe/Copenhagen')::date, date '${fra}')`;
   return (
-    // Klienten: ankeret klippes til KVARTALSTJEK_FRA, og spejlet dømmer status efter valget.
+    // Klienten: ankeret klippes til KVARTALSTJEK_FRA, skillelinjen udledes af den (dom 10), og spejlet dømmer status efter valget.
     /return dato < KVARTALSTJEK_FRA \? KVARTALSTJEK_FRA : dato;/.test(m) &&
+    /export const GAMLE_MAAL_FOER = kbhTilUtc\(KVARTALSTJEK_FRA, 0, 0\)\.toISOString\(\);/.test(m) &&
+    (m.match(/\d{4}-\d{2}-\d{2}/g) ?? []).length === 1 &&
     /valg === "parkeret" \? maal\.status === "active" \|\| maal\.status === "parked"/.test(m) &&
     /valg === "naaet" \? maal\.status === "active" \|\| maal\.status === "completed"/.test(m) &&
     /: maal\.status === "active";/.test(m) &&
@@ -197,8 +207,35 @@ export const naaetGuardet = (view: string): boolean => {
   const v = udenKommentarer(view);
   const blok = v.slice(v.indexOf("const kvartalHandling"), v.indexOf("const aabnJuster"));
   return (
-    /else if \(h\.valg === "naaet"\) \{\s*const s = await skriv\.markerNaaet\(\{ maalId: h\.maalId \}\);\s*if \(s\.ok === false\) return s\.grund;\s*\}/.test(blok) &&
+    /else if \(h\.valg === "naaet"\) \{\s*const s = await skriv\.markerNaaet\(\{ maalId: h\.maalId \}\);\s*if \(s\.ok === false\) return s\.grund;\s*fejr\(/.test(blok) &&
     !/markerNaaetOgRyd/.test(blok)
+  );
+};
+
+/** Dom 9: dommen med grund FØR INSERT'en; maaRegistrereKvartalstjek = doemKvartalstjek uden grund. */
+export const domFoerInsert = (hook: string, motor: string, view: string, forside: string): boolean => {
+  const h = udenKommentarer(hook);
+  const m = udenKommentarer(motor);
+  const fn = h.slice(h.indexOf("export async function registrerKvartalstjek"), h.indexOf("export async function goerMaalSkarpt"));
+  const dom = fn.indexOf("doemKvartalstjek(args.maal, args.tjek, args.kvartal, args.valg, args.nu)");
+  const insert = fn.indexOf('.from("maal_kvartalstjek" as any).insert(');
+  return (
+    dom > 0 && insert > dom &&
+    /if \(dom\.ok === false\) return \{ ok: false, grund: dom\.grund, afventerMigration: false \};/.test(fn) &&
+    /return doemKvartalstjek\(maal, tjek, kvartal, valg, nu\)\.ok;/.test(m) &&
+    // Begge flader giver målet som det står EFTER handlingen og de registrerede rækker med.
+    /status: statusEfterKvartalValg\(raa\.status, valg\)/.test(udenKommentarer(view)) &&
+    /status: statusEfterKvartalValg\(maal\.status, h\.valg\)/.test(udenKommentarer(forside))
+  );
+};
+
+/** Dom 10: Genåbn og Aktivér gennem aktiverFelter. */
+export const genaabnBekraefter = (view: string): boolean => {
+  const v = udenKommentarer(view);
+  return (
+    /onGenaabn=\{\(\) => void opdaterMaalFelt\(ms\.id, aktiverFelter\(ms, /.test(v) &&
+    /onAktiver=\{\(\) => void opdaterMaalFelt\(ms\.id, aktiverFelter\(ms, /.test(v) &&
+    !/\{ status: "active" \}/.test(v)
   );
 };
 
@@ -269,9 +306,30 @@ describe("dineMaalSkive3.guard", () => {
     expect(ankerOgPolicyHolder(motor, migration.replace("AND t.kvartal >= maal_kvartalstjek.kvartal", "AND t.kvartal = maal_kvartalstjek.kvartal"))).toBe(false);
   });
 
-  it("dom 8: kvartalstjekkets «Nået» på Dine mål er hookets guardede skriver — rækken kun efter ok", () => {
+  it("dom 8: kvartalstjekkets «Nået» på Dine mål er hookets guardede skriver — rækken kun efter ok, fejringen efter ok", () => {
     const view = laes(VIEW);
     expect(naaetGuardet(view)).toBe(true);
     expect(naaetGuardet(view.replace("const s = await skriv.markerNaaet({ maalId: h.maalId });\n      if (s.ok === false) return s.grund;", "await markerNaaetOgRyd(h.maalId);"))).toBe(false);
+    expect(naaetGuardet(view.replace(/\n\s*fejr\(msAf[^\n]*\n/, "\n"))).toBe(false);
+  });
+
+  it("dom 9: doemKvartalstjek FØR INSERT'en (grunden vises), i begge flader", () => {
+    const hook = laes(HOOK);
+    const motor = laes(MOTOR);
+    const view = laes(VIEW);
+    const forside = laes(FORSIDE);
+    expect(domFoerInsert(hook, motor, view, forside)).toBe(true);
+    // Mod-prøven rammer kvartalstjekkets dom (ikke opret/goerSkarpt, som bærer samme linje).
+    expect(domFoerInsert(hook.replace("const dom = doemKvartalstjek(args.maal, args.tjek, args.kvartal, args.valg, args.nu);\n    if (dom.ok === false) return { ok: false, grund: dom.grund, afventerMigration: false };", ""), motor, view, forside)).toBe(false);
+    expect(domFoerInsert(hook, motor.replace("return doemKvartalstjek(maal, tjek, kvartal, valg, nu).ok;", "return true;"), view, forside)).toBe(false);
+    expect(domFoerInsert(hook, motor, view.replace("status: statusEfterKvartalValg(raa.status, valg)", "status: raa.status"), forside)).toBe(false);
+  });
+
+  it("dom 10: Genåbn og Aktivér bekræfter ved klikket (aktiverFelter); GAMLE_MAAL_FOER udledes af KVARTALSTJEK_FRA", () => {
+    const view = laes(VIEW);
+    expect(genaabnBekraefter(view)).toBe(true);
+    expect(genaabnBekraefter(view.replace(/onGenaabn=\{\(\) => void opdaterMaalFelt\(ms\.id, aktiverFelter\(ms, [^\n]*\n/, 'onGenaabn={() => void opdaterMaalFelt(ms.id, { status: "active" })}\n'))).toBe(false);
+    const motor = laes(MOTOR);
+    expect(ankerOgPolicyHolder(motor.replace("export const GAMLE_MAAL_FOER = kbhTilUtc(KVARTALSTJEK_FRA, 0, 0).toISOString();", 'export const GAMLE_MAAL_FOER = "2026-10-02T00:00:00.000Z";'), laes(MIGRATION))).toBe(false);
   });
 });

@@ -69,7 +69,7 @@ export const placering = (forside: string): boolean => {
 };
 
 /** Motorens handlingstekster (score.ts:handlingerFor) — må ikke stå i fladen. */
-const MOTORENS_TEKSTER = ["— måneden mangler", "Godkend flere måneder", "Læg et budget", "Sæt et mål med en frist", "Én måneds omkostninger", "Ét procentpoint", "Fem procent mere", "Upload en rapport med banksaldo"];
+const MOTORENS_TEKSTER = ["— måneden mangler", "Godkend flere måneder", "Læg et budget", "Sæt et mål med en frist", "Sig ja til et af jeres mål", "Én måneds omkostninger", "Ét procentpoint", "Fem procent mere", "Upload en rapport med banksaldo"];
 
 /** Dom 3. */
 export const ingenHaardkodetHandling = (kort: string, ord: string): boolean => {

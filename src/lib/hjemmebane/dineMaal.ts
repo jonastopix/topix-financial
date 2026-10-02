@@ -141,8 +141,9 @@ export function skridtLinjer(skridt: readonly SkridtTilDineMaal[]): SkridtLinje[
   });
 }
 
-/** Skive 3, rådets fund 3: pladserne er fyldt af forslag — lov ingen plads. */
-export const GRAENSE_TAG_STILLING_TEKST = "Tag stilling til forslagene for at få plads til jeres eget mål.";
+/** Skive 3, rådets fund 3: pladserne er fyldt af ubekræftede mål — lov ingen plads. Samme ord som
+    dineMaalFlade.TAG_STILLING_TEKST («venter på jeres ja», runde 2 fund 4). */
+export const GRAENSE_TAG_STILLING_TEKST = "Svar på de mål, der venter på jeres ja, for at få plads til jeres eget.";
 
 /**
  * Grænsen på tre i klart sprog. Tæller DATABASENS aktive — bekræftede +

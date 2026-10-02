@@ -106,6 +106,16 @@
 -- afviser. En trigger, der kun tæller bekræftede, er et ÅBENT punkt (kræver
 -- grønt lys; docs/dine-maal-design.md «Skive 3» §6).
 --
+-- TØRKØRT:
+--   2/10-2026 kl. ~04:30 dansk: kroppen kørt i prod i en DO-blok, rullet tilbage med
+--   RAISE EXCEPTION: alle sætninger OK, backfill ville ramme 13 rækker (alle statusser),
+--   3 policies. Efter: kolonnerne og tabellen findes ikke (målt).
+--
+-- SCORE-TABET (docs/boardroom-score.md §2.4, rådets runde 2 fund 6): et medlem med
+-- kpi_targets og uden bekræftet aktivt mål med frist går fra 25 til 0 mål-point efter
+-- migration + Update (højst 3 virksomheder, målt 2/10; de 2 med backfillet manual-mål
+-- med frist beholder pointet); `forrige` viser ingen nedgang.
+--
 -- FAIL-SOFT I KLIENTEN før kørsel: hentningerne læser de nye kolonner og
 -- falder tilbage på de gamle ved 42703/PGRST204 (erManglendeKolonne) —
 -- bekræftelsesmodellen er da slået fra (alle mål tæller som i dag), og

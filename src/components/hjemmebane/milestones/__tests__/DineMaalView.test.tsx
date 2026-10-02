@@ -50,6 +50,8 @@ const tilstand = vi.hoisted(() => ({
   skriv: { bekraeft: vi.fn(), slip: vi.fn(), markerNaaet: vi.fn(), registrerKvartalstjek: vi.fn() },
   markerNaaet: vi.fn(),
   opdaterFelt: vi.fn(),
+  /** Runde 2, fund 7: useMilestones' fejring — kvartalstjekkets «Nået» skal kalde den efter ok. */
+  fejr: vi.fn(),
   /** Fund 6: kvartalstjek-hentningen fejlede. */
   kvartalstjekFejlede: false,
   /** Hookets ur — kvartalstjek-prøverne flytter det forbi ankeret (KVARTALSTJEK_FRA = 2/10-2026). */
@@ -102,6 +104,7 @@ vi.mock("../useMilestones", () => ({
     slet: vi.fn(),
     opdaterFelt: tilstand.opdaterFelt,
     genhent: vi.fn(),
+    fejr: tilstand.fejr,
   }),
 }));
 
@@ -127,6 +130,7 @@ beforeEach(() => {
   tilstand.skriv = { bekraeft: vi.fn(async () => ({ ok: true, id: "x" })), slip: vi.fn(async () => ({ ok: true, id: "x" })), markerNaaet: vi.fn(async () => ({ ok: true, id: "x" })), registrerKvartalstjek: vi.fn(async () => ({ ok: true, id: "k" })) };
   tilstand.markerNaaet = vi.fn(async () => undefined);
   tilstand.opdaterFelt = vi.fn(async () => ({ ok: true }));
+  tilstand.fejr = vi.fn();
   tilstand.kvartalstjekFejlede = false;
   tilstand.nu = NU;
   tilstand.grundlag = {
@@ -184,7 +188,7 @@ describe("DineMaalView — skive 3: forslag, gamle mål, kvartalstjek", () => {
     expect(document.querySelector("[data-maal-tom-plads]")).toBeNull();
     expect(document.querySelector("[data-maal-plads-optaget]")!.textContent).toBe(BEKRAEFT_ORD.pladsOptaget);
     // Fund 3: aldrig «3 pladser ledige» — databasen ville afvise det fjerde.
-    expect(document.querySelector("[data-hoved-linje]")!.textContent).toBe(`Ingen mål endnu · 3 venter på jeres ja · ${TAG_STILLING_TEKST}`);
+    expect(document.querySelector("[data-hoved-linje]")!.textContent).toBe(`Ingen bekræftede mål endnu · 3 venter på jeres ja · ${TAG_STILLING_TEKST}`);
   });
 
   it("fund 13: «Aktivér» af et parkeret, UBEKRÆFTET mål bekræfter i samme skrivning; et bekræftet får kun status", async () => {
@@ -199,6 +203,50 @@ describe("DineMaalView — skive 3: forslag, gamle mål, kvartalstjek", () => {
     expect(tilstand.opdaterFelt).toHaveBeenLastCalledWith("p2", { status: "active" });
   });
 
+  it("runde 2, fund 3: «Genåbn» af et nået, UBEKRÆFTET mål bekræfter i samme skrivning; et bekræftet får kun status", async () => {
+    tilstand.grundlag!.maal = [maal({ id: "n1", status: "completed", bekraeftet_at: null, source: "agent" }), maal({ id: "n2", status: "completed", bekraeftet_at: "2026-05-01T00:00:00Z" })];
+    vis();
+    fireEvent.click(document.querySelector("[data-dine-maal-naaede] summary")!);
+    fireEvent.click(document.querySelector('[data-dine-maal-naaede] [data-maal-id="n1"] [data-handling="genaabn"]')!);
+    await vent();
+    expect(tilstand.opdaterFelt).toHaveBeenLastCalledWith("n1", expect.objectContaining({ status: "active", bekraeftet_af: "u1", bekraeftet_at: expect.any(String) }));
+    fireEvent.click(document.querySelector('[data-dine-maal-naaede] [data-maal-id="n2"] [data-handling="genaabn"]')!);
+    await vent();
+    expect(tilstand.opdaterFelt).toHaveBeenLastCalledWith("n2", { status: "active" });
+  });
+
+  it("runde 2, fund 2: «Justér» lukket med Annuller nulstiller tjekket — en senere «Redigér» + Gem registrerer INGEN række; Justér + Gem registrerer 'justeret'", async () => {
+    // Fristen ligger efter «i dag» (20/4-2027), så redigeringens fristdom ikke stopper Gem.
+    tilstand.grundlag!.maal = [maal({ bekraeftet_at: "2026-10-15T12:00:00Z", deadline: "2027-12-01" })];
+    tilstand.nu = new Date("2027-04-20T10:00:00Z");
+    vis();
+    const kort = document.querySelector('[data-kvartalstjek-kort="m1"]')!;
+    fireEvent.click(kort.querySelector('[data-handling="kvartal-juster"]')!);
+    await vent();
+    fireEvent.click(screen.getByRole("button", { name: "Annuller" }));
+    await vent();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    // Den almindelige «Redigér» på målkortet, en titelrettelse og Gem.
+    const maalKort = document.querySelector('[data-maal-kort="m1"]')!;
+    fireEvent.click(maalKort.querySelector("[data-maal-menu]")!);
+    fireEvent.click(maalKort.querySelector('[data-handling="rediger"]')!);
+    await vent();
+    const titel = screen.getByLabelText("Målet som én sætning") as HTMLInputElement;
+    fireEvent.change(titel, { target: { value: "Omsætning på 3 mio. kr. i årstakt" } });
+    fireEvent.click(document.querySelector("[data-rediger-gem]")!);
+    await vent();
+    expect(tilstand.opdaterFelt).toHaveBeenCalledWith("m1", { title: "Omsætning på 3 mio. kr. i årstakt" });
+    expect(tilstand.skriv.registrerKvartalstjek).not.toHaveBeenCalled();
+    // Modprøven: Justér → Gem registrerer 'justeret' (på målet som det står: active).
+    fireEvent.click(kort.querySelector('[data-handling="kvartal-juster"]')!);
+    await vent();
+    fireEvent.change(screen.getByLabelText("Målet som én sætning"), { target: { value: "Omsætning på 4 mio. kr. i årstakt" } });
+    fireEvent.click(document.querySelector("[data-rediger-gem]")!);
+    await vent();
+    expect(tilstand.skriv.registrerKvartalstjek).toHaveBeenCalledTimes(1);
+    expect(tilstand.skriv.registrerKvartalstjek).toHaveBeenLastCalledWith(expect.objectContaining({ valg: "justeret", kvartal: 2, maal: expect.objectContaining({ status: "active" }) }));
+  });
+
   it("kvartalstjek: måned 6 venter for et mål bekræftet 15/10-2026 (i dag 20/4-2027); «Parkér» parkerer FØRST, så registreres rækken; «Nået» går gennem hookets GUARDEDE markerNaaet (fund 1), aldrig useMilestones", async () => {
     tilstand.grundlag!.maal = [maal({ bekraeftet_at: "2026-10-15T12:00:00Z" })];
     tilstand.nu = new Date("2027-04-20T10:00:00Z");
@@ -210,14 +258,19 @@ describe("DineMaalView — skive 3: forslag, gamle mål, kvartalstjek", () => {
     fireEvent.click(kort.querySelector('[data-handling="kvartal-parker"]')!);
     await vent();
     expect(tilstand.skriv.slip).toHaveBeenCalledWith({ maalId: "m1" });
-    expect(tilstand.skriv.registrerKvartalstjek).toHaveBeenCalledWith({ maalId: "m1", companyId: "c1", userId: "u1", kvartal: 2, valg: "parkeret" });
+    // Runde 2, fund 9: målet gives med SOM DET STÅR efter handlingen (parkeret → 'parked') + de registrerede rækker — dommen før INSERT'en.
+    expect(tilstand.skriv.registrerKvartalstjek).toHaveBeenCalledWith({ maalId: "m1", companyId: "c1", userId: "u1", kvartal: 2, valg: "parkeret", maal: { id: "m1", status: "parked", bekraeftet_at: "2026-10-15T12:00:00Z" }, tjek: [], nu: expect.any(Date) });
     expect(tilstand.skriv.slip.mock.invocationCallOrder[0]).toBeLessThan(tilstand.skriv.registrerKvartalstjek.mock.invocationCallOrder[0]);
     fireEvent.click(kort.querySelector('[data-handling="kvartal-naaet"]')!);
     await vent();
     expect(tilstand.skriv.markerNaaet).toHaveBeenCalledWith({ maalId: "m1" });
     expect(tilstand.markerNaaet).not.toHaveBeenCalled();
-    expect(tilstand.skriv.registrerKvartalstjek).toHaveBeenLastCalledWith(expect.objectContaining({ valg: "naaet" }));
+    expect(tilstand.skriv.registrerKvartalstjek).toHaveBeenLastCalledWith(expect.objectContaining({ valg: "naaet", maal: expect.objectContaining({ status: "completed" }) }));
     expect(tilstand.skriv.markerNaaet.mock.invocationCallOrder[0]).toBeLessThan(tilstand.skriv.registrerKvartalstjek.mock.invocationCallOrder[1]);
+    // Runde 2, fund 7: SAMME fejring som målkortets «Markér som nået» — efter ok, før rækken.
+    expect(tilstand.fejr).toHaveBeenCalledWith("Omsætning på 2 mio. kr. i årstakt");
+    expect(tilstand.fejr.mock.invocationCallOrder[0]).toBeGreaterThan(tilstand.skriv.markerNaaet.mock.invocationCallOrder[0]);
+    expect(tilstand.fejr.mock.invocationCallOrder[0]).toBeLessThan(tilstand.skriv.registrerKvartalstjek.mock.invocationCallOrder[1]);
   });
 
   it("kvartalstjek: fejler «Nået» (nul rækker), skrives INGEN række, og grunden står på kortet (fund 1)", async () => {
@@ -229,6 +282,7 @@ describe("DineMaalView — skive 3: forslag, gamle mål, kvartalstjek", () => {
     fireEvent.click(kort.querySelector('[data-handling="kvartal-naaet"]')!);
     await vent();
     expect(tilstand.skriv.registrerKvartalstjek).not.toHaveBeenCalled();
+    expect(tilstand.fejr).not.toHaveBeenCalled();
     expect(kort.querySelector("[data-bekraeft-fejl]")!.textContent).toBe("Målet blev ikke markeret som nået");
   });
 

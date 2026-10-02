@@ -3,6 +3,7 @@ import {
   aktiverFelter,
   BEKRAEFT_ORD,
   delBekraeftelser,
+  doemKvartalstjek,
   erBekraeftet,
   erUbekraeftetAktivt,
   forslagOverskrift,
@@ -13,11 +14,13 @@ import {
   kvartalDatoer,
   kvartalstjekPrVirksomhed,
   KVARTALSTJEK_FRA,
+  KVARTALSTJEK_GRUND,
   laesKvartal,
   laesKvartalValg,
   maalKilde,
   maaRegistrereKvartalstjek,
   skrevetAfTekst,
+  statusEfterKvartalValg,
   taellerSomScoreMaal,
   ventendeKvartalstjek,
   ventendeKvartalstjekAlle,
@@ -74,6 +77,13 @@ describe("maalKilde — milestones.source som observation", () => {
     const alle = [...Object.values(BEKRAEFT_ORD.forslagOverskrift), ...Object.values(BEKRAEFT_ORD.skrevetAf)];
     for (const o of alle) expect(o).not.toMatch(/Morten|Jonas/);
   });
+  it("ét ord for et ubekræftet mål overalt (runde 2, fund 4): «venter på jeres ja» — aldrig «forslagene»", () => {
+    expect(BEKRAEFT_ORD.pladsOptaget).toContain("venter på jeres ja");
+    expect(BEKRAEFT_ORD.pladsOptaget).not.toMatch(/forslag/);
+    expect(BEKRAEFT_ORD.fokusTitel(1)).toBe("1 mål venter på jeres ja");
+    expect(BEKRAEFT_ORD.fokusTitel(3)).toBe("3 mål venter på jeres ja");
+    expect(BEKRAEFT_ORD.fokusSti).toBe("/milestones");
+  });
 });
 
 describe("delBekraeftelser — nye forslag og gamle mål", () => {
@@ -92,6 +102,14 @@ describe("delBekraeftelser — nye forslag og gamle mål", () => {
     const d = delBekraeftelser([maal({ id: "a", bekraeftet_at: undefined })]);
     expect(d.forslag).toEqual([]);
     expect(d.gamle).toEqual([]);
+  });
+  it("skillelinjen udledes af KVARTALSTJEK_FRA (én kilde, runde 2 fund 8): dansk midnat den dag, som UTC", () => {
+    expect(KVARTALSTJEK_FRA).toBe("2026-10-02");
+    expect(GAMLE_MAAL_FOER).toBe("2026-10-01T22:00:00.000Z");
+    // Et mål oprettet 1/10 kl. 23:30 dansk er GAMMELT; ét oprettet 2/10 kl. 00:30 dansk er et nyt forslag.
+    const d = delBekraeftelser([maal({ id: "sent", created_at: "2026-10-01T21:30:00Z" }), maal({ id: "tidligt", created_at: "2026-10-01T22:30:00Z" })]);
+    expect(d.gamle.map((m) => m.id)).toEqual(["sent"]);
+    expect(d.forslag.map((m) => m.id)).toEqual(["tidligt"]);
   });
 });
 
@@ -219,6 +237,23 @@ describe("maaRegistrereKvartalstjek — klientens spejl af INSERT-policyen (fund
     expect(maaRegistrereKvartalstjek(m({ status: "completed" }), [], 2, "parkeret", NU_2027)).toBe(false);
     expect(maaRegistrereKvartalstjek(m({ status: "parked" }), [], 2, "naaet", NU_2027)).toBe(false);
     expect(maaRegistrereKvartalstjek(m({ status: "parked" }), [], 2, "justeret", NU_2027)).toBe(false);
+  });
+  it("doemKvartalstjek (runde 2, fund 9): samme dom MED grund — ikke forfaldent · allerede svaret · ikke bekræftet · status · året gået", () => {
+    expect(doemKvartalstjek(m(), [], 2, "behold", NU_2027)).toEqual({ ok: true });
+    expect(doemKvartalstjek(m(), [], 3, "behold", NU_2027)).toEqual({ ok: false, grund: KVARTALSTJEK_GRUND.ikkeForfaldent });
+    expect(doemKvartalstjek(m(), [{ milestone_id: "m1", kvartal: 2 }], 2, "behold", NU_2027)).toEqual({ ok: false, grund: KVARTALSTJEK_GRUND.alleredeSvaret });
+    expect(doemKvartalstjek(m({ bekraeftet_at: null }), [], 2, "behold", NU_2027)).toEqual({ ok: false, grund: KVARTALSTJEK_GRUND.ubekraeftet });
+    expect(doemKvartalstjek(m({ bekraeftet_at: undefined }), [], 2, "behold", NU_2027)).toEqual({ ok: false, grund: KVARTALSTJEK_GRUND.ubekraeftet });
+    expect(doemKvartalstjek(m({ status: "parked" }), [], 2, "behold", NU_2027)).toEqual({ ok: false, grund: KVARTALSTJEK_GRUND.status });
+    expect(doemKvartalstjek(m(), [], 3, "behold", new Date("2027-10-15T12:00:00Z"))).toEqual({ ok: false, grund: KVARTALSTJEK_GRUND.aaretGaaet });
+    // Alle grunde er sætninger — ingen tom.
+    for (const g of Object.values(KVARTALSTJEK_GRUND)) expect(g.length).toBeGreaterThan(10);
+  });
+  it("statusEfterKvartalValg: målet som rækken ser det EFTER handlingen", () => {
+    expect(statusEfterKvartalValg("active", "parkeret")).toBe("parked");
+    expect(statusEfterKvartalValg("active", "naaet")).toBe("completed");
+    expect(statusEfterKvartalValg("active", "behold")).toBe("active");
+    expect(statusEfterKvartalValg("active", "justeret")).toBe("active");
   });
   it("ankeret er det samme som policyens greatest(bekraeftet_at, '2026-10-02')", () => {
     // Backfillet 15/1-2026 → anker 2/10-2026 → kvartal 2 forfalder 2/4-2027: ja 2/4, nej 1/4.

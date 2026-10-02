@@ -33,8 +33,13 @@ export function eyebrowTekst(nu: Date): string {
   return `${DINE_MAAL_EYEBROW} · ${navn} ${d.slice(0, 4)}`;
 }
 
-/** Rådets fund 3 (skive 3): pladserne er databasens — når forslag fylder dem, lover linjen ingen plads. */
-export const TAG_STILLING_TEKST = "Tag stilling til forslagene for at få plads til jeres eget mål";
+/** Rådets fund 3 (skive 3): pladserne er databasens — når ubekræftede mål fylder dem, lover linjen ingen plads.
+    Runde 2, fund 4: ÉT ord for et ubekræftet mål overalt — «venter på jeres ja» (aldrig «forslagene»: det gamle
+    kort hedder «Er det stadig jeres mål?»). */
+export const TAG_STILLING_TEKST = "Svar på de mål, der venter på jeres ja, for at få plads til jeres eget";
+/** Hovedlinjens første led uden bekræftede mål: med ubekræftede siges det ærligt (runde 2, fund 4). */
+export const INGEN_MAAL_TEKST = "Ingen mål endnu";
+export const INGEN_BEKRAEFTEDE_MAAL_TEKST = "Ingen bekræftede mål endnu";
 
 /** «· N venter på jeres ja» — de ubekræftede (forslag og gamle mål) i hovedlinjen. */
 export const venterPaaJaTekst = (antal: number): string => (antal === 1 ? "1 venter på jeres ja" : `${antal} venter på jeres ja`);
@@ -44,12 +49,15 @@ export const venterPaaJaTekst = (antal: number): string => (antal === 1 ? "1 ven
  * BEKRÆFTEDE (dem, der tæller); pladsen er DATABASENS: MAX_AKTIVE_MAAL −
  * (bekræftede + ubekræftede), fordi triggeren tæller alle aktive (rådets fund
  * 3). Med ubekræftede står «· M venter på jeres ja», og er pladserne fyldt af
- * dem, siger linjen «Tag stilling til forslagene …» — aldrig «3 pladser
- * ledige», som databasen ville afvise. Over grænsen (mål fra før den) siger
- * linjen det i stedet for et negativt tal.
+ * dem, siger linjen «Svar på de mål, der venter på jeres ja …» — aldrig «3
+ * pladser ledige», som databasen ville afvise. Uden bekræftede, men med
+ * ubekræftede: «Ingen bekræftede mål endnu» (runde 2, fund 4 — «Ingen mål
+ * endnu» ville lyve, når tre står og venter). Over grænsen (mål fra før den)
+ * siger linjen det i stedet for et negativt tal.
  */
 export function hovedLinje(antalBekraeftede: number, antalUbekraeftede = 0): string {
-  const maal = antalBekraeftede === 0 ? "Ingen mål endnu" : antalBekraeftede === 1 ? "1 mål for de næste 12 måneder" : `${antalBekraeftede} mål for de næste 12 måneder`;
+  const ingen = antalUbekraeftede > 0 ? INGEN_BEKRAEFTEDE_MAAL_TEKST : INGEN_MAAL_TEKST;
+  const maal = antalBekraeftede === 0 ? ingen : antalBekraeftede === 1 ? "1 mål for de næste 12 måneder" : `${antalBekraeftede} mål for de næste 12 måneder`;
   const venter = antalUbekraeftede > 0 ? ` · ${venterPaaJaTekst(antalUbekraeftede)}` : "";
   const iDatabasen = antalBekraeftede + antalUbekraeftede;
   if (iDatabasen > MAX_AKTIVE_MAAL) return `${maal}${venter} · flere end de ${MAX_AKTIVE_MAAL}, der er plads til`;

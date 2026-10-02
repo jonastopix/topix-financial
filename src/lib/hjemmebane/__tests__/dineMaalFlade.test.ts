@@ -57,8 +57,12 @@ describe("hovedet", () => {
   });
   it("hovedlinjen med ubekræftede (skive 3, fund 3): «N venter på jeres ja», pladsen er databasens, og fyldte pladser lover ingen plads", () => {
     expect(hovedLinje(1, 1)).toBe("1 mål for de næste 12 måneder · 1 venter på jeres ja · 1 plads ledig");
-    expect(hovedLinje(0, 2)).toBe("Ingen mål endnu · 2 venter på jeres ja · 1 plads ledig");
-    expect(hovedLinje(0, 3)).toBe(`Ingen mål endnu · 3 venter på jeres ja · ${TAG_STILLING_TEKST}`);
+    expect(hovedLinje(0, 2)).toBe("Ingen bekræftede mål endnu · 2 venter på jeres ja · 1 plads ledig");
+    expect(hovedLinje(0, 3)).toBe(`Ingen bekræftede mål endnu · 3 venter på jeres ja · ${TAG_STILLING_TEKST}`);
+    // Runde 2, fund 4: «Ingen mål endnu» kun uden ubekræftede; ét ord for ubekræftede overalt — «venter på jeres ja», aldrig «forslagene».
+    expect(hovedLinje(0, 0)).toBe("Ingen mål endnu · 3 pladser ledige");
+    expect(TAG_STILLING_TEKST).not.toMatch(/forslag/);
+    expect(TAG_STILLING_TEKST).toContain("venter på jeres ja");
     expect(hovedLinje(2, 1)).toBe(`2 mål for de næste 12 måneder · 1 venter på jeres ja · ${TAG_STILLING_TEKST}`);
     expect(hovedLinje(3, 0)).toBe("3 mål for de næste 12 måneder · ingen plads ledig");
     expect(hovedLinje(2, 2)).toBe("2 mål for de næste 12 måneder · 2 venter på jeres ja · flere end de 3, der er plads til");

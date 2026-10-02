@@ -220,7 +220,22 @@ deadline, target_value, udgangspunkt`; mangler kolonnen `bekraeftet_at` (migrati
 ikke kørt), læses `kpi_targets` som før (målt 2/10: kun 3 af 43 kundevirksomheder har en række) —
 fail-soft, aldrig en score uden grund. Løfteren siger **«Sæt et mål med en frist.»** (det, der
 faktisk giver pointet) og peger på `/milestones` (ikke `/kpis`, hvor KPI-målene nu hedder
-**pejlemærker**).
+**pejlemærker**). **Rådets runde 2, fund 1:** fylder de UBEKRÆFTEDE aktive mål databasens pladser
+(`ubekraeftedeMaal ≥ MAX_AKTIVE_MAAL` = 3 — triggeren `milestones_hoejst_tre_aktive` tæller også
+dem), ville «Sæt et mål» blive afvist af databasen; så siger løfteren **«Sig ja til et af jeres mål
+med en frist.»** — vejen er «Behold»/«Det er vores mål» på Dine mål. Tallet kommer fra samme
+hentning (`hentHarMaal` → `{ harMaal, ubekraeftede }`), 0 i kpi_targets-tilbagefaldet.
+
+**Tabet ved skiftet — bogført eksplicit (rådets runde 2, fund 6):** et medlem, der i dag får
+mål-pointet gennem `kpi_targets`, men IKKE har et bekræftet, aktivt mål med frist på Dine mål, går
+fra **25 til 0** mål-point i det øjeblik migration `20261002100000` er kørt OG Update er klikket
+(hooken skifter kilde, når kolonnen `bekraeftet_at` findes). Målt i prod 2/10-2026 kl. ~03:45: **3**
+kundevirksomheder har `kpi_targets`; **2** virksomheder har et aktivt manual-mål med frist, som
+backfillen bekræfter (`source = 'manual'` + medlem) — de beholder pointet; tabet rammer altså
+**højst 3** virksomheder (dem med kpi_targets, der ikke er blandt de 2 — det præcise snit er ikke
+målt). `forrige` (retningen én måned tilbage) regner budget og mål SOM NU (§2.5-begrænsningen),
+så kortet viser **ingen nedgang** — tallet falder stille. Vejen tilbage til pointet for de ramte
+er «Sæt et mål med en frist» på Dine mål; bevidst ingen overgangsregel (pejlemærkerne er ikke mål).
 
 «Ikke nok data» når vinduet er tomt (starten så ny, at ingen hel måneds
 frist er passeret).

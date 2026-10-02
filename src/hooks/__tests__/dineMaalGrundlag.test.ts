@@ -60,6 +60,7 @@ import {
   skarpPayload,
 } from "../dineMaalGrundlag";
 import { MAAL_ORD } from "@/lib/hjemmebane/maalTal";
+import { KVARTALSTJEK_GRUND } from "@/lib/hjemmebane/maalBekraeft";
 import type { ScoreMaaned } from "@/lib/boardroomScore";
 
 const NU = new Date("2026-10-01T10:00:00Z");
@@ -244,13 +245,37 @@ describe("skrivning", () => {
   });
 
   it("registrerKvartalstjek: én række med valgt_af; en fejl er «ikke gemt» (kortet står igen); ugyldigt valg når aldrig databasen", async () => {
+    // Målet bekræftet 15/10-2026, i dag 20/4-2027 → kvartal 2 er forfaldent (anker 2026-10-15 + 6 mdr. = 2027-04-15 ≤ i dag).
+    const maal = { id: "m1", status: "active", bekraeftet_at: "2026-10-15T12:00:00Z" };
+    const nu = new Date("2027-04-20T10:00:00Z");
+    const args = { maalId: "m1", companyId: "c1", userId: "u1", kvartal: 2 as const, valg: "behold" as const, maal, tjek: [], nu };
     koe.push({ data: { id: "k1" }, error: null });
-    expect(await registrerKvartalstjek({ maalId: "m1", companyId: "c1", userId: "u1", kvartal: 2, valg: "behold" })).toEqual({ ok: true, id: "k1" });
+    expect(await registrerKvartalstjek(args)).toEqual({ ok: true, id: "k1" });
     expect(kald[0]).toMatchObject({ tabel: "maal_kvartalstjek", insert: { milestone_id: "m1", company_id: "c1", kvartal: 2, valg: "behold", valgt_af: "u1" } });
     koe.push({ data: null, error: { code: "23505", message: "dublet" } });
-    expect(await registrerKvartalstjek({ maalId: "m1", companyId: "c1", userId: "u1", kvartal: 2, valg: "behold" })).toEqual({ ok: false, grund: KVARTALSTJEK_IKKE_GEMT_TEKST, afventerMigration: false });
-    expect(await registrerKvartalstjek({ maalId: "m1", companyId: "c1", userId: "u1", kvartal: 2, valg: "slettet" as never })).toMatchObject({ ok: false });
+    expect(await registrerKvartalstjek(args)).toEqual({ ok: false, grund: KVARTALSTJEK_IKKE_GEMT_TEKST, afventerMigration: false });
+    expect(await registrerKvartalstjek({ ...args, valg: "slettet" as never })).toMatchObject({ ok: false });
     expect(kald).toHaveLength(2);
+  });
+
+  it("registrerKvartalstjek (runde 2, fund 9): klientens dom FØR INSERT'en — grunden vises, databasen kaldes ikke; målet ukendt (null) → ingen fordom", async () => {
+    const maal = { id: "m1", status: "active", bekraeftet_at: "2026-10-15T12:00:00Z" };
+    const basis = { maalId: "m1", companyId: "c1", userId: "u1", kvartal: 2 as const, valg: "behold" as const, maal, tjek: [] as const, nu: new Date("2027-04-20T10:00:00Z") };
+    // Ikke forfaldent: i dag 1/2-2027 < 15/4-2027.
+    expect(await registrerKvartalstjek({ ...basis, nu: new Date("2027-02-01T10:00:00Z") })).toEqual({ ok: false, grund: KVARTALSTJEK_GRUND.ikkeForfaldent, afventerMigration: false });
+    // Allerede svaret: en række med kvartal ≥ 2.
+    expect(await registrerKvartalstjek({ ...basis, tjek: [{ milestone_id: "m1", kvartal: 2 }] })).toEqual({ ok: false, grund: KVARTALSTJEK_GRUND.alleredeSvaret, afventerMigration: false });
+    // Ikke bekræftet.
+    expect(await registrerKvartalstjek({ ...basis, maal: { ...maal, bekraeftet_at: null } })).toEqual({ ok: false, grund: KVARTALSTJEK_GRUND.ubekraeftet, afventerMigration: false });
+    // Status passer ikke til valget: «behold» på et parkeret mål.
+    expect(await registrerKvartalstjek({ ...basis, maal: { ...maal, status: "parked" } })).toEqual({ ok: false, grund: KVARTALSTJEK_GRUND.status, afventerMigration: false });
+    // Året gået: i dag 20/10-2027 ≥ 15/10-2027.
+    expect(await registrerKvartalstjek({ ...basis, nu: new Date("2027-10-20T10:00:00Z") })).toEqual({ ok: false, grund: KVARTALSTJEK_GRUND.aaretGaaet, afventerMigration: false });
+    expect(kald).toHaveLength(0);
+    // Målet ukendt → databasen dømmer.
+    koe.push({ data: { id: "k1" }, error: null });
+    expect(await registrerKvartalstjek({ ...basis, maal: null })).toEqual({ ok: true, id: "k1" });
+    expect(kald).toHaveLength(1);
   });
 
   it("opret: «højst tre aktive» oversættes af maalFejlTekst", async () => {

@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { HentningsFejl, kraevRaekker } from "@/lib/kraevRaekker";
 import { erManglendeKolonne } from "@/lib/manglendeTabel";
 import { dineMaalKvartalstjekKey, hentKvartalstjek, useDineMaalSkrivning } from "@/hooks/dineMaalGrundlag";
-import { BEKRAEFT_ORD, delBekraeftelser, KVARTAL_ORD, ventendeKvartalstjekAlle, type Kvartal } from "@/lib/hjemmebane/maalBekraeft";
+import { BEKRAEFT_ORD, delBekraeftelser, KVARTAL_ORD, statusEfterKvartalValg, ventendeKvartalstjekAlle, type Kvartal } from "@/lib/hjemmebane/maalBekraeft";
 import { BekraeftMaalKort, type BekraeftHandling, type KvartalHandling } from "@/components/hjemmebane/milestones/BekraeftMaalKort";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
@@ -1651,6 +1651,10 @@ export const BoardroomView = () => {
   );
   // Skive 3: medlemmets skrivninger (bekræft/slip/nået/kvartalstjek) — hookets, med invalidering af alle kilder.
   const maalSkriv = useDineMaalSkrivning({ companyId });
+  // Skive 3: de ubekræftede aktive mål (forslag + gamle) — kortet i «Din plan» OG forsidens fokuspunkt
+  // «N mål venter på jeres ja» (runde 2, fund 5) læser samme deling.
+  const bekraeftelser = useMemo(() => (milestonesQuery.data ? delBekraeftelser(milestonesQuery.data) : { forslag: [], gamle: [] }), [milestonesQuery.data]);
+  const ubekraeftedeMaal = bekraeftelser.forslag.length + bekraeftelser.gamle.length;
 
   const pulseQuery = useQuery({
     queryKey: ["boardroom", "pulse", companyId],
@@ -2053,8 +2057,10 @@ export const BoardroomView = () => {
         : null,
       // Skive 3 (2/10): kvartalstjekket som fokuspunkt under hastende skridt — dømt ovenfor.
       kvartalstjek: ventendeKvartalstjek,
+      // Skive 3 (runde 2, fund 5): «N mål venter på jeres ja» → Dine mål — ét punkt under hastende skridt.
+      ubekraeftedeMaal,
     });
-  }, [companyId, processedQuery.data, committedKeys, pulseQuery.data, unreadQuery.data, weeklyFocusQuery.data, actionsQuery.data, leversQuery.data, akademi.orderedByArea, ownProfileQuery.data, contractStartQuery.data, tjeklisteData.tjekliste, tjeklisteData.medlemSiden, milestonesQuery.data, skridtQuery.data, ventendeKvartalstjek]);
+  }, [companyId, processedQuery.data, committedKeys, pulseQuery.data, unreadQuery.data, weeklyFocusQuery.data, actionsQuery.data, leversQuery.data, akademi.orderedByArea, ownProfileQuery.data, contractStartQuery.data, tjeklisteData.tjekliste, tjeklisteData.medlemSiden, milestonesQuery.data, skridtQuery.data, ventendeKvartalstjek, ubekraeftedeMaal]);
 
   // Markér ugens fokus som SET når punktet faktisk vises — samme mekanik
   // som DashboardActionCenter:87-98 (mutation + engangs-ref).
@@ -2294,7 +2300,6 @@ export const BoardroomView = () => {
   // dineMaalGrundlag). «Nået» her går gennem hookets markerMaalNaaet (ingen
   // useMilestones på forsiden — fejringen hører /milestones til); «Justér» er
   // et link til /milestones (redigeringen bor dér). Rådgiveren læser (isAdvisor).
-  const bekraeftelser = useMemo(() => (milestonesQuery.data ? delBekraeftelser(milestonesQuery.data) : { forslag: [], gamle: [] }), [milestonesQuery.data]);
   const bekraeftHandling = async (maalId: string, handling: BekraeftHandling): Promise<string | null> => {
     if (!user || !companyId) return "Du er ikke logget ind";
     if (isAdvisor) return BEKRAEFT_ORD.kunMedlemmet;
@@ -2314,7 +2319,14 @@ export const BoardroomView = () => {
       const s = await maalSkriv.markerNaaet({ maalId: h.maalId });
       if (s.ok === false) return s.grund;
     }
-    const r = await maalSkriv.registrerKvartalstjek({ maalId: h.maalId, companyId, userId: user.id, kvartal: h.kvartal as Kvartal, valg: h.valg });
+    // Runde 2, fund 9: klientens dom (= policyens) FØR INSERT'en — grunden vises i stedet for en generisk fejl.
+    const maal = (milestonesQuery.data ?? []).find((m) => m.id === h.maalId);
+    const r = await maalSkriv.registrerKvartalstjek({
+      maalId: h.maalId, companyId, userId: user.id, kvartal: h.kvartal as Kvartal, valg: h.valg,
+      maal: maal ? { id: maal.id, status: statusEfterKvartalValg(maal.status, h.valg), bekraeftet_at: maal.bekraeftet_at } : null,
+      tjek: kvartalstjekQuery.data ?? [],
+      nu: new Date(),
+    });
     if (r.ok === false) return r.grund;
     toast.success(KVARTAL_ORD.registreret);
     return null;
