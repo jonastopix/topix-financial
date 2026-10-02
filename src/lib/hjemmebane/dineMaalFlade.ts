@@ -52,19 +52,31 @@ export const venterPaaJaTekst = (antal: number): string => (antal === 1 ? "1 ven
  * dem, siger linjen «Svar på de mål, der venter på jeres ja …» — aldrig «3
  * pladser ledige», som databasen ville afvise. Uden bekræftede, men med
  * ubekræftede: «Ingen bekræftede mål endnu» (runde 2, fund 4 — «Ingen mål
- * endnu» ville lyve, når tre står og venter). Over grænsen (mål fra før den)
- * siger linjen det i stedet for et negativt tal.
+ * endnu» ville lyve, når tre står og venter).
+ *
+ * ÉN hovedlinje (2/10-2026; i drift stod to røde linjer oven på hinanden —
+ * hovedLinje OG dineMaal.graenseTekst, «5 af 3 aktive mål» — Rallysupport):
+ * /milestones tegner KUN denne. Over grænsen (flere BEKRÆFTEDE end tre — mål
+ * fra før grænsen) siger den: «5 aktive mål — flere end de 3, der er plads
+ * til. Parkér eller markér nogle som nået, så I står med højst 3.» med «· N
+ * venter på jeres ja» efter tallet (samme ord som dineMaal.graenseTekst —
+ * «Parkér et» var falsk for N > 3: ét parkeret mål giver ikke plads; rådets
+ * fund 2/10);
+ * aldrig «5 af 3». Fylder de ubekræftede pladserne op (bekræftede < 3), er
+ * svaret vejen til plads (TAG_STILLING); er de bekræftede tre, er der «ingen
+ * plads ledig», uanset hvor mange der venter.
  */
 export function hovedLinje(antalBekraeftede: number, antalUbekraeftede = 0): string {
+  const venter = antalUbekraeftede > 0 ? ` · ${venterPaaJaTekst(antalUbekraeftede)}` : "";
+  if (antalBekraeftede > MAX_AKTIVE_MAAL) {
+    return `${antalBekraeftede} aktive mål${venter} — flere end de ${MAX_AKTIVE_MAAL}, der er plads til. Parkér eller markér nogle som nået, så I står med højst ${MAX_AKTIVE_MAAL}.`;
+  }
   const ingen = antalUbekraeftede > 0 ? INGEN_BEKRAEFTEDE_MAAL_TEKST : INGEN_MAAL_TEKST;
   const maal = antalBekraeftede === 0 ? ingen : antalBekraeftede === 1 ? "1 mål for de næste 12 måneder" : `${antalBekraeftede} mål for de næste 12 måneder`;
-  const venter = antalUbekraeftede > 0 ? ` · ${venterPaaJaTekst(antalUbekraeftede)}` : "";
-  const iDatabasen = antalBekraeftede + antalUbekraeftede;
-  if (iDatabasen > MAX_AKTIVE_MAAL) return `${maal}${venter} · flere end de ${MAX_AKTIVE_MAAL}, der er plads til`;
-  const plads = MAX_AKTIVE_MAAL - iDatabasen;
-  if (plads === 0 && antalUbekraeftede > 0) return `${maal}${venter} · ${TAG_STILLING_TEKST}`;
-  const ledig = plads === 0 ? "ingen plads ledig" : plads === 1 ? "1 plads ledig" : `${plads} pladser ledige`;
-  return `${maal}${venter} · ${ledig}`;
+  const plads = MAX_AKTIVE_MAAL - (antalBekraeftede + antalUbekraeftede);
+  if (plads > 0) return `${maal}${venter} · ${plads === 1 ? "1 plads ledig" : `${plads} pladser ledige`}`;
+  if (antalBekraeftede < MAX_AKTIVE_MAAL && antalUbekraeftede > 0) return `${maal}${venter} · ${TAG_STILLING_TEKST}`;
+  return `${maal}${venter} · ingen plads ledig`;
 }
 
 export interface StatusChip {

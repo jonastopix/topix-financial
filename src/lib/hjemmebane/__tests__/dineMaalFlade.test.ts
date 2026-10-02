@@ -53,7 +53,10 @@ describe("hovedet", () => {
     expect(hovedLinje(1)).toBe("1 mål for de næste 12 måneder · 2 pladser ledige");
     expect(hovedLinje(2)).toBe("2 mål for de næste 12 måneder · 1 plads ledig");
     expect(hovedLinje(3)).toBe("3 mål for de næste 12 måneder · ingen plads ledig");
-    expect(hovedLinje(5)).toBe("5 mål for de næste 12 måneder · flere end de 3, der er plads til");
+    // 2/10: ÉN hovedlinje — over grænsen (gamle mål) siger den det med vejen til plads; aldrig «5 af 3».
+    expect(hovedLinje(5)).toBe("5 aktive mål — flere end de 3, der er plads til. Parkér eller markér nogle som nået, så I står med højst 3.");
+    expect(hovedLinje(5, 6)).toBe("5 aktive mål · 6 venter på jeres ja — flere end de 3, der er plads til. Parkér eller markér nogle som nået, så I står med højst 3.");
+    for (const [b, u] of [[5, 0], [5, 6], [4, 1], [3, 2], [2, 2], [0, 3]] as const) expect(hovedLinje(b, u)).not.toMatch(/\d+ af \d+/);
   });
   it("hovedlinjen med ubekræftede (skive 3, fund 3): «N venter på jeres ja», pladsen er databasens, og fyldte pladser lover ingen plads", () => {
     expect(hovedLinje(1, 1)).toBe("1 mål for de næste 12 måneder · 1 venter på jeres ja · 1 plads ledig");
@@ -65,7 +68,9 @@ describe("hovedet", () => {
     expect(TAG_STILLING_TEKST).toContain("venter på jeres ja");
     expect(hovedLinje(2, 1)).toBe(`2 mål for de næste 12 måneder · 1 venter på jeres ja · ${TAG_STILLING_TEKST}`);
     expect(hovedLinje(3, 0)).toBe("3 mål for de næste 12 måneder · ingen plads ledig");
-    expect(hovedLinje(2, 2)).toBe("2 mål for de næste 12 måneder · 2 venter på jeres ja · flere end de 3, der er plads til");
+    // 2/10: fylder de ubekræftede over grænsen, er svaret vejen til plads — ikke «flere end de 3»; tre bekræftede = ingen plads, uanset hvor mange der venter.
+    expect(hovedLinje(2, 2)).toBe(`2 mål for de næste 12 måneder · 2 venter på jeres ja · ${TAG_STILLING_TEKST}`);
+    expect(hovedLinje(3, 2)).toBe("3 mål for de næste 12 måneder · 2 venter på jeres ja · ingen plads ledig");
     expect(hovedLinje(1, 0)).toBe(hovedLinje(1));
   });
   it("chips: én pr. status blandt TAL-målene, bagud først, motorens ord med lille forbogstav", () => {

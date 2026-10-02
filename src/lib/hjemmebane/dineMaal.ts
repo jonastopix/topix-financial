@@ -149,19 +149,23 @@ export const GRAENSE_TAG_STILLING_TEKST = "Svar på de mål, der venter på jere
  * Grænsen på tre i klart sprog. Tæller DATABASENS aktive — bekræftede +
  * ubekræftede (triggeren tæller begge, rådets fund 3); de ubekræftede nævnes
  * som «N venter på jeres ja», og fylder de pladserne, siger teksten «Tag
- * stilling …» i stedet for «plads til N mere».
+ * stilling …» i stedet for «plads til N mere». Flere BEKRÆFTEDE end tre (mål
+ * fra før grænsen) siger det FØRST — aldrig «5 af 3 aktive mål» (målt i drift
+ * 2/10, Rallysupport). /milestones tegner den ikke længere (ÉN hovedlinje,
+ * dineMaalFlade.hovedLinje); forsidens «Din plan» gør.
  */
 export function graenseTekst(antalBekraeftede: number, antalUbekraeftede = 0): string {
   const antalAktive = antalBekraeftede + antalUbekraeftede;
   const venter = antalUbekraeftede > 0 ? ` · ${antalUbekraeftede === 1 ? "1 venter på jeres ja" : `${antalUbekraeftede} venter på jeres ja`}` : "";
+  if (antalBekraeftede > MAX_AKTIVE_MAAL) return `Du har ${antalBekraeftede} aktive mål${venter} — flere end de ${MAX_AKTIVE_MAAL} der er plads til. Parkér eller markér nogle som nået, så I står med højst ${MAX_AKTIVE_MAAL}.`;
   if (antalAktive <= 0) return `Du kan have op til ${MAX_AKTIVE_MAAL} aktive mål ad gangen.`;
   if (antalAktive < MAX_AKTIVE_MAAL) {
     const plads = MAX_AKTIVE_MAAL - antalAktive;
     return `${antalBekraeftede} af ${MAX_AKTIVE_MAAL} aktive mål${venter} — plads til ${plads} mere.`;
   }
-  if (antalUbekraeftede > 0) return `${antalBekraeftede} af ${MAX_AKTIVE_MAAL} aktive mål${venter} — ${GRAENSE_TAG_STILLING_TEKST}`;
-  if (antalAktive === MAX_AKTIVE_MAAL) return `Du har ${MAX_AKTIVE_MAAL} aktive mål — det er det højeste. Parkér eller markér et som nået for at få plads til et nyt.`;
-  return `Du har ${antalAktive} aktive mål — flere end de ${MAX_AKTIVE_MAAL} der er plads til. Parkér eller markér nogle som nået, så I står med højst ${MAX_AKTIVE_MAAL}.`;
+  if (antalUbekraeftede > 0 && antalBekraeftede < MAX_AKTIVE_MAAL) return `${antalBekraeftede} af ${MAX_AKTIVE_MAAL} aktive mål${venter} — ${GRAENSE_TAG_STILLING_TEKST}`;
+  // Tre bekræftede: det højeste — også når flere venter (et ja ville afvises af databasen).
+  return `Du har ${MAX_AKTIVE_MAAL} aktive mål${venter} — det er det højeste. Parkér eller markér et som nået for at få plads til et nyt.`;
 }
 
 function medHandlinger(x: MaalIPlanen, skridtAf: Map<string, SkridtTilDineMaal[]>, plads: boolean): MaalForMedlem {

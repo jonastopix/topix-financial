@@ -237,15 +237,18 @@ skridt-fremdrift, guidens kort, tidslinjens positioner) står i `src/lib/hjemmeb
 ### Siden oppefra (`DineMaalView.tsx`)
 
 1. **Hovedet:** eyebrow «Dine mål · <måned år>» (dansk tid), serif-overskrift «Hvor I er på vej
-   hen», én linje «N mål for de næste 12 måneder · M plads ledig» (`hovedLinje`; over grænsen siger
-   linjen det i stedet for et negativt tal) og status-chips «1 på sporet», «1 bagud» …
+   hen», stedsætningen, ÉN linje «N mål for de næste 12 måneder · M plads ledig» (`hovedLinje`;
+   rettet 2/10 — se «Hierarkiet 2/10» herunder) og status-chips «1 på sporet», «1 bagud» …
    (`statusChips`: én pr. status blandt TAL-målene — begivenheder og gamle mål har ingen status at
    tælle; bagud først; rust for bagud, sage for resten, dæmpet for «kan ikke afgøres» — `chipTone`).
-2. **«Jeres retning»** (`JeresRetning.tsx`): tre tilstande — henter (skelet), tom (ÉN invitation
-   «Skriv jeres retning (3 spørgsmål, 5 minutter)», der åbner redigeringen med alle tre felter inline
-   — valgt frem for ét felt ad gangen: de tre spørgsmål hører sammen, og tre felter på én skærm er
-   færre klik), udfyldt (læsbar tekst, «Ret» diskret; et ubesvaret spørgsmål siger «Ikke svaret
-   endnu»). Gemmes gennem `gemRetning` (§7); fejl står i feltet, «Fortryd» kasserer kladden.
+2. **«Jeres retning»** (`JeresRetning.tsx`; FELTET tegnet om 2/10 — se «Hierarkiet 2/10»): tre
+   tilstande — henter (skelet), tom (ÉN invitation «Skriv jeres retning (3 spørgsmål, 5 minutter)»,
+   der åbner redigeringen med alle tre felter inline — valgt frem for ét felt ad gangen: de tre
+   spørgsmål hører sammen, og tre felter på én skærm er færre klik), udfyldt (svar 1 som liste, de to
+   andre som kort, «Ret» i meta-linjen; et ubesvaret spørgsmål siger «Ikke svaret endnu»). Gemmes
+   gennem `gemRetning` (§7); fejl står i feltet, «Fortryd» kasserer kladden.
+2a. **«Venter på jeres ja»** (`BekraeftMaalKort`, skive 3): forslag, gamle mål og kvartalstjek —
+   UNDER retningen og over målene (flyttet 2/10; stod før over hovedet).
 3. **Målkortene** (`MaalKort.tsx`, gitter: 1 kolonne på mobil, 2 på md, 3 på xl): chip (motorens
    `statusOrd`) + `fristTekst` («om 6 mdr.»); titlen som serif-sætning; TALLET stort (`talTekst`)
    med «pr. august (godkendt)» eller «tastet» (`talUndertekst`); banen (`bane`: fyldt =
@@ -359,7 +362,8 @@ oversættes af `maalFejlTekst` gennem `opretMaalMedTal`.
 - **(12)** Et kort, dommen ikke kender, får ALLE handlinger false (`INGEN_HANDLINGER`).
 - **(13)** `useMilestones.opdaterFelt` svarer `{ok} | {ok:false, grund}`, SELECT'er id og dømmer nul
   rækker som fejl (`OPDATER_NUL_RAEKKER_TEKST`); Redigér holder sig åben ved nej.
-- **(14)** «Skrevet af en anden i virksomheden», når `retning.userId !== user.id` (åbent punkt 12).
+- **(14)** «Skrevet af en anden i virksomheden», når `retning.userId !== user.id` (åbent punkt 12) —
+  og ALDRIG for rådgiveren (rettet 2/10, «Hierarkiet 2/10»).
 - **(16)** `nu` er hookets tikkende ur (`DineMaalSvar.nu`); guiden får sit ÅBNINGSTIDSPUNKT, så dens
   nulstilling (deps `[open, tilstand, nu]`, fund 20, uden eslint-disable) ikke tikker.
 - **(17)** Et begivenhedsmåls «N af M skridt gjort» står kun i chippen. **(18)** `HbMaalRaekke`
@@ -406,10 +410,86 @@ oversættes af `maalFejlTekst` gennem `opretMaalMedTal`.
 11. Handoutets side bærer stadig de tre retningsspørgsmål (§7) — dobbelt indgang, samme række.
 12. **Retning for flerbruger-virksomheder (rådets fund 14):** svarene BOR pr. bruger (UNIQUE
     (user_id, module)), og et medlem ser kun sin EGEN række (RLS, §7). Fladen siger «Skrevet af en
-    anden i virksomheden», når rækken ikke er den indloggedes — det ses i praksis kun af rådgiveren
-    (et medlem får aldrig en medejers række). Et NAVN kræver et profilopslag og er ikke bygget. Og
-    to medejere, der hver skriver sin retning, giver to rækker — hvilken, der er «virksomhedens»,
-    er ikke besluttet (rådgiveren får den nyeste, `vaelgRetningsRaekke`).
+    anden i virksomheden», når rækken ikke er den indloggedes — **kun for et medlem** (2/10: for
+    rådgiveren er enhver række «en andens», og linjen sagde intet; den vises aldrig for den rå
+    rådgiverrolle), hvilket i praksis kræver en medejers række, som RLS ikke giver — linjen er i dag
+    et værn, ikke en tilstand, der ses. Et NAVN for en ANDEN kræver et profilopslag og er ikke bygget;
+    EGET fornavn står i meta-linjen fra useAuth's profil (2/10, ingen ny RLS). Og to medejere, der
+    hver skriver sin retning, giver to rækker — hvilken, der er «virksomhedens», er ikke besluttet
+    (rådgiveren får den nyeste, `vaelgRetningsRaekke`).
+
+### Hierarkiet 2/10 — «Jeres retning» som felt, én hovedlinje, «venter på jeres ja» under hovedet
+
+Jonas 2/10-2026: «gør det øverste afsnit med Jeres retning under Dine mål lidt mere lækkert visuelt»
+og «kør selv». Mockuppen (ia-forslag, `data-view="maal"`) er fulgt. Branch `feat/dine-maal-retning`.
+Frontend alene — ingen migration, ingen function: **Update**.
+
+**Hierarkiet på /milestones** (`DineMaalView.tsx`, værn `dineMaalRetning.guard` dom 1): eyebrow
+«Dine mål · <måned>» → h1 → stedsætningen → ÉN hovedlinje (+ chips) → **Jeres retning** → **«venter
+på jeres ja»** (`BekraeftMaalKort`: forslag, gamle mål, kvartalstjek — stod før ØVERST, over hovedet;
+nu under retningen, før målene, så siden åbner med hvem I er og hvor I vil hen, ikke med et krav) →
+«Jeres mål» → Rejsen → nået/parkeret foldet. Rendertesten `DineMaalView.test.tsx` «hierarkiet (2/10)»
+måler kilderækkefølgen i DOM'en.
+
+**Én hovedlinje** (dom 2): i drift (Rallysupport, 2/10) stod TO røde linjer oven på hinanden —
+`hovedLinje`: «5 mål for de næste 12 måneder · 6 venter på jeres ja · flere end de 3, der er plads
+til» OG `dom.graenseTekst`: «5 af 3 aktive mål · 6 venter på jeres ja — Svar på de mål …». Nu tegner
+/milestones KUN `hovedLinje`, i neutral farve (status, ikke alarm), og `graenseTekst` tegnes ikke
+dér (forsidens «Din plan» bærer den stadig). `hovedLinje` (`dineMaalFlade.ts`) over grænsen — flere
+BEKRÆFTEDE end tre, mål fra før grænsen: «5 aktive mål · 6 venter på jeres ja — flere end de 3, der
+er plads til. Parkér eller markér nogle som nået, så I står med højst 3.» (rettet 2/10, rådets fund: «Parkér et for at få plads» var falsk for N > 3 — ét parkeret mål giver ikke plads; samme ord som `graenseTekst`) Fylder de ubekræftede pladserne op (bekræftede < 3), er
+svaret vejen til plads (`TAG_STILLING_TEKST`); er de bekræftede tre, «ingen plads ledig», uanset hvor
+mange der venter. **Aldrig «N af 3» med N > 3** — heller ikke i `graenseTekst` (`dineMaal.ts`), der
+nu dømmer «flere bekræftede end tre» FØRST (før: «5 af 3 aktive mål …») og siger «det er det
+højeste» med «· N venter på jeres ja», når de bekræftede er tre. Prøvet i `dineMaalFlade.test.ts`
+og `dineMaal.test.ts` (regex mod «N af 3»).
+
+**Feltet** (`JeresRetning.tsx`; afledningerne i `maalRetning.ts`, prøvet i `maalRetning.test.ts`):
+et mørkegrønt felt (`bg-hb-evergreen`, tekst `text-hb-paper`/`text-hb-sage`; dekorativ ring i
+`border-hb-sage/20`, `overflow-hidden`), eyebrow «Jeres retning» i **amber** — den nye token
+`--hb-amber: 28 70% 66%` i `hjemmebane.css` + `hb.amber` i `tailwind.config.ts` (rust står for
+mørkt på evergreen; ingen rå farver i komponenten, dom 5). Toppen bærer meta-linjen «Skrevet af
+<fornavn> · <dato> · Ret» (`retningMeta`): fornavnet KUN fra useAuth's egen profil, når rækken er
+den indloggedes (`fornavn(profile?.full_name)`, dom 4 — intet opslag, ingen ny RLS); ellers
+«Skrevet <dato>» (`skridtForslag.danskDato` af `handouts.updated_at`); for et medlem med en medejers
+række indskydes «Skrevet af en anden i virksomheden» — aldrig for rådgiveren (dom 3). Spørgsmål 1
+«Om 12 måneder er vi lykkedes, hvis …» som stor serif (Fraunces, 28/36 px, `text-wrap: balance`) og
+svaret som LISTE: `retningLinjer` splitter på linjeskift, fjerner tomme linjer og et indledende
+punkttegn («- », «• », «1. »); amber-streg foran hver linje. De to andre svar som to kort i
+`bg-hb-paper/10`: «Hverdagen, vi bygger» (`anderledes_hverdag`, eyebrow sage) og «Prisen, hvis intet
+ændrer sig» (`konsekvenser_ingen_aendring`, eyebrow amber — advarslen er den eneste varme). Foden
+«Jeres mål herunder er vejen derhen.» Ordene står i `RETNING_FELT_ORD` (dom 6). **Lange svar
+klippes** ved LINJEGRÆNSEN (`klipRetning`: højst `RETNING_MAKS_LINJER` = 5 linjer og
+`RETNING_MAKS_TEGN` = 420 tegn i alt — en linje tages ind, så længe antallet og summen holder;
+kun en første linje, der alene er for lang, klippes ved et mellemrum + «…»), kortene ved
+`RETNING_KORT_MAKS_TEGN` = 280 (`klipKortTekst`); «Læs alt» folder HELE feltet ud (én tilstand,
+`data-retning-vis-alt`), «Vis mindre» folder igen. Tom tilstand: samme felt, spørgsmålet som
+overskrift, introen og invitationen (ombrydelig knap — på 375 px efterlader feltet ~300 px);
+rådgiverens tomme tilstand uændret i ord. Redigeringen: inline i et lyst kort (`bg-hb-surface`) inde
+i feltet, uændret i dom. Mobil 375: alt stabler (`md:` for de to kolonner), `break-words` på
+linjer og kort, intet vandret scroll.
+
+Rendertests: `JeresRetning.test.tsx` «feltet (2/10)» (listen, kortene, meta-linjen, «Læs alt»/«Vis
+mindre», tom tilstand) og `DineMaalView.test.tsx` (hierarkiet; over grænsen 5 + 6 → én neutral linje
+uden «5 af 3»; eget fornavn; medejers række; rådgiveren uden «Skrevet af en anden»). Værnet
+`dineMaalRetning.guard.test.ts` (seks domme, hver med mod-prøve). De gamle værn (`dineMaal.guard`,
+`dineMaalSkive3.guard` dom 1 på `graenseTekst`-linjen i `dineMaal.ts`) står urørt.
+
+**Rådets fund 2/10 (rettet samme dag, før merge):**
+1. *Hovedlinjen over grænsen løj for N > 3* — «Parkér et for at få plads» giver ikke plads, når fem
+   er bekræftede. Nu: «… flere end de 3, der er plads til. Parkér eller markér nogle som nået, så I
+   står med højst 3.» — samme ord som `graenseTekst`. Værnet dom 2 og `dineMaalFlade.test` fulgt med.
+2. *Datoen var UTC* — `danskDato` tog ISO'ens første 10 tegn, så en retning skrevet 00:00–02:00
+   dansk sommertid stod med gårsdagens dato. Nu `retningDato` = `danskDato(danskKalenderdag(iso))`
+   (`maalRetning.ts`, Intl i Europe/Copenhagen; regnestykket står ved funktionen). Prøvet omkring
+   midnat i sommer- og vintertid.
+3. *«Skrevet» to gange* for en medejers række («Skrevet 12. sep. 2026 · Skrevet af en anden i
+   virksomheden»). Nu bærer `retningMeta` flaget: «Skrevet af en anden i virksomheden · 12. sep. 2026».
+4. *Ringen lå over teksten* i tom/fejl/henter (absolut og før indholdet i DOM'en; indholdet var ikke
+   positioneret). Indholdet bærer nu `relative` i alle tilstande; rendertesten dømmer hvert barn
+   efter ringen.
+5. *Ankeret* `id="venter"` (`BEKRAEFT_ANKER`, `scroll-mt-24`) på `BekraeftMaalKort`, så andre
+   flader kan pege på «venter på jeres ja» (`/milestones#venter`). Ét kort pr. side.
 
 ## Skive 3 — Jonas' svar 1/10 (bygget 2/10-2026, branch `feat/dine-maal-skive3`)
 

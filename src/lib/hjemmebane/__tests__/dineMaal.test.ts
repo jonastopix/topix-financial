@@ -159,6 +159,10 @@ describe("dineMaalDom — grænsen på tre i klart sprog", () => {
     expect(graenseTekst(0, 3)).toBe(`0 af 3 aktive mål · 3 venter på jeres ja — ${GRAENSE_TAG_STILLING_TEKST}`);
     expect(graenseTekst(2, 2)).toBe(`2 af 3 aktive mål · 2 venter på jeres ja — ${GRAENSE_TAG_STILLING_TEKST}`);
     expect(graenseTekst(3, 0)).toBe(graenseTekst(3));
+    // 2/10 (Rallysupport i drift: «5 af 3 aktive mål»): flere bekræftede end tre siger det FØRST — aldrig «N af 3» med N > 3.
+    expect(graenseTekst(5, 6)).toBe("Du har 5 aktive mål · 6 venter på jeres ja — flere end de 3 der er plads til. Parkér eller markér nogle som nået, så I står med højst 3.");
+    expect(graenseTekst(3, 2)).toBe("Du har 3 aktive mål · 2 venter på jeres ja — det er det højeste. Parkér eller markér et som nået for at få plads til et nyt.");
+    for (const [b, u] of [[5, 6], [4, 0], [3, 2]] as const) expect(graenseTekst(b, u)).not.toMatch(/[4-9]\d* af 3/);
   });
   it("kanOprette følger kanOpretteMaal; overGraensen = planens gennemgang; tom = ingen mål", () => {
     const tom = dineMaalDom([], [], NU);

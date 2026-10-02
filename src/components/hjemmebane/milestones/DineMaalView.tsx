@@ -27,6 +27,7 @@ import { HbAdvisorCompanyPrompt } from "../HbAdvisorCompanyPrompt";
 import { HbSection } from "../HbSection";
 import { HbCard } from "../HbCard";
 import { HbStedsSaetning } from "../HbStedsSaetning";
+import { fornavn } from "@/lib/hjemmebane/ansigter";
 import { HbMaalRaekke } from "./HbMaalRaekke";
 import { HbMaalForklaring } from "./HbMaalForklaring";
 import { useMilestones, type Milestone } from "./useMilestones";
@@ -42,12 +43,16 @@ import { aktiverFelter, BEKRAEFT_ORD, KVARTAL_ORD, statusEfterKvartalValg, type 
 /**
  * «Dine mål» — /milestones (fladen 1/10-2026; designet Jonas sagde ja til kl.
  * 21:04, «Jeres retning» 22:37; docs/dine-maal-design.md §8). Afløser fase 3-siden
- * (16/9) — listen med skyder og blandet procent. Siden, oppefra:
- *   1. Hovedet: eyebrow «Dine mål · <måned år>», «Hvor I er på vej hen», «N mål
- *      for de næste 12 måneder · M plads ledig» og status-chips fra motoren.
- *   2. «Jeres retning» — de tre svar fra handoutet (JeresRetning).
- *   3. MÅLKORTENE (1–3, MaalKort) i et gitter + den stiplede plads (TomPladsKort).
- *   4. «Rejsen» — motorens 12-måneders tidslinje (Rejsen).
+ * (16/9) — listen med skyder og blandet procent. Siden, oppefra (hierarkiet
+ * rettet 2/10-2026, docs/dine-maal-design.md §8 «Hierarkiet 2/10»):
+ *   1. Hovedet: eyebrow «Dine mål · <måned år>», «Hvor I er på vej hen»,
+ *      stedsætningen, ÉN hovedlinje (hovedLinje — aldrig to linjer oven på
+ *      hinanden, aldrig «5 af 3»; neutral farve) og status-chips fra motoren.
+ *   2. «Jeres retning» — de tre svar fra handoutet i det mørkegrønne felt (JeresRetning).
+ *   3. «Venter på jeres ja» — forslag, gamle mål og kvartalstjek (BekraeftMaalKort;
+ *      stod før OVER hovedet — flyttet under retningen 2/10).
+ *   4. MÅLKORTENE (1–3, MaalKort) i et gitter + den stiplede plads (TomPladsKort).
+ *   5. «Rejsen» — motorens 12-måneders tidslinje (Rejsen).
  *   Nået og parkeret står foldet nederst som før (HbMaalRaekke — Genåbn/Aktivér/Slet).
  *
  * MOTOREN REGNER ALT (lib/hjemmebane/maalTal gennem hooks/dineMaalGrundlag:
@@ -79,7 +84,7 @@ import { aktiverFelter, BEKRAEFT_ORD, KVARTAL_ORD, statusEfterKvartalValg, type 
  * målet skarpt» er låst, når den rå række mangler.
  *
  * SKIVE 3 (2/10-2026, Jonas' svar 1/10 kl. 22:04–22:09; maalBekraeft.ts):
- * ØVERST — før hovedet — står BekraeftMaalKort: nye forslag («Det er vores
+ * UNDER retningen (2/10 eftermiddag; før: øverst, før hovedet) står BekraeftMaalKort: nye forslag («Det er vores
  * mål» / «Ikke nu»), de gamle mål («Er det stadig jeres mål?» — Behold / Slip)
  * og kvartalstjekkene (Behold · Justér tal og dato · Parkér · Nået).
  * Skrivningerne er hookets (skriv.bekraeft/slip/markerNaaet/registrerKvartalstjek
@@ -145,7 +150,7 @@ const fejlBesked = async (error: { message: string; context?: { json?: () => Pro
 const fokus = "rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hb-evergreen focus-visible:ring-offset-2";
 
 export const DineMaalView = () => {
-  const { user, companyId, isAdvisor: rawAdvisor } = useAuth();
+  const { user, companyId, isAdvisor: rawAdvisor, profile } = useAuth();
   const { viewingAsMember } = useViewMode();
   const isAdvisor = rawAdvisor && !viewingAsMember;
   const queryClient = useQueryClient();
@@ -310,7 +315,11 @@ export const DineMaalView = () => {
   const tomPlads = !dom.overGraensen && dom.kanOprette;
   // Fund 3 + runde 2 fund 2: rådgiveren retter ikke retningen — heller ikke i «Se som medlem» (den RÅ rolle).
   const kanRetteRetning = !rawAdvisor;
-  const retningSkrevetAfAnden = !!g.retning?.userId && !!user && g.retning.userId !== user.id;
+  // Fund 14 — og 2/10: ALDRIG for rådgiveren (den rå rolle): for rådgiveren er enhver række «en andens», og linjen sagde intet.
+  const retningErEgen = !!g.retning?.userId && !!user && g.retning.userId === user.id;
+  const retningSkrevetAfAnden = !rawAdvisor && !!g.retning?.userId && !!user && !retningErEgen;
+  // Fornavnet KUN fra den indloggedes egen profil (useAuth), når rækken er dennes — ingen nyt opslag, ingen ny RLS.
+  const retningFornavn = retningErEgen ? fornavn(profile?.full_name) : null;
   const gemRetning = async (svar: Record<RetningNoegle, string>): Promise<string | null> => {
     if (!user || !companyId) return "Du er ikke logget ind";
     if (!kanRetteRetning) return "Kun virksomheden kan skrive sin retning";
@@ -347,31 +356,16 @@ export const DineMaalView = () => {
 
   return (
     <div data-dine-maal-aktive={kort.length} data-dine-maal-over-graensen={dom.overGraensen ? "1" : "0"} data-dine-maal-ubekraeftede={g.bekraeftelser.forslag.length + g.bekraeftelser.gamle.length}>
-      {/* ── 0. Skive 3: forslag, gamle mål og kvartalstjek — kræver medlemmets klik, før alt andet ── */}
-      {!henter && !g.isError && (
-        <BekraeftMaalKort
-          bekraeftelser={g.bekraeftelser}
-          kvartalstjek={g.kvartalstjekFejlede ? [] : g.kvartalstjek}
-          kanKlikke={kanBekraefte}
-          onBekraeft={bekraeftHandling}
-          onKvartal={kvartalHandling}
-          onJuster={aabnJuster}
-          className="mb-8"
-        />
-      )}
-
-      {/* Fund 6: kvartalstjek-hentningen fejlede — ingen tjek tegnes (ovenfor), og det siges. */}
-      {!henter && !g.isError && g.kvartalstjekFejlede && <p className="mb-6 text-sm text-hb-rust" data-kvartalstjek-fejlede>{KVARTALSTJEK_FEJLEDE_TEKST}</p>}
-
       {/* ── 1. Hovedet ── */}
       <section className="max-w-3xl">
         <p className="text-xs font-medium uppercase tracking-[0.14em] text-hb-rust">{eyebrowTekst(nu)}</p>
         <h1 className="mt-3 font-editorial text-4xl font-medium leading-[1.1] tracking-tight text-hb-ink md:text-5xl">{DINE_MAAL_OVERSKRIFT}</h1>
         {/* Stedsætningen under h1 (rådets fund 7, 2/10): eyebrow → h1 → én sætning; hovedlinjen og chips under er status, ikke intro. */}
         <HbStedsSaetning sti="/milestones" className="mt-3" />
+        {/* ÉN hovedlinje (2/10): hovedLinje bærer også grænsen — dom.graenseTekst tegnes ikke her (forsiden har den). Neutral farve: status, ikke alarm. */}
         {!henter && !g.isError && (
           <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-            <p className={cn("text-sm", dom.overGraensen ? "font-medium text-hb-rust" : "text-hb-ink-soft")} data-hoved-linje>{hovedLinje(kort.length, dom.ubekraeftede.length)}</p>
+            <p className="text-sm text-hb-ink-soft" data-hoved-linje>{hovedLinje(kort.length, dom.ubekraeftede.length)}</p>
             {chips.length > 0 && (
               <ul className="flex flex-wrap gap-1.5" aria-label="Status på målene">
                 {chips.map((c) => (
@@ -383,11 +377,10 @@ export const DineMaalView = () => {
             )}
           </div>
         )}
-        {dom.overGraensen && !henter && !g.isError && <p className="mt-1 text-sm text-hb-rust" data-graense-tekst>{dom.graenseTekst}</p>}
       </section>
 
       {/* ── 2. Jeres retning ── */}
-      <div className="mt-8">
+      <div className="mt-7 md:mt-8">
         <JeresRetning
           retning={g.retning}
           isLoading={(henter || g.retningHenter) && !g.retning}
@@ -395,10 +388,27 @@ export const DineMaalView = () => {
           onGem={gemRetning}
           kanRette={kanRetteRetning}
           skrevetAfAnden={retningSkrevetAfAnden}
+          fornavn={retningFornavn}
         />
       </div>
 
-      {/* ── 3. Målene ── */}
+      {/* ── 3. Skive 3: forslag, gamle mål og kvartalstjek — «venter på jeres ja», under retningen (2/10), før målene ── */}
+      {!henter && !g.isError && (
+        <BekraeftMaalKort
+          bekraeftelser={g.bekraeftelser}
+          kvartalstjek={g.kvartalstjekFejlede ? [] : g.kvartalstjek}
+          kanKlikke={kanBekraefte}
+          onBekraeft={bekraeftHandling}
+          onKvartal={kvartalHandling}
+          onJuster={aabnJuster}
+          className="mt-6"
+        />
+      )}
+
+      {/* Fund 6: kvartalstjek-hentningen fejlede — ingen tjek tegnes (ovenfor), og det siges. */}
+      {!henter && !g.isError && g.kvartalstjekFejlede && <p className="mt-6 text-sm text-hb-rust" data-kvartalstjek-fejlede>{KVARTALSTJEK_FEJLEDE_TEKST}</p>}
+
+      {/* ── 4. Målene ── */}
       <HbSection eyebrow="Jeres mål" hairline className="mt-10">
         {g.isError ? (
           <HbCard className="p-5" data-dine-maal="fejl">
@@ -464,7 +474,7 @@ export const DineMaalView = () => {
         )}
       </HbSection>
 
-      {/* ── 4. Rejsen ── */}
+      {/* ── 5. Rejsen ── */}
       {!henter && !g.isError && g.tidslinje && (
         <HbSection eyebrow={REJSEN_ORD.eyebrow} title={REJSEN_ORD.titel} hairline className="mt-12">
           <Rejsen tidslinje={g.tidslinje} />

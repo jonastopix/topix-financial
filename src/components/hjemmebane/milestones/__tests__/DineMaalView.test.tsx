@@ -56,10 +56,12 @@ const tilstand = vi.hoisted(() => ({
   kvartalstjekFejlede: false,
   /** Hookets ur — kvartalstjek-prøverne flytter det forbi ankeret (KVARTALSTJEK_FRA = 2/10-2026). */
   nu: new Date("2026-10-01T10:00:00Z"),
+  /** useAuth's egen profil — fornavnet i retningens meta-linje (2/10), KUN for egen række. */
+  profile: null as { full_name: string } | null,
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { functions: { invoke: vi.fn() } } }));
-vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: "u1" }, companyId: "c1", isAdvisor: tilstand.isAdvisor }) }));
+vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: { id: "u1" }, companyId: "c1", isAdvisor: tilstand.isAdvisor, profile: tilstand.profile }) }));
 vi.mock("@/hooks/useViewMode", () => ({ useViewMode: () => ({ viewingAsMember: tilstand.viewingAsMember }) }));
 vi.mock("@/hooks/dineMaalGrundlag", async (importOriginal) => {
   const orig = await importOriginal<typeof import("@/hooks/dineMaalGrundlag")>();
@@ -133,6 +135,7 @@ beforeEach(() => {
   tilstand.fejr = vi.fn();
   tilstand.kvartalstjekFejlede = false;
   tilstand.nu = NU;
+  tilstand.profile = { full_name: "Mette Hansen" };
   tilstand.grundlag = {
     maal: [maal(), maal({ id: "m2", title: "Et gammelt mål", art: null, maal_noegle: null, udgangspunkt: null })],
     skridt: [{ id: "s1", title: "Ring til kunden", status: "done", due_date: null, maal_id: "m1", closed_at: "2026-09-10T00:00:00Z" }],
@@ -368,6 +371,47 @@ describe("DineMaalView — siden oppefra", () => {
     expect(document.querySelector("[data-hoved-linje]")!.textContent).toBe("Ingen mål endnu · 3 pladser ledige");
   });
 
+  it("hierarkiet (2/10): eyebrow → h1 → ÉN hovedlinje → Jeres retning → «venter på jeres ja» → Jeres mål → Rejsen", () => {
+    tilstand.grundlag!.maal = [maal({ bekraeftet_at: "2026-05-01T00:00:00Z" }), maal({ id: "f1", title: "Rådgiverens forslag", created_at: "2026-10-05T00:00:00Z", bekraeftet_at: null, source: "advisor" })];
+    vis();
+    const pos = (sel: string) => {
+      const el = document.querySelector(sel);
+      expect(el, sel).not.toBeNull();
+      return Array.from(document.body.querySelectorAll("*")).indexOf(el!);
+    };
+    const h1 = pos("h1");
+    const hoved = pos("[data-hoved-linje]");
+    const retning = pos("[data-retning]");
+    const venter = pos("[data-bekraeft-kort]");
+    const maalene = pos("[data-maal-gitter]");
+    const rejsen = pos("[data-rejsen]");
+    expect(h1).toBeLessThan(hoved);
+    expect(hoved).toBeLessThan(retning);
+    expect(retning).toBeLessThan(venter);
+    expect(venter).toBeLessThan(maalene);
+    expect(maalene).toBeLessThan(rejsen);
+    // Ankeret (rådets fund 2/10): andre flader peger på #venter — præcis ét på siden.
+    expect(document.querySelectorAll("#venter")).toHaveLength(1);
+    expect(document.getElementById("venter")!.hasAttribute("data-bekraeft-kort")).toBe(true);
+    // Ét hoved: aldrig to linjer — dom.graenseTekst tegnes ikke på /milestones.
+    expect(document.querySelectorAll("[data-hoved-linje]")).toHaveLength(1);
+    expect(document.querySelector("[data-graense-tekst]")).toBeNull();
+  });
+
+  it("over grænsen (5 bekræftede fra før grænsen + 6 forslag): ÉN neutral hovedlinje — aldrig «5 af 3», ingen rød linje nedenunder", () => {
+    tilstand.grundlag!.maal = [
+      ...[1, 2, 3, 4, 5].map((i) => maal({ id: `b${i}`, bekraeftet_at: "2026-05-01T00:00:00Z" })),
+      ...[1, 2, 3, 4, 5, 6].map((i) => maal({ id: `f${i}`, created_at: "2026-10-05T00:00:00Z", bekraeftet_at: null, source: "advisor" })),
+    ];
+    vis();
+    const linjer = document.querySelectorAll("[data-hoved-linje]");
+    expect(linjer).toHaveLength(1);
+    expect(linjer[0].textContent).toBe("5 aktive mål · 6 venter på jeres ja — flere end de 3, der er plads til. Parkér eller markér nogle som nået, så I står med højst 3.");
+    expect(linjer[0].className).not.toMatch(/text-hb-rust/);
+    expect(document.querySelector("[data-graense-tekst]")).toBeNull();
+    expect(document.body.textContent).not.toContain("5 af 3");
+  });
+
   it("henter: skelet uden spring; fejl: rolig linje med «Prøv igen»", () => {
     tilstand.isLoading = true;
     const { unmount } = vis();
@@ -406,8 +450,10 @@ describe("DineMaalView — rådets fund 3, 6 og 14", () => {
     expect(screen.getByText("2 mio. i årstakt")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: RETNING_RET })).toBeNull();
     expect(document.querySelector("[data-retning-kan-rette]")!.getAttribute("data-retning-kan-rette")).toBe("0");
-    // Fund 14: rækken er et medlems — «Skrevet af en anden i virksomheden»
-    expect(document.querySelector("[data-retning-skrevet-af-anden]")!.textContent).toContain(RETNING_SKREVET_AF_ANDEN);
+    // Fund 14 — rettet 2/10: «Skrevet af en anden i virksomheden» vises ALDRIG for rådgiveren (den rå rolle);
+    // meta-linjen bærer datoen uden navn (intet profilopslag).
+    expect(document.querySelector("[data-retning-skrevet-af-anden]")).toBeNull();
+    expect(document.querySelector("[data-retning-meta]")!.textContent).toBe("Skrevet 1. sep. 2026");
     unmount();
     tilstand.retning = retningFraHandout(null);
     vis();
@@ -425,11 +471,20 @@ describe("DineMaalView — rådets fund 3, 6 og 14", () => {
     expect(document.querySelector("[data-retning-kan-rette]")!.getAttribute("data-retning-kan-rette")).toBe("0");
   });
 
-  it("medlemmet ser «Ret» på egen række — og ikke «Skrevet af en anden»", () => {
-    tilstand.retning = retningFraHandout({ id: "h1", user_id: "u1", module: "overordnet", updated_at: null, responses: { lykkedes_12mdr: "x", anderledes_hverdag: "", konsekvenser_ingen_aendring: "" } });
+  it("medlemmet ser «Ret» på egen række — og ikke «Skrevet af en anden»; meta-linjen bærer EGET fornavn fra useAuth (ingen opslag)", () => {
+    tilstand.retning = retningFraHandout({ id: "h1", user_id: "u1", module: "overordnet", updated_at: "2026-09-12T10:00:00Z", responses: { lykkedes_12mdr: "x", anderledes_hverdag: "", konsekvenser_ingen_aendring: "" } });
     vis();
     expect(screen.getByRole("button", { name: RETNING_RET })).toBeInTheDocument();
     expect(document.querySelector("[data-retning-skrevet-af-anden]")).toBeNull();
+    expect(document.querySelector("[data-retning-meta]")!.textContent).toBe("Skrevet af Mette · 12. sep. 2026 · Ret");
+  });
+
+  it("2/10: et medlem med en MEDEJERS række ser «Skrevet af en anden» — uden navn (ingen ny RLS), med datoen", () => {
+    tilstand.retning = udfyldtAfAnden();
+    vis();
+    expect(document.querySelector("[data-retning-skrevet-af-anden]")!.textContent).toContain(RETNING_SKREVET_AF_ANDEN);
+    expect(document.querySelector("[data-retning-meta]")!.textContent).toBe(`${RETNING_SKREVET_AF_ANDEN} · 1. sep. 2026 · Ret`);
+    expect(document.querySelector("[data-retning-meta]")!.textContent).not.toContain("Mette");
   });
 
   it("fund 6: mens retningen henter, står skelettet — ikke invitationen (en tom kladde kunne ellers åbnes oven på et svar)", () => {

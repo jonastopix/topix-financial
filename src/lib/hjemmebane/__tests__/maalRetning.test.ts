@@ -1,9 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { handoutConfigs } from "@/lib/handoutConfig";
 import {
+  danskKalenderdag,
+  klipKortTekst,
+  klipRetning,
+  RETNING_FELT_ORD,
+  RETNING_KORT_MAKS_TEGN,
+  RETNING_MAKS_LINJER,
+  RETNING_MAKS_TEGN,
   RETNING_MODUL,
   RETNING_NOEGLER,
   retningFraHandout,
+  retningLinjer,
+  retningMeta,
   retningStatus,
   retningTilResponses,
   vaelgRetningsRaekke,
@@ -94,5 +103,93 @@ describe("retningStatus", () => {
     expect(retningStatus("not_started", false)).toBe("not_started");
     expect(retningStatus(null, true)).toBe("in_progress");
     expect(retningStatus(undefined, false)).toBe("not_started");
+  });
+});
+
+// ── Feltets afledninger (2/10-2026: listen, klippet, meta-linjen) ──
+
+describe("retningLinjer", () => {
+  it("split på linjeskift (også CRLF), trim, tomme linjer væk, punkttegn foran fjernet", () => {
+    expect(retningLinjer("vi har 30.000 kr. i løn\r\n\n- vi har ansat én\n• jeg kan holde fri  \n3. tre ture\n   ")).toEqual([
+      "vi har 30.000 kr. i løn",
+      "vi har ansat én",
+      "jeg kan holde fri",
+      "tre ture",
+    ]);
+  });
+  it("ét afsnit uden linjeskift er én linje; et tal i sætningen er ikke et punkttegn; tomt → []", () => {
+    expect(retningLinjer("Vi har 2 mio. i årstakt og 3 ansatte.")).toEqual(["Vi har 2 mio. i årstakt og 3 ansatte."]);
+    expect(retningLinjer("2026 bliver året")).toEqual(["2026 bliver året"]);
+    expect(retningLinjer("   \n\n")).toEqual([]);
+  });
+});
+
+describe("klipRetning", () => {
+  const l = (n: number) => Array.from({ length: n }, (_, i) => `linje ${i + 1}`);
+  it("under grænserne: alt vises, intet klippet; tom liste → tom", () => {
+    expect(klipRetning(l(3))).toEqual({ linjer: l(3), klippet: false });
+    expect(klipRetning([])).toEqual({ linjer: [], klippet: false });
+  });
+  it("flere linjer end RETNING_MAKS_LINJER: klippes ved linjegrænsen", () => {
+    const k = klipRetning(l(8));
+    expect(k.linjer).toEqual(l(RETNING_MAKS_LINJER));
+    expect(k.klippet).toBe(true);
+  });
+  it("for mange tegn i alt: linjer tages ind, så længe summen holder — aldrig midt i en linje", () => {
+    const lang = "x".repeat(200);
+    const k = klipRetning([lang, lang, lang]); // 200 + 200 = 400 ≤ 420; den tredje ville give 600
+    expect(k).toEqual({ linjer: [lang, lang], klippet: true });
+  });
+  it("den FØRSTE linje alene er for lang: klippes ved sidste mellemrum før grænsen + «…» — mindst én linje vises", () => {
+    const ord = Array.from({ length: 120 }, (_, i) => `ord${i}`).join(" ");
+    const k = klipRetning([ord, "mere"]);
+    expect(k.linjer).toHaveLength(1);
+    expect(k.linjer[0].endsWith("…")).toBe(true);
+    expect(k.linjer[0].length).toBeLessThanOrEqual(RETNING_MAKS_TEGN + 1);
+    // Klippet ved et mellemrum, ikke midt i et ord: det sidste ord før «…» er et helt «ordN» fra kilden.
+    const sidste = k.linjer[0].slice(0, -1).split(" ").pop()!;
+    expect(ord.split(" ")).toContain(sidste);
+    expect(k.klippet).toBe(true);
+  });
+});
+
+describe("klipKortTekst", () => {
+  it("kort tekst står hel (trimmet); lang klippes ved et mellemrum + «…»", () => {
+    expect(klipKortTekst("  Mere struktur.  ")).toEqual({ tekst: "Mere struktur.", klippet: false });
+    const t = Array.from({ length: 80 }, (_, i) => `ord${i}`).join(" ");
+    const k = klipKortTekst(t);
+    expect(k.klippet).toBe(true);
+    expect(k.tekst.length).toBeLessThanOrEqual(RETNING_KORT_MAKS_TEGN + 1);
+    expect(k.tekst.endsWith("…")).toBe(true);
+    expect(klipKortTekst("")).toEqual({ tekst: "", klippet: false });
+  });
+});
+
+describe("retningMeta", () => {
+  const dato = (iso: string) => `D(${iso.slice(0, 10)})`;
+  it("«Skrevet af <fornavn> · <dato>» med navn; «Skrevet <dato>» uden; navn alene; null uden begge", () => {
+    expect(retningMeta("Mette", "2026-09-12T10:00:00Z", dato)).toBe("Skrevet af Mette · D(2026-09-12)");
+    expect(retningMeta(null, "2026-09-12T10:00:00Z", dato)).toBe("Skrevet D(2026-09-12)");
+    expect(retningMeta("  ", "2026-09-12T10:00:00Z", dato)).toBe("Skrevet D(2026-09-12)");
+    expect(retningMeta("Mette", null, dato)).toBe("Skrevet af Mette");
+    expect(retningMeta(null, null, dato)).toBeNull();
+  });
+  it("en medejers række: «Skrevet af en anden i virksomheden · <dato>» — «Skrevet» ÉN gang (rådets fund 2/10)", () => {
+    expect(retningMeta(null, "2026-09-12T10:00:00Z", dato, true)).toBe("Skrevet af en anden i virksomheden · D(2026-09-12)");
+    expect(retningMeta(null, null, dato, true)).toBe("Skrevet af en anden i virksomheden");
+    expect(retningMeta("Mette", "2026-09-12T10:00:00Z", dato, true)).toBe("Skrevet af en anden i virksomheden · D(2026-09-12)");
+  });
+  it("danskKalenderdag: Europe/Copenhagen omkring midnat, sommer- og vintertid; ulæseligt → uændret", () => {
+    expect(danskKalenderdag("2026-09-11T22:30:00Z")).toBe("2026-09-12");
+    expect(danskKalenderdag("2026-09-11T21:59:59Z")).toBe("2026-09-11");
+    expect(danskKalenderdag("2026-12-31T23:00:00Z")).toBe("2027-01-01");
+    expect(danskKalenderdag("2026-12-31T22:59:59Z")).toBe("2026-12-31");
+    expect(danskKalenderdag("2026-09-12T10:00:00+00:00")).toBe("2026-09-12");
+    expect(danskKalenderdag("ikke en dato")).toBe("ikke en dato");
+  });
+  it("ordene står ét sted — kortenes overskrifter og foden", () => {
+    expect(RETNING_FELT_ORD.hverdagen).toBe("Hverdagen, vi bygger");
+    expect(RETNING_FELT_ORD.prisen).toBe("Prisen, hvis intet ændrer sig");
+    expect(RETNING_FELT_ORD.fod).toBe("Jeres mål herunder er vejen derhen.");
   });
 });
