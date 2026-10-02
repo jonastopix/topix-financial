@@ -51,6 +51,9 @@ export function forslagListe(maal: readonly { title: string }[]): ForslagListe {
 export const SAET_MAAL_PARAM = "saet";
 export const SAET_MAAL_VAERDI = "maal";
 export const SAET_MAAL_STI = `/milestones?${SAET_MAAL_PARAM}=${SAET_MAAL_VAERDI}`;
+/** Søgeparameteren, der åbner guiden «Gør målet skarpt» for ét gammelt mål på /milestones. */
+export const SKARPT_PARAM = "skarpt";
+export const skarptSti = (maalId: string): string => `/milestones?${SKARPT_PARAM}=${encodeURIComponent(maalId)}`;
 
 export const FORSIDE_MAAL_ORD = {
   /** Forslagskortet. */
@@ -72,5 +75,20 @@ export const FORSIDE_MAAL_ORD = {
   flereMaal: (n: number) => (n === 1 ? "+1 aktivt mål mere på Dine mål" : `+${n} aktive mål mere på Dine mål`),
   flereSkridt: (n: number) => (n === 1 ? "+1 skridt mere" : `+${n} skridt mere`),
   gammeltMaalLink: "Gør målet skarpt",
+  /** Et gammelt mål (art null) på forsiden — 2/10 aften, efter Jonas' skærm 19:29. */
+  udenTal: "Uden tal endnu",
+  saetTalTekst: "Sæt et tal og en frist på, så viser vi hver måned, om I er på sporet.",
+  saetTalPaa: "Sæt et tal på",
+  alleGjort: "Alle skridt er gjort.",
+  markerNaaet: "Er I i mål? Markér det på Dine mål",
+  foersteSkridt: "Hvad er det første, I gør?",
   jeresSkridt: "Jeres skridt",
 } as const;
+
+/**
+ * Et fokuspunkt, der også står i «Din plan» (skridt og mål-punkter: company-action, maal:skridt/foerste/frist).
+ * «Dit næste skridt» (kompakt) viser dem ikke som stille linjer — kun som det primære punkt (2/10 aften).
+ */
+export function erPlanPunkt(punkt: { kind: string }): boolean {
+  return punkt.kind === "company-action" || punkt.kind === "maal";
+}
