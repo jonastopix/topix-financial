@@ -77,6 +77,8 @@ const NETVAERK_VIEWS: Record<string, string> = {
   "/events": "src/components/hjemmebane/events/EventsView.tsx",
   "/medlemmer": "src/components/hjemmebane/members/MemberDirectoryView.tsx",
   "/rabataftaler": "src/components/hjemmebane/rabataftaler/RabataftalerView.tsx",
+  // Rådets fund 1 (2/10): /deling havde to h1 under fanerne — nu fanens hoved som de tre andre.
+  "/deling": "src/components/hjemmebane/deling/DelingView.tsx",
 };
 const NETVAERK_STIER = ["/community", "/events", "/medlemmer", "/rabataftaler", "/deling"];
 
@@ -185,6 +187,11 @@ export const netvaerketHarFaner = (faner: string, faneHoved: string, faneDom: st
   /<ul className="[^"]*min-w-max[^"]*"/.test(faner) && /whitespace-nowrap/.test(faner) &&
   faner.includes('aria-current={f.aktiv ? "page" : undefined}') &&
   !/role="tab"|role="tablist"|"subscriber"/.test(faner) &&
+  // Rådets fund 2 (2/10): den aktive fane rulles ind (nearest, begge akser) i en effekt FØR den betingede return, og kantfadet er tokenets, kun når bjælken kan rulles videre.
+  faner.includes('aktivRef.current?.scrollIntoView?.({ inline: "nearest", block: "nearest" });') &&
+  faner.indexOf("useEffect(") > -1 && faner.indexOf("useEffect(") < faner.indexOf("if (!faner || !vises) return null;") &&
+  faner.includes("ref={f.aktiv ? aktivRef : undefined}") &&
+  /\{kanRulleVidere && \(\s*<span aria-hidden="true" data-netvaerk-fade className="[^"]*pointer-events-none[^"]*from-hb-paper[^"]*"/.test(faner) &&
   // Skallen: netværkshovedet på de fem stier, dømt af netvaerksSti — og sætningen ikke dér.
   skal.includes("const netvaerkHovedSti = netvaerksSti(location.pathname);") &&
   (skal.match(/<HbNetvaerkFaner sti=\{netvaerkHovedSti\} \/>/g) ?? []).length === 1 &&
@@ -196,9 +203,9 @@ export const netvaerketHarFaner = (faner: string, faneHoved: string, faneDom: st
   /<h2 className="[^"]*">\{rubrik\}<\/h2>/.test(faneHoved.slice(faneHoved.indexOf("if (underFaner) {"), faneHoved.indexOf("return (", faneHoved.indexOf("if (underFaner) {") + 30 + 1))) &&
   /<h1 className="[^"]*">\{rubrik\}<\/h1>/.test(faneHoved) && faneHoved.includes("{intro}") &&
   !faneHoved.includes("HbStedsSaetning") &&
-  // De tre views tegner fanens hoved — ikke sætningen, ikke en egen h1.
+  // De fire views (Events, Medlemmerne, Fordele, Anbefal) tegner fanens hoved — ikke sætningen, ikke en egen h1.
   Object.entries(views).every(([, k]) => (k.match(/<HbNetvaerkFaneHoved\b/g) ?? []).length === 1 && !/<HbStedsSaetning\b|<h1\b/.test(k)) &&
-  // Community-fladen er urørt: ingen faner, intet hoved tegnet dér.
+  // Community-fladen tegner ikke selv fanerne eller hovedet — skallen gør.
   !/HbNetvaerkFaner|HbNetvaerkFaneHoved|HbStedsSaetning/.test(community);
 
 /** Dom 8: forsiden, skridt 2 — «Næste i Netværket» nederst; de tre sektioner væk. */
@@ -218,7 +225,14 @@ export const forsidenSkridt2 = (forside: string, naesteDom: string): boolean => 
     krop.includes("<EventRegisterAction eventId={event.id} phase={eventMeetPhase(event)} />") &&
     krop.includes("to={`/community/${naesteNetvaerk.opslag.id}`}") &&
     !/\.rpc\("get_community_feed"|\.rpc\("get_member_directory"/.test(forside) &&
-    naesteDom.includes("return { event: events[0] ?? null, opslag: vaelgForsideOpslag(traade).fremhaevet };");
+    // Rådets fund 3 (2/10): kun aktive opslag, filtreret FØR valget.
+    naesteDom.includes('const aktive = traade.filter((t) => t.status === "aktiv");') &&
+    naesteDom.includes("return { event: events[0] ?? null, opslag: vaelgForsideOpslag(aktive).fremhaevet };") &&
+    // Rådets fund 4 (2/10): opslagsrækken kun med Netværket — fanernes dom, hooks i topblokken.
+    krop.includes("const harNetvaerket = visNetvaerkFaner({ isAdvisor, viewingAsMember, membershipTier });") &&
+    krop.indexOf("{harNetvaerket && (") > -1 && krop.indexOf("{harNetvaerket && (") < opslag &&
+    // Rådets fund 5 (2/10): handlingen under rækken på 375, ved siden af fra sm — begge rækker.
+    (krop.match(/className="mt-2 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-5"/g) ?? []).length === 2;
 };
 
 describe("seksSteder.guard — skridt 1: menuen, stedsætningerne, forsiden ryddet", () => {
@@ -306,7 +320,7 @@ describe("seksSteder.guard — skridt 1: menuen, stedsætningerne, forsiden rydd
     expect(nav).toContain('export const ANBEFAL_PUNKT = { label: "Anbefal", to: "/deling" } as const;');
   });
 
-  it("dom 7 (skridt 2): Netværket er ét sted med fem faner — menuens børn, dømt af stien, sætningens gate, skallen på de fem stier, h2 under fanerne, Community urørt", () => {
+  it("dom 7 (skridt 2): Netværket er ét sted med fem faner — menuens børn, dømt af stien, sætningens gate, skallen på de fem stier, h2 under fanerne, Community uden egne faner", () => {
     expect(netvaerketHarFaner(faner, faneHoved, faneDom, skal, ord, netvaerkViews, community)).toBe(true);
     // Dommen: de fem forsider får fanerne (præcis én aktiv, menuens ord og links); undersider og alt andet intet.
     for (const sti of NETVAERK_STIER) {
@@ -369,6 +383,9 @@ describe("seksSteder.guard — skridt 1: menuen, stedsætningerne, forsiden rydd
     expect(netvaerketHarFaner(faner, faneHoved, faneDom.replace("const faner = NETVAERKETS_BOERN.map((b) => ({ label: b.label, to: b.to, aktiv: b.to === sti }));", 'const faner = [{ label: "Community", to: "/community", aktiv: true }];'), skal, ord, netvaerkViews, community)).toBe(false);
     expect(netvaerketHarFaner(faner.replace("const vises = visNetvaerkFaner({ isAdvisor, viewingAsMember, membershipTier });", "const vises = true;"), faneHoved, faneDom, skal, ord, netvaerkViews, community)).toBe(false);
     expect(netvaerketHarFaner(faner.replace("overflow-x-auto", "overflow-x-visible"), faneHoved, faneDom, skal, ord, netvaerkViews, community)).toBe(false);
+    expect(netvaerketHarFaner(faner.replace('aktivRef.current?.scrollIntoView?.({ inline: "nearest", block: "nearest" });', ""), faneHoved, faneDom, skal, ord, netvaerkViews, community)).toBe(false);
+    expect(netvaerketHarFaner(faner.replace("from-hb-paper", "from-white"), faneHoved, faneDom, skal, ord, netvaerkViews, community)).toBe(false);
+    expect(netvaerketHarFaner(faner, faneHoved, faneDom, skal, ord, { ...netvaerkViews, "/deling": netvaerkViews["/deling"].replace("<HbNetvaerkFaneHoved", "<h1>Din kreativ</h1><HbNetvaerkFaneHoved") }, community)).toBe(false);
     expect(netvaerketHarFaner(faner, faneHoved, faneDom, skal.replace("{netvaerkHovedSti && <HbNetvaerkFaner sti={netvaerkHovedSti} />}", ""), ord, netvaerkViews, community)).toBe(false);
     expect(netvaerketHarFaner(faner, faneHoved, faneDom, skal, ord.replace('sted !== "netvaerket" && ', ""), netvaerkViews, community)).toBe(false);
     expect(netvaerketHarFaner(faner, faneHoved, faneDom, skal, ord, netvaerkViews, community + "\n<HbNetvaerkFaner sti=\"/community\" />")).toBe(false);
@@ -380,6 +397,9 @@ describe("seksSteder.guard — skridt 1: menuen, stedsætningerne, forsiden rydd
     const naeste = forside.slice(forside.indexOf("{companyId && (\n        <HbSection eyebrow={NAESTE_I_NETVAERKET.eyebrow}"), forside.lastIndexOf("    </div>\n  );\n};"));
     expect(naeste.length).toBeGreaterThan(0);
     expect(forsidenSkridt2(forside.replace(naeste, "").replace("<FornyelsesBaand />", `<FornyelsesBaand />${naeste}`), naesteDom)).toBe(false);
+    expect(forsidenSkridt2(forside, naesteDom.replace('traade.filter((t) => t.status === "aktiv")', "traade"))).toBe(false);
+    expect(forsidenSkridt2(forside.replace("{harNetvaerket && (", "{true && ("), naesteDom)).toBe(false);
+    expect(forsidenSkridt2(forside.replace("mt-2 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-5", "mt-2 flex items-center gap-5"), naesteDom)).toBe(false);
     expect(forsidenSkridt2(forside.replace("const naesteNetvaerk = useMemo(", 'const d = useQuery({ queryKey: ["member-directory"], queryFn: listMemberDirectory });\n  const naesteNetvaerk = useMemo('), naesteDom)).toBe(false);
   });
   it("selvbevis 5: et mærke på et andet barn, eller et toppunkt der rører Netværket, falder", () => {

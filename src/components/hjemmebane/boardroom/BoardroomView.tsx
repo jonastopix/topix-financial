@@ -12,6 +12,8 @@ import { BEKRAEFT_ORD, delBekraeftelser, KVARTAL_ORD, statusEfterKvartalValg, ve
 import { BekraeftMaalKort, type BekraeftHandling, type KvartalHandling } from "@/components/hjemmebane/milestones/BekraeftMaalKort";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
+import { useViewMode } from "@/hooks/useViewMode";
+import { visNetvaerkFaner } from "@/lib/hjemmebane/netvaerkFaner";
 import { useOnboardingTjekliste } from "@/hooks/useOnboardingTjekliste";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompanyFacts } from "@/hooks/useCompanyFacts";
@@ -1280,7 +1282,13 @@ const FejringRaekke = ({ fejring }: { fejring: Fejring }) => (
 );
 
 export const BoardroomView = () => {
-  const { user, profile, companyId, isAdvisor, laeseMarkeringTilladt } = useAuth();
+  const { user, profile, companyId, isAdvisor, laeseMarkeringTilladt, membershipTier } = useAuth();
+  // «Næste i Netværket»s opslagsrække (rådets fund 4, 2/10): kun når medlemmet
+  // HAR Netværket — samme dom som fanerne (fuldt medlem, rådgiver i «Se som
+  // medlem»). Uden adgang er feedet tomt (RPC'en er fail-closed), og tom-
+  // teksten «Ingen opslag endnu» ville lyve. Hooks i topblokken.
+  const { viewingAsMember } = useViewMode();
+  const harNetvaerket = visNetvaerkFaner({ isAdvisor, viewingAsMember, membershipTier });
   const akademi = useAkademiData();
   const { data: facts = [], isLoading: factsLoading, isError: factsError } = useCompanyFacts();
 
@@ -2324,7 +2332,8 @@ export const BoardroomView = () => {
           kilderne er de samme hentninger som før (listUpcomingEvents, hentFeed
           under Community-fladens nøgle — ingen ny RPC). Hver del har sin tomme
           tilstand; fejl i en hentning siges for den del alene. Kun med
-          virksomhed, som Score. ── */}
+          virksomhed, som Score. PÅ 375 px (rådets fund 5) står handlingen
+          (tilmelding / «Læs») UNDER rækken (flex-col), fra sm ved siden af. ── */}
       {companyId && (
         <HbSection eyebrow={NAESTE_I_NETVAERKET.eyebrow} linkLabel={NAESTE_I_NETVAERKET.link} linkTo={NAESTE_I_NETVAERKET.linkTo} hairline className="mt-10 md:mt-12" data-forside-naeste-netvaerk>
           <HbCard className="overflow-hidden">
@@ -2334,8 +2343,8 @@ export const BoardroomView = () => {
               {eventsQuery.isError ? (
                 <p className="mt-2 text-sm text-hb-rust">{sektionsfejlTekst("events")}</p>
               ) : event ? (
-                <div className="mt-2 flex items-center gap-5">
-                  <Link to={`/events/${event.id}`} className="flex min-w-0 flex-1 items-center gap-5">
+                <div className="mt-2 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-5">
+                  <Link to={`/events/${event.id}`} className="flex w-full min-w-0 flex-1 items-center gap-5 sm:w-auto">
                     <div className="w-12 shrink-0 text-center">
                       <p className="font-editorial text-3xl font-medium leading-none text-hb-ink">
                         {new Date(event.starts_at).getDate()}
@@ -2368,34 +2377,36 @@ export const BoardroomView = () => {
                 </p>
               )}
             </div>
-            {/* Det nyeste opslag — under eventet (Jonas 2/10). */}
-            <div className="border-t border-hb-line px-5 py-4 md:px-6" data-naeste-opslag={naesteNetvaerk.opslag ? naesteNetvaerk.opslag.id : "tom"}>
-              <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{NAESTE_I_NETVAERKET.opslagEyebrow}</p>
-              {communityQuery.isError ? (
-                <p className="mt-2 text-sm text-hb-rust">{sektionsfejlTekst("community")}</p>
-              ) : naesteNetvaerk.opslag ? (
-                <div className="mt-2 flex items-center gap-5">
-                  <Link to={`/community/${naesteNetvaerk.opslag.id}`} className="flex min-w-0 flex-1 items-center gap-5">
-                    {/* PR 4: portrættet når forfatteren har et, ellers initialen i husets form (HbAvatar — aldrig et tomt billede). */}
-                    <HbAvatar navn={naesteNetvaerk.opslag.forfatter_navn} avatarUrl={naesteNetvaerk.opslag.forfatter_avatar_url} />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[15px] font-medium leading-snug text-hb-ink">{naesteNetvaerk.opslag.titel}</p>
-                      <p className="mt-1 text-sm text-hb-ink-soft">
-                        {naesteNetvaerk.opslag.forfatter_navn ?? "Medlem"} · {traadRelativTid(naesteNetvaerk.opslag.created_at)} · {naesteNetvaerk.opslag.antal_svar} svar
-                      </p>
-                    </div>
-                  </Link>
-                  <Link to={`/community/${naesteNetvaerk.opslag.id}`} className="shrink-0">
-                    <HbButton variant="secondary" className="h-9 px-4 text-sm">{NAESTE_I_NETVAERKET.opslagLaes}</HbButton>
-                  </Link>
-                </div>
-              ) : (
-                <p className="mt-2 text-sm text-hb-ink-soft" data-naeste-opslag-tom>
-                  {NAESTE_I_NETVAERKET.opslagTom}{" "}
-                  <Link to="/community" className="text-hb-evergreen underline-offset-4 hover:underline">{NAESTE_I_NETVAERKET.link}</Link>
-                </p>
-              )}
-            </div>
+            {/* Det nyeste opslag — under eventet (Jonas 2/10); kun med Netværket (rådets fund 4). */}
+            {harNetvaerket && (
+              <div className="border-t border-hb-line px-5 py-4 md:px-6" data-naeste-opslag={naesteNetvaerk.opslag ? naesteNetvaerk.opslag.id : "tom"}>
+                <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{NAESTE_I_NETVAERKET.opslagEyebrow}</p>
+                {communityQuery.isError ? (
+                  <p className="mt-2 text-sm text-hb-rust">{sektionsfejlTekst("community")}</p>
+                ) : naesteNetvaerk.opslag ? (
+                  <div className="mt-2 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-5">
+                    <Link to={`/community/${naesteNetvaerk.opslag.id}`} className="flex w-full min-w-0 flex-1 items-center gap-5 sm:w-auto">
+                      {/* PR 4: portrættet når forfatteren har et, ellers initialen i husets form (HbAvatar — aldrig et tomt billede). */}
+                      <HbAvatar navn={naesteNetvaerk.opslag.forfatter_navn} avatarUrl={naesteNetvaerk.opslag.forfatter_avatar_url} />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[15px] font-medium leading-snug text-hb-ink">{naesteNetvaerk.opslag.titel}</p>
+                        <p className="mt-1 text-sm text-hb-ink-soft">
+                          {naesteNetvaerk.opslag.forfatter_navn ?? "Medlem"} · {traadRelativTid(naesteNetvaerk.opslag.created_at)} · {naesteNetvaerk.opslag.antal_svar} svar
+                        </p>
+                      </div>
+                    </Link>
+                    <Link to={`/community/${naesteNetvaerk.opslag.id}`} className="shrink-0">
+                      <HbButton variant="secondary" className="h-9 px-4 text-sm">{NAESTE_I_NETVAERKET.opslagLaes}</HbButton>
+                    </Link>
+                  </div>
+                ) : (
+                  <p className="mt-2 text-sm text-hb-ink-soft" data-naeste-opslag-tom>
+                    {NAESTE_I_NETVAERKET.opslagTom}{" "}
+                    <Link to="/community" className="text-hb-evergreen underline-offset-4 hover:underline">{NAESTE_I_NETVAERKET.link}</Link>
+                  </p>
+                )}
+              </div>
+            )}
           </HbCard>
         </HbSection>
       )}

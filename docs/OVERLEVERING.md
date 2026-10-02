@@ -11777,6 +11777,14 @@ Rådets punkter 8, 11 og 12 var ikke rettelser (ingen handling bestilt).
 
 **Bevidst ikke gjort:** «Live nu»-mærket på Events-FANEN (det står i menuen under Netværket som før — fanen bærer det ikke; én linje at tilføje, hvis Jonas vil); kort-træet (`StoryCard` m.fl., rådets punkt 9) står stadig i BoardroomView; Community-fladens indhold (anden agent); ingen push, ingen PR, ingen Lovable-kald, ingen prod.
 
+**Rådets fund (2/10) — rettet på grenen:**
+1. **To h1 på /deling** (fejlen): DelingView tegnede sin egen h1 «Din kreativ» under netværkshovedets h1 — påstanden ovenfor om, at DelingView «ligger fint under fanerne», var forkert. Nu tegner den `HbNetvaerkFaneHoved` (eyebrow «Delingskreativ», rubrik «Din kreativ», `intro={null}`): h2 under fanerne, eyebrow → h1 uden; vejledningen om rettelser/billeder står under hovedet i begge tilfælde (den er ikke en sted-intro). `/deling` står nu i `NETVAERK_VIEWS` i `seksSteder.guard` dom 7, så et nyt `<h1` dér fælder værnet.
+2. **Den aktive fane uden for bjælken på 375 px:** `HbNetvaerkFaner` ruller den aktive fane ind med `scrollIntoView({ inline: "nearest", block: "nearest" })` ved montering og ved hvert fanskift (fail-soft uden API'et), og en diskret kantfade (`from-hb-paper` → gennemsigtig, token — ingen hårdkodet farve; hjemmebane.css er lys alene i dag) står i højre side, KUN mens bjælken kan rulles videre (målt ved montering, rul og resize; `aria-hidden`, `pointer-events-none`).
+3. **«Nyeste i Community» kunne vise en skjult tråd:** `naesteINetvaerket` filtrerer `status === "aktiv"` FØR valget af det nyeste (en nyere skjult tråd skubbede ellers det aktive ud); testet.
+4. **Tom-teksten løj for den uden Netværk:** opslagsrækken tegnes kun, når `visNetvaerkFaner` (fuldt medlem, rådgiver i «Se som medlem») — feedet er tomt af adgang, ikke af stilhed. Event-rækken står for alle med virksomhed som før. Åbent: kortets link «Gå til Netværket» står stadig for en uden Netværk (ikke bestilt).
+5. **375 px:** begge rækker i kortet er `flex-col sm:flex-row` — tilmeldingen/«Læs» står under rækken på mobil, ved siden af fra `sm`.
+6. **CLAUDE.md:** «Community-fladen er urørt» er omformuleret — en anden gren ændrer Community i dag; denne gren tegner blot ingen faner i `CommunityView`.
+
 **Rækkefølgen efter Jonas' ja:** PR → merge → **Update** i Lovable (kun `src/`) → designgennemsyn i drift (§4b): fanerne på de fem stier for et fuldt medlem (desktop og mobil — bjælken scroller, siden ikke), ingen faner for abonnenten på /rabataftaler og for rådgiveren uden «Se som medlem», fanerne i «Se som medlem», h2 under fanerne / h1 uden, «Din måned» øverst på /reports (med tal, uden tal, under behandling), forsiden: top → Score → Din plan → «Næste i Netværket» (med/uden event, med/uden opslag), ingen tråd/profil/event-side med hoved.
 
 ---

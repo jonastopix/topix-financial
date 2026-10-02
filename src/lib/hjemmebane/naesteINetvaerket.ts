@@ -18,6 +18,12 @@
  * næste) og hentFeed(30) under Community-fladens egen nøgle. Nyeste opslag =
  * senest OPRETTET (vaelgForsideOpslag, forsideOpslag.ts — ikke feedets
  * orden, hvor fastgjorte og gamle tråde med nye svar står øverst).
+ *
+ * KUN AKTIVE OPSLAG (rådets fund 3, 2/10): feedet kan bære en skjult tråd
+ * (status «skjult» — rådgiveren ser den i Community med sit mærke), og
+ * forsiden må aldrig fremhæve den. Dommen filtrerer `status === "aktiv"`
+ * FØR valget af det nyeste — ellers kunne en skjult, nyere tråd skubbe det
+ * nyeste aktive ud og stå på forsiden selv.
  * Testet i __tests__/naesteINetvaerket.test.ts; låst af seksSteder.guard.
  */
 
@@ -36,7 +42,10 @@ export const NAESTE_I_NETVAERKET = {
   opslagLaes: "Læs",
 } as const;
 
-export interface NaesteINetvaerket<E, T extends ForsideTraad> {
+/** Det dommen læser af en feed-række: forsidens snit + status. */
+export type NaesteTraad = ForsideTraad & { status: string };
+
+export interface NaesteINetvaerket<E, T extends NaesteTraad> {
   /** Det næste event — det første i den stigende liste — eller null. */
   event: E | null;
   /** Det senest oprettede opslag — eller null, når feedet er tomt. */
@@ -46,7 +55,8 @@ export interface NaesteINetvaerket<E, T extends ForsideTraad> {
 /** `events` er listUpcomingEvents' orden (status published, starts_at ≥ nu,
     stigende): det første ER det næste — dommen sorterer ikke om, så fladen
     og «Kommende» (før 2/10) viser det samme event. `traade` er feedet; det
-    nyeste vælges af oprettelsen. */
-export function naesteINetvaerket<E, T extends ForsideTraad>(events: readonly E[], traade: readonly T[]): NaesteINetvaerket<E, T> {
-  return { event: events[0] ?? null, opslag: vaelgForsideOpslag(traade).fremhaevet };
+    nyeste AKTIVE vælges af oprettelsen (en skjult tråd vælges aldrig). */
+export function naesteINetvaerket<E, T extends NaesteTraad>(events: readonly E[], traade: readonly T[]): NaesteINetvaerket<E, T> {
+  const aktive = traade.filter((t) => t.status === "aktiv");
+  return { event: events[0] ?? null, opslag: vaelgForsideOpslag(aktive).fremhaevet };
 }
