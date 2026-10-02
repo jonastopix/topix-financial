@@ -42,6 +42,9 @@ import { HbButton } from "../HbButton";
  * mål er låst, mens skrivningen løber; de andre kort er stadig klikbare.
  */
 
+/** Ankeret «venter på jeres ja» (rådets fund 2/10): andre flader peger på `#venter` — ét kort pr. side (/milestones eller forsiden). */
+export const BEKRAEFT_ANKER = "venter";
+
 const mikro = "text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft";
 
 export type BekraeftHandling = "bekraeft" | "slip";
@@ -86,7 +89,7 @@ export const BekraeftMaalKort = ({ bekraeftelser, kvartalstjek, kanKlikke, onBek
     fejl?.maalId === maalId ? <p role="alert" className="mt-2 text-sm text-hb-rust" data-bekraeft-fejl>{fejl.tekst}</p> : null;
 
   return (
-    <div className={cn("space-y-4", className)} data-bekraeft-kort data-forslag={forslag.length} data-gamle={gamle.length} data-kvartalstjek={kvartalstjek.length}>
+    <div id={BEKRAEFT_ANKER} className={cn("scroll-mt-24 space-y-4", className)} data-bekraeft-kort data-forslag={forslag.length} data-gamle={gamle.length} data-kvartalstjek={kvartalstjek.length}>
       {/* ── 1. Nye forslag — ét kort pr. mål ── */}
       {forslag.map((m) => (
         <HbCard key={m.id} className="border-hb-evergreen/30 p-5 md:p-6" data-maal-forslag={m.id}>

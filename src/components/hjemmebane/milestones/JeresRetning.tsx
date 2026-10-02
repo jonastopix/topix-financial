@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
+  danskKalenderdag,
   klipKortTekst,
   klipRetning,
   RETNING_FELT_ORD,
@@ -68,7 +69,7 @@ export const RETNING_INTRO = "Tre sætninger, der holder målene på sporet — 
 /** Rådgiverens tomme tilstand (fund 3): læser, retter ikke. */
 export const RETNING_IKKE_SKREVET_TEKST = "Virksomheden har ikke skrevet sin retning endnu.";
 /** Fund 14: rækken tilhører en anden bruger end den, der ser siden. */
-export const RETNING_SKREVET_AF_ANDEN = "Skrevet af en anden i virksomheden";
+export const RETNING_SKREVET_AF_ANDEN = RETNING_FELT_ORD.skrevetAfAnden;
 /** Fund 6: tre tomme svar oven på eksisterende — fladen afviser før skrivningen. */
 export const RETNING_TOM_KLADDE_TEKST = "Alle tre svar er tomme — skriv mindst ét, eller fortryd.";
 
@@ -95,6 +96,10 @@ const kortEyebrow = "text-[11px] font-semibold uppercase tracking-[0.12em]";
 const fokusMoerk = "rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hb-paper focus-visible:ring-offset-2 focus-visible:ring-offset-hb-evergreen";
 const linkMoerk = cn("text-hb-paper underline-offset-4 hover:underline", fokusMoerk);
 
+/** Datoen i meta-linjen: DANSK kalenderdag (Europe/Copenhagen), ikke UTC-ISO'ens første 10 tegn (rådets fund 2/10). */
+export const retningDato = (iso: string): string => danskDato(danskKalenderdag(iso));
+
+/** Ringen er absolut og ligger i DOM'en før indholdet — alt indhold bærer `relative`, ellers males ringen OVER teksten (rådets fund 2/10). */
 const Ring = () => <span aria-hidden className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full border border-hb-sage/20" />;
 
 export const JeresRetning = ({ retning, isLoading, fejlede, onGem, kanRette, skrevetAfAnden, fornavn = null }: Props) => {
@@ -126,7 +131,7 @@ export const JeresRetning = ({ retning, isLoading, fejlede, onGem, kanRette, skr
     return (
       <section className={felt} aria-busy="true" data-retning="henter">
         <Ring />
-        <div className="animate-pulse">
+        <div className="relative animate-pulse">
           <div className="h-3 w-24 rounded bg-hb-paper/20" />
           <div className="mt-5 h-8 w-3/4 max-w-md rounded bg-hb-paper/20" />
           <div className="mt-5 space-y-2.5">
@@ -144,7 +149,7 @@ export const JeresRetning = ({ retning, isLoading, fejlede, onGem, kanRette, skr
     return (
       <section className={felt} data-retning="redigerer" aria-labelledby={`${idRod}-overskrift`}>
         <Ring />
-        <p id={`${idRod}-overskrift`} className={eyebrow}>{RETNING_ORD.overskrift}</p>
+        <p id={`${idRod}-overskrift`} className={cn("relative", eyebrow)}>{RETNING_ORD.overskrift}</p>
         <form
           noValidate
           className="relative mt-4 grid gap-4 rounded-[14px] bg-hb-surface p-4 text-hb-ink md:grid-cols-3 md:p-5"
@@ -176,8 +181,10 @@ export const JeresRetning = ({ retning, isLoading, fejlede, onGem, kanRette, skr
     return (
       <section className={felt} data-retning="fejl">
         <Ring />
-        <p className={eyebrow}>{RETNING_ORD.overskrift}</p>
-        <p className="mt-2 text-sm text-hb-sage">{RETNING_FEJL_TEKST}</p>
+        <div className="relative">
+          <p className={eyebrow}>{RETNING_ORD.overskrift}</p>
+          <p className="mt-2 text-sm text-hb-sage">{RETNING_FEJL_TEKST}</p>
+        </div>
       </section>
     );
   }
@@ -186,27 +193,29 @@ export const JeresRetning = ({ retning, isLoading, fejlede, onGem, kanRette, skr
     return (
       <section className={felt} data-retning="tom" data-retning-kan-rette={kanRette ? "1" : "0"}>
         <Ring />
-        <p className={eyebrow}>{RETNING_ORD.overskrift}</p>
-        <p className="mt-3.5 max-w-[24ch] font-editorial text-[28px] font-medium leading-[1.15] text-hb-paper [text-wrap:balance] md:text-4xl">{RETNING_ORD.spoergsmaal.lykkedes_12mdr}</p>
-        <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-hb-sage">{kanRette ? RETNING_INTRO : RETNING_IKKE_SKREVET_TEKST}</p>
-        {kanRette && (
-          <HbButton
-            type="button"
-            variant="secondary"
-            onClick={aabn}
-            // Mobil 375: feltet efterlader ~300 px — teksten må ombrydes (h-auto, whitespace-normal).
-            className="relative mt-5 h-auto min-h-10 whitespace-normal border-hb-paper/40 bg-transparent px-5 py-2 text-left text-sm text-hb-paper hover:bg-hb-paper/10 focus-visible:ring-hb-paper focus-visible:ring-offset-hb-evergreen"
-            data-retning-invitation
-          >
-            {RETNING_INVITATION}
-          </HbButton>
-        )}
+        <div className="relative">
+          <p className={eyebrow}>{RETNING_ORD.overskrift}</p>
+          <p className="mt-3.5 max-w-[24ch] font-editorial text-[28px] font-medium leading-[1.15] text-hb-paper [text-wrap:balance] md:text-4xl">{RETNING_ORD.spoergsmaal.lykkedes_12mdr}</p>
+          <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-hb-sage">{kanRette ? RETNING_INTRO : RETNING_IKKE_SKREVET_TEKST}</p>
+          {kanRette && (
+            <HbButton
+              type="button"
+              variant="secondary"
+              onClick={aabn}
+              // Mobil 375: feltet efterlader ~300 px — teksten må ombrydes (h-auto, whitespace-normal).
+              className="mt-5 h-auto min-h-10 whitespace-normal border-hb-paper/40 bg-transparent px-5 py-2 text-left text-sm text-hb-paper hover:bg-hb-paper/10 focus-visible:ring-hb-paper focus-visible:ring-offset-hb-evergreen"
+              data-retning-invitation
+            >
+              {RETNING_INVITATION}
+            </HbButton>
+          )}
+        </div>
       </section>
     );
   }
 
   // ── Udfyldt ──
-  const metaLinje = retningMeta(fornavn, retning.opdateret, danskDato);
+  const metaLinje = retningMeta(fornavn, retning.opdateret, retningDato, skrevetAfAnden);
   const alleLinjer = retningLinjer(retning.svar.lykkedes_12mdr);
   const liste = visAlt ? { linjer: alleLinjer, klippet: false } : klipRetning(alleLinjer);
   const kortTekst = (n: RetningNoegle) => (visAlt ? { tekst: retning.svar[n].trim(), klippet: false } : klipKortTekst(retning.svar[n]));
@@ -227,11 +236,10 @@ export const JeresRetning = ({ retning, isLoading, fejlede, onGem, kanRette, skr
       <div className="relative flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1.5">
         <p className={eyebrow}>{RETNING_ORD.overskrift}</p>
         <p className={meta} data-retning-meta>
-          {metaLinje && <span>{metaLinje}</span>}
-          {skrevetAfAnden && <span data-retning-skrevet-af-anden>{metaLinje ? " · " : ""}{RETNING_SKREVET_AF_ANDEN}</span>}
+          {metaLinje && <span data-retning-skrevet-af-anden={skrevetAfAnden ? "" : undefined}>{metaLinje}</span>}
           {kanRette && (
             <>
-              {(metaLinje || skrevetAfAnden) && " · "}
+              {metaLinje && " · "}
               <button type="button" onClick={aabn} className={linkMoerk} data-retning-ret>{RETNING_RET}</button>
             </>
           )}

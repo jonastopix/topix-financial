@@ -58,7 +58,10 @@ export const venterPaaJaTekst = (antal: number): string => (antal === 1 ? "1 ven
  * hovedLinje OG dineMaal.graenseTekst, «5 af 3 aktive mål» — Rallysupport):
  * /milestones tegner KUN denne. Over grænsen (flere BEKRÆFTEDE end tre — mål
  * fra før grænsen) siger den: «5 aktive mål — flere end de 3, der er plads
- * til. Parkér et for at få plads.» med «· N venter på jeres ja» efter tallet;
+ * til. Parkér eller markér nogle som nået, så I står med højst 3.» med «· N
+ * venter på jeres ja» efter tallet (samme ord som dineMaal.graenseTekst —
+ * «Parkér et» var falsk for N > 3: ét parkeret mål giver ikke plads; rådets
+ * fund 2/10);
  * aldrig «5 af 3». Fylder de ubekræftede pladserne op (bekræftede < 3), er
  * svaret vejen til plads (TAG_STILLING); er de bekræftede tre, er der «ingen
  * plads ledig», uanset hvor mange der venter.
@@ -66,7 +69,7 @@ export const venterPaaJaTekst = (antal: number): string => (antal === 1 ? "1 ven
 export function hovedLinje(antalBekraeftede: number, antalUbekraeftede = 0): string {
   const venter = antalUbekraeftede > 0 ? ` · ${venterPaaJaTekst(antalUbekraeftede)}` : "";
   if (antalBekraeftede > MAX_AKTIVE_MAAL) {
-    return `${antalBekraeftede} aktive mål${venter} — flere end de ${MAX_AKTIVE_MAAL}, der er plads til. Parkér et for at få plads.`;
+    return `${antalBekraeftede} aktive mål${venter} — flere end de ${MAX_AKTIVE_MAAL}, der er plads til. Parkér eller markér nogle som nået, så I står med højst ${MAX_AKTIVE_MAAL}.`;
   }
   const ingen = antalUbekraeftede > 0 ? INGEN_BEKRAEFTEDE_MAAL_TEKST : INGEN_MAAL_TEKST;
   const maal = antalBekraeftede === 0 ? ingen : antalBekraeftede === 1 ? "1 mål for de næste 12 måneder" : `${antalBekraeftede} mål for de næste 12 måneder`;

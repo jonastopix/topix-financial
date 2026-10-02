@@ -149,6 +149,8 @@ export const RETNING_FELT_ORD = {
   ikkeSvaret: "Ikke svaret endnu",
   skrevet: "Skrevet",
   skrevetAf: "Skrevet af",
+  /** Fund 14: rækken tilhører en anden bruger end den, der ser siden (en medejer). */
+  skrevetAfAnden: "Skrevet af en anden i virksomheden",
 } as const;
 
 /** Flere linjer end dette, eller flere tegn i alt, klippes med «Læs alt» (listen). */
@@ -215,14 +217,39 @@ export function klipKortTekst(tekst: string, maksTegn = RETNING_KORT_MAKS_TEGN):
  * når fladen har det uden et nyt opslag (den indloggedes egen profil, når rækken
  * er dennes; ingen ny RLS); ellers «Skrevet 12. sep. 2026». Uden dato: «Skrevet
  * af Mette» / null. `opdateret` er handouts.updated_at (ISO); `formatterDato`
- * gives ind (fladen giver skridtForslag.danskDato — ingen Date her).
+ * gives ind (fladen giver retningDato: dansk kalenderdag → skridtForslag.danskDato).
+ *
+ * `skrevetAfAnden` (fund 14, en medejers række): «Skrevet af en anden i
+ * virksomheden · 12. sep. 2026» — ÉN gang «Skrevet» (rådets fund 2/10: før stod
+ * «Skrevet 12. sep. 2026 · Skrevet af en anden i virksomheden»). Fornavnet
+ * gives aldrig for en andens række (kalderen har det kun for egen), men
+ * vinder ikke over flaget, hvis det skulle komme.
  */
-export function retningMeta(fornavn: string | null, opdateret: string | null, formatterDato: (iso: string) => string): string | null {
+export function retningMeta(fornavn: string | null, opdateret: string | null, formatterDato: (iso: string) => string, skrevetAfAnden = false): string | null {
   const dato = opdateret ? formatterDato(opdateret) : null;
   const navn = fornavn?.trim() || null;
-  const af = navn ? `${RETNING_FELT_ORD.skrevetAf} ${navn}` : null;
+  const af = skrevetAfAnden ? RETNING_FELT_ORD.skrevetAfAnden : navn ? `${RETNING_FELT_ORD.skrevetAf} ${navn}` : null;
   if (af && dato) return `${af} · ${dato}`;
   if (af) return af;
   if (dato) return `${RETNING_FELT_ORD.skrevet} ${dato}`;
   return null;
 }
+
+/**
+ * Kalenderdagen for et tidsstempel i DANSK tid som «YYYY-MM-DD» (rådets fund
+ * 2/10): handouts.updated_at er UTC; de første 10 tegn af ISO-strengen er
+ * UTC-datoen, som er GÅRSDAGEN for alt skrevet mellem 00:00 og 02:00 dansk
+ * sommertid (01:00 vintertid). Regnestykket: 2026-09-11T22:30Z + 2 t (CEST) =
+ * 12/9 00:30 → «2026-09-12»; 2026-12-31T23:30Z + 1 t (CET) = 1/1 2027 00:30 →
+ * «2027-01-01». Intl med Europe/Copenhagen (en-CA giver netop formen) — ikke
+ * browserens zone. Ulæseligt tidsstempel → strengen uændret (danskDato viser
+ * den så som den er).
+ */
+export function danskKalenderdag(iso: string): string {
+  const t = new Date(iso);
+  if (Number.isNaN(t.getTime())) return iso;
+  return new Intl.DateTimeFormat("en-CA", { timeZone: RETNING_TIDSZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(t);
+}
+
+/** Tidszonen for retningens dato — samme som fristernes (skridtForslag.FRIST_TIDSZONE). */
+export const RETNING_TIDSZONE = "Europe/Copenhagen";

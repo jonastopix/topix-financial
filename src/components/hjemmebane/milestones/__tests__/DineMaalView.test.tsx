@@ -390,6 +390,9 @@ describe("DineMaalView — siden oppefra", () => {
     expect(retning).toBeLessThan(venter);
     expect(venter).toBeLessThan(maalene);
     expect(maalene).toBeLessThan(rejsen);
+    // Ankeret (rådets fund 2/10): andre flader peger på #venter — præcis ét på siden.
+    expect(document.querySelectorAll("#venter")).toHaveLength(1);
+    expect(document.getElementById("venter")!.hasAttribute("data-bekraeft-kort")).toBe(true);
     // Ét hoved: aldrig to linjer — dom.graenseTekst tegnes ikke på /milestones.
     expect(document.querySelectorAll("[data-hoved-linje]")).toHaveLength(1);
     expect(document.querySelector("[data-graense-tekst]")).toBeNull();
@@ -403,7 +406,7 @@ describe("DineMaalView — siden oppefra", () => {
     vis();
     const linjer = document.querySelectorAll("[data-hoved-linje]");
     expect(linjer).toHaveLength(1);
-    expect(linjer[0].textContent).toBe("5 aktive mål · 6 venter på jeres ja — flere end de 3, der er plads til. Parkér et for at få plads.");
+    expect(linjer[0].textContent).toBe("5 aktive mål · 6 venter på jeres ja — flere end de 3, der er plads til. Parkér eller markér nogle som nået, så I står med højst 3.");
     expect(linjer[0].className).not.toMatch(/text-hb-rust/);
     expect(document.querySelector("[data-graense-tekst]")).toBeNull();
     expect(document.body.textContent).not.toContain("5 af 3");
@@ -480,7 +483,7 @@ describe("DineMaalView — rådets fund 3, 6 og 14", () => {
     tilstand.retning = udfyldtAfAnden();
     vis();
     expect(document.querySelector("[data-retning-skrevet-af-anden]")!.textContent).toContain(RETNING_SKREVET_AF_ANDEN);
-    expect(document.querySelector("[data-retning-meta]")!.textContent).toBe(`Skrevet 1. sep. 2026 · ${RETNING_SKREVET_AF_ANDEN} · Ret`);
+    expect(document.querySelector("[data-retning-meta]")!.textContent).toBe(`${RETNING_SKREVET_AF_ANDEN} · 1. sep. 2026 · Ret`);
     expect(document.querySelector("[data-retning-meta]")!.textContent).not.toContain("Mette");
   });
 

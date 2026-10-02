@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { handoutConfigs } from "@/lib/handoutConfig";
 import {
+  danskKalenderdag,
   klipKortTekst,
   klipRetning,
   RETNING_FELT_ORD,
@@ -172,6 +173,19 @@ describe("retningMeta", () => {
     expect(retningMeta("  ", "2026-09-12T10:00:00Z", dato)).toBe("Skrevet D(2026-09-12)");
     expect(retningMeta("Mette", null, dato)).toBe("Skrevet af Mette");
     expect(retningMeta(null, null, dato)).toBeNull();
+  });
+  it("en medejers række: «Skrevet af en anden i virksomheden · <dato>» — «Skrevet» ÉN gang (rådets fund 2/10)", () => {
+    expect(retningMeta(null, "2026-09-12T10:00:00Z", dato, true)).toBe("Skrevet af en anden i virksomheden · D(2026-09-12)");
+    expect(retningMeta(null, null, dato, true)).toBe("Skrevet af en anden i virksomheden");
+    expect(retningMeta("Mette", "2026-09-12T10:00:00Z", dato, true)).toBe("Skrevet af en anden i virksomheden · D(2026-09-12)");
+  });
+  it("danskKalenderdag: Europe/Copenhagen omkring midnat, sommer- og vintertid; ulæseligt → uændret", () => {
+    expect(danskKalenderdag("2026-09-11T22:30:00Z")).toBe("2026-09-12");
+    expect(danskKalenderdag("2026-09-11T21:59:59Z")).toBe("2026-09-11");
+    expect(danskKalenderdag("2026-12-31T23:00:00Z")).toBe("2027-01-01");
+    expect(danskKalenderdag("2026-12-31T22:59:59Z")).toBe("2026-12-31");
+    expect(danskKalenderdag("2026-09-12T10:00:00+00:00")).toBe("2026-09-12");
+    expect(danskKalenderdag("ikke en dato")).toBe("ikke en dato");
   });
   it("ordene står ét sted — kortenes overskrifter og foden", () => {
     expect(RETNING_FELT_ORD.hverdagen).toBe("Hverdagen, vi bygger");

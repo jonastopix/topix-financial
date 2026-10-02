@@ -437,7 +437,7 @@ til» OG `dom.graenseTekst`: «5 af 3 aktive mål · 6 venter på jeres ja — S
 /milestones KUN `hovedLinje`, i neutral farve (status, ikke alarm), og `graenseTekst` tegnes ikke
 dér (forsidens «Din plan» bærer den stadig). `hovedLinje` (`dineMaalFlade.ts`) over grænsen — flere
 BEKRÆFTEDE end tre, mål fra før grænsen: «5 aktive mål · 6 venter på jeres ja — flere end de 3, der
-er plads til. Parkér et for at få plads.» Fylder de ubekræftede pladserne op (bekræftede < 3), er
+er plads til. Parkér eller markér nogle som nået, så I står med højst 3.» (rettet 2/10, rådets fund: «Parkér et for at få plads» var falsk for N > 3 — ét parkeret mål giver ikke plads; samme ord som `graenseTekst`) Fylder de ubekræftede pladserne op (bekræftede < 3), er
 svaret vejen til plads (`TAG_STILLING_TEKST`); er de bekræftede tre, «ingen plads ledig», uanset hvor
 mange der venter. **Aldrig «N af 3» med N > 3** — heller ikke i `graenseTekst` (`dineMaal.ts`), der
 nu dømmer «flere bekræftede end tre» FØRST (før: «5 af 3 aktive mål …») og siger «det er det
@@ -474,6 +474,22 @@ mindre», tom tilstand) og `DineMaalView.test.tsx` (hierarkiet; over grænsen 5 
 uden «5 af 3»; eget fornavn; medejers række; rådgiveren uden «Skrevet af en anden»). Værnet
 `dineMaalRetning.guard.test.ts` (seks domme, hver med mod-prøve). De gamle værn (`dineMaal.guard`,
 `dineMaalSkive3.guard` dom 1 på `graenseTekst`-linjen i `dineMaal.ts`) står urørt.
+
+**Rådets fund 2/10 (rettet samme dag, før merge):**
+1. *Hovedlinjen over grænsen løj for N > 3* — «Parkér et for at få plads» giver ikke plads, når fem
+   er bekræftede. Nu: «… flere end de 3, der er plads til. Parkér eller markér nogle som nået, så I
+   står med højst 3.» — samme ord som `graenseTekst`. Værnet dom 2 og `dineMaalFlade.test` fulgt med.
+2. *Datoen var UTC* — `danskDato` tog ISO'ens første 10 tegn, så en retning skrevet 00:00–02:00
+   dansk sommertid stod med gårsdagens dato. Nu `retningDato` = `danskDato(danskKalenderdag(iso))`
+   (`maalRetning.ts`, Intl i Europe/Copenhagen; regnestykket står ved funktionen). Prøvet omkring
+   midnat i sommer- og vintertid.
+3. *«Skrevet» to gange* for en medejers række («Skrevet 12. sep. 2026 · Skrevet af en anden i
+   virksomheden»). Nu bærer `retningMeta` flaget: «Skrevet af en anden i virksomheden · 12. sep. 2026».
+4. *Ringen lå over teksten* i tom/fejl/henter (absolut og før indholdet i DOM'en; indholdet var ikke
+   positioneret). Indholdet bærer nu `relative` i alle tilstande; rendertesten dømmer hvert barn
+   efter ringen.
+5. *Ankeret* `id="venter"` (`BEKRAEFT_ANKER`, `scroll-mt-24`) på `BekraeftMaalKort`, så andre
+   flader kan pege på «venter på jeres ja» (`/milestones#venter`). Ét kort pr. side.
 
 ## Skive 3 — Jonas' svar 1/10 (bygget 2/10-2026, branch `feat/dine-maal-skive3`)
 

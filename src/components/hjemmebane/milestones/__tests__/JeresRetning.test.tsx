@@ -4,7 +4,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { RETNING_FELT_ORD, RETNING_MAKS_LINJER, RETNING_ORD, retningFraHandout } from "@/lib/hjemmebane/maalRetning";
-import { JeresRetning, RETNING_FEJL_TEKST, RETNING_GEM, RETNING_IKKE_SKREVET_TEKST, RETNING_INVITATION, RETNING_RET, RETNING_SKREVET_AF_ANDEN, RETNING_TOM_KLADDE_TEKST } from "../JeresRetning";
+import { JeresRetning, retningDato, RETNING_FEJL_TEKST, RETNING_GEM, RETNING_IKKE_SKREVET_TEKST, RETNING_INVITATION, RETNING_RET, RETNING_SKREVET_AF_ANDEN, RETNING_TOM_KLADDE_TEKST } from "../JeresRetning";
 
 afterEach(cleanup);
 
@@ -168,6 +168,48 @@ describe("JeresRetning — feltet (2/10-2026: listen, de to kort, meta-linjen, �
     expect(screen.getByRole("button", { name: RETNING_INVITATION })).toBeInTheDocument();
     unmount();
     render(<JeresRetning retning={medListe} isLoading={false} fejlede={false} onGem={vi.fn(async () => null)} kanRette skrevetAfAnden />);
-    expect(document.querySelector("[data-retning-meta]")!.textContent).toBe(`Skrevet 12. sep. 2026 · ${RETNING_SKREVET_AF_ANDEN} · Ret`);
+    expect(document.querySelector("[data-retning-meta]")!.textContent).toBe(`${RETNING_SKREVET_AF_ANDEN} · 12. sep. 2026 · Ret`);
+    // «Skrevet» står ÉN gang (rådets fund 2/10).
+    expect(document.querySelector("[data-retning-meta]")!.textContent!.match(/Skrevet/g)).toHaveLength(1);
+    expect(document.querySelector("[data-retning-skrevet-af-anden]")!.textContent).toBe(`${RETNING_SKREVET_AF_ANDEN} · 12. sep. 2026`);
+  });
+});
+
+describe("JeresRetning — rådets fund 2/10", () => {
+  const retningMed = (updated_at: string) =>
+    retningFraHandout({ id: "h1", user_id: "u1", module: "overordnet", updated_at, responses: { lykkedes_12mdr: "Et mål", anderledes_hverdag: "", konsekvenser_ingen_aendring: "" } });
+
+  it("datoen er DANSK kalenderdag omkring midnat — ikke UTC-ISO'ens første 10 tegn", () => {
+    // Sommertid (CEST, +2): 22:30Z den 11/9 = 00:30 dansk den 12/9.
+    expect(retningDato("2026-09-11T22:30:00Z")).toBe("12. sep. 2026");
+    // 21:59Z den 12/9 = 23:59 dansk — stadig den 12/9.
+    expect(retningDato("2026-09-12T21:59:00Z")).toBe("12. sep. 2026");
+    // 22:00Z den 12/9 = 00:00 dansk den 13/9.
+    expect(retningDato("2026-09-12T22:00:00Z")).toBe("13. sep. 2026");
+    // Vintertid (CET, +1): 23:30Z nytårsaften = 00:30 den 1/1 2027.
+    expect(retningDato("2026-12-31T23:30:00Z")).toBe("1. jan. 2027");
+    expect(retningDato("2026-12-31T22:59:00Z")).toBe("31. dec. 2026");
+    render(<JeresRetning retning={retningMed("2026-09-11T22:30:00Z")} isLoading={false} fejlede={false} onGem={vi.fn(async () => null)} kanRette={false} skrevetAfAnden={false} />);
+    expect(document.querySelector("[data-retning-meta]")!.textContent).toBe("Skrevet 12. sep. 2026");
+  });
+
+  it("ringen ligger aldrig over teksten: i henter/fejl/tom/udfyldt bærer alt indhold efter ringen `relative`", () => {
+    const tjek = () => {
+      const felt = document.querySelector("[data-retning]")!;
+      const boern = Array.from(felt.children);
+      expect(boern[0].getAttribute("aria-hidden")).not.toBeNull();
+      for (const b of boern.slice(1)) expect(b.className).toMatch(/(^|\s)relative(\s|$)/);
+    };
+    const tilstande = [
+      <JeresRetning key="h" retning={null} isLoading fejlede={false} onGem={vi.fn(async () => null)} kanRette skrevetAfAnden={false} />,
+      <JeresRetning key="f" retning={null} isLoading={false} fejlede onGem={vi.fn(async () => null)} kanRette skrevetAfAnden={false} />,
+      <JeresRetning key="t" retning={tom} isLoading={false} fejlede={false} onGem={vi.fn(async () => null)} kanRette skrevetAfAnden={false} />,
+      <JeresRetning key="u" retning={udfyldt} isLoading={false} fejlede={false} onGem={vi.fn(async () => null)} kanRette skrevetAfAnden={false} />,
+    ];
+    for (const t of tilstande) {
+      const { unmount } = render(t);
+      tjek();
+      unmount();
+    }
   });
 });
