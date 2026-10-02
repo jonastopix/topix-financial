@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { erNytMedlem } from "@/lib/medlemsOverblik";
+import { retTilGode } from "@/lib/sessionRet";
 
 interface EditCompanyDialogProps {
   open: boolean;
@@ -66,9 +67,10 @@ const EMPTY_FORM: CompanyEditForm = {
 const EditCompanyDialog = ({ open, onOpenChange, companyId, onSaved }: EditCompanyDialogProps) => {
   const [form, setForm] = useState<CompanyEditForm>(EMPTY_FORM);
   // Bevar den hentede intro-timestamp, saa en almindelig gem aldrig flytter "hvornaar brugt".
-  const [originalIntroAt, setOriginalIntroAt] = useState<string | null>(null);
-  const [originalJonasAt, setOriginalJonasAt] = useState<string | null>(null);
-  const [originalJonasTilbudtAt, setOriginalJonasTilbudtAt] = useState<string | null>(null);
+  // Fluebenenes STARTTILSTAND (2/10, CTO-rådets fund 3–4): sessions-kolonnerne skrives KUN, når rådgiveren
+  // har ændret fluebenet. Før skrev hver gem den læste værdi tilbage — en booking mellem åbning og gem blev
+  // overskrevet med den gamle «brugt» (≤ tilbuddet), og retten var til gode igen.
+  const [startFlueben, setStartFlueben] = useState<{ intro: boolean; jonas: boolean; tilbudt: boolean }>({ intro: false, jonas: false, tilbudt: false });
   // Første company_members.created_at — samme «ny»-port som forsiden (erNytMedlem).
   // null (ingen medlemmer, eller hentningen fejlede) = ikke ny → fluebenet vises.
   const [medlemSiden, setMedlemSiden] = useState<string | null>(null);
@@ -103,9 +105,14 @@ const EditCompanyDialog = ({ open, onOpenChange, companyId, onSaved }: EditCompa
         return;
       }
       const c = data as any;
-      setOriginalIntroAt(c.intro_session_used_at ?? null);
-      setOriginalJonasAt(c.jonas_session_used_at ?? null);
-      setOriginalJonasTilbudtAt(c.jonas_session_tilbudt_at ?? null);
+      // «Brugt» for Jonas er DEN ENE REGEL (lib/sessionRet): et tilbud overtrumfer en ældre «brugt» — fluebenet
+      // står ikke afkrydset for en tilbudt, der endnu ikke har booket.
+      const flueben = {
+        intro: !retTilGode("morten", c),
+        jonas: !retTilGode("jonas", c),
+        tilbudt: !!c.jonas_session_tilbudt_at,
+      };
+      setStartFlueben(flueben);
       setForm({
         contract_start_date: c.contract_start_date?.slice(0, 10) || "",
         contract_end_date: c.contract_end_date?.slice(0, 10) || "",
@@ -114,9 +121,9 @@ const EditCompanyDialog = ({ open, onOpenChange, companyId, onSaved }: EditCompa
         industry_label: c.industry_label || "",
         website: c.website || "",
         slack_channel: c.slack_channel || "",
-        intro_session_used: !!c.intro_session_used_at,
-        jonas_session_used: !!c.jonas_session_used_at,
-        jonas_session_tilbudt: !!c.jonas_session_tilbudt_at,
+        intro_session_used: flueben.intro,
+        jonas_session_used: flueben.jonas,
+        jonas_session_tilbudt: flueben.tilbudt,
         gaest: c.vis_i_netvaerk === false,
       });
       setLoading(false);
@@ -144,25 +151,13 @@ const EditCompanyDialog = ({ open, onOpenChange, companyId, onSaved }: EditCompa
         slack_channel: form.slack_channel || null,
         vis_i_netvaerk: !form.gaest,
       };
-      // Gratis intro-session: map afkrydsning til timestamp, men bevar et eksisterende
-      // tidspunkt saa en almindelig gem aldrig overskriver "hvornaar brugt".
-      if (form.intro_session_used) {
-        updates.intro_session_used_at = originalIntroAt || new Date().toISOString();
-      } else {
-        updates.intro_session_used_at = null;
-      }
-      // Jonas' inkluderede session: samme moenster paa soesterkolonnen.
-      if (form.jonas_session_used) {
-        updates.jonas_session_used_at = originalJonasAt || new Date().toISOString();
-      } else {
-        updates.jonas_session_used_at = null;
-      }
-      // «Tilbudt» (1/10): samme moenster — et eksisterende tidspunkt bevares.
-      if (form.jonas_session_tilbudt) {
-        updates.jonas_session_tilbudt_at = originalJonasTilbudtAt || new Date().toISOString();
-      } else {
-        updates.jonas_session_tilbudt_at = null;
-      }
+      // Sessions-fluebenene skrives KUN ved ÆNDRING (startFlueben ovenfor). Afkrydset nu → tidspunktet nu (for
+      // Jonas efter et tilbud: nyere end tilbuddet = brugt, lib/sessionRet); fjernet → null (til gode). Et nyt
+      // «tilbudt» er et NYT tilbud (nyt tidspunkt) — det overtrumfer en ældre «brugt» med vilje.
+      const nuIso = new Date().toISOString();
+      if (form.intro_session_used !== startFlueben.intro) updates.intro_session_used_at = form.intro_session_used ? nuIso : null;
+      if (form.jonas_session_used !== startFlueben.jonas) updates.jonas_session_used_at = form.jonas_session_used ? nuIso : null;
+      if (form.jonas_session_tilbudt !== startFlueben.tilbudt) updates.jonas_session_tilbudt_at = form.jonas_session_tilbudt ? nuIso : null;
       const { error } = await (supabase.from("companies").update(updates as any).eq("id", companyId) as any);
       if (error) throw error;
       toast.success("Virksomhedsdata gemt");

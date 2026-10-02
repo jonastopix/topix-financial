@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { retBrugtAt } from "@/lib/sessionRet";
 import { ResponsiveContainer, AreaChart, Area, Line, LineChart, XAxis, YAxis, Tooltip as RechartsTooltip, CartesianGrid } from "recharts";
 import DeliveryOverview from "@/components/DeliveryOverview";
 import { Link, useSearchParams } from "react-router-dom";
@@ -1490,15 +1491,17 @@ const IntroSessionLinje = ({ companyId }: { companyId: string }) => {
           .order("created_at", { ascending: false }),
         (supabase as any)
           .from("companies")
-          .select("intro_session_used_at, jonas_session_used_at")
+          .select("intro_session_used_at, jonas_session_used_at, jonas_session_tilbudt_at")
           .eq("id", companyId)
-          .maybeSingle() as Promise<{ data: { intro_session_used_at: string | null; jonas_session_used_at: string | null } | null }>,
+          .maybeSingle() as Promise<{ data: { intro_session_used_at: string | null; jonas_session_used_at: string | null; jonas_session_tilbudt_at: string | null } | null }>,
       ]);
       if (bookingRes.error) throw new Error(bookingRes.error.message);
       return {
         raekker: bookingRes.data ?? [],
         retBrugtAt: companyRes.data?.intro_session_used_at ?? null,
-        jonasRetBrugtAt: companyRes.data?.jonas_session_used_at ?? null,
+        // DEN ENE REGEL (lib/sessionRet, 2/10): et tilbud overtrumfer en ældre «brugt» — ellers stod «Retten er
+        // brugt 13/9 — ingen booking registreret» hos de fem tilbudte (CTO-rådets fund 8).
+        jonasRetBrugtAt: companyRes.data ? retBrugtAt("jonas", companyRes.data) : null,
       };
     },
     staleTime: 60_000,

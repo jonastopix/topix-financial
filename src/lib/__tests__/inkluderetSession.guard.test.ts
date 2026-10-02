@@ -70,15 +70,28 @@ describe("inkluderetSession.guard — 2. bookingvejen er én function for begge 
     expect(kilde).toMatch(/if \(a === "jonas" \|\| a === "morten"\) return a;/);
   });
 
-  it("gaten er atomisk og ens for begge: UPDATE companies SET <ret> WHERE <ret> IS NULL, 409 ved nul rækker", () => {
+  it("gaten er DEN ENE REGEL (_shared/sessionRet, 2/10) og atomisk: compare-and-set på den læste værdi, 409 ved nul rækker", () => {
+    // Retten dømmes af den spejlede regel FØR mutationen (et tilbud overtrumfer en ældre «brugt»).
+    expect(kilde).toContain('import { retTilGode } from "../_shared/sessionRet.ts";');
+    expect(kilde).toContain("if (!retTilGode(raadgiver, raekke))");
     expect(kilde).toContain(".update({ [spor.ret]: ts })");
-    expect(kilde).toContain(".is(spor.ret, null)");
+    // Compare-and-set: IS NULL når den læste værdi er null, ellers = den læste værdi.
+    expect(kilde).toContain("gate = foer === null ? gate.is(spor.ret, null) : gate.eq(spor.ret, foer);");
+    // Jonas' gate låser også tilbuddet til den læste værdi (CTO-rådets fund 2).
+    expect(kilde).toContain('gate = tilbudt === null ? gate.is("jonas_session_tilbudt_at", null) : gate.eq("jonas_session_tilbudt_at", tilbudt);');
     expect(kilde).toMatch(/if \(!claimed \|\| claimed\.length === 0\) \{\s*return json\(409/);
-    // Rollback nulstiller KUN vores egen markering (samme ts) — på samme kolonne.
-    expect(kilde).toContain(".update({ [spor.ret]: null })");
+    // Rollback sætter KUN vores egen markering (samme ts) tilbage — til den LÆSTE værdi, aldrig blindt null.
+    expect(kilde).toContain(".update({ [spor.ret]: foer })");
     expect(kilde).toContain(".eq(spor.ret, ts)");
+    expect(kilde).not.toContain(".update({ [spor.ret]: null })");
     // Ingen hårdkodet kolonne tilbage i mutationerne.
     expect(kilde).not.toMatch(/update\(\{\s*intro_session_used_at/);
+  });
+
+  it("beviset for udrulningen: x-session-regel på hvert svar, også auth-afvisningen og preflight", () => {
+    expect(kilde).toContain('const REGEL_HEADER = { "x-session-regel": "skive-1" };');
+    expect(kilde).toContain("if (auth instanceof Response) return medRegelHeader(auth);");
+    expect(kilde).toContain("return new Response(null, { headers: { ...corsHeaders, ...REGEL_HEADER } });");
   });
 
   it("linket bærer rækkens id (salesforce_uuid + utm_content), og rækken oprettes med det faste id, rådgiveren og amount_dkk 0", () => {
@@ -123,7 +136,7 @@ describe("inkluderetSession.guard — 4. fladen: begge rettigheder ét sted, tre
     const kilde = laes(FLADE);
     expect(kilde).toContain("afgoerBookSession(");
     expect(kilde).not.toContain("afgoerMortenTilstand(");
-    expect(kilde).toMatch(/select\("intro_session_used_at, jonas_session_used_at, contract_end_date"\)/);
+    expect(kilde).toMatch(/select\("intro_session_used_at, jonas_session_used_at, jonas_session_tilbudt_at, contract_end_date"\)/);
     expect(kilde).toMatch(/invoke\("create-free-intro-booking", \{\s*body: \{ advisor \},/);
     // De inkluderede rækker hentes på amount_dkk = 0 for begge rådgivere — ikke på advisor='morten'.
     expect(kilde).toContain('.eq("amount_dkk", 0)');
@@ -171,26 +184,30 @@ describe("inkluderetSession.guard — 4. fladen: begge rettigheder ét sted, tre
     expect(virk).toContain('"jonas_koebt"');
     expect(virk).toContain('"jonas_inkluderet"');
     expect(virk).toContain('"morten_inkluderet"');
-    expect(virk).toMatch(/select\("intro_session_used_at, jonas_session_used_at"\)/);
+    expect(virk).toMatch(/select\("intro_session_used_at, jonas_session_used_at, jonas_session_tilbudt_at"\)/);
+    // Jonas' «brugt» er den ene regel (2/10) — aldrig kolonnen rå.
+    expect(virk).toContain('jonasRetBrugtAt: companyRes.data ? retBrugtAt("jonas", companyRes.data) : null,');
     expect(virk).not.toContain('r.advisor === "morten"');
   });
 
-  it("admin-dialogen skriver jonas_session_used_at med samme bevar-tidspunktet-mønster som Mortens", () => {
+  // 2/10-2026 (CTO-rådets fund 3–4): dialogen skriver sessions-kolonnerne KUN ved en ÆNDRING af fluebenet —
+  // før skrev hver gem den læste værdi tilbage og kunne overskrive en booking, der skete imens.
+  it("admin-dialogen skriver sessions-kolonnerne kun ved ændring, og fluebenet «brugt» er den ene regel", () => {
     const admin = laes(ADMIN);
-    expect(admin).toContain("updates.jonas_session_used_at = originalJonasAt || new Date().toISOString();");
-    expect(admin).toContain("updates.jonas_session_used_at = null;");
-    expect(admin).toContain("updates.intro_session_used_at = originalIntroAt || new Date().toISOString();");
+    expect(admin).toContain("if (form.intro_session_used !== startFlueben.intro) updates.intro_session_used_at = form.intro_session_used ? nuIso : null;");
+    expect(admin).toContain("if (form.jonas_session_used !== startFlueben.jonas) updates.jonas_session_used_at = form.jonas_session_used ? nuIso : null;");
+    expect(admin).toContain('jonas: !retTilGode("jonas", c),');
+    expect(admin).not.toContain("originalJonasAt");
   });
 
   // 1/10-2026 (ANLA GLAS A/S; Jonas 10:35 «ja tilbudt»; migration 20261001110000):
   // et ældre medlem kan TILBYDES Jonas-sessionen — så tæller den i «Mangler at booke».
-  it("admin-dialogen har «tilbudt» over «brugt», skriver jonas_session_tilbudt_at med bevar-mønstret og viser det kun for ældre medlemmer", () => {
+  it("admin-dialogen har «tilbudt» over «brugt», skriver jonas_session_tilbudt_at ved ændring og viser det kun for ældre medlemmer", () => {
     const admin = laes(ADMIN);
     expect(admin).toContain("Session med Jonas · tilbudt (ældre medlem)");
     expect(admin).toContain("Kun for medlemmer fra før 14/9 — for nyere er sessionen altid med.");
     expect(admin.indexOf("Session med Jonas · tilbudt (ældre medlem)")).toBeLessThan(admin.indexOf("Session med Jonas · inkluderet — brugt"));
-    expect(admin).toContain("updates.jonas_session_tilbudt_at = originalJonasTilbudtAt || new Date().toISOString();");
-    expect(admin).toContain("updates.jonas_session_tilbudt_at = null;");
+    expect(admin).toContain("if (form.jonas_session_tilbudt !== startFlueben.tilbudt) updates.jonas_session_tilbudt_at = form.jonas_session_tilbudt ? nuIso : null;");
     expect(admin).toMatch(/select\("[^"]*\bjonas_session_tilbudt_at\b[^"]*"\)/);
     // Samme «ny»-port som forsiden — ingen egen datogrænse i dialogen.
     expect(admin).toContain("const visTilbudt = !erNytMedlem(medlemSiden) || form.jonas_session_tilbudt;");
