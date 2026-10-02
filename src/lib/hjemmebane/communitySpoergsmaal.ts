@@ -70,6 +70,8 @@ export const SPOERGSMAAL_EYEBROW = "Spørgsmål fra rådgiverne";
 export const SPOERGSMAAL_TAG = "Spørgsmål";
 export const SPOERGSMAAL_UNDERLINJE = "Et svar kan være én linje.";
 export const SPOERGSMAAL_SVAR_KNAP = "Svar";
+/** Gæstens knap (2/10, læser, skriver ikke): tråden kan læses, ikke besvares. */
+export const SPOERGSMAAL_LAES_KNAP = "Læs tråden";
 export const SPOERGSMAAL_FOLDET_TEKST = "du har svaret";
 export const MARKER_LABEL = "Markér som Spørgsmål";
 export const MARKER_HJAELP = "Ligger øverst i feedet, indtil I fjerner markeringen. Højst ét ad gangen — en ny markering afløser den gamle.";

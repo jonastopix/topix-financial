@@ -6,6 +6,7 @@ import {
   SPOERGSMAAL_EYEBROW,
   SPOERGSMAAL_FOLDET_TEKST,
   SPOERGSMAAL_SVAR_KNAP,
+  SPOERGSMAAL_LAES_KNAP,
   SPOERGSMAAL_TAG,
   SPOERGSMAAL_UNDERLINJE,
   harSvaretTekst,
@@ -30,12 +31,15 @@ export const SpoergsmaalKort = ({
   foldet,
   onFjern,
   fjerner,
+  kanSvare = true,
 }: {
   traad: CommunityTraad;
   foldet: boolean;
   /** Kun rådgivere: fjern markeringen. Udeladt = ingen knap. */
   onFjern?: () => void;
   fjerner?: boolean;
+  /** Gæsten (2/10, læser, skriver ikke): false → knappen hedder «Læs tråden», ikke «Svar». */
+  kanSvare?: boolean;
 }) => {
   const sti = `/community/${traad.id}`;
   if (foldet) {
@@ -76,7 +80,7 @@ export const SpoergsmaalKort = ({
             to={sti}
             className="ml-auto inline-flex h-10 items-center justify-center rounded-full bg-hb-evergreen px-5 text-sm font-medium text-white transition-colors hover:bg-hb-evergreen/90"
           >
-            {SPOERGSMAAL_SVAR_KNAP}
+            {kanSvare ? SPOERGSMAAL_SVAR_KNAP : SPOERGSMAAL_LAES_KNAP}
           </Link>
         </div>
         {onFjern && (

@@ -371,6 +371,7 @@ export const CommunityView = () => {
           foldet={delt.foldet}
           onFjern={kanMarkere ? () => markerMutation.mutate({ traadId: delt.spoergsmaal!.id, markeret: false }) : undefined}
           fjerner={markerMutation.isPending}
+          kanSvare={visComposer(gaest)}
         />
       )}
       <HbSection eyebrow="Fællesskab" hairline className="min-w-0">

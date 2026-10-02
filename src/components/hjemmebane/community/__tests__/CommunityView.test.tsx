@@ -224,6 +224,14 @@ const profil = (over: Partial<Record<string, unknown>> = {}) => ({
 });
 
 describe("Community-feedet — rådgivernes «Spørgsmål» øverst (2/10)", () => {
+  it("gæsten (2/10, læser, skriver ikke): kortet står, men knappen hedder «Læs tråden» — aldrig «Svar»", async () => {
+    gaestMock.gaest = true;
+    api.hentFeed.mockResolvedValue([raadgiverTraad(), traad({ seneste_aktivitet_at: "2026-10-01T07:30:00Z" })]);
+    vis();
+    const kort = (await screen.findByText("Spørgsmål fra rådgiverne")).closest("section")!;
+    expect(within(kort).getByRole("link", { name: "Læs tråden" })).toHaveAttribute("href", "/community/q1");
+    expect(within(kort).queryByRole("link", { name: "Svar" })).toBeNull();
+  });
   it("det markerede opslag står ØVERST i sit eget kort, uden for strømmen — strømmen bærer kun det andet opslag", async () => {
     api.hentFeed.mockResolvedValue([raadgiverTraad(), traad({ seneste_aktivitet_at: "2026-10-01T07:30:00Z" })]);
     vis();
