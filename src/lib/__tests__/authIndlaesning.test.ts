@@ -6,8 +6,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   medTimeout,
+  skalKaldePendingInvitation,
   PPI_TIMEOUT_MEDLEM_MS,
-  PPI_TIMEOUT_RAADGIVER_MS,
   skalHenteBrugerdata,
   skalLoggeLogin,
   skalStarteOnboardingAgent,
@@ -136,8 +136,24 @@ describe("medTimeout — PPI må ikke blokere uden grænse", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it("rådgiveren venter kortere end medlemmet, hvis kobling PPI er", () => {
-    expect(PPI_TIMEOUT_RAADGIVER_MS).toBe(4_000);
-    expect(PPI_TIMEOUT_MEDLEM_MS).toBeGreaterThan(PPI_TIMEOUT_RAADGIVER_MS);
+});
+
+describe("skalKaldePendingInvitation (pakke D, 3/10-2026)", () => {
+  const k = (rolleKendt: boolean, erRaadgiver: boolean) =>
+    skalKaldePendingInvitation({ rolleKendt, erRaadgiver });
+
+  it("en kendt rådgiver/admin kalder ALDRIG PPI", () => {
+    expect(k(true, true)).toBe(false);
+  });
+  it("et kendt medlem kalder altid", () => {
+    expect(k(true, false)).toBe(true);
+  });
+  it("ukendt rolle kalder (fail-safe), også hvis erRaadgiver er sand", () => {
+    expect(k(false, false)).toBe(true);
+    expect(k(false, true)).toBe(true);
+  });
+  it("invite_token er ikke et input — en rådgiver kan ikke åbne vejen med et token", () => {
+    expect(skalKaldePendingInvitation.length).toBe(1);
+    expect(k(true, true)).toBe(false);
   });
 });

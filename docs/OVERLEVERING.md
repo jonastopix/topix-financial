@@ -397,6 +397,14 @@ referrer-låst til `app.theboardroom.dk`.
 
 ## DEL 2 · Tilstanden
 
+### 3. oktober — pakke D, hastighed skive 1 (gren `perf/forside-hastighed-1`; frontend alene — ingen migration, ingen edge function; afventer merge og Update)
+
+- **Målingen (prod 3/10):** rådgiverens forside laver 57 API-kald, og det sidste er færdigt efter 4.272 ms. `process-pending-invitation` (PPI) kaldes også for rådgivere, tager 1,49 s og svarer næsten altid `no_pending_invitation`. SELECT 3/10: 3 rådgivere/admins i alt, 0 med en afventende `company_invitations`-række (`accepted_at IS NULL`, match på lower(email)).
+- **Rådgivere kalder aldrig PPI.** Dommen `skalKaldePendingInvitation` (`src/lib/authIndlaesning.ts`): en KENDT rådgiver/admin springer PPI over, uanset `invite_token`; ukendt rolle (roller-opslaget fejlede) og medlemmer kalder som før. Grunden er husets regel: PPI kan koble kontoen på en virksomhed, og en rådgiver/admin må aldrig kobles på en (`attach-user-to-company/index.ts:66-87`; ellers sender `if (isAdvisor && !companyId)`-vagterne rådgiveren ind i medlemsvisning). **PPI's e-mail-fallback (afventende invitation på verificeret mail) og token-stien kører altså ikke længere for rådgivere** — bevidst, 0 af 3 havde en. Springgrenen i `useAuth.tsx` nulstiller id/navn/tier, sætter `companyResolution = "none"` og returnerer true. Rollen er kendt fra `Promise.all` FØR PPI, så medlemmer venter ikke længere end før (et medlem venter på PPI præcis som i dag).
+- **Fejl- og timeoutgrenen for rådgivere er væk** (kunne ikke længere nås): `PPI_TIMEOUT_RAADGIVER_MS` er fjernet, og medlemsstiens timeout (`PPI_TIMEOUT_MEDLEM_MS`, 12 s) er uændret. Værn: `ppiDom.guard.test.ts` (fem domme med selvbevis; låser dommens placering, springgrenens form og at ingen anden fil kalder PPI).
+- **`manualChunks`** (`vite.config.ts`: react, supabase, sentry, tanstack). Hoved-chunken gik fra 714,43 kB (gzip 222,35) til 198,99 kB (gzip 65,27), men **første besøg henter stadig ca. 716 kB — fem filer i stedet for én.** Gevinsten er, at leverandørchunks bliver i browserens cache fra udrulning til udrulning; **den første indlæsning bliver IKKE mindre.**
+- **Beviset efter Update:** i en FRISK fane som rådgiver kaldes PPI ikke (Network: ingen `process-pending-invitation`). Mål antal kald og tid til sidste kald før/efter; baseline 57 kald / 4.272 ms.
+
 ### 3. oktober kl. 11:30 — morgenlisten (sendt til Jonas)
 
 **Mangellisten: 209 åbne kort** (130 mangler · 46 beslutning · 21 fejl · 12 idé; før gennemgangen 203). Merget i dag (kun dokumentation): #1260 (dokumenterne mod prod), #1264 (mangellisten gennemgået), #1265 (åben-listen), #1266 (SMS-recon), #1267 (værdilisten og søndagsplanen).

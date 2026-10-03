@@ -11,7 +11,10 @@ import { computeMembershipTier } from "@/lib/membershipTier";
        joinet på company_members. `tierFraVirksomhed` og
        `skalStarteOnboardingAgent` er beregning på det allerede hentede.
     2. process-pending-invitation (PPI) kunne holde rådgiverens forside
-       tilbage i ubestemt tid. Nu kappes ventetiden af `medTimeout`.
+       tilbage i ubestemt tid. Nu kappes ventetiden af `medTimeout` — og fra
+       3/10 når en KENDT rådgiver/admin slet ikke PPI
+       (`skalKaldePendingInvitation`), så grænsen gælder kun medlemmer og
+       konti med ukendt rolle.
     3. Hver auth-hændelse med session (også SIGNED_IN ved hvert faneskift
        og TOKEN_REFRESHED) genhentede alt og loggede et nyt login. Nu afgør
        `skalHenteBrugerdata` og `skalLoggeLogin` det ud fra bruger-id'et. */
@@ -81,15 +84,32 @@ export function skalLoggeLogin(
   return haendelse === "SIGNED_IN" && forrigeBrugerId !== nyBrugerId;
 }
 
+/** Skal process-pending-invitation (PPI) kaldes? (3/10-2026, pakke D,
+    «Hastighed, første skive».) Målt i prod 3/10: PPI tog 1,49 s på
+    rådgiverens forside og svarede næsten altid «no_pending_invitation»;
+    3 rådgivere/admins i alt, 0 med en afventende company_invitations-række.
+    - Rollen ukendt (roller-opslaget fejlede): KALD — fail-safe, som før.
+    - Medlem (ikke rådgiver): KALD — PPI er medlemmets kobling til
+      virksomheden. Medlemsstien er uændret.
+    - KENDT rådgiver/admin: KALD ALDRIG, uanset invite_token. PPI kan koble
+      kontoen på en virksomhed, og huset forbyder at koble en rådgiver/admin
+      på en virksomhed (attach-user-to-company/index.ts:66-87). PPI's
+      e-mail-fallback og token-sti kører derfor ikke for rådgivere. */
+export function skalKaldePendingInvitation(input: {
+  rolleKendt: boolean;
+  erRaadgiver: boolean;
+}): boolean {
+  if (!input.rolleKendt) return true;
+  return !input.erRaadgiver;
+}
+
 /** Hvor længe forsiden venter på process-pending-invitation.
-    - Rådgiveren: 4 s. Svaret er næsten altid «no_pending_invitation», og
-      Index viser alligevel rådgiverens forside uanset udfaldet — der er
-      intet at vente på.
-    - Medlemmet uden virksomhed: 12 s. Her ER PPI koblingen (det nye
+    - Rådgiveren kalder aldrig PPI (skalKaldePendingInvitation), så der er
+      ingen rådgiver-timeout.
+    - Medlemmet uden virksomhed (og en konto med ukendt rolle): 12 s. Her ER PPI koblingen (det nye
       medlems første login, evt. med koldstart), og en timeout viser
       CompanyLinkFailedGate. PPI kører videre på serveren; gatens «Prøv
       igen» genindlæser, og så findes company_members-rækken. */
-export const PPI_TIMEOUT_RAADGIVER_MS = 4_000;
 export const PPI_TIMEOUT_MEDLEM_MS = 12_000;
 
 export type MedTimeoutUdfald<T> = { udfald: "svar"; vaerdi: T } | { udfald: "timeout" };

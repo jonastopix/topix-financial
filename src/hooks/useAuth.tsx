@@ -9,8 +9,8 @@ import { useQuery } from "@tanstack/react-query";
 import {
   medTimeout,
   PPI_TIMEOUT_MEDLEM_MS,
-  PPI_TIMEOUT_RAADGIVER_MS,
   skalHenteBrugerdata,
+  skalKaldePendingInvitation,
   skalLoggeLogin,
   skalStarteOnboardingAgent,
   tierFraVirksomhed,
@@ -327,6 +327,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       // validerer selv JWT'en på serveren; her er det kun kaldets input.
       const userEmail = authUser.email;
       const inviteTokenMeta = authUser.user_metadata?.invite_token;
+      // Dommen skalKaldePendingInvitation (3/10, pakke D): en KENDT
+      // rådgiver/admin kalder ALDRIG PPI — PPI kan koble en virksomhed på
+      // kontoen, og huset forbyder det (attach-user-to-company/index.ts:66-87).
+      // Rollen er kendt fra Promise.all ovenfor — ingen ekstra ventetid.
+      // Ukendt rolle (roller-opslaget fejlede) og medlemmer kalder som før.
+      const kalderPpi = skalKaldePendingInvitation({
+        rolleKendt: !rolesRes.error,
+        erRaadgiver: isAdv,
+      });
+      if (!kalderPpi) {
+        setOwnCompanyId(null);
+        setOwnCompanyName(null);
+        setMembershipTier(null);
+        setCompanyResolution("none");
+        return true;
+      }
       if (userEmail) {
         // Tre fejlgrene (HTTP-fejl, uventet svar, exception) sætter alle
         // companyResolution = "failed", så Index kan vise noget menneskeligt
@@ -343,7 +359,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setMembershipTier(null);
           setCompanyResolution("failed");
         };
-        const ppiTimeoutMs = isAdv ? PPI_TIMEOUT_RAADGIVER_MS : PPI_TIMEOUT_MEDLEM_MS;
+        // Her er kontoen aldrig en kendt rådgiver (dommen ovenfor): ét timeout.
+        const ppiTimeoutMs = PPI_TIMEOUT_MEDLEM_MS;
         try {
           // Ventetiden kappes (29/9, analyse-hastighed.md #2): før kunne en
           // koldstart holde forsiden tilbage i ubestemt tid. Kaldet kører
@@ -356,20 +373,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             ppiTimeoutMs,
           );
           if (ppi.udfald === "timeout") {
-            if (isAdv) {
-              // Fail-soft: rådgiverens forside kræver ingen egen virksomhed
-              // (Index læser kun "failed" for ikke-rådgivere), og svaret er
-              // næsten altid no_pending_invitation.
-              console.warn(
-                `[useAuth] process-pending-invitation svarede ikke inden ${ppiTimeoutMs} ms user_id=${userId} — rådgiveren fortsætter uden egen virksomhed`,
-              );
-              setOwnCompanyId(null);
-              setOwnCompanyName(null);
-              setMembershipTier(null);
-              setCompanyResolution("none");
-            } else {
-              markerFejl(`timeout_${ppiTimeoutMs}ms`);
-            }
+            markerFejl(`timeout_${ppiTimeoutMs}ms`);
             return false;
           }
           const { data: invResult, error: invError } = ppi.vaerdi;
@@ -388,7 +392,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             // noget der gik godt (trin 10, §7.1). Rækken er lige skrevet
             // med service role, så user_company_id() finder den, og RLS
             // på companies slipper opslaget igennem.
-            setMembershipTier(isAdv ? "full" : await afgoerMedlemsTier(invResult.company_id));
+            setMembershipTier(await afgoerMedlemsTier(invResult.company_id));
             return true;
           } else if (typeof invResult?.reason === "string" && PPI_NORMALE_SVAR.has(invResult.reason)) {
             setOwnCompanyId(null);
