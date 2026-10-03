@@ -88,30 +88,25 @@ export function skalLoggeLogin(
     - Rollen ukendt (roller-opslaget fejlede): KALD — fail-safe, som før.
     - Medlem (ikke rådgiver): KALD — PPI er medlemmets kobling til
       virksomheden. Medlemsstien er uændret.
-    - Rådgiver MED invite_token (user_metadata): KALD — tokenet er en
-      udtrykkelig invitation, som PPI skal indløse.
-    - Rådgiver UDEN invite_token: SPRING OVER. Bevidst afgrænsning: PPI's
-      e-mail-fallback (afventende invitation på verificeret mail) køres
-      dermed ikke længere for rådgivere. */
+    - KENDT rådgiver/admin: KALD ALDRIG, uanset invite_token. PPI kan koble
+      kontoen på en virksomhed, og huset forbyder at koble en rådgiver/admin
+      på en virksomhed (attach-user-to-company/index.ts:66-87). PPI's
+      e-mail-fallback og token-sti kører derfor ikke for rådgivere. */
 export function skalKaldePendingInvitation(input: {
   rolleKendt: boolean;
   erRaadgiver: boolean;
-  harInviteToken: boolean;
 }): boolean {
   if (!input.rolleKendt) return true;
-  if (!input.erRaadgiver) return true;
-  return input.harInviteToken;
+  return !input.erRaadgiver;
 }
 
 /** Hvor længe forsiden venter på process-pending-invitation.
-    - Rådgiveren: 4 s. Svaret er næsten altid «no_pending_invitation», og
-      Index viser alligevel rådgiverens forside uanset udfaldet — der er
-      intet at vente på.
-    - Medlemmet uden virksomhed: 12 s. Her ER PPI koblingen (det nye
+    - Rådgiveren kalder aldrig PPI (skalKaldePendingInvitation), så der er
+      ingen rådgiver-timeout.
+    - Medlemmet uden virksomhed (og en konto med ukendt rolle): 12 s. Her ER PPI koblingen (det nye
       medlems første login, evt. med koldstart), og en timeout viser
       CompanyLinkFailedGate. PPI kører videre på serveren; gatens «Prøv
       igen» genindlæser, og så findes company_members-rækken. */
-export const PPI_TIMEOUT_RAADGIVER_MS = 4_000;
 export const PPI_TIMEOUT_MEDLEM_MS = 12_000;
 
 export type MedTimeoutUdfald<T> = { udfald: "svar"; vaerdi: T } | { udfald: "timeout" };
