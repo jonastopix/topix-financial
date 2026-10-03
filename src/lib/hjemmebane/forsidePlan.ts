@@ -87,7 +87,13 @@ export const PLAN_INGEN_AKTIVE_TEKST = "Ingen aktive mål lige nu — aktivér e
 export const MAAL_UDEN_SKRIDT_TEKST = "Tilføj det første skridt";
 export const UDEN_MAAL_OVERSKRIFT = "Uden mål";
 export const ANDRE_MAAL_OVERSKRIFT = "Skridt under andre mål";
-export const VENTER_PAA_JA_OVERSKRIFT = "Venter på jeres ja";
+/* «Din plan» viste 3/10 (livetjek Floren Engros, mangellisten g03-din-plan-dobbelt-overskrift) overskriften
+   «VENTER PÅ JERES JA» to gange i træk: over forslagene til MÅL (tilstand B) og over gruppen af SKRIDT under de
+   samme ubekræftede mål. Én overskrift, ét begreb: «venter på jeres ja» bruges KUN om målene (husets ord for et
+   ubekræftet mål, maalBekraeft/dineMaalFlade); skridtgruppen hedder efter det, den er — skridt (aktive og
+   foreslåede) til de foreslåede mål. Værn: forsidePlan.guard dom 7. */
+export const MAAL_VENTER_OVERSKRIFT = "Mål, der venter på jeres ja";
+export const SKRIDT_TIL_FORESLAAEDE_MAAL_OVERSKRIFT = "Skridt til de foreslåede mål";
 export const SE_HELE_PLANEN = "Se hele planen";
 export const PLAN_FEJL_TEKST = "Din plan kunne ikke hentes. Prøv igen.";
 

@@ -44,7 +44,7 @@ const baseNavItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { icon: FileText, label: "Rapportering", path: "/reports" },
   { icon: Calculator, label: "Budget", path: "/budget" },
-  { icon: Target, label: "Milestones", path: "/milestones" },
+  { icon: Target, label: "Dine mål", path: "/milestones" },
   { icon: BookOpen, label: "Handouts", path: "/handouts" },
   // Advisor-gated indtil eksplicit lancerings-GO (konvergens.md §2.8):
   // et halvfærdigt Akademi må ikke være medlems-synligt mens Circle kører.
@@ -315,7 +315,7 @@ const AppSidebar = ({ isOpen, onClose, isStandalone = false }: AppSidebarProps) 
               {[
                 { icon: Sparkles, label: "Forløb", path: "/legat" },
                 { icon: BookOpen, label: "Handouts", path: "/handouts" },
-                { icon: Target, label: "Milestones", path: "/milestones" },
+                { icon: Target, label: "Dine mål", path: "/milestones" },
                 { icon: MessageCircle, label: "Chat", path: "/chat" },
                 { icon: SettingsIcon, label: "Indstillinger", path: "/settings" },
               ].map((item) => {

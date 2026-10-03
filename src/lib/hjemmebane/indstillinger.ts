@@ -237,5 +237,5 @@ export function fletPraeferencer(eksisterende: unknown, valg: EmailPraeferencer)
 
 export const UGENS_FOKUS_TEKST = {
   label: "Ugens fokus",
-  beskrivelse: "Hver mandag morgen ser vores AI dine rapporter, milepæle og handouts igennem og foreslår højst tre konkrete ting. Kræver mindst én godkendt rapport.",
+  beskrivelse: "Hver mandag morgen ser vores AI dine rapporter, mål og handouts igennem og foreslår højst tre konkrete ting. Kræver mindst én godkendt rapport.",
 } as const;

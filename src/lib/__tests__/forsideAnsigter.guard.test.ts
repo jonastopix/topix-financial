@@ -50,11 +50,12 @@ export const selectBaererProposedBy = (forside: string): boolean =>
 
 /** Dom 3: dommen er ren. */
 export const dommenErRen = (forside: string, dom: string): boolean =>
-  // To steder i «Din plan» (FORSIDE V3, 2/10-2026): under målene, og i skridtenes grupper — «Uden mål», «Venter
-  // på jeres ja» (skive 3, fund 7) og «Skridt under andre mål» tegnes nu af ÉN løkke (planGrupper) i samme kort.
+  // To steder i «Din plan» (FORSIDE V3, 2/10-2026): under målene, og i skridtenes grupper — «Uden mål», «Skridt
+  // til de foreslåede mål» (skive 3, fund 7; hed «Venter på jeres ja» til 3/10, g03-din-plan-dobbelt-overskrift) og
+  // «Skridt under andre mål» tegnes af ÉN løkke (planGrupper) i samme kort.
   (forside.match(/ansigt=\{raadgiverAnsigt\(f, raadgivere\)\}/g) ?? []).length === 2 &&
   forside.includes('["uden", UDEN_MAAL_OVERSKRIFT, plan.udenMaal],') &&
-  forside.includes('["venter", VENTER_PAA_JA_OVERSKRIFT, plan.venterPaaJa],') &&
+  forside.includes('["venter", SKRIDT_TIL_FORESLAAEDE_MAAL_OVERSKRIFT, plan.venterPaaJa],') &&
   forside.includes('["andre", ANDRE_MAAL_OVERSKRIFT, plan.andre],') &&
   forside.includes("ansigt={fokusAnsigt}") &&
   forside.includes("return raekke ? raadgiverAnsigt(raekke, raadgivere) : null;") &&

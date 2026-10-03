@@ -477,7 +477,7 @@ export const HandoutsView = () => {
           <HbSection eyebrow="Rejsen" title="Din rejse mod en professionelt drevet virksomhed" className="mt-12">
             <HbCard className="p-6">
               <div className="flex items-baseline justify-between gap-3">
-                <p className="text-xs text-hb-ink-soft">{totalChecked} af {totalItems} milepæle nået</p>
+                <p className="text-xs text-hb-ink-soft">{totalChecked} af {totalItems} trin nået</p>
                 <span className="font-editorial text-2xl font-medium text-hb-ink">{pct}%</span>
               </div>
               <div className="mb-6 mt-2 h-[3px] overflow-hidden rounded-full bg-hb-line">
@@ -517,7 +517,7 @@ export const HandoutsView = () => {
               </div>
               {pct < 100 && (
                 <p className="mt-6 text-center text-[11px] text-hb-ink-soft">
-                  Udfyld handout-modulerne for at markere milepæle som nået
+                  Udfyld handout-modulerne for at markere trinene som nået
                 </p>
               )}
               {pct === 100 && (

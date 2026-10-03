@@ -28,7 +28,7 @@
 export const KILDE_ORD: Readonly<Record<string, string>> = {
   financial_reports: "dine rapporter",
   financial_report_facts: "dine tal",
-  milestones: "dine milepæle",
+  milestones: "dine mål",
   pulse_checkins: "din refleksion",
   handouts: "dine handouts",
   handout_lever_milestones: "dine handouts",

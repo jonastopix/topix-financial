@@ -627,8 +627,9 @@ export function deriveFocus(inputs: FocusInputs): FocusItem[] {
       key: "unlinked-lever",
       kind: "unlinked-lever",
       priority: 8,
-      title: "Gør en løftestang til en milestone",
-      description: `"${first.lever}" (${first.moduleTitle}) venter på at blive en aktiv milestone, du kan tracke.`,
+      // Husets ord er «mål» (3/10, mangellisten g03-agent-milesten-ord; værn milestoneOrd.guard).
+      title: "Gør en løftestang til et mål",
+      description: `"${first.lever}" (${first.moduleTitle}) venter på at blive et aktivt mål, I kan følge.`,
       ctaLabel: "Åbn øvelsen",
       ctaHref: first.sti ?? OEVELSE_FALDBACK_STI,
     });

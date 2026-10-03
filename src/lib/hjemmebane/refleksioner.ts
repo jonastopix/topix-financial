@@ -105,7 +105,8 @@ export function udenTekstLinje(maaned: string): string {
 
 /** Milestone-tallet, sagt som det blev regnet — ikke som en vurdering. */
 export function fremgangLinje(fremgang: number): string {
-  return `Dine milestones stod på ${fremgang} % — regnet af dine aktive mål, da du sendte den.`;
+  // 3/10 (g03-agent-milesten-ord): husets ord er «mål» — tallet er stadig de aktive måls gennemsnit.
+  return `Dine aktive mål stod samlet på ${fremgang} %, da du sendte den.`;
 }
 
 export const REFLEKSIONER_TOM = "Ingen refleksioner endnu. Den første kommer, når du har godkendt en måneds tal og svaret på de tre spørgsmål.";

@@ -50,7 +50,7 @@ describe("refleksionTilVisning — én måned", () => {
   });
 
   it("milestone-tallet siges som det blev regnet — ikke som en vurdering", () => {
-    expect(fremgangLinje(40)).toBe("Dine milestones stod på 40 % — regnet af dine aktive mål, da du sendte den.");
+    expect(fremgangLinje(40)).toBe("Dine aktive mål stod samlet på 40 %, da du sendte den.");
     expect(refleksionTilVisning(R({ period_key: "2026-09", milestone_progress: null })).fremgang).toBeNull();
     expect(refleksionTilVisning(R({ period_key: "2026-09", milestone_progress: Number.NaN })).fremgang).toBeNull();
   });

@@ -34,6 +34,7 @@ import { resolve } from "node:path";
 // forsideMaalTilstand; dom 6 — «Hvad er et mål?» er foldet nederst i alle tre
 // tilstande (før: åben i den tomme). Ingen dom er slækket: selvbeviserne er
 // flyttet med.
+// TILFØJET 3/10-2026: dom 7 — én overskrift, ét begreb (g03-din-plan-dobbelt-overskrift).
 // Kildelæsning med selvbevis på kopier (dineMaal.guard-mønstret).
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -154,6 +155,28 @@ export const enKildeTreSteder = (filer: Record<string, string>): boolean => {
     dialog.includes("{trin === 1 && <p") && dialog.includes("data-guide-eksempler>{maalEksemplerHjaelp()}</p>}");
 };
 
+/** Dom 7 (3/10-2026, mangellisten g03-din-plan-dobbelt-overskrift — livetjek Floren Engros: «VENTER PÅ JERES JA»
+    stod to gange i træk i «Din plan»): én overskrift, ét begreb. Ordene bor i forsidePlan.ts (fladens ord-fil):
+    målene, der venter, hedder MAAL_VENTER_OVERSKRIFT; skridtgruppen under de ubekræftede mål hedder
+    SKRIDT_TIL_FORESLAAEDE_MAAL_OVERSKRIFT — og den må ikke sige «venter på jeres ja». Forsiden skriver ingen af de
+    to som streng; de to er forskellige; den gamle fælles konstant er væk. */
+export const enOverskriftEtBegreb = (dom: string, forside: string): boolean => {
+  const maal = dom.match(/export const MAAL_VENTER_OVERSKRIFT = "([^"]+)";/)?.[1];
+  const skridt = dom.match(/export const SKRIDT_TIL_FORESLAAEDE_MAAL_OVERSKRIFT = "([^"]+)";/)?.[1];
+  if (!maal || !skridt) return false;
+  return (
+    maal !== skridt &&
+    /venter på jeres ja/i.test(maal) &&
+    !/venter på jeres ja/i.test(skridt) &&
+    !/VENTER_PAA_JA_OVERSKRIFT/.test(dom + forside) &&
+    forside.includes('["venter", SKRIDT_TIL_FORESLAAEDE_MAAL_OVERSKRIFT, plan.venterPaaJa],') &&
+    (forside.match(/\{MAAL_VENTER_OVERSKRIFT\}/g) ?? []).length === 1 &&
+    !forside.includes(`"${maal}"`) && !forside.includes(`>${maal}<`) &&
+    !forside.includes(`"${skridt}"`) && !forside.includes(`>${skridt}<`) &&
+    !/["'>]Venter på jeres ja["'<]/i.test(forside)
+  );
+};
+
 describe("forsidePlan.guard — PR 3: én sektion, skridt under mål, samme functions, invitationen, fejringen, «Hvad er et mål?»", () => {
   const forside = udenKommentarer(laes(FORSIDE));
   const dom = udenKommentarer(laes(DOM));
@@ -205,6 +228,16 @@ describe("forsidePlan.guard — PR 3: én sektion, skridt under mål, samme func
     expect(enKildeTreSteder({ ...filer, [DIALOG]: filer[DIALOG].replace("data-guide-eksempler>{maalEksemplerHjaelp()}</p>}", "data-guide-eksempler>Fx</p>}") })).toBe(false);
     // Forklaringen tilbage på forsiden fælder (forside v3).
     expect(enKildeTreSteder({ ...filer, [FORSIDE]: filer[FORSIDE] + '\n<details data-maal-forklaring-fold><HbMaalForklaring udenOverskrift /></details>' })).toBe(false);
+  });
+  it("dom 7 (3/10): «Din plan» har ÉN overskrift pr. begreb — målene «venter på jeres ja», skridtene har deres eget ord", () => {
+    expect(enOverskriftEtBegreb(dom, forside)).toBe(true);
+  });
+  it("selvbevis 7: samme ord til begge, skridtgruppen med «venter på jeres ja», en hårdkodet overskrift eller den gamle konstant falder", () => {
+    expect(enOverskriftEtBegreb(dom.replace('"Skridt til de foreslåede mål"', '"Mål, der venter på jeres ja"'), forside)).toBe(false);
+    expect(enOverskriftEtBegreb(dom.replace('"Skridt til de foreslåede mål"', '"Venter på jeres ja"'), forside)).toBe(false);
+    expect(enOverskriftEtBegreb(dom, forside.replace("{MAAL_VENTER_OVERSKRIFT}", "Venter på jeres ja"))).toBe(false);
+    expect(enOverskriftEtBegreb(dom, forside.replace('["venter", SKRIDT_TIL_FORESLAAEDE_MAAL_OVERSKRIFT, plan.venterPaaJa],', '["venter", MAAL_VENTER_OVERSKRIFT, plan.venterPaaJa],'))).toBe(false);
+    expect(enOverskriftEtBegreb(dom + '\nexport const VENTER_PAA_JA_OVERSKRIFT = "Venter på jeres ja";', forside)).toBe(false);
   });
   it("selvbevis 5: en fejring der regner procenten selv, eller uden FejringRaekke, falder", () => {
     expect(fejringenHolder(dom, forside.replace("setFejring(lavFejring(skridt, maal?.title ?? null, progress))", "setFejring(lavFejring(skridt, maal?.title ?? null, Math.round((100 * gjort) / alle)))"))).toBe(false);

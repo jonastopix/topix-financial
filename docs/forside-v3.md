@@ -51,13 +51,16 @@ Rækkefølgen i HTML = prioritet = mobil = skærmlæser. Ingen `order`/`display:
 ### 3. Sådan har I det (højre)
 - [x] Eyebrow «Sådan har I det» + link «Se alle tal» (`/reports`).
 - [x] Det rigtige `DinMaaned`-kort med `dinMaanedDom` (uden CTA). Er tallene gamle: rust «N måneder gamle» oppe til højre i kortet.
+- [x] **Rettet 3/10 (g03-bank-som-i-november):** alle tre tal kommer fra DEN VISTE måned; banken kun fra en MÅLT række, ellers
+  «ikke opgjort for {måned}»; retningen kun mellem den viste og den FORRIGE MÅLTE måned (samme for alle tre) — et estimat
+  sammenlignes aldrig, og det gamle «est.»-mærke pr. tal er væk. Gælder også `/reports` (samme dom).
 - [x] Score kompakt: ring med «/ 1.000»; fire søjler (navn + point; én kolonne ved xl, to fra 1500 px og på sm); streaklinjen med flammen; «N af 8 trofæer»; «Certifikatet åbner om N dage» med lås (certifikatkortet udgår af forsiden); «LØFTER MEST …» (aldrig det samme som det primære punkt); «Se hvad der tæller ⌄» + «Et helbredstal, ikke en kreditvurdering.»
 
 ### 4. Din plan (venstre)
 - [x] Rust eyebrow «Din plan» + link «Dine mål».
 - [x] Gamle mål: ÉT kort; hver målrække: chip «Uden tal endnu», frist (rust ved «frist i dag»/forfalden), serif titel, stille bar, «N af M skridt gjort · Sæt et tal på →»; til højre mikro «Skridt» og enten «✓ Alle skridt er gjort · Er I i mål?» eller skridtrækken med TEKSTKNAPPER Gjort/Udskyd.
 - [x] «Uden mål»-rækker inde i SAMME kort.
-- [x] Forslag: «Venter på jeres ja», «N forslag til mål», titlerne, «Et mål tæller først, når I har sagt ja.», «Tag stilling →»; under det rådgiverens skridtforslag «Forslag fra Morten» med Tag den / Nej tak.
+- [x] Forslag: «Mål, der venter på jeres ja» (var «Venter på jeres ja» — rettet 3/10, se nedenfor), «N forslag til mål», titlerne, «Et mål tæller først, når I har sagt ja.», «Tag stilling →»; under det rådgiverens skridtforslag «Forslag fra Morten» med Tag den / Nej tak.
 - [x] Intet «+ Tilføj skridt» på forsiden.
 - [x] Tal-mål (motorens kort) og det mørke tomme kort som i #1247, i samme sektion.
 
@@ -117,6 +120,48 @@ Alle punkter i §0–§6 er bygget som skrevet. Afvigelser og afgørelser, bogf�
 - **Felterne under xl** står i én kolonne i HTML-ordenen (1024 med menu er under xl).
 - **Kendt, ikke rettet:** linjerne under «Det vigtigste» er højst to — har medlemmet både tjekliste-linjen og et
   stille punkt, står forløbslinjen og «Måske relevant» ikke på forsiden (de står i Akademiet).
+
+## Livetjekkets tre fejl (3/10-2026, gren `fix/forside-tre-fejl` — bygget, afventer PR, merge og Update)
+
+Set live 3/10 på Floren Engros i medlemsvisning (mangellisten `g03-bank-som-i-november`, `g03-din-plan-dobbelt-overskrift`,
+`g03-agent-milesten-ord`). Frontend alene — ingen migration, ingen function.
+
+**1. «BANK est. 3.517 kr. som i november».** MÅLT i prod 3/10 (`financial_report_facts`, kun periode/basis/nøgler):
+Floren har 2024-01 → 2025-12 `estimated` / `annual_report` MED `cash`, og 2026-01 → 2026-08 `measured` / `canonical_v2`
+UDEN nøglen `cash`. Den gamle dom tog pr. tal «sidste række MED tallet og rækken før den» — banken faldt tilbage på
+estimatet 2025-12 og blev sammenlignet med estimatet 2025-11 (årsregnskabet delt på 12 er ens hver måned → «som i
+november»), mens omsætning og resultat stod for august. Bredere, målt samme dag: **9 af 21** virksomheder med målte
+måneder har intet banktal i deres seneste målte måned. Ny regel i `src/lib/hjemmebane/dinMaaned.ts` (`talForMaaned`,
+`forrigeMaalte`, `ikkeOpgjortTekst`; filhovedet «RETTET 3/10»): (1) alle tre tal fra den viste måned, aldrig en ældre
+række — mangler tallet: «ikke opgjort for {måned}»; (2) banken kun fra en målt række; (3) retning kun mellem den viste
+og den forrige MÅLTE måned, samme for alle tre — også omsætning og resultat sammenlignes ikke længere med et estimat
+(første målte måned efter estimater: ingen retning; et estimat nyere end de målte: ingen retning). Feltet `Tal.estimeret`
+er fjernet (intet tal kan længere komme fra en anden række); kortets mærke som helhed er uændret. Floren ser nu:
+«Bank — ikke opgjort for august». Tests: `dinMaaned.test.ts` (Florens form som fixture).
+
+**2. «VENTER PÅ JERES JA» to gange i træk.** Tilstand B («kun forslag») tegnede eyebrowet over forslagene til MÅL, og
+skridtgruppen `venterPaaJa` (skridt under de ubekræftede mål) havde SAMME overskrift. Nu (ordene i `forsidePlan.ts`):
+`MAAL_VENTER_OVERSKRIFT` «Mål, der venter på jeres ja» over målene og `SKRIDT_TIL_FORESLAAEDE_MAAL_OVERSKRIFT`
+«Skridt til de foreslåede mål» over skridtene (gruppen bærer både aktive og foreslåede skridt, så «Forslag til skridt»
+ville ikke være sandt). Værn: `forsidePlan.guard` dom 7 (+ selvbevis 7); `forsideAnsigter.guard` dom 3 følger.
+
+**3. «Gør en løftestang til en milestone».** `nextStep.ts` punkt (h) siger nu «Gør en løftestang til et mål» / «… venter på
+at blive et aktivt mål, I kan følge.». Søgt i hele `src/` og rettet i medlemsflader: løftestangs-toasten
+(`maalFejl.ts` «Mål oprettet … Åbn Dine mål for at sætte et tal på.»), handout-editoren («→ Mål», tooltip, to
+hjælpetekster), Handouts' «Rejsen» («trin nået»), refleksionens linje («Dine aktive mål stod samlet på N %, da du sendte
+den.»), hentefejlen («Dine mål kunne ikke hentes …»), indstillingernes AI-beskrivelse og to «Du mister adgang …»,
+refleksions-modalen (PulseCheckinModal), chattens emnemærke og aktivitetsbeskeden («🎯 Mål nået: …»), V0-sidebarens
+etiket og den gamle skal (AppLayout/AppSidebar/LegatDashboard). **Ikke rørt:** rådgiver-/adminflader (admin/,
+virksomhed/, /engagement — dér er «milepæle» trofæerne, som også på medlemmets trofæer), og **agentens egen tekst i
+`run-company-agent`** (prompten og værktøjsbeskrivelserne siger «milestone») — kræver eksplicit udrulning, står på
+kortet. Værn: `milestoneOrd.guard` (synlig tekst = streng/JSX-tekst med mellemrum eller stort M; kommentarer og
+identifikatorer går fri; selvbevis).
+
+**Prøvet:** ingen lokal harness på grenen (`src/__harness__/` findes ikke) — dommen er prøvet på Florens målte FORM i
+testen. **Ses live efter Update** (Floren Engros, medlemsvisning): «Sådan har I det» viser «Bank —» med «ikke opgjort for
+august» og INTET «est.»/«november»; omsætning og resultat siger «… end i juli»; /reports viser det samme kort. «Din plan»
+viser «Mål, der venter på jeres ja» over forslagene og «Skridt til de foreslåede mål» over skridtene. «Det vigtigste»/
+stille linjer siger «Gør en løftestang til et mål», hvor punktet optræder.
 
 ## Designgennemsyn i drift (2/10-2026 nat, efter Jonas' Update)
 

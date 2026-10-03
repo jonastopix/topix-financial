@@ -86,7 +86,7 @@ describe("forsidePlanDom — grupperne", () => {
     expect(d.tom).toBe(false);
     expect(d.ingenAktive).toBe(true);
   });
-  it("skive 3 (fund 7): et UBEKRÆFTET mål er ikke «ingen aktive», og dets skridt står under «Venter på jeres ja» — ikke «Uden mål»", () => {
+  it("skive 3 (fund 7): et UBEKRÆFTET mål er ikke «ingen aktive», og dets skridt står under «Skridt til de foreslåede mål» (venterPaaJa; hed «Venter på jeres ja» til 3/10) — ikke «Uden mål»", () => {
     const skridt = [s({ id: "sv", maal_id: "u" }), s({ id: "fv", maal_id: "u", status: "proposed" }), s({ id: "løst", maal_id: null })];
     const d = forsidePlanDom(dineMaalDom([maal({ id: "u", bekraeftet_at: null }), maal({ id: "p", status: "parked", bekraeftet_at: "2026-08-01T00:00:00Z" })], tilDine(skridt), NU), skridt, NU);
     expect(d.ingenAktive).toBe(false);

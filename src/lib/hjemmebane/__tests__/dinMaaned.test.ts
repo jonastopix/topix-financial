@@ -91,7 +91,7 @@ describe("sparkline — kun målte måneder (17/9, valg A): estimater er ikke m�
     if (d.tom === true) return;
     expect(d.sparklineTekst).toBe("Omsætning · seneste 3 måneder");
   });
-  it("kun estimated → ingen kurve, teksten «kurven kommer med første målte måned»; tallene og retningen følger stadig seneste række, kortet mærket som estimat", () => {
+  it("kun estimated → ingen kurve, teksten «kurven kommer med første målte måned»; tallene følger seneste række, kortet mærket som estimat — men INGEN retning og ingen bank (3/10)", () => {
     const rows = [r("2025-11", { basis: "estimated", omsaetning: 48_929.75 }), r("2025-12", { basis: "estimated", omsaetning: 48_929.75, period: "December 2025" })];
     expect(sparkline(rows, "omsaetning")).toEqual([]);
     const d = dinMaanedDom(rows, false);
@@ -102,9 +102,11 @@ describe("sparkline — kun målte måneder (17/9, valg A): estimater er ikke m�
     expect(d.sparklineTekst).toBe("Omsætning · kurven kommer med første målte måned");
     expect(d.periodLabel).toBe("December 2025");
     expect(d.estimeret).toBe(true);
-    expect(d.tal[0]).toMatchObject({ label: "Omsætning", value: 48_929.75, retning: "som i november" });
+    // 3/10: et estimat sammenlignes aldrig — «som i november» var netop fejlen (g03-bank-som-i-november).
+    expect(d.tal[0]).toMatchObject({ label: "Omsætning", value: 48_929.75, retning: null, mangler: null });
+    expect(d.tal[2]).toMatchObject({ label: "Bank", value: null, retning: null, mangler: "ikke opgjort for december" });
   });
-  it("et estimat NYERE end de målte: kurven stopper ved sidste målte; tallene følger den nyeste (estimerede) række med estimat-mærket som i dag", () => {
+  it("et estimat NYERE end de målte: kurven stopper ved sidste målte; tallene følger den nyeste (estimerede) række med estimat-mærket — uden retning mod en måling (3/10)", () => {
     const rows = [
       r("2026-05", { omsaetning: 90_000 }),
       r("2026-06", { omsaetning: 100_000 }),
@@ -117,13 +119,58 @@ describe("sparkline — kun målte måneder (17/9, valg A): estimater er ikke m�
     expect(d.sparklineTekst).toBe("Omsætning · seneste 2 måneder");
     expect(d.periodLabel).toBe("Juli 2026");
     expect(d.estimeret).toBe(true);
-    expect(d.tal[0]).toMatchObject({ label: "Omsætning", value: 70_000, retning: "lavere end i juni" });
+    expect(d.tal[0]).toMatchObject({ label: "Omsætning", value: 70_000, retning: null });
+    expect(d.tal[2]).toMatchObject({ label: "Bank", value: null, mangler: "ikke opgjort for juli" });
   });
   it("én målt måned (og estimater før den) → ingen kurve endnu, teksten siger næste måned", () => {
     const d = dinMaanedDom([r("2025-12", { basis: "estimated" }), r("2026-01")], false);
     if (d.tom === true) return;
     expect(d.sparkline).toHaveLength(1);
     expect(d.sparklineTekst).toBe("Omsætning · kurven kommer med næste måned");
+  });
+});
+
+describe("g03-bank-som-i-november (3/10) — Florens RIGTIGE form, målt i prod 3/10", () => {
+  // Målt 3/10: 2024-01 → 2025-12 estimated MED cash (årsregnskabet /12 — ens hver måned),
+  // 2026-01 → 2026-08 measured UDEN cash. Beløbene er opdigtede (undtagen augusts to fra skærmen); formen er prods.
+  const floren: MaanedsRaekke[] = [
+    ...Array.from({ length: 24 }, (_, i) => {
+      const aar = 2024 + Math.floor(i / 12);
+      const md = String((i % 12) + 1).padStart(2, "0");
+      return r(`${aar}-${md}`, { basis: "estimated", omsaetning: 400_000, resultat: 30_000, bank: 3_517 });
+    }),
+    ...Array.from({ length: 8 }, (_, i) => r(`2026-0${i + 1}`, { omsaetning: 500_000 + i * 1_000, resultat: 50_000 - i * 1_000, bank: null })),
+  ].map((x) => (x.key === "2026-08" ? { ...x, period: "August 2026", omsaetning: 532_702, resultat: 51_769 } : x));
+
+  it("august vises; banken er «ikke opgjort for august» — aldrig estimatet fra december, aldrig «som i november»", () => {
+    const d = dinMaanedDom(floren, false);
+    if (d.tom === true) throw new Error("tom");
+    expect(d.periodLabel).toBe("August 2026");
+    expect(d.estimeret).toBe(false);
+    expect(d.tal[2]).toEqual({ felt: "bank", label: "Bank", value: null, retning: null, mangler: "ikke opgjort for august" });
+    expect(JSON.stringify(d)).not.toContain("november");
+    expect(JSON.stringify(d)).not.toContain("3517");
+  });
+  it("omsætning og resultat sammenlignes med JULI (forrige målte), ikke med et estimat", () => {
+    const d = dinMaanedDom(floren, false);
+    if (d.tom === true) throw new Error("tom");
+    expect(d.tal[0]).toMatchObject({ value: 532_702, retning: "højere end i juli", mangler: null });
+    expect(d.tal[1]).toMatchObject({ value: 51_769, retning: "højere end i juli", mangler: null });
+  });
+  it("første målte måned efter estimater: ingen retning (forrige er et estimat)", () => {
+    const d = dinMaanedDom(floren.filter((x) => x.key <= "2026-01"), false);
+    if (d.tom === true) throw new Error("tom");
+    expect(d.tal.map((t) => t.retning)).toEqual([null, null, null]);
+  });
+  it("alle tal sammenlignes med SAMME forrige målte måned — også over et hul", () => {
+    const d = dinMaanedDom([r("2026-05", { bank: 10 }), r("2026-07", { bank: 20, omsaetning: 1, resultat: 1 })], false);
+    if (d.tom === true) throw new Error("tom");
+    expect(d.tal.map((t) => t.retning)).toEqual(["lavere end i maj", "lavere end i maj", "højere end i maj"]);
+  });
+  it("forrige målte mangler banktallet → ingen bankretning, men banken vises", () => {
+    const d = dinMaanedDom([r("2026-06", { bank: null }), r("2026-07", { bank: 20 })], false);
+    if (d.tom === true) throw new Error("tom");
+    expect(d.tal[2]).toMatchObject({ value: 20, retning: null, mangler: null });
   });
 });
 
@@ -152,7 +199,7 @@ describe("dinMaanedDom", () => {
       expect(d.cta).toEqual({ label: "Se status", to: "/reports" });
     }
   });
-  it("tre tal med retning mod forrige måned; bank fra en ældre række når seneste mangler bank", () => {
+  it("tre tal med retning mod forrige målte måned; mangler seneste bank, står «ikke opgjort for juli» — ALDRIG en ældre række (3/10)", () => {
     const rows = [
       r("2026-05", { omsaetning: 90_000, resultat: 5_000, bank: 40_000 }),
       r("2026-06", { omsaetning: 100_000, resultat: 5_000, bank: 45_000 }),
@@ -166,8 +213,10 @@ describe("dinMaanedDom", () => {
     expect(d.tal.map((t) => [t.label, t.value, t.retning])).toEqual([
       ["Omsætning", 109_494, "højere end i juni"],
       ["Resultat f. skat", 38_724, "højere end i juni"],
-      ["Bank", 45_000, "højere end i maj"],
+      ["Bank", null, null],
     ]);
+    expect(d.tal[2].mangler).toBe("ikke opgjort for juli");
+    expect(d.tal.slice(0, 2).every((t) => t.mangler === null)).toBe(true);
     expect(d.sparkline.map((p) => p.value)).toEqual([90_000, 100_000, 109_494]);
     expect(d.sparklineTekst).toBe("Omsætning · seneste 3 måneder");
   });
@@ -180,15 +229,15 @@ describe("dinMaanedDom", () => {
     if (lige.tom === true) return;
     expect(lige.tal[1].retning).toBe("som i juni");
   });
-  it("estimat: seneste række estimeret → kortet mærkes som helhed, tallene ikke hver for sig; ældre bank-række estimeret → bank mærkes", () => {
+  it("estimat: seneste række estimeret → kortet mærkes som helhed; en ældre ESTIMERET bank-række bruges aldrig (3/10 — før stod den som «est.»)", () => {
     const helhed = dinMaanedDom([r("2026-06"), r("2026-07", { basis: "estimated" })], false);
     if (helhed.tom === true) return;
     expect(helhed.estimeret).toBe(true);
-    expect(helhed.tal.every((t) => t.estimeret === false)).toBe(true);
     const bank = dinMaanedDom([r("2026-06", { basis: "estimated" }), r("2026-07", { bank: null })], false);
     if (bank.tom === true) return;
     expect(bank.estimeret).toBe(false);
-    expect(bank.tal[2]).toMatchObject({ label: "Bank", value: 50_000, estimeret: true });
+    expect(bank.tal[2]).toMatchObject({ label: "Bank", value: null, retning: null, mangler: "ikke opgjort for juli" });
+    expect(bank.tal.some((t) => "estimeret" in t)).toBe(false);
   });
   it("ingen procent i nogen tekst", () => {
     const d = dinMaanedDom([r("2026-06", { omsaetning: 1 }), r("2026-07", { omsaetning: 1_000_000 })], false);

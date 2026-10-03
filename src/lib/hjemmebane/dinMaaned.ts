@@ -10,8 +10,7 @@
  * giver omsaetning / resultat_foer_skat / bank_balance). Tallene:
  *   - «seneste periode» = sidste række (nyeste period_key); estimat-mærket
  *     følger data_basis som før (data-basis-kontrakten).
- *   - Bank kan komme fra en ÆLDRE række end perioden (sidste med bank_balance)
- *     — som TalStrips bankRow.
+ *   - (Til 3/10: bank kunne komme fra en ÆLDRE række — se «RETTET 3/10» nedenfor.)
  *   - RETNING mod forrige godkendte måned i ORD: «højere end i juni» /
  *     «lavere end i juni» / «som i juni». Ingen procent, ingen farve-skam:
  *     ordene er de samme uanset fortegn. Uden forrige måned: ingen retning.
@@ -26,8 +25,32 @@
  *     definition, ikke en måned. Kurven skal vise rigtige måneder, så
  *     sparkline() tager kun basis "measured"; teksten «seneste N måneder»
  *     tæller de målte. RETNINGEN OG DE TRE TAL ÆNDRES IKKE — de følger
- *     fortsat seneste række med tallet, med estimat-mærket som i dag. Uden
+ *     fortsat seneste række med tallet, med estimat-mærket som i dag (AFLØST
+ *     3/10 — se «RETTET 3/10» nedenfor). Uden
  *     målte rækker: ingen kurve og «kurven kommer med første målte måned».
+ *
+ * RETTET 3/10-2026 (mangellisten g03-bank-som-i-november; livetjek Floren
+ * Engros 3/10: «BANK est. 3.517 kr. som i november»). MÅLT i prod 3/10:
+ * Florens facts er 2024-01 → 2025-12 data_basis estimated / annual_report MED
+ * cash, og 2026-01 → 2026-08 measured / canonical_v2 UDEN nøglen cash. Den
+ * gamle regel tog for hvert tal «sidste række MED tallet og rækken før den» —
+ * så banken faldt tilbage på estimatet 2025-12 og blev sammenlignet med
+ * estimatet 2025-11 (årsregnskabet delt på 12 er ens hver måned → «som i
+ * november»), mens omsætning og resultat stod for august. Bredere, målt 3/10:
+ * 9 af 21 virksomheder med målte måneder har intet banktal i deres seneste
+ * målte måned. DEN NYE REGEL (samme som sparkline: estimater er ikke måneder):
+ *   1. Alle tre tal kommer fra DEN VISTE måned (seneste række) — aldrig fra en
+ *      ældre række. Mangler tallet dér: value null og `mangler` =
+ *      «ikke opgjort for {måned}» (ærligt i stedet for et gammelt tal).
+ *   2. Banken vises KUN fra en MÅLT række: er den viste måned et estimat, er
+ *      banken også «ikke opgjort for {måned}».
+ *   3. Retningen sammenligner KUN to MÅLTE måneder: den viste og den FORRIGE
+ *      MÅLTE (samme forrige for alle tre tal). Er den viste et estimat, eller
+ *      har forrige målte ikke tallet: ingen retning. Et estimat sammenlignes
+ *      aldrig — hverken med et estimat («som i november») eller med en måling.
+ *   Kortets estimat-mærke som helhed er uændret (seneste række estimeret);
+ *   det gamle mærke pr. tal («est.» ved banken) findes ikke længere, fordi
+ *   intet tal kan komme fra en anden række end den viste.
  * Uden tal (dag 1): kortet siger hvad det bliver til, og «Upload din første
  * rapport». Testet i __tests__/dinMaaned.test.ts; kildeværn
  * src/lib/__tests__/forsideTop.guard.test.ts.
@@ -52,10 +75,10 @@ export interface Tal {
   felt: TalFelt;
   label: string;
   value: number | null;
-  /** Rækken tallet kommer fra er et estimat (kun vist når kortet ikke allerede er mærket som helhed). */
-  estimeret: boolean;
-  /** «højere end i juni» / «lavere end i juni» / «som i juni» — null uden forrige måned eller uden tal. */
+  /** «højere end i juni» / «lavere end i juni» / «som i juni» — KUN mellem to målte måneder; ellers null. */
   retning: string | null;
+  /** «ikke opgjort for august» — når den viste måned ikke har tallet (bank: ikke MÅLT). Ellers null. */
+  mangler: string | null;
 }
 
 export interface SparklinePunkt {
@@ -113,10 +136,30 @@ export function sparkline(rows: readonly MaanedsRaekke[], felt: TalFelt, antal =
     .map((r) => ({ key: r.key, value: r[felt] as number }));
 }
 
-/** Sidste række med tallet, og rækken før den (den forrige måned MED tallet). */
-function sidsteOgForrige(rows: readonly MaanedsRaekke[], felt: TalFelt): { sidste: MaanedsRaekke | null; forrige: MaanedsRaekke | null } {
-  const med = [...rows].sort((a, b) => a.key.localeCompare(b.key)).filter((r) => r[felt] != null);
-  return { sidste: med[med.length - 1] ?? null, forrige: med[med.length - 2] ?? null };
+/** «ikke opgjort for august» — teksten, når den viste måned ikke har tallet. */
+export function ikkeOpgjortTekst(noegle: string): string {
+  const navn = maanedsnavn(noegle);
+  return navn ? `ikke opgjort for ${navn}` : "ikke opgjort";
+}
+
+/** Den forrige MÅLTE række før `noegle` (nøgleorden) — null, hvis ingen. Huller springes over
+    (gik juni tabt, er forrige målte maj — og retningen siger «i maj», som medlemmet kan følge). */
+export function forrigeMaalte(sorteret: readonly MaanedsRaekke[], noegle: string): MaanedsRaekke | null {
+  const foer = sorteret.filter((r) => r.basis === "measured" && r.key < noegle);
+  return foer[foer.length - 1] ?? null;
+}
+
+/** Ét tal for den viste måned (reglen i filhovedet, «RETTET 3/10»). */
+export function talForMaaned(sorteret: readonly MaanedsRaekke[], vist: MaanedsRaekke, felt: TalFelt): Tal {
+  const label = LABELS[felt];
+  // (2) Banken kun fra en målt række.
+  const tilladt = felt !== "bank" || vist.basis === "measured";
+  const value = tilladt ? vist[felt] : null;
+  if (value == null) return { felt, label, value: null, retning: null, mangler: ikkeOpgjortTekst(vist.key) };
+  // (3) Retning kun mellem to målte måneder.
+  const forrige = vist.basis === "measured" ? forrigeMaalte(sorteret, vist.key) : null;
+  const retning = forrige ? retningTekst(value, forrige[felt], forrige.key) : null;
+  return { felt, label, value, retning, mangler: null };
 }
 
 export function dinMaanedDom(rows: readonly MaanedsRaekke[], processing: boolean): DinMaanedDom {
@@ -128,17 +171,7 @@ export function dinMaanedDom(rows: readonly MaanedsRaekke[], processing: boolean
   const sorteret = [...rows].sort((a, b) => a.key.localeCompare(b.key));
   const seneste = sorteret[sorteret.length - 1];
   const estimeret = seneste.basis === "estimated";
-  const tal: Tal[] = (["omsaetning", "resultat", "bank"] as TalFelt[]).map((felt) => {
-    const { sidste, forrige } = sidsteOgForrige(sorteret, felt);
-    return {
-      felt,
-      label: LABELS[felt],
-      value: sidste ? (sidste[felt] as number) : null,
-      // Mærkes kun når kortet ikke allerede er mærket som helhed (TalStrips regel).
-      estimeret: !!sidste && sidste.basis === "estimated" && !estimeret,
-      retning: sidste && forrige ? retningTekst(sidste[felt], forrige[felt], forrige.key) : null,
-    };
-  });
+  const tal: Tal[] = (["omsaetning", "resultat", "bank"] as TalFelt[]).map((felt) => talForMaaned(sorteret, seneste, felt));
   const punkter = sparkline(sorteret, "omsaetning");
   return {
     tom: false,

@@ -40,7 +40,7 @@ const NAV: HbNavEntry[] = [
       { label: "Rapportering" },
       { label: "KPI'er" },
       { label: "Budget" },
-      { label: "Milestones" },
+      { label: "Dine mål" },
       { label: "Handouts" },
     ],
   },

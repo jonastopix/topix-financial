@@ -67,11 +67,11 @@ export const HbHandoutLeverRow = ({
             type="button"
             onClick={createMilestone}
             disabled={creating}
-            title="Gør denne løftestang til en aktiv milestone så du kan tracke fremgangen"
+            title="Gør denne løftestang til et aktivt mål, så du kan følge fremgangen"
             className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-hb-line px-3 py-1.5 text-xs text-hb-ink-soft transition-colors hover:bg-hb-sage/30 hover:text-hb-ink disabled:opacity-50"
           >
             {creating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Target className="h-3 w-3" />}
-            {creating ? "Opretter…" : "→ Milestone"}
+            {creating ? "Opretter…" : "→ Mål"}
           </button>
         )}
       </div>

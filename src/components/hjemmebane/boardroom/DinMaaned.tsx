@@ -8,8 +8,8 @@ import { EstimatMaerke } from "../EstimatMaerke";
 
 /** «Din måned» (forside PR 2, 17/9 — Jonas «A» til valg 2) — afløste
     tal-strippen nederst på forsiden. Samme kilder (facts-laget via
-    dinMaanedDom: sidste periode, bank evt. fra en ældre række, estimat-
-    mærket efter data_basis), med RETNING I ORD mod forrige måned og en
+    dinMaanedDom: alle tre tal fra den viste måned — bank kun målt, ellers
+    «ikke opgjort for {måned}» (3/10); estimat-mærket efter data_basis), med RETNING I ORD mod forrige måned og en
     SPARKLINE over de seneste 12 måneder med tal. Ingen procent, ingen
     farve for op/ned — kun ord (negativt beløb er rust som i resten af
     huset). Uden tal: hvad det bliver til + «Upload din første rapport».
@@ -62,16 +62,15 @@ export const DinMaaned = ({ dom, udenCta = false }: { dom: DinMaanedDom; udenCta
       <dl className="mt-3 divide-y divide-hb-line">
         {dom.tal.map((t) => (
           <div key={t.felt} className="flex items-baseline justify-between gap-4 py-2.5 first:pt-0" data-tal={t.felt}>
-            <dt className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
-              {t.label}
-              {t.estimeret && <EstimatMaerke kompakt className="ml-1" />}
-            </dt>
+            <dt className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">{t.label}</dt>
             <dd className="text-right">
               {/* Fortegns-tonen: samme udtryk som resten af platformen (HbBudgetEditTable:625). */}
               <p className={cn("font-editorial text-2xl font-medium leading-none", t.value != null && t.value < 0 ? "text-hb-rust" : "text-hb-ink")}>
                 {t.value != null ? formatDKK(t.value) : "—"}
               </p>
               {t.retning && <p className="mt-1 text-xs text-hb-ink-soft" data-retning>{t.retning}</p>}
+              {/* 3/10 (g03-bank-som-i-november): mangler den viste måned tallet, siges det ærligt — aldrig et ældre tal. */}
+              {t.mangler && <p className="mt-1 text-xs text-hb-ink-soft" data-mangler>{t.mangler}</p>}
             </dd>
           </div>
         ))}

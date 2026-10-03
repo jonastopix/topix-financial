@@ -76,7 +76,7 @@ import { maaskeRelevant, MAASKE_RELEVANT_PRAEFIKS } from "@/lib/hjemmebane/maask
 import { afgoerMilepael } from "@/lib/milepaelDom";
 import { ALLE_SKRIDT_GJORT_TEKST, dineMaalDom, DINE_MAAL_FEJL_TEKST, DINE_SKRIDT_FEJL_TEKST, udskudtToastTekst, type SkridtTilDineMaal } from "@/lib/hjemmebane/dineMaal";
 import {
-  ANDRE_MAAL_OVERSKRIFT, FEJRING_VARIGHED_MS, fejring as lavFejring, forsidePlanDom, PLAN_INGEN_AKTIVE_TEKST, PLAN_TOM_BOOK, PLAN_TOM_TEKST, SE_HELE_PLANEN, UDEN_MAAL_OVERSKRIFT, VENTER_PAA_JA_OVERSKRIFT,
+  ANDRE_MAAL_OVERSKRIFT, FEJRING_VARIGHED_MS, fejring as lavFejring, forsidePlanDom, PLAN_INGEN_AKTIVE_TEKST, PLAN_TOM_BOOK, PLAN_TOM_TEKST, SE_HELE_PLANEN, UDEN_MAAL_OVERSKRIFT, MAAL_VENTER_OVERSKRIFT, SKRIDT_TIL_FORESLAAEDE_MAAL_OVERSKRIFT,
   type Fejring, type PlanSkridt,
 } from "@/lib/hjemmebane/forsidePlan";
 import type { MaalRaekke } from "@/lib/hjemmebane/planen";
@@ -2000,7 +2000,7 @@ export const BoardroomView = () => {
   const planGrupper = plan
     ? ([
         ["uden", UDEN_MAAL_OVERSKRIFT, plan.udenMaal],
-        ["venter", VENTER_PAA_JA_OVERSKRIFT, plan.venterPaaJa],
+        ["venter", SKRIDT_TIL_FORESLAAEDE_MAAL_OVERSKRIFT, plan.venterPaaJa],
         ["andre", ANDRE_MAAL_OVERSKRIFT, plan.andre],
       ] as const).filter(([, , g]) => g.aktive.length > 0 || g.forslag.length > 0)
     : [];
@@ -2119,7 +2119,7 @@ export const BoardroomView = () => {
                     {maalTilstand === "forslag" && (
                       <div data-plan-forslag={ubekraeftedeMaal}>
                         <p className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
-                          <span className="h-2 w-2 rounded-full bg-hb-amber" aria-hidden />{VENTER_PAA_JA_OVERSKRIFT}
+                          <span className="h-2 w-2 rounded-full bg-hb-amber" aria-hidden />{MAAL_VENTER_OVERSKRIFT}
                         </p>
                         <h3 className="mt-2 font-editorial text-xl font-medium leading-snug text-hb-ink">{FORSIDE_MAAL_ORD.forslagKort(ubekraeftedeMaal)}</h3>
                         <ul className="mt-2 space-y-1">
