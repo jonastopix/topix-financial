@@ -119,6 +119,12 @@ const STRIKS: readonly string[] = [
   "drift-agent-cron",
   // «Må vi ringe til dig?» (2/10): t, handling, navn, telefon og samtykke — alt andet afvises.
   "ring-mig-op",
+  // Webinarmotoren (skive 1, 30/9): striks fra første linje. webinar-tilmeld
+  // (TILMELD_KENDTE_FELTER), webinar-rum (t, handling) og webinar-puls (t, puls,
+  // handlinger — også de indlejrede objekter afviser ukendte nøgler i laesPulsKrop).
+  "webinar-tilmeld",
+  "webinar-rum",
+  "webinar-puls",
 ];
 
 /**

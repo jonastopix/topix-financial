@@ -402,6 +402,18 @@ project_id = "loiavmastgeieqyiwyyr"
   # gemmes kun i E.164 og forlader aldrig serveren (klokke uden nummer, Klaviyo uden nummer).
   [functions.ring-mig-op]
     verify_jwt = false
+  # Webinarmotoren (skive 1, 30/9-2026). Alle tre verify_jwt = FALSE, bevidst: seeren
+  # har ingen konto og ingen session. webinar-tilmeld er den offentlige indgang —
+  # værnet verifyOffentligTilmelding (origin-liste, honningfelt, IP-dagshash-loft,
+  # fail-closed) FØR enhver skrivning, samme klasse som ansoegning-gem's «opret».
+  # webinar-rum og webinar-puls: deltagertokenet fra linket, verificeret af
+  # verifyDeltagertoken (HMAC, konstant tid, token_version) FØR service role.
+  [functions.webinar-tilmeld]
+    verify_jwt = false
+  [functions.webinar-rum]
+    verify_jwt = false
+  [functions.webinar-puls]
+    verify_jwt = false
   # Metas Conversions API fra platformen (udkast 21/9-2026 aften). Bucket B,
   # authenticateServiceRole FØRST, kaldt gennem kald_edge hvert 5. minut. Tørkørsel
   # som standard; sender for alvor kun med «dry_run: false» OG (låsen
