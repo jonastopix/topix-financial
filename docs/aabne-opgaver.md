@@ -1,6 +1,8 @@
 # Åbne opgaver — hvad er ikke færdigt, hvor, og hvem tager det
 
-**Målt 3/10-2026** (ca. kl. 04–05 dansk) mod `origin/main` = `2b7c6bf9` (#1260). Kun recon: ingen kode ændret, intet skrevet i prod; databasen er kun læst med SELECT (Lovable `query_database`, som `postgres`). Hvad der er MÅLT i prod og hvad der er LÆST i repoet/dokumenterne er skilt ad i hver linje. «Ikke målt» betyder, at det ikke er målt her.
+Dokumentet holdes ajour af Claude ved hver afsluttet opgave; antal åbne kort står i mangellisten.
+
+**Målt 3/10-2026** (ca. kl. 04–05 dansk) mod `origin/main` = `2b7c6bf9` (#1260). Kun recon: ingen kode ændret, intet skrevet i prod; databasen er kun læst med SELECT (Lovable `query_database`, som `postgres`). Hvad der er MÅLT i prod og hvad der er LÆST i repoet/dokumenterne er skilt ad i hver linje. «Ikke målt» betyder, at det ikke er målt her. Efter målingen: #1260 og #1264 merget 3/10 (kun dokumentation; ingen migration eller function berørt). Mangellisten har nu 209 åbne kort.
 
 Format pr. linje: **hvad** · hvor (gren/PR/fil) · status (målt/læst) · ejer · næste skridt · siden.
 
@@ -13,9 +15,9 @@ Metodenoter (ellers kan tallene misforstås):
 
 | Sektion | Optælling |
 |---|---|
-| 1. Remote-grene (183 refs; 181 med arbejde ud over main) | 152 merget (151 via squash-PR med samme head-sha + 1 ancestor) · **29 ikke merget**: 9 med åben PR, 3 stablet under de åbne PR'er uden egen PR, 3 gamle webinarmotor-grene (PR lukket, afløst af v2), 1 uden PR (`feat/webinar-chat-bagende`), 1 merget på titel (`fix/scroll-sr-only`), 3 lukket uden merge (nyere), 6 lukket uden merge (3.–8/9), 3 `lovable-sync*` |
+| 1. Remote-grene (183 refs; 181 med arbejde ud over main) | 152 merget (151 via squash-PR med samme head-sha + 1 ancestor) · **29 ikke merget**: 10 med åben PR, 3 stablet under de åbne PR'er uden egen PR, 3 gamle webinarmotor-grene (PR lukket, afløst af v2), 0 uden PR, 1 merget på titel (`fix/scroll-sr-only`), 3 lukket uden merge (nyere), 6 lukket uden merge (3.–8/9), 3 `lovable-sync*` |
 | 1. Lokale worktrees (77 inkl. hovedcheckout) | 65 merget (50 via PR, 15 ancestor) · 10 på ikke-merget remote-gren (webinar-stakken) · 2 med commits uden remote-gren af samme navn · **12 med UCOMMITTEDE ændringer** (alle fundet forældede/stale index undtagen to, se 1c) |
-| 2. Åbne PR'er | **9** (7 stablede webinarmotor-PR'er #1255–#1262 fra 3/10, #1146 fra 29/9, #1043 fra 20/9) |
+| 2. Åbne PR'er | **10** (8 webinarmotor-PR'er #1255–#1263 fra 3/10, heraf 7 stablede oven på en anden PR; #1146 fra 29/9; #1043 fra 20/9) |
 | 3. Migrationer fra 20260915 | 110 på main + 8 på PR-grene = 118. På main: 107 kørt (alle objekter målt til stede) · **3 IKKE kørt** (`20260920100000`, `20261002280000`, `20261002290000`). På PR-grene: **8 ikke kørt** (7 webinarmotor + `20260929210000` events) |
 | 4. Låse i `app_config` | 11 låse/flag læst; **7 åbne (`true`)**, 1 lukket (`dag1_klokke_aktiv`), 1 `null` (`webinar_en_dag_video`), 2 konstanter (`ansoegning_cvr_dagsloft` = 20, `velkomstvideo_guid`) |
 | 5. Edge functions (116 på main) | 10 med EGEN kode ændret efter sidst bogførte udrulning · 12 uden nogen bogført udrulning og ændret siden 15/9 · 54 kun via delt fil (`_shared`) ændret efter bogført udrulning · resten ændret før eller samme dag som bogført udrulning |
@@ -23,12 +25,12 @@ Metodenoter (ellers kan tallene misforstås):
 
 ## De 10 vigtigste fund
 
-1. **Hele webinarmotoren er ude af main og ude af prod.** 7 stablede åbne PR'er (#1255 → #1262), 7 migrationer ikke kørt (målt: 10 tabeller, ~20 kolonner, cron-job `webinar-motor`, 4 låse mangler), og en 8. kommit-række (`feat/webinar-chat-bagende`, skive 5, 30 commits foran main) har ingen PR. Kritisk sti i PR #1258: go/no-go 9/10, tilmelding 14/10, første offentlige session 3/11 kl. 11. Alle PR'er er «Merges ikke uden Jonas' go».
+1. **Hele webinarmotoren er ude af main og ude af prod.** 8 åbne PR'er (#1255 → #1263, heraf 7 stablede), 7 migrationer ikke kørt (målt: 10 tabeller, ~20 kolonner, cron-job `webinar-motor`, 4 låse mangler); skive 5 (`feat/webinar-chat-bagende`) har siden 3/10 05:38Z PR #1263. Kritisk sti i PR #1258: go/no-go 9/10, tilmelding 14/10, første offentlige session 3/11 kl. 11. Alle PR'er er «Merges ikke uden Jonas' go».
 2. **`20261002280000_milestones_with_check` er IKKE kørt** (målt: de to UPDATE-politikker på `milestones` har `with_check = false`; kun INSERT-politikkerne har den). SECURITY_BASELINE fund 6 står åbent siden 2/10. Kræver Jonas' grønne lys.
 3. **Fase 3a (`20261002290000_kald_edge_apikey`) er IKKE kørt** (målt: `kald_edge` indeholder hverken `kald_edge_sb_secret` eller `apikey`; vault-posten `kald_edge_sb_secret` findes ikke, 0 rækker). Legacy-nøglerne forsvinder «late 2026, TBC»; Jonas: «i morgen, sammen med mig» (2/10).
 4. **Klaviyo lag 5 (`20260920100000_klaviyo_mailhaendelser`) er aldrig kørt** (målt: tabellerne `klaviyo_hentning`, `klaviyo_mailhaendelser` og cron-jobbet `klaviyo-hentning` findes ikke), men edge functionen `klaviyo-hentning-cron` ligger på main og læser `klaviyo_hentning`. Kode uden tabel; ufarlig, så længe den ikke har et job, men en fælde.
 5. **Låsene** (målt): ÅBNE `driftsagent_aktiv`, `nyhedsagent_aktiv`, `klaviyo_medlem_aktiv`, `klaviyo_afmeld_aktiv`, `meta_send_aktiv`, `ga_send_aktiv`, `webinar_mail_aktiv`. LUKKET: `dag1_klokke_aktiv` (siden 2/10 18:43, trin 6 står hos Jonas). `webinar_en_dag_video` = `null` (Mortens hilsen ikke sat op).
-6. **Update er ikke målt** for #1232–#1235 og #1242–#1254 (OVERLEVERING «Ikke afgjort af målingen»): forsidens v3, seks steder, certifikat/rådgiverkort, trofæer, Dine mål-fladen m.fl. kan være merget uden at være i drift. Måles kun rekursivt i en FRISK fane.
+6. **Update er ikke målt rekursivt** for PR'erne på den samlede liste i §6 (#1224–#1254; OVERLEVERING «Ikke afgjort af målingen»; livetjek 3/10 så dog forside v3, Netværkets faner og «Mangler at booke» i drift): forsidens v3, seks steder, certifikat/rådgiverkort, trofæer, Dine mål-fladen m.fl. kan være merget uden at være i drift. Måles kun rekursivt i en FRISK fane.
 7. **Edge functions, hvis kode på main måske ikke kører:** 10 functions har EGEN kode ændret efter sidst bogførte udrulning (bl.a. `stripe-webhook`, `calendly-webhook`, `manage-advisor`, `send-report-reminder`, `webinar-delt`, `import-application`, `berig-virksomheder`, `intro-reminder-cron`, `create-free-intro-booking`, `monday-webhook` samme dag); 12 har ingen bogført udrulning overhovedet (bl.a. `opgave-accepter`, `opgave-udskyd`, `skridt-tilfoej`, `notify-chat-reply`, `send-welcome-message`, `extract-annual-report`). Sikkerhedsfixene fra #1156 (30/9: ejertjek, rådgivergate, konstant-tids signaturer) er i `stripe-webhook`, `calendly-webhook`, `manage-advisor`, `extract-annual-report`, `update-annual-report-revenue`, `notify-chat-reply`, `create-stripe-checkout`, `generate-budget-scenarios` — ikke bogført udrullet.
 8. **PR #1146 (events får en lokation)** har ligget åben i 4 dage og venter på, at migrationen `20260929210000` køres og måles først (målt: `events.lokation` findes ikke).
 9. **12 worktrees med uncommittede ændringer**; de fleste er stale indeks (sletter filer, der findes på branchen) eller tidlige kladder af arbejde, der siden landede på main. Reelt unikt: 5 untracked webinarmotor-filer i `agent-a17832027d40bd57e` (tidlig kladde, motoren ligger nu i PR'erne) og 1 untracked `docs/marketing-motoren-nicklas.md` i `wt-bogh` (se 1c). Ingen er committet eller pushet.
@@ -40,7 +42,7 @@ Metodenoter (ellers kan tallene misforstås):
 
 ### 1a. Remote-grene — IKKE merget (29)
 
-**Åben PR (9):**
+**Åben PR (10):**
 
 | hvad | hvor | status | ejer | næste skridt | siden |
 |---|---|---|---|---|---|
@@ -51,14 +53,13 @@ Metodenoter (ellers kan tallene misforstås):
 | Minimal værtskonsol, migration `…050000` | #1259 `feat/webinar-vaertskonsol` → #1258 | åben; migration IKKE kørt; ingen function ændret | Jonas / Claude | efter #1258; `…010000` skal være kørt først | 3/10 |
 | Ansøgningen kobles til tilmeldingen + tokenet ud af Sentry | #1261 `feat/webinar-ansoegning-kobling` → #1259 | åben; ingen ny migration; kræver deploy af `ansoegning-gem` FØR Update (ellers 400) | Jonas / Claude | efter #1259 | 3/10 |
 | `CompleteRegistration` til Meta bag egen lås `webinarmotor_meta_aktiv`, migration `…070000` | #1262 `feat/webinar-tilmelding-capi` → #1261 | åben, `mergeable_state` clean; migration IKKE kørt; privatlivsteksten (B4) skal publiceres FØR låsen åbnes | Jonas (tekst + lås) / Claude | efter #1261; privatlivstekst først | 3/10 |
+| Webinarmotor skive 5: klokke ved nyt spørgsmål + svar på mail til den, der er gået, migration `…080000` | #1263 `feat/webinar-chat-bagende` → #1262 | åben (oprettet 3/10 05:38Z); migration IKKE kørt (målt: `advisor_notifications_webinar_spoergsmaal_ulaest_uidx` mangler) | Jonas / Claude | efter #1262 | 3/10 |
 | Events får en lokation (kolonne, editor, visning, kalenderfil) | #1146 `feat/event-lokation` → main · 1 commit | åben, migration `20260929210000` IKKE kørt (målt: kolonnen findes ikke) | Jonas | kør migrationen, mål `GET /rest/v1/events?select=lokation&limit=0` → 200, MERGE, Update | 29/9 |
 | «Rådet var forkert: kalenderinvitationen er det eneste, der garanteret bærer mødelinket» + elleve fund | #1043 `docs/moedelink-rettelse` → main · kun docs, 1 fil | åben, 13 dage; grenen har en anden rod end main (6.763 commits foran) — indholdet ikke sammenlignet med main | Claude | afgør: merge, genskab på friskt grundlag eller luk | 20/9 |
 
 **Uden egen PR, stablet under de åbne PR'er (3):** `feat/webinar-ti-minutter` (16), `feat/webinarmotor-beslutninger` (12), `fix/webinar-intern-maal-annoncer` (13) — alle er ancestors af `feat/webinar-tilmelding-capi` (#1262), dvs. indholdet kommer med stakken. Ejer: Claude. Næste: slet grenene, når stakken er merget. Siden 2–3/10.
 
 **Afløst, PR lukket uden merge (3):** `feat/webinarmotor-skive1` (#1158), `-skive2` (#1161), `-skive3` (#1173) — afløst af v2-grenene (#1255–#1257; «Afløser #1158/#1161/#1173»); også ancestors af stakken. Næste: slet. Siden 29/9–2/10.
-
-**Aldrig PR (1):** `feat/webinar-chat-bagende` — «skive 5»: klokke ved nyt spørgsmål og svar på mail; 30 commits foran main = 1 commit ud over #1262 (`6c43b7e9`, migration `20261003080000_webinar_chat_bagende` IKKE kørt, målt `advisor_notifications_webinar_spoergsmaal_ulaest_uidx` mangler). Ejer: Claude. Næste: PR oven på #1262, når #1262 er merget. Siden 3/10.
 
 **Lukket uden merge, nyere (3):**
 - `feat/systembeskeder-ud-af-chatten` (#1145, 1 commit, 29/9): indholdet er IKKE på main (ingen `systembesked`-ændring fundet på main ved titelsøgning). Ejer: Jonas beslutter. Næste: genåbn eller slet. Siden 29/9.
@@ -103,6 +104,7 @@ Ejer for alle: Claude (oprydning); intet er rørt her. Siden: 1–3/10.
 
 | # | titel | base ← head | alder | blokerer |
 |---|---|---|---|---|
+| 1263 | Webinarmotoren skive 5: klokke ved nyt spørgsmål + svar på mail | `feat/webinar-tilmelding-capi` ← `feat/webinar-chat-bagende` | 3/10 (05:38Z) | Stablet på #1262; migration `080000` IKKE kørt; Jonas' go |
 | 1262 | Webinarmotoren: CompleteRegistration til Meta bag egen lås | `feat/webinar-ansoegning-kobling` ← `feat/webinar-tilmelding-capi` | 3/10 (timer) | Stablet på #1261; migration `070000` IKKE kørt; privatlivsteksten (B4) FØR låsen; pixlens `eventID` (B3); Jonas' go |
 | 1261 | Webinarmotoren skive 4: ansøgningen kobles + token renses i Sentry | `feat/webinar-vaertskonsol` ← `feat/webinar-ansoegning-kobling` | 3/10 | Stablet på #1259; deploy `ansoegning-gem` før Update; Jonas' go |
 | 1259 | Webinarmotoren: minimal værtskonsol | `fix/ti-minutter-raad` ← `feat/webinar-vaertskonsol` | 3/10 | Stablet på #1258; migration `050000` IKKE kørt; kræver `010000` kørt |
@@ -113,7 +115,7 @@ Ejer for alle: Claude (oprydning); intet er rørt her. Siden: 1–3/10.
 | 1146 | Events får en lokation | `main` ← `feat/event-lokation` | 29/9 (4 dage) | Migration `20260929210000` skal køres og måles FØR merge |
 | 1043 | docs/moedelink rettelse | `main` ← `docs/moedelink-rettelse` | 20/9 (13 dage) | Ingen krop ud over to overskrifter; anden grenrod; ikke afgjort |
 
-Rækkefølgen for stakken (PR-kroppe): #1255 → #1256 → #1257 → #1258 → #1259 → #1261 → #1262 (+ skive 5 uden PR). `mergeable_state` målt: #1262 `clean`; de øvrige `unknown` (ikke målt).
+Rækkefølgen for stakken (PR-kroppe): #1255 → #1256 → #1257 → #1258 → #1259 → #1261 → #1262 → #1263. `mergeable_state` målt: #1262 `clean`; de øvrige `unknown` (ikke målt). Antal målt 3/10 mod GitHub: 10 åbne PR'er, 7 af dem stablet på en anden PR (#1255 har `main` som base).
 
 ## 3. Migrationer fra 20260915 og frem — kørt i prod?
 
@@ -137,8 +139,8 @@ Metode: for hver fil er de oprettede objekter udtrukket (tabel · kolonne · fun
 | `20261003031000_webinar_motor_cron.sql` | #1257 | cron-job `webinar-motor` | Jonas (ALLERSIDST) | 3/10 |
 | `20261003040000_webinar_mails_ti_minutter.sql` | #1258 | CHECK `webinar_mails_art_check` udvides til `ti_minutter` (ikke målt direkte); låsen `webinar_ti_minutter_klar` mangler | Jonas | 3/10 |
 | `20261003050000_webinar_vaertskonsol.sql` | #1259 | `webinar_server_nu`, `webinar_spoergsmaal_vaert_kolonnevaern` | Jonas | 3/10 |
-| `20261003070000_meta_haendelser_tilmelding.sql` | #1262 | `meta_haendelser.tilmelding_id`, `kmeta_haendelser_ejer_xor`, `…_art_ejer`, `…_event_id_form`, låsen `webinarmotor_meta_aktiv` | Jonas | 3/10 |
-| `20261003080000_webinar_chat_bagende.sql` | `feat/webinar-chat-bagende` (ingen PR) | indekset `advisor_notifications_webinar_spoergsmaal_ulaest_uidx` | Jonas | 3/10 |
+| `20261003070000_meta_haendelser_tilmelding.sql` | #1262 | `meta_haendelser.tilmelding_id`, `meta_haendelser_ejer_xor`, `…_art_ejer`, `…_event_id_form`, låsen `webinarmotor_meta_aktiv` | Jonas | 3/10 |
+| `20261003080000_webinar_chat_bagende.sql` | #1263 `feat/webinar-chat-bagende` | indekset `advisor_notifications_webinar_spoergsmaal_ulaest_uidx` | Jonas | 3/10 |
 
 Alle øvrige 107 filer på main fra 20260915 er målt kørt (hver fils objekter findes i prod). To undtagelser, der ikke kan måles via objekter: filer der kun ændrer funktionskroppe (fx de to community-læse-RPC'er i `20261002242000`/`…243000`) er målt via deres tilhørende nye objekter (`kan_laese_community`, `spoergsmaal_markeret_at`, `marker_community_spoergsmaal`) — kroppene selv er ikke sammenlignet.
 
@@ -193,7 +195,7 @@ Metode: søgt «ÅBENT», «åbent punkt», «IKKE KØRT», «afventer», «mang
 
 | hvad | hvor | status | ejer | næste | siden |
 |---|---|---|---|---|---|
-| Webinarmailens to tal (`m28-pris-to-tal`) + aftaleskabelonen er stadig en PLADSHOLDER | (10866) | ikke målt her | Jonas / Claude | skriv aftaleteksten; `send-til-underskrift` nægter at sende en pladsholder | 28/9 |
+| Webinarmailens to tal (`m28-pris-to-tal`) — åbent. ~~Aftaleskabelonen er en PLADSHOLDER~~ **LØST**: målt 3/10 er `aftale_skabelon` v3 aktiv siden 18/9 kl. 14:11Z (8.948 tegn) | (10866) | pladsholderen: målt løst; `m28-pris-to-tal`: ikke målt her | Jonas / Claude | kun `m28-pris-to-tal` står åbent | 28/9 |
 | `Wq3MkG` «Deltog»-flow: mail 1+3 skrevet, afventer indsættelse; 4+5 slukket; sunset `XCqPKg` efter 13/10 | (10885) | Klaviyo, ikke målt | Jonas | indsæt mails | 28/9 |
 | Preview af flowmailen med tidspunktet (`a21-webinar-tidspunkt`) i `WFzxH9`/`UiECQS` + kampagner til 13/10 | (10738) | ikke målt | Jonas | lav Preview, luk kortet | 22/9 |
 | Mailgun business verification: tjek banneret; loft 1.000/time er Jonas' tal, ikke Mailguns | (10984) | ikke målt | Jonas | tjek bannerets status | 29/9 |
@@ -202,20 +204,24 @@ Metode: søgt «ÅBENT», «åbent punkt», «IKKE KØRT», «afventer», «mang
 | Vedhæftninger slettes ikke med beskeden (`a29-vedhaeftning-slettes-ikke`); Mortens 12 retter uden booking, årsag ikke målt (`a29-morten-retter-uden-booking`) | DEL 3 | ikke målt | Claude | recon | 29/9 |
 | Statusmail: draft #1127 lukket uden merge; skal laves om til samme sprog som «Mangler at booke» (`a29-statusmail-v2`) | (11085) | PR lukket (målt) | Claude | v2 eller drop | 29/9 |
 | Fund 6 i #1157 (`user_company_id` LIMIT 1 gør en WITH CHECK-verifikation umulig fra koden) — FØR-SELECT måler | (11289) | åbent | Claude | mål FØR kørsel af `…280000` | 30/9 |
-| Lone Havndrup Hoffman (Green Solar) skrev 30/9 15:30 i chatten: «Afventer dit svar» kl. 02 | (11472) | ikke målt om besvaret | Jonas | tjek | 30/9 |
+| Et medlem (Green Solar) skrev 30/9 kl. 15:30 i chatten: «Afventer dit svar» kl. 02 | (11472) | ikke målt om besvaret | Jonas | tjek | 30/9 |
 | Marketinganalytikeren — «LÆG FREM» (3 sessioner, tragt, kilder) | (11385) | ikke afgjort | Jonas / Nicklas | gennemgang | 30/9 |
 | Kald-bevis mangler: #1206 (`skridt-tilfoej`, den nye 400 nås kun af et medlem) og #1209 (`koblinger_talt` i `webinar-delt`, venter på delingslink til Nicklas) | (11698, 11700) | ikke afgjort | Jonas | send delingslink; bevis | 1/10 |
 | Bogførte men uden kode: B3 (`maal-skriv` «rediger» har ingen kalder), K4 (race mellem opslag og skrivning) | (11763–11764) | åbent | Claude | beslut | 1/10 |
 | Vagten/driftsagenten skal gemme jobnavnet, når et svar ikke er 200 (`a02-vagt-jobnavn`; timeout 1/10 17:00 kan ikke tilskrives) | (11643) | åbent | Claude | byg | 2/10 |
 | `20261002280000_milestones_with_check` — afventer grønt lys | (11647) | **IKKE kørt, målt 3/10** | Jonas | se fund 2 | 2/10 |
 | Fase 3a (`20261002290000`) | (11632, 11701) | **IKKE kørt, målt 3/10** | Jonas + Claude | se fund 3 | 2/10 |
-| Update afventer: #1224–#1226, #1229–#1230, #1232–#1235, #1242–#1254 | (11514–11600, 11607) | ikke målt 3/10 | Jonas | Update + frisk-fane-måling | 2/10 |
+| Update afventer — samlet liste under tabellen | (11514–11600, 11607) | ikke målt rekursivt 3/10 | Jonas | Update + frisk-fane-måling | 2/10 |
 | Gæstens grænse (aftenlistens «(b)»): tre valg, `kan_laese_community` er bygget og kørt | (11647ff) | målt: funktionen findes; ingen gæst findes | Jonas | afgør, om (b)'s skriveadgang er ønsket | 2/10 |
 | Akademi F0 åbent: `run-company-agent` læser rå `acknowledged_at`; rådgiverkvitteringer før 2/10 kan ikke skelnes (loft 131); `markeret_af` null på backfill | (11794–11797) | åbent | Claude | ret + udrul | 2/10 |
 | Klaviyo «Ring mig op»-knappen i «Deltog»-flowets mail 1: kan ikke rettes via skabelon-API (PATCH → 404); kræver `klaviyo-motor` med indlogget rådgiver | (11558) | åbent | Jonas / Claude | via motoren | 2/10 |
 | «Må vi ringe til dig?» åbent: spørgsmål i webinarrummet («senere»), profilegenskaben målt på en rigtig profil, Hovedlisten-krav, persondatateksten (Jonas godkender), «Træk tilbage», `types.ts` | (11991) | åbent | Jonas / Claude | afhænger af webinarmotoren | 2/10 |
 | Seks steder/Netværket: kortets link «Gå til Netværket» står stadig for en uden Netværk | (11929) | åbent, ikke bestilt | Claude | afgør | 2/10 |
 | Dag-1-klokken: låsen lukket, trin 6 hos Jonas; en klokke skrevet 04:30 mailes 07:04 selv om en rådgiver har skrevet i mellemtiden | DEL 3 | lås `false` målt | Jonas | åbn låsen, når klar | 2/10 |
+
+**Samlet liste: PR'er, der rører `src/` og mangler rekursiv Update-måling (#1224–#1254; læst fra `git log origin/main`, ikke målt i drift).** #1224, #1225, #1226, #1229, #1230, #1232, #1233, #1234, #1235, #1236, #1237, #1238, #1239, #1241, #1242, #1243, #1245, #1246, #1247, #1248, #1250, #1252, #1253, #1254. Uden bundle-relevant `src/`-ændring og derfor ikke på listen: #1227, #1228, #1231, #1244, #1251 (kun docs) samt #1240 og #1249 (kun guard-tests under `src/`). Filtypefiltreringen er kun gennemgået på stikprøve (#1239, #1248, #1229, #1240, #1249); de øvrige står på, fordi de rører filer under `src/`.
+
+**Livetjek 3/10:** forside v3 (inkl. trofæknappen, #1254), Netværkets faner og «Mangler at booke» blev set i drift. Det er et øjebliksbillede af fladerne, **ikke** en rekursiv bundle-måling af alle PR'erne på listen, og kan derfor ikke lukke punktet for dem alle.
 
 ---
 *Genereret 3/10-2026 af recon-sessionen på grenen `docs/aabne-opgaver`; ingen PR (bevidst). Alle «målt»-linjer kan genkøres: katalog-SELECT'en mod `pg_tables`/`information_schema.columns`/`pg_proc`/`pg_trigger`/`pg_indexes`/`cron.job`/`app_config`/`pg_policies`/`pg_constraint`, `pg_get_functiondef(kald_edge)`, `pg_policies` for `milestones`, og PR-listen fra GitHub.*
