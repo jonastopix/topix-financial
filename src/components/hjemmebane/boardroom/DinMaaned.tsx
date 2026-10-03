@@ -8,8 +8,9 @@ import { EstimatMaerke } from "../EstimatMaerke";
 
 /** «Din måned» (forside PR 2, 17/9 — Jonas «A» til valg 2) — afløste
     tal-strippen nederst på forsiden. Samme kilder (facts-laget via
-    dinMaanedDom: alle tre tal fra den viste måned — bank kun målt, ellers
-    «ikke opgjort for {måned}» (3/10); estimat-mærket efter data_basis), med RETNING I ORD mod forrige måned og en
+    dinMaanedDom: omsætning og resultat fra den viste måned; banken efter
+    Scores regel — seneste målte, friske, evt. «pr. april» (3/10); estimat-
+    mærket efter data_basis), med RETNING I ORD mod forrige måned og en
     SPARKLINE over de seneste 12 måneder med tal. Ingen procent, ingen
     farve for op/ned — kun ord (negativt beløb er rust som i resten af
     huset). Uden tal: hvad det bliver til + «Upload din første rapport».
@@ -69,7 +70,9 @@ export const DinMaaned = ({ dom, udenCta = false }: { dom: DinMaanedDom; udenCta
                 {t.value != null ? formatDKK(t.value) : "—"}
               </p>
               {t.retning && <p className="mt-1 text-xs text-hb-ink-soft" data-retning>{t.retning}</p>}
-              {/* 3/10 (g03-bank-som-i-november): mangler den viste måned tallet, siges det ærligt — aldrig et ældre tal. */}
+              {/* 3/10: banktallet fra en ældre målt måned står med sin egen måned — aldrig med en retning. */}
+              {t.pr && <p className="mt-1 text-xs text-hb-ink-soft" data-pr>{t.pr}</p>}
+              {/* 3/10 (g03-bank-som-i-november): mangler tallet, siges hvorfor — aldrig et estimat. */}
               {t.mangler && <p className="mt-1 text-xs text-hb-ink-soft" data-mangler>{t.mangler}</p>}
             </dd>
           </div>

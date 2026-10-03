@@ -89,10 +89,11 @@ export const UDEN_MAAL_OVERSKRIFT = "Uden mål";
 export const ANDRE_MAAL_OVERSKRIFT = "Skridt under andre mål";
 /* «Din plan» viste 3/10 (livetjek Floren Engros, mangellisten g03-din-plan-dobbelt-overskrift) overskriften
    «VENTER PÅ JERES JA» to gange i træk: over forslagene til MÅL (tilstand B) og over gruppen af SKRIDT under de
-   samme ubekræftede mål. Én overskrift, ét begreb: «venter på jeres ja» bruges KUN om målene (husets ord for et
-   ubekræftet mål, maalBekraeft/dineMaalFlade); skridtgruppen hedder efter det, den er — skridt (aktive og
-   foreslåede) til de foreslåede mål. Værn: forsidePlan.guard dom 7. */
-export const MAAL_VENTER_OVERSKRIFT = "Mål, der venter på jeres ja";
+   samme ubekræftede mål. Mockup v3 (docs/forside-v3.md §4) er kontrakten: målene BEHOLDER «Venter på jeres ja»
+   (samme ord som Dine mål). KUN skridtgruppen er rettet: i tilstand B (kun forslag) står skridtene til de
+   foreslåede mål UDEN egen overskrift (mockuppen viser dem sådan, under forslagene); i tilstand A (bekræftede mål
+   OG forslag) står de under SKRIDT_TIL_FORESLAAEDE_MAAL_OVERSKRIFT. Værn: forsidePlan.guard dom 7. */
+export const VENTER_PAA_JA_OVERSKRIFT = "Venter på jeres ja";
 export const SKRIDT_TIL_FORESLAAEDE_MAAL_OVERSKRIFT = "Skridt til de foreslåede mål";
 export const SE_HELE_PLANEN = "Se hele planen";
 export const PLAN_FEJL_TEKST = "Din plan kunne ikke hentes. Prøv igen.";

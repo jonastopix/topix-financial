@@ -8,7 +8,9 @@ import { resolve } from "node:path";
 // «mål» alle steder i fladen.
 //
 // Hvad tæller som SYNLIG tekst: en strengkonstant eller JSX-tekst (kommentarer fjernet), der indeholder
-// ordet OG enten et mellemrum (en sætning) eller begynder med stort M (en etiket som «Milestone»).
+// ordet OG enten et mellemrum (en sætning) eller begynder med stort M (en etiket som «Milestone») — og
+// (3/10) ENHVER værdi af en tekstnøgle (label/title/description/tekst/overskrift/eyebrow/placeholder/ctaLabel/
+// aria-label/alt), også ét lille ord uden mellemrum som `label: "milepæle"`.
 // Kode-identifikatorer går fri af sig selv: tabelnavne («milestones»), query-nøgler, ruter
 // («/milestones»), ankre («section-milestones») har intet mellemrum og lille m.
 //
@@ -22,11 +24,20 @@ import { resolve } from "node:path";
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
 
-const UNDTAGNE_MAPPER = ["__tests__", "test", "admin", "virksomhed", "engagement"];
+/** Rådgiverens og adminens egne mapper — FULDE stier (CTO 3/10: en mappe, der tilfældigvis hedder «admin» et
+    andet sted under en medlemsflade, er IKKE undtaget). */
+export const UNDTAGNE_MAPPER = [
+  "src/components/hjemmebane/admin",
+  "src/components/hjemmebane/virksomhed",
+  "src/components/hjemmebane/engagement",
+];
+/** Testmapper springes over overalt (de er ikke flader). */
+const TESTMAPPER = ["__tests__", "test"];
+export const erUndtaget = (sti: string): boolean => UNDTAGNE_MAPPER.includes(sti);
 const filerUnder = (rod: string): string[] =>
   readdirSync(resolve(process.cwd(), rod)).flatMap((navn) => {
     const sti = `${rod}/${navn}`;
-    if (statSync(resolve(process.cwd(), sti)).isDirectory()) return UNDTAGNE_MAPPER.includes(navn) ? [] : filerUnder(sti);
+    if (statSync(resolve(process.cwd(), sti)).isDirectory()) return TESTMAPPER.includes(navn) || erUndtaget(sti) ? [] : filerUnder(sti);
     return /\.(ts|tsx)$/.test(navn) && !/\.test\.tsx?$/.test(navn) ? [sti] : [];
   });
 
@@ -46,14 +57,19 @@ const udenKommentarer = (k: string) =>
 
 const ORD = /mileston|milesten|milepæl/i;
 
+/** Nøgler/attributter, hvis værdi altid er synlig tekst — her fælder ÉT lille ord uden mellemrum også
+    (`label: "milepæle"`, CTO 3/10). */
+const TEKSTNOEGLE = /\b(label|title|description|tekst|overskrift|eyebrow|placeholder|ctaLabel|aria-label|alt)\s*[:=]\s*\{?\s*("(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`(?:[^`\\]|\\.)*`)/g;
+
 /** De synlige tekststykker med ordet i én kildefil. */
 export const synligeFund = (kilde: string): string[] => {
   const k = udenKommentarer(kilde);
+  const noeglevaerdier = [...k.matchAll(TEKSTNOEGLE)].map((m) => m[2]).filter((v) => ORD.test(v));
   const stykker = [
     ...(k.match(/"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`(?:[^`\\]|\\.)*`/g) ?? []),
     ...(k.match(/>[^<>{}]+</g) ?? []),
   ];
-  return stykker.filter((s) => {
+  const fundne = stykker.filter((s) => {
     if (!ORD.test(s)) return false;
     const indre = s.slice(1, -1);
     // JSX-tekst-regexen fanger også kode mellem to generiske <…> — kode har =, ;, ( eller &&; tekst har ikke.
@@ -62,6 +78,7 @@ export const synligeFund = (kilde: string): string[] => {
     if (/^\s*\[/.test(indre)) return false;
     return /\s/.test(indre.trim()) || /^\s*M/.test(indre);
   });
+  return [...new Set([...noeglevaerdier, ...fundne])];
 };
 
 describe("milestoneOrd.guard — «mål», aldrig «milestone»/«milesten»/«milepæl» i medlemmets synlige tekst", () => {
@@ -72,6 +89,13 @@ describe("milestoneOrd.guard — «mål», aldrig «milestone»/«milesten»/«m
   it("dom 2: forsidens stille linje (løftestangen) siger «mål»", () => {
     const motor = laes("src/components/hjemmebane/boardroom/nextStep.ts");
     expect(motor).toContain('title: "Gør en løftestang til et mål",');
+  });
+  it("dom 4: undtagelserne er FULDE stier — kun rådgiverens/adminens tre mapper; en mappe med samme navn andetsteds er ikke undtaget", () => {
+    expect(UNDTAGNE_MAPPER.every((m) => m.startsWith("src/components/hjemmebane/"))).toBe(true);
+    expect(erUndtaget("src/components/hjemmebane/admin")).toBe(true);
+    expect(erUndtaget("src/lib/hjemmebane/admin")).toBe(false);
+    expect(erUndtaget("src/components/hjemmebane/boardroom/virksomhed")).toBe(false);
+    expect(erUndtaget("admin")).toBe(false);
   });
   it("dom 3: scopet dækker forsidens motor, handout-editoren og refleksionen (ellers værner værnet intet)", () => {
     const filer = MEDLEMSFILER();
@@ -93,5 +117,11 @@ describe("milestoneOrd.guard — «mål», aldrig «milestone»/«milesten»/«m
     expect(synligeFund('const [m, setM] = useState<Record<number, LeverMilestone>>({});')).toEqual([]);
     expect(synligeFund('console.error("[Milestones] Deadline reminder failed:", e);')).toEqual([]);
     expect(synligeFund("content: `🎯 Milestone gennemført: **${title}**`")).toHaveLength(1);
+    // Ét lille ord uden mellemrum som synlig værdi fælder (CTO 3/10).
+    expect(synligeFund('{ key: "maal", label: "milepæle" }')).toEqual(['"milepæle"']);
+    expect(synligeFund('<HbButton title="milestone" />')).toEqual(['"milestone"']);
+    expect(synligeFund('<p aria-label={"milesten"} />')).toEqual(['"milesten"']);
+    // … men en nøgle/identifikator med samme ord gør ikke.
+    expect(synligeFund('{ key: "milestones", queryKey: ["milestones"], table: "milestones" }')).toEqual([]);
   });
 });

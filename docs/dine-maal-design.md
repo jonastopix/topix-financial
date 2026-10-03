@@ -539,7 +539,11 @@ herunder) **og efter rådets runde 2** (2/10 morgen, fund 1–10 — bogført so
   (`forslagTekst`), for det ville lyve. Se åbne punkter. **Runde 2, fund 4 (ordet):** ÉT ord for et
   ubekræftet mål overalt — **«venter på jeres ja»** (hovedlinjen «· M venter på jeres ja»,
   `TAG_STILLING_TEKST` «Svar på de mål, der venter på jeres ja, for at få plads til jeres eget»,
-  `BEKRAEFT_ORD.pladsOptaget`, forsidens «Venter på jeres ja», forslagsoverskriften for `manual`);
+  `BEKRAEFT_ORD.pladsOptaget`, forsidens «Venter på jeres ja» over målforslagene — skridtene under dem står fra
+  3/10 UDEN egen overskrift i tilstand B og under «Skridt til de foreslåede mål» i tilstand A, så ordet ikke står to
+  gange i træk (`docs/forside-v3.md` «Livetjekkets tre fejl») — forslagsoverskriften for `manual`, og fra 3/10
+  løftestangens toast «"X" er gemt som forslag — sig ja til det på Dine mål» (`maalFejl.loeftestangToast`: et
+  handout-mål oprettes ubekræftet; før stod der «er nu en aktiv milestone»));
   «forslagene» er ude, fordi det gamle kort hedder «Er det stadig jeres mål?». Hovedlinjen siger
   **«Ingen bekræftede mål endnu»** (ikke «Ingen mål endnu»), når der er ubekræftede — «Ingen mål endnu»
   ville lyve, når tre står og venter (`INGEN_BEKRAEFTEDE_MAAL_TEKST`). **Rejsen viser IKKE ubekræftede
@@ -706,7 +710,8 @@ den eneste.
     («10 politikker uændret»). Migrationens FØR-SQL sektion 7 måler dem igen.
 20. **`opgave-accepter` kræver et AKTIVT mål — og et ubekræftet mål ER `status = 'active'`** (rådets
     fund 14, 2/10): et skridt foreslået under et forslag kan accepteres af medlemmet, før målet er
-    bekræftet. Forsiden viser skridtene under «Venter på jeres ja» (rådets fund 7: `forsidePlan.venterPaaJa`
+    bekræftet. Forsiden viser skridtene i gruppen `forsidePlan.venterPaaJa` (rådets fund 7; fra 3/10 uden overskrift i
+    tilstand B, «Skridt til de foreslåede mål» i tilstand A
     — aldrig «Uden mål», og `ingenAktive` er først sand, når hverken bekræftede eller ubekræftede
     findes), men functionen dømmer ikke på bekræftelsen. Ikke rettet: det kræver, at `opgave-accepter`
     (og `skridt-tilfoej`) lærer `bekraeftet_at` at kende — en function-ændring med udrulning. Bogført

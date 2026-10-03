@@ -39,24 +39,35 @@
  * november»), mens omsætning og resultat stod for august. Bredere, målt 3/10:
  * 9 af 21 virksomheder med målte måneder har intet banktal i deres seneste
  * målte måned. DEN NYE REGEL (samme som sparkline: estimater er ikke måneder):
- *   1. Alle tre tal kommer fra DEN VISTE måned (seneste række) — aldrig fra en
- *      ældre række. Mangler tallet dér: value null og `mangler` =
- *      «ikke opgjort for {måned}» (ærligt i stedet for et gammelt tal).
- *   2. Banken vises KUN fra en MÅLT række: er den viste måned et estimat, er
- *      banken også «ikke opgjort for {måned}».
+ *   1. Omsætning og resultat kommer fra DEN VISTE måned (seneste række) —
+ *      aldrig fra en ældre række. Mangler tallet dér: value null og `mangler` =
+ *      «ikke opgjort for {måned}».
+ *   2. BANKEN følger Boardroom Scores regel (boardroomScore/soejler.ts
+ *      `likviditet`, CTO 3/10: «så de to ikke modsiger hinanden»): det SENESTE
+ *      banktal i en MÅLT, AFSLUTTET måned — også fra en ældre måned end den
+ *      viste — og kun hvis den måned er FRISK (≥ aeldsteFriskeMaaned(nu), seks
+ *      måneder op til seneste måned med passeret frist; samme funktion, samme
+ *      grænse). Aldrig et estimat. Er bankmåneden ikke den viste, står dens
+ *      egen måned ved tallet («pr. april») og der er INGEN retning. Ellers:
+ *        - ingen målt måned overhovedet → «Banksaldo kommer med første målte måned»
+ *        - målte måneder, men intet banktal i nogen → «Banksaldo er ikke med i rapporterne»
+ *        - kun et banktal ældre end friskhedsgrænsen → «Banksaldo er ikke med i
+ *          rapporterne fra de seneste 6 måneder» (Score siger det samme: for gammelt)
  *   3. Retningen sammenligner KUN to MÅLTE måneder: den viste og den FORRIGE
  *      MÅLTE (samme forrige for alle tre tal). Er den viste et estimat, eller
  *      har forrige målte ikke tallet: ingen retning. Et estimat sammenlignes
  *      aldrig — hverken med et estimat («som i november») eller med en måling.
  *   Kortets estimat-mærke som helhed er uændret (seneste række estimeret);
- *   det gamle mærke pr. tal («est.» ved banken) findes ikke længere, fordi
- *   intet tal kan komme fra en anden række end den viste.
+ *   det gamle mærke pr. tal («est.» ved banken) findes ikke længere: intet tal
+ *   kan være et estimat, når kortet ikke er det.
+ *   `nu` gives ind (husets regel — tiden er en parameter).
  * Uden tal (dag 1): kortet siger hvad det bliver til, og «Upload din første
  * rapport». Testet i __tests__/dinMaaned.test.ts; kildeværn
  * src/lib/__tests__/forsideTop.guard.test.ts.
  */
-import { maanedsNoegleKbh, maanedsnavn } from "@/lib/maanedsnoegle";
+import { erMaanedAfsluttet, maanedsNoegleKbh, maanedsnavn } from "@/lib/maanedsnoegle";
 import { flytMaaned, fristPasseret, naesteMaaned } from "@/lib/boardroomScore/streak";
+import { aeldsteFriskeMaaned, FRISKHED_MAANEDER } from "@/lib/boardroomScore/soejler";
 
 export interface MaanedsRaekke {
   /** «YYYY-MM» (financial_report_facts.period_key). */
@@ -77,8 +88,10 @@ export interface Tal {
   value: number | null;
   /** «højere end i juni» / «lavere end i juni» / «som i juni» — KUN mellem to målte måneder; ellers null. */
   retning: string | null;
-  /** «ikke opgjort for august» — når den viste måned ikke har tallet (bank: ikke MÅLT). Ellers null. */
+  /** Hvorfor tallet ikke står: «ikke opgjort for august» (omsætning/resultat) eller bankens sande tekst. Ellers null. */
   mangler: string | null;
+  /** KUN banken: «pr. april», når banktallet er fra en ANDEN (ældre, målt, frisk) måned end den viste. Ellers null. */
+  pr: string | null;
 }
 
 export interface SparklinePunkt {
@@ -149,20 +162,44 @@ export function forrigeMaalte(sorteret: readonly MaanedsRaekke[], noegle: string
   return foer[foer.length - 1] ?? null;
 }
 
-/** Ét tal for den viste måned (reglen i filhovedet, «RETTET 3/10»). */
+export const BANK_FOERSTE_MAALTE_TEKST = "Banksaldo kommer med første målte måned";
+export const BANK_IKKE_I_RAPPORTERNE_TEKST = "Banksaldo er ikke med i rapporterne";
+export const BANK_FOR_GAMMEL_TEKST = `Banksaldo er ikke med i rapporterne fra de seneste ${FRISKHED_MAANEDER} måneder`;
+
+/** «pr. april», og med årstal når året ikke er den viste måneds («pr. november 2025»). */
+export function bankPrTekst(bankNoegle: string, vistNoegle: string): string {
+  const navn = maanedsnavn(bankNoegle) ?? bankNoegle;
+  return bankNoegle.slice(0, 4) === vistNoegle.slice(0, 4) ? `pr. ${navn}` : `pr. ${navn} ${bankNoegle.slice(0, 4)}`;
+}
+
+/** Ét tal for den viste måned (reglen i filhovedet, «RETTET 3/10» punkt 1 og 3). */
 export function talForMaaned(sorteret: readonly MaanedsRaekke[], vist: MaanedsRaekke, felt: TalFelt): Tal {
   const label = LABELS[felt];
-  // (2) Banken kun fra en målt række.
-  const tilladt = felt !== "bank" || vist.basis === "measured";
-  const value = tilladt ? vist[felt] : null;
-  if (value == null) return { felt, label, value: null, retning: null, mangler: ikkeOpgjortTekst(vist.key) };
+  const value = vist[felt];
+  if (value == null) return { felt, label, value: null, retning: null, mangler: ikkeOpgjortTekst(vist.key), pr: null };
   // (3) Retning kun mellem to målte måneder.
   const forrige = vist.basis === "measured" ? forrigeMaalte(sorteret, vist.key) : null;
   const retning = forrige ? retningTekst(value, forrige[felt], forrige.key) : null;
-  return { felt, label, value, retning, mangler: null };
+  return { felt, label, value, retning, mangler: null, pr: null };
 }
 
-export function dinMaanedDom(rows: readonly MaanedsRaekke[], processing: boolean): DinMaanedDom {
+/** Banken (punkt 2): Scores regel — seneste MÅLTE, AFSLUTTEDE måned med banktal, kun hvis frisk; aldrig et estimat. */
+export function bankTal(sorteret: readonly MaanedsRaekke[], vist: MaanedsRaekke, nu: Date): Tal {
+  const label = LABELS.bank;
+  const tom = (mangler: string): Tal => ({ felt: "bank", label, value: null, retning: null, mangler, pr: null });
+  const maalte = sorteret.filter((r) => r.basis === "measured" && erMaanedAfsluttet(r.key, nu));
+  if (maalte.length === 0) return tom(BANK_FOERSTE_MAALTE_TEKST);
+  const bankRaekke = [...maalte].reverse().find((r) => r.bank != null);
+  if (!bankRaekke) return tom(BANK_IKKE_I_RAPPORTERNE_TEKST);
+  if (bankRaekke.key < aeldsteFriskeMaaned(nu)) return tom(BANK_FOR_GAMMEL_TEKST);
+  const value = bankRaekke.bank as number;
+  if (bankRaekke.key !== vist.key) return { felt: "bank", label, value, retning: null, mangler: null, pr: bankPrTekst(bankRaekke.key, vist.key) };
+  const forrige = forrigeMaalte(sorteret, vist.key);
+  const retning = forrige ? retningTekst(value, forrige.bank, forrige.key) : null;
+  return { felt: "bank", label, value, retning, mangler: null, pr: null };
+}
+
+export function dinMaanedDom(rows: readonly MaanedsRaekke[], processing: boolean, nu: Date): DinMaanedDom {
   if (rows.length === 0) {
     return processing
       ? { tom: true, overskrift: DIN_MAANED_BEHANDLES_OVERSKRIFT, linje: DIN_MAANED_BEHANDLES_LINJE, cta: { label: "Se status", to: RAPPORTERING_STI } }
@@ -171,7 +208,7 @@ export function dinMaanedDom(rows: readonly MaanedsRaekke[], processing: boolean
   const sorteret = [...rows].sort((a, b) => a.key.localeCompare(b.key));
   const seneste = sorteret[sorteret.length - 1];
   const estimeret = seneste.basis === "estimated";
-  const tal: Tal[] = (["omsaetning", "resultat", "bank"] as TalFelt[]).map((felt) => talForMaaned(sorteret, seneste, felt));
+  const tal: Tal[] = [talForMaaned(sorteret, seneste, "omsaetning"), talForMaaned(sorteret, seneste, "resultat"), bankTal(sorteret, seneste, nu)];
   const punkter = sparkline(sorteret, "omsaetning");
   return {
     tom: false,
