@@ -5,16 +5,24 @@ import { cn } from "@/lib/utils";
 import { useEngagement, type EngagementRaekke } from "@/hooks/trofaeer";
 import { antalOpnaaet, trofaeDato } from "@/lib/gamification/trofaeer";
 import { bevaegelseSorteringsnoegle, bevaegelseTekst, MAAL_HENTEFEJL_TEKST } from "@/lib/hjemmebane/engagementMaal";
+import {
+  AKADEMI_HENTEFEJL_TEKST,
+  akademiSorteringsnoegle,
+  akademiSporTekst,
+  akademiTekst,
+} from "@/lib/hjemmebane/akademiFremdrift";
 import { HbCard } from "../HbCard";
 
 /** /engagement — rådgivernes overblik (1/10-2026, docs/boardroom-score.md
     «Trofæer»): én række pr. kundevirksomhed med Boardroom Score, tal-streak,
     trofæer, seneste aktivitet, aktive mål og «Sidst rørt» (engagementMaal.ts;
-    fail-soft: fejler målene, står de to kolonner med «—» og en rolig linje). Sorterbar. Til rådgiverne — det er IKKE en
+    fail-soft: fejler målene, står de to kolonner med «—» og en rolig linje)
+    og Akademiet «N af M set» (3/10-2026, akademiFremdrift.ts — fladen tolker
+    ingen tidsstempler selv; samme fail-soft). Sorterbar. Til rådgiverne — det er IKKE en
     rangliste, medlemmerne ser (medlemmet ser kun sin egen virksomhed).
     Data: hentEngagement (ét batch, samme motor som forsiden). */
 
-type Kolonne = "navn" | "score" | "streak" | "trofaeer" | "aktivitet" | "maal" | "bevaegelse";
+type Kolonne = "navn" | "score" | "streak" | "trofaeer" | "akademi" | "aktivitet" | "maal" | "bevaegelse";
 
 /** null = står ALTID nederst, uanset retning (kun «Sidst rørt»: ingen aktive
     mål eller hentefejl — bevaegelseSorteringsnoegle, B5). */
@@ -28,6 +36,8 @@ const vaerdi = (r: EngagementRaekke, k: Kolonne): string | number | null => {
       return r.dom.streak.laengde;
     case "trofaeer":
       return antalOpnaaet(r.trofaeer);
+    case "akademi":
+      return akademiSorteringsnoegle(r.akademi);
     case "aktivitet":
       return r.senesteAktivitet ? Date.parse(r.senesteAktivitet) : -1;
     case "maal":
@@ -61,6 +71,12 @@ const KOLONNER: readonly { k: Kolonne; label: string; title?: string }[] = [
   { k: "score", label: "Score" },
   { k: "streak", label: "Streak" },
   { k: "trofaeer", label: "Trofæer" },
+  {
+    k: "akademi",
+    label: "Akademiet",
+    title:
+      "Videoer i Akademiet (Start her, Fundamentet, Kurser), som et medlem af virksomheden selv har set færdig. Rådgiverens markering «gennemgået med rådgiver» tæller ikke som set og står for sig.",
+  },
   { k: "aktivitet", label: "Seneste aktivitet" },
   { k: "maal", label: "Aktive mål" },
   {
@@ -74,6 +90,20 @@ const KOLONNER: readonly { k: Kolonne; label: string; title?: string }[] = [
 /** «—» når målene ikke kunne hentes; ellers tallet. */
 const aktiveMaalTekst = (r: EngagementRaekke): string => (r.maal ? String(r.maal.aktive) : "—");
 const bevaegelse = (r: EngagementRaekke): string => bevaegelseTekst(r.maal?.dageSidenBevaegelse ?? null);
+
+/** Akademi-cellen: «N af M set», og under den påbegyndt/rådgiverens
+    markering og seneste egne aktivitet i Akademiet — alt fra dommen. */
+function AkademiCelle({ r }: { r: EngagementRaekke }) {
+  const spor = akademiSporTekst(r.akademi);
+  const seneste = r.akademi?.senesteAktivitet ?? null;
+  return (
+    <span className="block" data-engagement-akademi={r.companyId}>
+      <span className="block tabular-nums text-hb-ink">{akademiTekst(r.akademi)}</span>
+      {spor && <span className="block text-xs text-hb-ink-soft">{spor}</span>}
+      {seneste && <span className="block text-xs text-hb-ink-soft">Sidst i Akademiet {trofaeDato(seneste)}</span>}
+    </span>
+  );
+}
 
 export function EngagementView() {
   const q = useEngagement();
@@ -98,13 +128,26 @@ export function EngagementView() {
         <h1 className="text-2xl font-semibold text-hb-ink">Engagement</h1>
         <p className="mt-1 text-sm text-hb-ink-soft">
           Kundernes Boardroom Score (helbredstallet lige nu), tal-streak og
-          trofæer (milepæle, de har nået) — og målene: antal aktive og hvornår
-          et menneske sidst rørte dem.
+          trofæer (milepæle, de har nået), hvor meget af Akademiet de selv
+          har set — og målene: antal aktive og hvornår et menneske sidst
+          rørte dem.
         </p>
       </div>
       {q.data && q.data.maalHentefejl.length > 0 && (
         <p className="text-sm text-hb-rust" data-engagement-maalfejl="ja">
           {MAAL_HENTEFEJL_TEKST}{" "}
+          <button
+            type="button"
+            className="inline-flex min-h-11 items-center underline-offset-4 hover:underline"
+            onClick={() => void q.refetch()}
+          >
+            Prøv igen
+          </button>
+        </p>
+      )}
+      {q.data && q.data.akademiHentefejl.length > 0 && (
+        <p className="text-sm text-hb-rust" data-engagement-akademifejl="ja">
+          {AKADEMI_HENTEFEJL_TEKST}{" "}
           <button
             type="button"
             className="inline-flex min-h-11 items-center underline-offset-4 hover:underline"
@@ -182,6 +225,12 @@ export function EngagementView() {
                             )}
                           />
                           {antal} af {r.trofaeer.length}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-hb-ink-soft">Akademiet</dt>
+                        <dd>
+                          <AkademiCelle r={r} />
                         </dd>
                       </div>
                       <div>
@@ -293,6 +342,9 @@ export function EngagementView() {
                           />
                           {opnaaede.length} af {r.trofaeer.length}
                         </span>
+                      </td>
+                      <td className="px-4 py-2">
+                        <AkademiCelle r={r} />
                       </td>
                       <td className="px-4 py-2 text-hb-ink-soft">
                         {r.senesteAktivitet

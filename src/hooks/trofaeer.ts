@@ -19,6 +19,10 @@
  *       men FAIL-SOFT: fejler milestones/company_actions — eller er
  *       mållæsningen tom — står kolonnerne med «—» og siden med en rolig
  *       linje (maalHentefejl = kilderne) — resten af siden vælter ikke.
+ *       Akademiet (3/10-2026, lib/hjemmebane/akademiFremdrift.ts) hentes i
+ *       samme batch og på samme måde FAIL-SOFT (akademiHentefejl): det
+ *       publicerede katalog + ALLE member_progress-rækker (sidevis, ét kald
+ *       pr. side — ingen N+1); dommen pr. lektion er itemProgressState.
  *
  * Fejl er en fejl (husets regel): kraevRaekker kaster HentningsFejl. Fladen er
  * fail-soft — kortet står roligt uden trofæer.
@@ -46,6 +50,14 @@ import {
   type EngagementMaalRaekke,
   type EngagementSkridtRaekke,
 } from "@/lib/hjemmebane/engagementMaal";
+import { AREAS } from "@/lib/hjemmebane/adminContentApi";
+import { listPublishedItems } from "@/lib/hjemmebane/akademiApi";
+import {
+  akademiFremdriftPrVirksomhed,
+  akademiKatalog,
+  type AkademiFremdrift,
+  type AkademiFremdriftRaekke,
+} from "@/lib/hjemmebane/akademiFremdrift";
 import type { Json } from "@/integrations/supabase/types";
 
 const side = <T,>(kilde: string) =>
@@ -137,12 +149,45 @@ export interface EngagementRaekke {
   senesteAktivitet: string | null;
   /** Aktive mål og bevægelse (engagementMaal.ts); null = målene kunne ikke hentes («—»). */
   maal: EngagementMaalDom | null;
+  /** Akademiet: «N af M set» (akademiFremdrift.ts); null = kunne ikke hentes («—»). */
+  akademi: AkademiFremdrift | null;
 }
 
 export interface EngagementSvar {
   raekker: EngagementRaekke[];
   /** Kilderne (HentningsFejl.kilde), der fejlede for målkolonnerne; tom = alt hentet. */
   maalHentefejl: string[];
+  /** Kilderne, der fejlede for Akademi-kolonnen; tom = hentet. */
+  akademiHentefejl: string[];
+}
+
+/** Katalog + fremdriftsrækker for Akademi-kolonnen. Fejl fanges HER (som
+    målene): kolonnen er sekundær for siden. Rækkerne hentes ALLE (sidevis,
+    ordnet på id) og afgrænses til kataloget i dommen — ingen .in() med 77
+    id'er i URL'en. Rådgivere læser alle rækker under RLS («Advisors can
+    view all progress», has_role(…,'advisor'), PERMISSIVE — målt i pg_policy
+    3/10). */
+type AkademiGrundlag = { grundlag: { katalog: Set<string>; raekker: AkademiFremdriftRaekke[] } | null; kilder: string[] };
+
+async function hentAkademiGrundlag(): Promise<AkademiGrundlag> {
+  const [lektioner, raekker] = await Promise.allSettled([
+    listPublishedItems(),
+    hentAlleSider<AkademiFremdriftRaekke>((fra, til) =>
+      supabase
+        .from("member_progress")
+        .select("user_id, content_item_id, seen_at, acknowledged_at, skipped_at, brugbar_at, markeret_at")
+        .order("id")
+        .range(fra, til)
+        .then(side("member_progress")),
+    ),
+  ]);
+  if (lektioner.status === "fulfilled" && raekker.status === "fulfilled") {
+    return { grundlag: { katalog: akademiKatalog(lektioner.value, AREAS), raekker: raekker.value }, kilder: [] };
+  }
+  const kilder: string[] = [];
+  if (lektioner.status === "rejected") kilder.push("content_items");
+  if (raekker.status === "rejected") kilder.push(kildeAf(raekker.reason));
+  return { grundlag: null, kilder };
 }
 
 /** grundlag = null, når blot én af de to hentninger fejlede eller læsningen
@@ -259,7 +304,7 @@ export async function hentEngagement(nu: Date): Promise<EngagementSvar> {
   ) as VirksomhedRaekke[]).filter(iEngagementUniverset);
   const ids = new Set(virksomheder.map((v) => v.id));
 
-  const [facts, hukommelseRes, medlemmer, maal, budget, kpi, refleksioner, traade, svar, raadgivere, maalGrundlag] = await Promise.all([
+  const [facts, hukommelseRes, medlemmer, maal, budget, kpi, refleksioner, traade, svar, raadgivere, maalGrundlag, akademiGrundlag] = await Promise.all([
     hentAlleSider<{ company_id: string; period_key: string; data_basis: string; metrics: Json; created_at: string }>((fra, til) =>
       supabase.from("financial_report_facts").select("company_id, period_key, data_basis, metrics, created_at").order("id").range(fra, til).then(side("financial_report_facts")),
     ),
@@ -291,6 +336,7 @@ export async function hentEngagement(nu: Date): Promise<EngagementSvar> {
     ),
     hentRaadgiverListe(),
     hentMaalGrundlag([...ids]),
+    hentAkademiGrundlag(),
   ]);
 
   const maalDomPr = maalGrundlag.grundlag ? engagementMaalPrVirksomhed(maalGrundlag.grundlag.maal, maalGrundlag.grundlag.skridt, nu) : null;
@@ -306,6 +352,16 @@ export async function hentEngagement(nu: Date): Promise<EngagementSvar> {
   const traadForfatter = new Map(traade.map((t) => [t.id, t.forfatter_id]));
   const traadePr = grupper(traade, (t) => virksomhedAfBruger.get(t.forfatter_id));
   const svarPr = grupper(svar, (s) => virksomhedAfBruger.get(s.forfatter_id));
+  // Akademiet: rådgivere og tjenestekonti (raadgivere) er ikke medlemmer — dommen trækker dem fra.
+  const akademiPr = akademiGrundlag.grundlag
+    ? akademiFremdriftPrVirksomhed(
+        akademiGrundlag.grundlag.raekker,
+        new Map([...brugerePr].map(([c, m]) => [c, m.map((x) => x.user_id)])),
+        raadgivere,
+        [...ids],
+        akademiGrundlag.grundlag.katalog,
+      )
+    : null;
 
   const raekker = virksomheder.map((v) => {
     const maaneder: ScoreMaaned[] = (factsPr.get(v.id) ?? []).map((f) => ({
@@ -348,9 +404,10 @@ export async function hentEngagement(nu: Date): Promise<EngagementSvar> {
       ...egneSvar.map((s) => s.created_at),
     ]);
     const maalDom = maalDomPr ? (maalDomPr.get(v.id) ?? INGEN_MAAL) : null;
-    return { companyId: v.id, navn: v.name, dom, trofaeer, senesteAktivitet, maal: maalDom };
+    const akademi = akademiPr ? (akademiPr.get(v.id) ?? null) : null;
+    return { companyId: v.id, navn: v.name, dom, trofaeer, senesteAktivitet, maal: maalDom, akademi };
   });
-  return { raekker, maalHentefejl: maalGrundlag.kilder };
+  return { raekker, maalHentefejl: maalGrundlag.kilder, akademiHentefejl: akademiGrundlag.kilder };
 }
 
 export function useEngagement() {
