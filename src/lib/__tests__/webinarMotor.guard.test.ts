@@ -137,10 +137,10 @@ describe("webinarMotor.guard 3 — ingen log pr. puls", () => {
     for (const f of delte) expect(`${f}: ${/\bconsole\./.test(utenKommentarer(laes(f)))}`).toBe(`${f}: false`);
     // Og pulsen importerer kun dem (plus de to husets fælles uden log).
     const imports = [...laes(PULS).matchAll(/from "\.\.\/_shared\/([^"]+)"/g)].map((m) => m[1]).sort();
-    // 3/10 (skive 5, §7.10): + klokken ved et nyt spørgsmål — den logger heller aldrig, og dens egne imports er spejlet klokke.ts og tjenestekonti.ts.
+    // 3/10 (skive 5, §7.10): + klokken ved et nyt spørgsmål — den logger heller aldrig, og dens eneste import er spejlet klokke.ts.
     expect(imports).toEqual(["edgeFunctionAuth.ts", "kendteFelter.ts", "webinarDeltagerAuth.ts", "webinarMotor/interaktioner.ts", "webinarMotor/puls.ts", "webinarMotor/svar.ts", "webinarMotor/ur.ts", "webinarMotorHent.ts", "webinarSpoergsmaalKlokke.ts"]);
-    for (const f of ["supabase/functions/_shared/webinarSpoergsmaalKlokke.ts", "supabase/functions/_shared/tjenestekonti.ts"]) expect(`${f}: ${/\bconsole\./.test(utenKommentarer(laes(f)))}`).toBe(`${f}: false`);
-    expect([...laes("supabase/functions/_shared/webinarSpoergsmaalKlokke.ts").matchAll(/from "\.\/([^"]+)"/g)].map((m) => m[1]).sort()).toEqual(["tjenestekonti.ts", "webinarMotor/klokke.ts"]);
+    for (const f of ["supabase/functions/_shared/webinarSpoergsmaalKlokke.ts"]) expect(`${f}: ${/\bconsole\./.test(utenKommentarer(laes(f)))}`).toBe(`${f}: false`);
+    expect([...laes("supabase/functions/_shared/webinarSpoergsmaalKlokke.ts").matchAll(/from "\.\/([^"]+)"/g)].map((m) => m[1]).sort()).toEqual(["webinarMotor/klokke.ts"]);
     expect(/\bconsole\./.test(utenKommentarer(laes("supabase/functions/_shared/kendteFelter.ts")))).toBe(false);
   });
   it("MUTATION: et console.log pr. kald fanges", () => {

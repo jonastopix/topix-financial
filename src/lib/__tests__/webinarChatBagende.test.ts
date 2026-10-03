@@ -8,7 +8,10 @@ import {
 } from "@/lib/webinarMotor/svarMail";
 import { I_RUMMET_SEK } from "@/lib/webinarMotor/puls";
 import { PULS_ROLIG_MS } from "@/lib/webinarRum/pulsplan";
-import { laasFraRaekke, svarLoefteTekst } from "@/lib/webinarMotorAdmin/konsol";
+import { laasFraRaekke, leveringTekst, svarLoefteTekst } from "@/lib/webinarMotorAdmin/konsol";
+import { SVAR_MAIL_MAKS_AFVISNINGER, svarPassetMaaBegynde } from "@/lib/webinarMotor/svarMail";
+import { SENESTE_START_MS } from "@/lib/webinarMotor/fremmoede";
+import { udenBesvaredeWebinarKlokker, webinarKlokkeSessioner, WEBINARKLOKKEN } from "../../../supabase/functions/_shared/klokkeMail.ts";
 import { raadgiverSti } from "@/lib/hjemmebane/klokke";
 import { raadgivereUdenRaekke } from "../../../supabase/functions/_shared/raadgiverBeskedTekst.ts";
 import { afsendelseUkendt } from "../../../supabase/functions/_shared/webinarMailDom.ts";
@@ -72,7 +75,7 @@ const NU = Date.parse("2026-11-03T12:00:00Z");
 const k = (o: Partial<SvarKandidat> = {}): SvarKandidat => ({
   status: "besvaret", leveret: null, svar_tekst: "Ja — kig på dækningsbidraget først.", svaret_at: new Date(NU - 60_000).toISOString(),
   email: "anne@firma.dk", kilde_system: "platform", afmeldt: false, sessionIntern: false, adresseErHusets: false,
-  sidstePulsMs: NU - SVAR_MAIL_GAAET_SEK * 1000, sessionSlutMs: NU + 3_600_000, tidligereUgyldig: false, ...o,
+  sidstePulsMs: NU - SVAR_MAIL_GAAET_SEK * 1000, sessionSlutMs: NU + 3_600_000, tidligereUgyldig: false, afvisningerFoer: 0, ...o,
 });
 const dom = (o: Partial<SvarKandidat> = {}, proeveEmail: string | null = null) => svarMailDom(k(o), { nuMs: NU, proeveEmail });
 
@@ -108,6 +111,7 @@ describe("svar på mail — låsen er fail-closed", () => {
     expect(svarLoefteTekst(false)).toContain("der sendes intet på mail");
     expect(svarLoefteTekst(true)).toContain("sendes svaret på mail");
     expect(svarLoefteTekst(true)).toContain("ingen puls i 3 min");
+    expect(svarLoefteTekst(true)).toContain("hvis seeren kan modtage mail");
     expect(svarLoefteTekst(null)).not.toMatch(/sendes svaret på mail|sendes intet/);
     for (const v of [true, false, null]) expect(svarLoefteTekst(v)).not.toMatch(/\blive\b|optag/i);
   });
@@ -154,6 +158,42 @@ describe("svar på mail — dommen", () => {
     expect(SVAR_MAIL_VINDUE_DAGE).toBe(7);
     expect(dom({ svaret_at: new Date(NU - 7 * 86_400_000 - 1).toISOString() })).toEqual({ send: false, grund: "for_gammel" });
     expect(dom({ svaret_at: new Date(NU - 7 * 86_400_000).toISOString() })).toEqual({ send: true });
+  });
+});
+
+describe("CTO 3/10 — rettelserne", () => {
+  it("fund 1: passet begynder kun ≤ 35 000 ms; fremmødet kan holde til 42 000 + 13 000", () => {
+    expect(SENESTE_START_MS).toBe(42_000);
+    expect(svarPassetMaaBegynde(35_000)).toBe(true);
+    expect(svarPassetMaaBegynde(35_001)).toBe(false);
+    expect(svarPassetMaaBegynde(SENESTE_START_MS)).toBe(false);
+  });
+  it("fund 6: højst 6 tydelige afvisninger pr. spørgsmål", () => {
+    expect(SVAR_MAIL_MAKS_AFVISNINGER).toBe(6);
+    expect(dom({ afvisningerFoer: 5 })).toEqual({ send: true });
+    expect(dom({ afvisningerFoer: 6 })).toEqual({ send: false, grund: "opgivet" });
+  });
+  it("fund 3: morgenmailen springer webinarklokken over, når sessionen ikke har et ubesvaret spørgsmål — fail-open ved læsefejl", () => {
+    const S2 = "22222222-2222-4222-8222-222222222222";
+    const raekker = [
+      { id: "1", type: WEBINARKLOKKEN, reference_id: SES },
+      { id: "2", type: WEBINARKLOKKEN, reference_id: S2 },
+      { id: "3", type: "venteliste", reference_id: null },
+      { id: "4", type: WEBINARKLOKKEN, reference_id: null },
+    ];
+    expect(webinarKlokkeSessioner(raekker)).toEqual([SES, S2].sort());
+    const ud = udenBesvaredeWebinarKlokker(raekker, new Set([SES]));
+    expect(ud.raekker.map((r) => r.id)).toEqual(["1", "3"]);
+    expect(ud.sprunget).toBe(2);
+    expect(udenBesvaredeWebinarKlokker(raekker, null)).toEqual({ raekker, sprunget: 0 });
+  });
+  it("fund 7: leveringen skelner sendt · ukendt · afvist", () => {
+    const b = { status: "besvaret", leveret: "mail", leveret_at: "2026-11-03T10:12:00Z" };
+    expect(leveringTekst({ ...b, mail_udfald: "sendt" })).toBe("Sendt på mail kl. 11.12");
+    expect(leveringTekst({ ...b, mail_udfald: "ukendt" })).toContain("det vides ikke, om den kom frem");
+    expect(leveringTekst({ ...b, mail_udfald: null })).toContain("Sendes på mail");
+    expect(leveringTekst({ status: "besvaret", leveret: null, leveret_at: null, mail_udfald: "afvist" })).toContain("afvist");
+    expect(leveringTekst({ status: "besvaret", leveret: "live", leveret_at: "2026-11-03T10:12:00Z", mail_udfald: "afvist" })).toBe("Set i rummet kl. 11.12");
   });
 });
 

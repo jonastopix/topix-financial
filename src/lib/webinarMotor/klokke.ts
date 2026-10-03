@@ -5,13 +5,13 @@
  * Spejlet ORDRET i supabase/functions/_shared/webinarMotor/klokke.ts
  * (paritetstest src/lib/__tests__/webinarMotor.paritet.test.ts). Nul imports.
  *
- * HVEM: alle rådgivere MINUS tjenestekonti (I/O-filen _shared/webinarSpoergsmaalKlokke.ts
- * filtrerer med udenTjenestekonti, FØR denne dom får listen).
+ * HVEM: ALLE rådgivere — også tjenestekonti (husets regel for klokker: kontoen
+ * skal se alt; mailen filtreres i klokke-mail-cron). CTO 3/10, fund 2.
  * HVOR MANGE: højst ÉN ULÆST klokke pr. (rådgiver, session) — samme regel som
  * husets writer med dedupKunUlaeste (raadgiverBeskedTekst.raadgivereUdenRaekke
  * med kunUlaeste = true; paritetstesten beviser det). Writeren selv bruges
  * IKKE fra pulsen: den logger ved fejl (webinar-puls må kun logge fejlsummen,
- * webinarMotor.guard dom 3), og den kender ikke tjenestekonti.
+ * webinarMotor.guard dom 3), og den indsætter alle rækker i én insert.
  * HVOR HEN: reference_type «webinar_session» + reference_id = sessionens id →
  * konsollen /webinar/motor/session/<id> (klokke.ts raadgiverSti ⇄ klokkeMail.ts klokkeSti).
  * MAIL: typen står under MORGEN i _shared/klokkeMail.ts — aldrig en mail pr.
@@ -69,7 +69,7 @@ export interface KlokkeRaekke {
 /**
  * De rådgivere, der IKKE allerede har en ULÆST klokke for sessionen. En læst
  * klokke spærrer ikke — læst den, ringer næste spørgsmål igen. Rækkefølgen bevares.
- * Kalderen giver listen UDEN tjenestekonti og rækkerne af typen for sessionen.
+ * Kalderen giver rådgiverlisten og rækkerne af typen for sessionen.
  */
 export function raadgivereUdenUlaestKlokke(raadgivere: readonly string[], eksisterende: readonly KlokkeRaekke[], sessionId: string): string[] {
   const har = new Set<string>();

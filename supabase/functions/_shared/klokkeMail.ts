@@ -125,6 +125,35 @@ export const LEGACY_TYPER = ["new_message", "report_uploaded", "handout_complete
 export type MailArt = "alarm" | "community" | "morgen";
 export type Klasse = MailArt | "aldrig" | "legacy" | "ukendt";
 
+/**
+ * WEBINARKLOKKEN I MORGENMAILEN — kun når der stadig er noget at gøre (CTO 3/10,
+ * fund 3; docs/webinarmotor.md §7.10): en «webinar_spoergsmaal»-klokke springes
+ * over, når dens session (reference_id) ikke har ét spørgsmål med status «ny» —
+ * så er alle besvaret i konsollen, og mailen ville kun være støj. Rækken stemples
+ * IKKE: kommer der et nyt spørgsmål, mens klokken stadig er ulæst, står den med i
+ * næste morgenmail. `sessionerMedUbesvarede = null` (kunne ikke læses) = FAIL-OPEN:
+ * hellere én klokke for meget i morgenmailen end et ubesvaret spørgsmål uden signal.
+ */
+export const WEBINARKLOKKEN = "webinar_spoergsmaal";
+
+export function webinarKlokkeSessioner(raekker: readonly Pick<KlokkeRaekke, "type" | "reference_id">[]): string[] {
+  return [...new Set(raekker.filter((r) => r.type === WEBINARKLOKKEN && !!r.reference_id).map((r) => r.reference_id as string))].sort();
+}
+
+export function udenBesvaredeWebinarKlokker<T extends Pick<KlokkeRaekke, "type" | "reference_id">>(
+  raekker: readonly T[],
+  sessionerMedUbesvarede: ReadonlySet<string> | null,
+): { raekker: T[]; sprunget: number } {
+  if (sessionerMedUbesvarede === null) return { raekker: [...raekker], sprunget: 0 };
+  const ud: T[] = [];
+  let sprunget = 0;
+  for (const r of raekker) {
+    if (r.type === WEBINARKLOKKEN && !(r.reference_id !== null && sessionerMedUbesvarede.has(r.reference_id))) { sprunget++; continue; }
+    ud.push(r);
+  }
+  return { raekker: ud, sprunget };
+}
+
 /** Klassen af en klokke: typen — og for «drift» også reference_type (en selvmailende alarm mailes aldrig igen). */
 export function klassificer(type: string, referenceType: string | null = null): Klasse {
   if (type === "drift" && referenceType !== null && (SELVMAILENDE_REFERENCER as readonly string[]).includes(referenceType)) return "aldrig";

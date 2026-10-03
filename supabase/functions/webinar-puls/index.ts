@@ -179,7 +179,7 @@ async function antalIVinduet(admin: SupabaseClient, tilmeldingId: string, art: L
 async function udfoerHandling(
   admin: SupabaseClient,
   h: HandlingRaa,
-  a: { tilmeldingId: string; sessionId: string; deltagelseId: string; rum: string; posSek: number; tidslinje: Tidslinje | null; nuMs: number; talt: Map<LoftArt, number>; webinarTitel: string | null },
+  a: { tilmeldingId: string; sessionId: string; deltagelseId: string; rum: string; posSek: number; tidslinje: Tidslinje | null; nuMs: number; talt: Map<LoftArt, number> },
 ): Promise<string> {
   const interaktion = h.interaktion_id && a.tidslinje ? a.tidslinje.interaktioner.find((i) => i.id === h.interaktion_id) ?? null : null;
   const logArt = h.art === "svar" ? (interaktion?.art === "cta" ? "cta_klik" : interaktion?.art === "feedback" ? "feedback" : "svar") : h.art;
@@ -233,11 +233,6 @@ async function udfoerHandling(
       pos_sek: a.rum === "afspilning" ? a.posSek : null, art: "spoergsmaal",
     });
     if (error) { noterFejl("spoergsmaal"); return "fejl"; }
-    // KLOKKEN (skive 5, §7.10): hos alle rådgivere minus tjenestekonti, højst én
-    // ULÆST pr. (rådgiver, session). FAIL-SOFT: kaster aldrig, logger aldrig —
-    // en fejl lægges i fejlsummen, og spørgsmålet er stadig «ok».
-    const klokke = await ringSpoergsmaalKlokke(admin, { sessionId: a.sessionId, webinarTitel: a.webinarTitel });
-    if (klokke.fejl !== null) noterFejl(klokke.fejl);
     return "ok";
   }
   // reaktion
@@ -297,8 +292,16 @@ Deno.serve(async (req) => {
       // 2. Handlingerne — loftet tælles én gang pr. art pr. kald.
       const talt = new Map<LoftArt, number>();
       for (const h of krop.handlinger) {
-        const udfald = await udfoerHandling(admin, h, { tilmeldingId: d.id, sessionId: d.session_id, deltagelseId: deltagelse.id, rum: pos.rum, posSek: pos.forventetPosSek, tidslinje: rd.tidslinje, nuMs, talt, webinarTitel: rd.webinar.titel ?? null });
+        const udfald = await udfoerHandling(admin, h, { tilmeldingId: d.id, sessionId: d.session_id, deltagelseId: deltagelse.id, rum: pos.rum, posSek: pos.forventetPosSek, tidslinje: rd.tidslinje, nuMs, talt });
         handlingerUd.push({ klient_id: h.klient_id, udfald });
+      }
+      // KLOKKEN (skive 5, §7.10; CTO 3/10 fund 4): HØJST ÉN GANG PR. KALD, efter
+      // løkken, når mindst ét spørgsmål blev «ok». Hos alle rådgivere, højst én
+      // ULÆST pr. (rådgiver, session). FAIL-SOFT: kaster aldrig, logger aldrig,
+      // frist 2 s — en fejl lægges i fejlsummen; spørgsmålene er stadig «ok».
+      if (krop.handlinger.some((h, i) => h.art === "spoergsmaal" && handlingerUd[i]?.udfald === "ok")) {
+        const klokke = await ringSpoergsmaalKlokke(admin, { sessionId: d.session_id, webinarTitel: rd.webinar.titel ?? null });
+        if (klokke.fejl !== null) noterFejl(klokke.fejl);
       }
     } else {
       for (const h of krop.handlinger) handlingerUd.push({ klient_id: h.klient_id, udfald: "rummet_er_lukket" });

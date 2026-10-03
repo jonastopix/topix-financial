@@ -1,26 +1,27 @@
 // _shared/webinarSpoergsmaalKlokke.ts — rådgivernes klokke ved et NYT spørgsmål
 // i webinaret (spec'ens skive 5, 3/10-2026; docs/webinarmotor.md §7.10).
 //
-// KALDES KUN AF webinar-puls, EFTER at spørgsmålet er indsat. Dommen er ren og
-// spejlet (webinarMotor/klokke.ts); denne fil er I/O:
-//   1. rådgiverne (user_roles advisor/admin) MINUS tjenestekonti (udenTjenestekonti —
-//      kan tjenestekonti ikke læses, ringer klokken ikke: hellere ingen klokke end
-//      en til en maskine);
+// KALDES KUN AF webinar-puls — HØJST ÉN GANG PR. KALD, efter handlingsløkken,
+// når mindst ét spørgsmål blev «ok» (CTO 3/10, fund 4). Dommen er ren og spejlet
+// (webinarMotor/klokke.ts); denne fil er I/O:
+//   1. ALLE rådgivere (user_roles advisor/admin) — OGSÅ tjenestekonti: husets regel
+//      for klokker (CLAUDE.md «Tjenestekonti»: kontoen skal se alt); MAILEN filtreres
+//      i klokke-mail-cron (udenTjenestekonti) — CTO 3/10, fund 2;
 //   2. typens rækker for sessionen → raadgivereUdenUlaestKlokke: højst ÉN ULÆST
 //      klokke pr. (rådgiver, session) — husets dedupKunUlaeste-regel;
-//   3. én række pr. manglende rådgiver. Et 23505 fra delindekset
+//   3. ÉN INSERT PR. RÅDGIVER (fund 5): et 23505 fra delindekset
 //      advisor_notifications_webinar_spoergsmaal_ulaest_uidx (migration
-//      20261003080000) er et kapløb, en anden puls vandt — ikke en fejl.
+//      20261003080000) er et kapløb, en anden puls vandt for DEN rådgiver — det
+//      taber aldrig de andres rækker.
 //
 // HVORFOR IKKE skrivRaadgiverBesked: den logger ved fejl (webinar-puls må KUN
-// logge fejlsummen — webinarMotor.guard dom 3), og den skriver også til
-// tjenestekonti. Reglen er den samme (paritetstesten).
+// logge fejlsummen — webinarMotor.guard dom 3), og den indsætter alle rækker i
+// ÉN insert (en 23505 ville tabe de andres). Reglen er den samme (paritetstesten).
 //
 // KASTER ALDRIG og LOGGER ALDRIG: resultatet bærer grunden, og pulsen lægger den
 // i sin fejlsum. Klokken må aldrig koste pulsen eller spørgsmålet.
 
 import { beskedVedSpoergsmaal, raadgivereUdenUlaestKlokke, type KlokkeRaekke, TYPE_WEBINAR_SPOERGSMAAL } from "./webinarMotor/klokke.ts";
-import { hentTjenestekonti, udenTjenestekonti } from "./tjenestekonti.ts";
 
 // deno-lint-ignore no-explicit-any
 type Klient = { from: (tabel: string) => any };
@@ -58,10 +59,7 @@ async function ring(admin: Klient, a: { sessionId: string; webinarTitel: string 
 
     const { data: roller, error: rolleFejl } = await admin.from("user_roles").select("user_id").in("role", ["advisor", "admin"]);
     if (rolleFejl) { ud.fejl = "klokke:roller"; return ud; }
-    const alle = [...new Set(((roller ?? []) as { user_id: string | null }[]).map((r) => r.user_id).filter((x): x is string => !!x))];
-    let tjenestekonti: Set<string>;
-    try { tjenestekonti = await hentTjenestekonti(admin); } catch { ud.fejl = "klokke:tjenestekonti"; return ud; }
-    const raadgivere = udenTjenestekonti(alle, tjenestekonti);
+    const raadgivere = [...new Set(((roller ?? []) as { user_id: string | null }[]).map((r) => r.user_id).filter((x): x is string => !!x))];
     if (raadgivere.length === 0) return ud;
 
     const { data: eks, error: eksFejl } = await admin
@@ -77,23 +75,22 @@ async function ring(admin: Klient, a: { sessionId: string; webinarTitel: string 
     ud.fandtes = raadgivere.length - mangler.length;
     if (mangler.length === 0) return ud;
 
-    const raekker = mangler.map((advisorId) => ({
-      type: besked.type,
-      title: besked.title,
-      body: besked.body,
-      company_id: null,
-      member_id: advisorId,
-      advisor_id: advisorId,
-      reference_type: besked.reference_type,
-      reference_id: besked.reference_id,
-    }));
-    const { error: insFejl } = await admin.from("advisor_notifications").insert(raekker);
-    if (insFejl) {
-      if ((insFejl as { code?: string }).code === "23505") { ud.fandtes += mangler.length; return ud; }
-      ud.fejl = "klokke:insert";
-      return ud;
+    // Én INSERT pr. rådgiver: en 23505 (kapløbet) gælder kun den ene række.
+    for (const advisorId of mangler) {
+      const { error: insFejl } = await admin.from("advisor_notifications").insert({
+        type: besked.type,
+        title: besked.title,
+        body: besked.body,
+        company_id: null,
+        member_id: advisorId,
+        advisor_id: advisorId,
+        reference_type: besked.reference_type,
+        reference_id: besked.reference_id,
+      });
+      if (!insFejl) ud.skrevet++;
+      else if ((insFejl as { code?: string }).code === "23505") ud.fandtes++;
+      else ud.fejl = "klokke:insert";
     }
-    ud.skrevet = raekker.length;
     return ud;
   } catch {
     ud.fejl = "klokke:uventet";

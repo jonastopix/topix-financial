@@ -24,7 +24,7 @@
 //      stempel); ved et UKENDT udfald bliver den «mail» og sendes aldrig igen.
 
 import {
-  bygSvarMail, laesSvarMailLaas, skalSvarMailAlarmere, SVAR_MAIL_LAAS_NOEGLE, SVAR_MAIL_VINDUE_DAGE, svarMailAlarmNoegle,
+  bygSvarMail, laesSvarMailLaas, MAIL_UDFALD, skalSvarMailAlarmere, svarPassetMaaBegynde, SVAR_MAIL_LAAS_NOEGLE, SVAR_MAIL_VINDUE_DAGE, svarMailAlarmNoegle,
   svarMailBudgetTillader, svarMailDom, type SvarMailGrund, type SvarMailResultat, svarMailSenderRigtigt, svarUdfaldArt,
   tomtSvarMailResultat,
 } from "./webinarMotor/svarMail.ts";
@@ -88,6 +88,11 @@ export async function koerSvarMail(admin: Klient, a: {
 }): Promise<SvarMailResultat> {
   const senderRigtigt = svarMailSenderRigtigt({ toerKoersel: a.toerKoersel, laas: a.laas, proeveEmail: a.proeveEmail });
   const r = tomtSvarMailResultat({ laas: a.laas, senderRigtigt, proeve: a.proeveEmail !== null });
+  // BUDGETTET FØRST (CTO 3/10, fund 1): har fremmødet brugt tiden, læses INTET —
+  // alle svar er udsat til næste kørsel (regnestykket ved svarPassetMaaBegynde).
+  const forloebet = Date.now() - a.startMs;
+  r.forloebet_ved_start_ms = forloebet;
+  if (!svarPassetMaaBegynde(forloebet)) { r.sprunget_over_af_budget = true; return r; }
   try {
     await koer(admin, a, r);
   } catch (err) {
@@ -153,17 +158,19 @@ async function koer(admin: Klient, a: Parameters<typeof koerSvarMail>[1], r: Sva
     if (error) { r.fejl.push(`webinar_afmeldinger: ${error.message}`); return; }
     for (const x of data ?? []) afmeldte.add((x.email as string).trim().toLowerCase());
   }
-  // Loggen: tidligere «ugyldig» pr. spørgsmål (aldrig igen på mail) — og svarmailenes forsøg til loftet.
+  // Loggen: tidligere «ugyldig» og antal tydelige afvisninger pr. spørgsmål — og svarmailenes forsøg til loftet.
   const ugyldige = new Set<string>();
+  const afvisninger = new Map<string, number>();
   const egneForsoeg: LoftRaekke[] = [];
   const loftFra = Date.now() - LOFT_VINDUE_MS;
   for (const b of bundter(tIds)) {
     const { data, error } = await admin.from("webinar_motor_log").select("tid, data").eq("art", "svar_leveret").in("tilmelding_id", b);
     if (error) { r.fejl.push(`webinar_motor_log: ${error.message}`); return; }
     for (const l of data ?? []) {
-      const d = (l.data ?? {}) as { via?: string; udfald?: string; status?: number | null; spoergsmaal_id?: string };
+      const d = (l.data ?? {}) as { via?: string; udfald?: string; status?: number | null; spoergsmaal_id?: string; art?: string };
       if (d.via !== "mail") continue;
       if (d.udfald === "ugyldig" && typeof d.spoergsmaal_id === "string") ugyldige.add(d.spoergsmaal_id);
+      if (d.art === "afvist" && typeof d.spoergsmaal_id === "string") afvisninger.set(d.spoergsmaal_id, (afvisninger.get(d.spoergsmaal_id) ?? 0) + 1);
       if (Date.parse(l.tid as string) > loftFra) egneForsoeg.push({ forsoegt_at: l.tid as string, udfald: d.udfald ?? "fejl", status: typeof d.status === "number" ? d.status : null });
     }
   }
@@ -195,6 +202,7 @@ async function koer(admin: Klient, a: Parameters<typeof koerSvarMail>[1], r: Sva
       sidstePulsMs: sidstePuls.get(`${s.tilmelding_id}:${s.session_id}`) ?? null,
       sessionSlutMs: slutMs,
       tidligereUgyldig: ugyldige.has(s.id),
+      afvisningerFoer: afvisninger.get(s.id) ?? 0,
     }, { nuMs, proeveEmail: a.proeveEmail });
     if (dom.send) skal.push(s);
     else { r.sprunget++; grunde[dom.grund] = (grunde[dom.grund] ?? 0) + 1; }
@@ -217,6 +225,8 @@ async function koer(admin: Klient, a: Parameters<typeof koerSvarMail>[1], r: Sva
 
   // Uden afmeldingslink sendes INTET (som webinar-mail-cron) — og intet tages.
   if (!a.afmeldSecret) { r.fejl.push("WEBINAR_AFMELD_SECRET mangler — intet sendt"); r.udsat += skal.length; return; }
+  // Uden Mailgun-nøgle TAGES intet (CTO 3/10, fund 6) — ellers stod rækken som «afvist» uden at være forsøgt.
+  if (!(a.mailgunNoegle ?? "").trim()) { r.fejl.push("MAILGUN_SENDING_KEY mangler — intet taget, intet sendt"); r.udsat += skal.length; return; }
   if (loft.pause) { r.udsat += skal.length; return; }
 
   let forsoegt = 0;
@@ -232,7 +242,7 @@ async function koer(admin: Klient, a: Parameters<typeof koerSvarMail>[1], r: Sva
     const taget = new Date().toISOString();
     const { data: tag, error: tagFejl } = await admin
       .from("webinar_spoergsmaal")
-      .update({ leveret: "mail", leveret_at: taget })
+      .update({ leveret: "mail", leveret_at: taget, mail_udfald: null })
       .eq("id", s.id).eq("status", "besvaret").is("leveret", null)
       .select("id");
     if (tagFejl) { r.fejl.push(`tag ${s.id}: ${tagFejl.message}`); continue; }
@@ -252,6 +262,14 @@ async function koer(admin: Klient, a: Parameters<typeof koerSvarMail>[1], r: Sva
     });
     if (logFejl) r.fejl.push(`loggen for ${s.id}: ${logFejl.message}`);
 
+    if (art === "ok" || art === "ukendt") {
+      // Rækken bærer udfaldet (konsollens ord) — vagtet på vores eget stempel.
+      const { error: udFejl } = await admin
+        .from("webinar_spoergsmaal")
+        .update({ mail_udfald: MAIL_UDFALD[art] })
+        .eq("id", s.id).eq("leveret", "mail").eq("leveret_at", taget);
+      if (udFejl) r.fejl.push(`${s.id}: udfaldet kunne ikke skrives på rækken (${udFejl.message})`);
+    }
     if (art === "ok") r.sendt++;
     else if (art === "ukendt") {
       // Bliver «mail» — sendes ALDRIG igen automatisk (hellere ét manglende svar end en dublet).
@@ -263,7 +281,7 @@ async function koer(admin: Klient, a: Parameters<typeof koerSvarMail>[1], r: Sva
       r.fejl.push(`${s.id}: ${spor.udfald}${spor.status ? ` ${spor.status}` : ""}`);
       const { data: fri, error: friFejl } = await admin
         .from("webinar_spoergsmaal")
-        .update({ leveret: null, leveret_at: null })
+        .update({ leveret: null, leveret_at: null, mail_udfald: MAIL_UDFALD.afvist })
         .eq("id", s.id).eq("leveret", "mail").eq("leveret_at", taget)
         .select("id");
       if (friFejl || !fri || fri.length !== 1) r.fejl.push(`${s.id}: kunne ikke gives fri igen (${friFejl?.message ?? "0 rækker"})`);

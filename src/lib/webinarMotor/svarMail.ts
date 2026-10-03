@@ -28,8 +28,11 @@
  *     igen automatisk: hellere ét manglende svar end en dublet. Alarmen går.
  *   - En TYDELIG afvisning (alt andet) → rækken gives FRI igen (leveret null,
  *     vagtet på vores eget stempel), så pulsen kan levere den, hvis seeren kommer
- *     tilbage, og næste kørsel kan prøve igen. «ugyldig» (adressen afvist) prøves
- *     aldrig igen på mail (loggen husker det) — men kan stadig leveres i rummet.
+ *     tilbage, og næste kørsel kan prøve igen — HØJST SVAR_MAIL_MAKS_AFVISNINGER
+ *     (6) gange pr. spørgsmål, talt i loggen (CTO 3/10, fund 6). «ugyldig»
+ *     (adressen afvist) prøves aldrig igen på mail — men kan stadig leveres i rummet.
+ * Rækken bærer udfaldet i `mail_udfald` (sendt · ukendt · afvist), så konsollen
+ * kan sige, hvad der skete (fund 7; migration 20261003080000).
  */
 
 /** app_config-nøglen. FRAVÆRENDE = false (fail-closed); migrationen 20261003080000 lægger den som false. */
@@ -79,6 +82,20 @@ export const SVAR_MAIL_SENESTE_START_MS = SVAR_MAIL_JOB_TIMEOUT_MS - SVAR_MAIL_M
 export const svarMailBudgetTillader = (forloebetMs: number): boolean => forloebetMs <= SVAR_MAIL_SENESTE_START_MS;
 
 /**
+ * PASSET SPRINGES HELT OVER (ingen læsninger), når fremmødet har brugt tiden
+ * (CTO 3/10, fund 1). Fremmødet starter en tilmelding senest ved 42 000 ms
+ * (fremmoede.SENESTE_START_MS = 60 000 − 5 000 − 13 000) og kan slutte ved 55 000 ms.
+ * Svarpasset må kun BEGYNDE (første læsning), når forløbet ≤ 35 000 ms — så har
+ * læsningerne og den første mail de 20 000 ms, mailen kræver, før margenen på
+ * 5 000 ms til jobbets timeout på 60 000 ms; hver mail tjekker det samme igen.
+ * Over grænsen er ALLE svar udsat til næste kørsel (om 5 min).
+ */
+export const svarPassetMaaBegynde = (forloebetMs: number): boolean => svarMailBudgetTillader(forloebetMs);
+
+/** Tydelige afvisninger pr. spørgsmål, før det opgives på mail — husets tal (en marketinghændelse opgives efter seks forsøg). */
+export const SVAR_MAIL_MAKS_AFVISNINGER = 6;
+
+/**
  * RIGTIG AFSENDELSE KRÆVER dry_run: false OG (låsen ELLER prøven til én adresse).
  * Prøven (`email`) sender uden låsen — men KUN til den adresse (svarMailDom: «ikke_proeven»).
  */
@@ -96,12 +113,13 @@ export type SvarMailGrund =
   | "intern_fremmed"
   | "ikke_proeven"
   | "ugyldig_adresse"
+  | "opgivet"
   | "for_gammel"
   | "i_rummet";
 
 export const SVAR_MAIL_GRUNDE: readonly SvarMailGrund[] = [
   "ikke_besvaret", "allerede_leveret", "tomt_svar", "ingen_mail", "ikke_platform",
-  "afmeldt", "intern_fremmed", "ikke_proeven", "ugyldig_adresse", "for_gammel", "i_rummet",
+  "afmeldt", "intern_fremmed", "ikke_proeven", "ugyldig_adresse", "opgivet", "for_gammel", "i_rummet",
 ];
 
 /** Ét besvaret spørgsmål, som cronen har læst det — og det, cronen har slået op om personen. */
@@ -124,6 +142,8 @@ export interface SvarKandidat {
   sessionSlutMs: number | null;
   /** Har Mailgun før afvist adressen for dette spørgsmål (loggen, udfald «ugyldig»)? */
   tidligereUgyldig: boolean;
+  /** Tydelige afvisninger fra Mailgun for dette spørgsmål (loggen, art «afvist»). */
+  afvisningerFoer: number;
 }
 
 const MAIL_FORM = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -146,6 +166,7 @@ export function svarMailDom(k: SvarKandidat, a: { nuMs: number; proeveEmail: str
   if (k.sessionIntern && !k.adresseErHusets) return { send: false, grund: "intern_fremmed" };
   if (a.proeveEmail !== null && email !== a.proeveEmail.trim().toLowerCase()) return { send: false, grund: "ikke_proeven" };
   if (k.tidligereUgyldig) return { send: false, grund: "ugyldig_adresse" };
+  if (k.afvisningerFoer >= SVAR_MAIL_MAKS_AFVISNINGER) return { send: false, grund: "opgivet" };
   const svaretMs = k.svaret_at === null ? NaN : Date.parse(k.svaret_at);
   if (!Number.isFinite(svaretMs)) return { send: false, grund: "ikke_besvaret" };
   if (a.nuMs - svaretMs > SVAR_MAIL_VINDUE_DAGE * 86_400_000) return { send: false, grund: "for_gammel" };
@@ -160,6 +181,9 @@ export function svarMailDom(k: SvarKandidat, a: { nuMs: number; proeveEmail: str
  * (rækken gives fri). «ukendt» er ORDRET webinarMailDom.afsendelseUkendt —
  * paritetstesten prøver alle udfald og statusser mod den.
  */
+/** Det, rækken bærer i `mail_udfald` efter et forsøg (konsollens ord). */
+export const MAIL_UDFALD = { ok: "sendt", ukendt: "ukendt", afvist: "afvist" } as const;
+
 export function svarUdfaldArt(udfald: string, status: number | null): "ok" | "ukendt" | "afvist" {
   if (udfald === "ok") return "ok";
   if (udfald === "timeout") return "ukendt";
@@ -252,6 +276,9 @@ export interface SvarMailResultat {
   /** Udfald, hvor vi ikke ved, om Mailgun tog imod — sendes aldrig igen. */
   ukendte: number;
   udsat: number;
+  /** Fremmødet havde brugt tiden: passet læste intet, og ALLE svar venter til næste kørsel (svarPassetMaaBegynde). */
+  sprunget_over_af_budget: boolean;
+  forloebet_ved_start_ms: number | null;
   /** Mailgun sagde stop (403 · 420 · 429) i kørslen — resten venter. */
   stoppet: boolean;
   /**
@@ -268,7 +295,7 @@ export function tomtSvarMailResultat(a: { laas: boolean; senderRigtigt: boolean;
   return {
     laas_aktiv: a.laas, sender_rigtigt: a.senderRigtigt, proeve: a.proeve,
     kandidater: 0, skal_sendes: 0, sendt: 0, sprunget: 0, sprunget_grunde: {}, taget_imens: 0,
-    fejlede: 0, ukendte: 0, udsat: 0, stoppet: false, loft: { maks: null, pause_til: null }, alarm: "ingen", fejl: [],
+    fejlede: 0, ukendte: 0, udsat: 0, sprunget_over_af_budget: false, forloebet_ved_start_ms: null, stoppet: false, loft: { maks: null, pause_til: null }, alarm: "ingen", fejl: [],
   };
 }
 

@@ -151,7 +151,7 @@ export function useSpoergsmaalKoe(sessionId: string | undefined) {
     retry: false,
     queryFn: async (): Promise<KonsolSpoergsmaal[]> => {
       const { data, error } = await tabel("webinar_spoergsmaal")
-        .select("id, tekst, pos_sek, stillet_at, art, status, svar_tekst, svaret_at, leveret, leveret_at, tilmelding:webinar_tilmeldinger(fornavn)")
+        .select("id, tekst, pos_sek, stillet_at, art, status, svar_tekst, svaret_at, leveret, leveret_at, mail_udfald, tilmelding:webinar_tilmeldinger(fornavn)")
         .eq("session_id", sessionId)
         .order("stillet_at", { ascending: false })
         .limit(500);
@@ -167,6 +167,7 @@ export function useSpoergsmaalKoe(sessionId: string | undefined) {
         svaret_at: r.svaret_at ?? null,
         leveret: r.leveret ?? null,
         leveret_at: r.leveret_at ?? null,
+        mail_udfald: (r.mail_udfald as string | null | undefined) ?? null,
         fornavn: (r.tilmelding?.fornavn as string | null | undefined) ?? null,
       }));
     },

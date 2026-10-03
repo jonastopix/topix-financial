@@ -5,6 +5,7 @@ import { HbCard } from "@/components/hjemmebane/HbCard";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 import { HbTextarea } from "@/components/hjemmebane/admin/HbField";
 import { useAuth } from "@/hooks/useAuth";
+import { useMarkerKonsolKlokkeLaest } from "@/hooks/webinarKonsolKlokke";
 import { useIRummet, useKonsolSession, useServerForskydning, useSpoergsmaalKoe, useSvarMailLaas, useSvarSpoergsmaal } from "@/hooks/webinarKonsol";
 import {
   erUbesvaret,
@@ -42,6 +43,7 @@ export const WebinarKonsol = ({ sessionId }: { sessionId: string | undefined }) 
   const koe = useSpoergsmaalKoe(sessionId);
   const svar = useSvarSpoergsmaal(sessionId);
   const svarMailLaas = useSvarMailLaas();
+  useMarkerKonsolKlokkeLaest(sessionId, koe.dataUpdatedAt);
   const [udkast, setUdkast] = useState<Record<string, string>>({});
   const [fejl, setFejl] = useState<Record<string, string>>({});
 

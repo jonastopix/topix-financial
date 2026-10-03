@@ -99,7 +99,8 @@ describe("webinarKonsol.guard 2 — ingen Realtime", () => {
 
 // ── 3. Persondata ────────────────────────────────────────────────────────────
 
-const SPOERGSMAAL_FELTER = ["id", "tekst", "pos_sek", "stillet_at", "art", "status", "svar_tekst", "svaret_at", "leveret", "leveret_at"];
+// + mail_udfald (skive 5, CTO 3/10 fund 7): svarmailens udfald — ingen persondata.
+const SPOERGSMAAL_FELTER = ["id", "tekst", "pos_sek", "stillet_at", "art", "status", "svar_tekst", "svaret_at", "leveret", "leveret_at", "mail_udfald"];
 
 /** Kolonnerne i køens select — og tilmeldingens indlejrede felter. */
 function koeensFelter(hook: string): { egne: string[]; tilmelding: string[] } | null {

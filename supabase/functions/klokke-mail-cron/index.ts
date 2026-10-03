@@ -63,7 +63,9 @@ import {
   morgenMailTekst,
   type Raadgiver,
   type Sprunget,
+  udenBesvaredeWebinarKlokker,
   VINDUE_DAGE,
+  webinarKlokkeSessioner,
 } from "../_shared/klokkeMail.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -105,6 +107,8 @@ export interface KlokkeMailResultat {
   forrige_morgen: string;
   raadgivere: { id: string; email: string; fornavn: string | null }[];
   raekker_laest: number;
+  /** Webinarklokker uden et ubesvaret spørgsmål i sessionen — ikke mailet, ikke stemplet (udenBesvaredeWebinarKlokker). */
+  webinar_uden_ubesvarede: number;
   alarm: MailSvar | null;
   community: MailSvar[];
   morgen: MailSvar[];
@@ -124,7 +128,7 @@ function tomtResultat(toerKoersel: boolean, nu: Date): KlokkeMailResultat {
   return {
     ok: true, dry_run: toerKoersel, nu: nu.toISOString(),
     morgen_koersel: erMorgenkoersel(nu), morgen_graense: morgenGraense(nu).toISOString(), forrige_morgen: forrigeMorgen(nu).toISOString(),
-    raadgivere: [], raekker_laest: 0, alarm: null, community: [], morgen: [],
+    raadgivere: [], raekker_laest: 0, webinar_uden_ubesvarede: 0, alarm: null, community: [], morgen: [],
     sprunget: { laest: 0, mailet: 0, uden_advisor: 0, aldrig: 0, legacy: 0, venter_paa_morgen: 0 },
     ukendte: [], uden_adresse: [], tjenestekonti: [], fejl: [],
   };
@@ -270,7 +274,19 @@ export async function koerKlokkeMail(
   const raekker = await hentRaekker(admin, fra, a.nu);
   r.raekker_laest = raekker.length;
 
-  const f = fordel(raekker, a.nu);
+  // Webinarklokken kun, når sessionen stadig har et ubesvaret spørgsmål (CTO 3/10, fund 3).
+  // Læsefejl (fx før skive 1) = null = fail-open: klokken mailes som før.
+  let medUbesvarede: Set<string> | null = new Set();
+  const webinarSessioner = webinarKlokkeSessioner(raekker);
+  if (webinarSessioner.length > 0) {
+    const { data, error } = await admin.from("webinar_spoergsmaal").select("session_id").eq("status", "ny").in("session_id", webinarSessioner);
+    if (error) medUbesvarede = null;
+    else for (const x of (data ?? []) as { session_id: string }[]) medUbesvarede.add(x.session_id);
+  }
+  const webinarDom = udenBesvaredeWebinarKlokker(raekker, medUbesvarede);
+  r.webinar_uden_ubesvarede = webinarDom.sprunget;
+
+  const f = fordel(webinarDom.raekker, a.nu);
   r.sprunget = f.sprunget;
   r.ukendte = f.ukendte;
 

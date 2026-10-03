@@ -41,6 +41,8 @@ export interface KonsolSpoergsmaal {
   svaret_at: string | null;
   leveret: string | null;
   leveret_at: string | null;
+  /** Svarmailens udfald (sendt · ukendt · afvist; null = intet mailforsøg) — migration 20261003080000. */
+  mail_udfald: string | null;
   /** webinar_tilmeldinger.fornavn — det ENESTE personfelt, konsollen henter. */
   fornavn: string | null;
 }
@@ -86,11 +88,17 @@ const klok = (iso: string): string =>
  * («live»); webinar-motor-cron leverer på mail til den, der er gået (skive 5,
  * §7.10) — kun med låsen åben, så «mail» står kun på rækken, når det skete.
  */
-export function leveringTekst(s: Pick<KonsolSpoergsmaal, "status" | "leveret" | "leveret_at">): string {
+export function leveringTekst(s: Pick<KonsolSpoergsmaal, "status" | "leveret" | "leveret_at"> & { mail_udfald?: string | null }): string {
   if (s.status === "ny") return "Ubesvaret";
   if (s.status !== "besvaret") return s.status;
   if (s.leveret === "live" && s.leveret_at) return `Set i rummet kl. ${klok(s.leveret_at)}`;
-  if (s.leveret === "mail" && s.leveret_at) return `Sendt på mail kl. ${klok(s.leveret_at)}`;
+  // Mail skelnes på rækkens udfald (CTO 3/10, fund 7): sendt · ukendt · (under afsendelse).
+  if (s.leveret === "mail" && s.leveret_at) {
+    if (s.mail_udfald === "sendt") return `Sendt på mail kl. ${klok(s.leveret_at)}`;
+    if (s.mail_udfald === "ukendt") return `Forsøgt sendt på mail kl. ${klok(s.leveret_at)} — det vides ikke, om den kom frem`;
+    return `Sendes på mail (kl. ${klok(s.leveret_at)})`;
+  }
+  if (s.mail_udfald === "afvist") return "Mailen blev afvist — svaret vises, hvis seeren kommer tilbage i rummet";
   return "Besvaret — vises, når seeren er i rummet";
 }
 
@@ -114,7 +122,7 @@ export function laasFraRaekke(raekke: { config_value?: unknown } | null, fejl: u
 export function svarLoefteTekst(laas: boolean | null): string {
   const rummet = "Svaret vises for seeren ved næste puls, hvis seeren stadig er i rummet";
   const min = Math.round(SVAR_MAIL_GAAET_SEK / 60);
-  if (laas === true) return `${rummet}. Er seeren gået (ingen puls i ${min} min), eller er sessionen slut, sendes svaret på mail inden for ca. 5 minutter.`;
+  if (laas === true) return `${rummet}. Er seeren gået (ingen puls i ${min} min), eller er sessionen slut, sendes svaret på mail inden for ca. 5 minutter — hvis seeren kan modtage mail (ikke afmeldt, og adressen tager imod).`;
   if (laas === false) return `${rummet} — der sendes intet på mail (svarmailen er slået fra).`;
   return `${rummet}. Om svaret også sendes på mail til den, der er gået, kan ikke læses lige nu.`;
 }
