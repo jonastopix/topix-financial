@@ -81,6 +81,28 @@ export function skalLoggeLogin(
   return haendelse === "SIGNED_IN" && forrigeBrugerId !== nyBrugerId;
 }
 
+/** Skal process-pending-invitation (PPI) kaldes? (3/10-2026, pakke D,
+    «Hastighed, første skive».) Målt i prod 3/10: PPI tog 1,49 s på
+    rådgiverens forside og svarede næsten altid «no_pending_invitation»;
+    3 rådgivere/admins i alt, 0 med en afventende company_invitations-række.
+    - Rollen ukendt (roller-opslaget fejlede): KALD — fail-safe, som før.
+    - Medlem (ikke rådgiver): KALD — PPI er medlemmets kobling til
+      virksomheden. Medlemsstien er uændret.
+    - Rådgiver MED invite_token (user_metadata): KALD — tokenet er en
+      udtrykkelig invitation, som PPI skal indløse.
+    - Rådgiver UDEN invite_token: SPRING OVER. Bevidst afgrænsning: PPI's
+      e-mail-fallback (afventende invitation på verificeret mail) køres
+      dermed ikke længere for rådgivere. */
+export function skalKaldePendingInvitation(input: {
+  rolleKendt: boolean;
+  erRaadgiver: boolean;
+  harInviteToken: boolean;
+}): boolean {
+  if (!input.rolleKendt) return true;
+  if (!input.erRaadgiver) return true;
+  return input.harInviteToken;
+}
+
 /** Hvor længe forsiden venter på process-pending-invitation.
     - Rådgiveren: 4 s. Svaret er næsten altid «no_pending_invitation», og
       Index viser alligevel rådgiverens forside uanset udfaldet — der er

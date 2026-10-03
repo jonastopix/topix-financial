@@ -11,6 +11,7 @@ import {
   PPI_TIMEOUT_MEDLEM_MS,
   PPI_TIMEOUT_RAADGIVER_MS,
   skalHenteBrugerdata,
+  skalKaldePendingInvitation,
   skalLoggeLogin,
   skalStarteOnboardingAgent,
   tierFraVirksomhed,
@@ -327,6 +328,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       // validerer selv JWT'en på serveren; her er det kun kaldets input.
       const userEmail = authUser.email;
       const inviteTokenMeta = authUser.user_metadata?.invite_token;
+      // Dommen skalKaldePendingInvitation (3/10, pakke D): en rådgiver uden
+      // invite_token springer PPI over (1,49 s, næsten altid
+      // no_pending_invitation). Rollen er kendt fra Promise.all ovenfor —
+      // ingen ekstra ventetid. Ukendt rolle og medlemmer kalder som før.
+      const kalderPpi = skalKaldePendingInvitation({
+        rolleKendt: !rolesRes.error,
+        erRaadgiver: isAdv,
+        harInviteToken: !!inviteTokenMeta,
+      });
+      if (userEmail && !kalderPpi) {
+        setOwnCompanyId(null);
+        setOwnCompanyName(null);
+        setMembershipTier(null);
+        setCompanyResolution("none");
+        return true;
+      }
       if (userEmail) {
         // Tre fejlgrene (HTTP-fejl, uventet svar, exception) sætter alle
         // companyResolution = "failed", så Index kan vise noget menneskeligt

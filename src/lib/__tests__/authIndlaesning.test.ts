@@ -6,6 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   medTimeout,
+  skalKaldePendingInvitation,
   PPI_TIMEOUT_MEDLEM_MS,
   PPI_TIMEOUT_RAADGIVER_MS,
   skalHenteBrugerdata,
@@ -139,5 +140,25 @@ describe("medTimeout — PPI må ikke blokere uden grænse", () => {
   it("rådgiveren venter kortere end medlemmet, hvis kobling PPI er", () => {
     expect(PPI_TIMEOUT_RAADGIVER_MS).toBe(4_000);
     expect(PPI_TIMEOUT_MEDLEM_MS).toBeGreaterThan(PPI_TIMEOUT_RAADGIVER_MS);
+  });
+});
+
+describe("skalKaldePendingInvitation (pakke D, 3/10-2026)", () => {
+  const k = (rolleKendt: boolean, erRaadgiver: boolean, harInviteToken: boolean) =>
+    skalKaldePendingInvitation({ rolleKendt, erRaadgiver, harInviteToken });
+
+  it("springer over for en rådgiver uden invite_token", () => {
+    expect(k(true, true, false)).toBe(false);
+  });
+  it("kalder for en rådgiver MED invite_token", () => {
+    expect(k(true, true, true)).toBe(true);
+  });
+  it("kalder altid for et medlem, med og uden token", () => {
+    expect(k(true, false, false)).toBe(true);
+    expect(k(true, false, true)).toBe(true);
+  });
+  it("kalder når rollen er ukendt (fail-safe), også hvis erRaadgiver er sand", () => {
+    expect(k(false, false, false)).toBe(true);
+    expect(k(false, true, false)).toBe(true);
   });
 });

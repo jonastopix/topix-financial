@@ -12,6 +12,22 @@ export default defineConfig(({ mode }) => ({
       overlay: false,
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Pakke D (3/10-2026): faste leverandørchunks, så en kodeændring ikke
+        // ugyldiggør browserens cache af react/supabase/sentry/tanstack.
+        manualChunks(id: string) {
+          if (!id.includes("node_modules")) return undefined;
+          if (/node_modules\/(react|react-dom|react-router-dom|react-router|scheduler)\//.test(id)) return "react";
+          if (id.includes("node_modules/@supabase/")) return "supabase";
+          if (id.includes("node_modules/@sentry/") || id.includes("node_modules/@sentry-internal/")) return "sentry";
+          if (id.includes("node_modules/@tanstack/")) return "tanstack";
+          return undefined;
+        },
+      },
+    },
+  },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
     alias: {
