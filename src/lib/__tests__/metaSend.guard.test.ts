@@ -16,7 +16,9 @@ import { PERSONDATA_AFSNIT } from "@/lib/ansoegning/persondata";
  *   3. TØRKØRSEL STANDARD + LÅSEN: dry_run !== false; ansøgningsløkken går KUN over planerne,
  *      når r.sender_rigtigt (`for (const p of r.sender_rigtigt ? planer : [])` — 3/10-2026: den
  *      tidlige return flyttede ned under tilmeldingspasset, så tørkørslen også viser det; CTO);
- *      `if (!r.sender_rigtigt) return` står stadig før alarmen; låsen læses fail-closed.
+ *      ansøgningernes afslutning (skrivAlarm, r.ok, status) står i `if (r.sender_rigtigt) {` LIGE
+ *      efter løkken og FØR tilmeldingspasset — tørkørslen kalder aldrig skrivAlarm og lader ok/200
+ *      stå; låsen læses fail-closed. Dom 8 låser rækkefølgen (sidste LAV, CTO 3/10).
  *   4. STRIKS-BODY + BUCKET B: KENDTE_FELTER præcis dry_run · nu · test_event_code ·
  *      ansoegning_id · tilmelding_id (det femte kom 3/10-2026 med webinarmotorens tilmeldinger —
  *      beviset for ÉN tilmelding; webinarTilmeldMeta.guard; de to id'er afvises sammen) ·
@@ -195,7 +197,7 @@ export const toerkoerselOgLaas = (cron: string, dom: string): boolean => {
     // ansøgningernes afsendelse står INDE i løkken, der kun går over planerne i en rigtig kørsel
     foer(koer, "for (const p of r.sender_rigtigt ? planer : []) {", "await sendTilMeta(") &&
     foer(koer, "await sendTilMeta(", "const tilm = await planlaegTilmeldinger(") &&
-    koer.includes("if (!r.sender_rigtigt) return { status: 200, resultat: r };") &&
+    koer.includes("  let status = 200;\n  if (r.sender_rigtigt) {\n    if (r.fejlede > 0) await skrivAlarm(") &&
     (c.match(/for \(const p of /g) ?? []).length === 1 &&
     (c.match(/await sendTilMeta\(/g) ?? []).length === 1 &&
     /async function hentLaas\([\s\S]*?from\("app_config"\)[\s\S]*?\.eq\("config_key", META_SEND_LAAS_NOEGLE\)[\s\S]*?return false; \}/.test(c) &&
@@ -299,12 +301,21 @@ export const migrationerneErRigtige = (ua: string, spor: string, cron: string): 
 };
 
 // ── 8 ──────────────────────────────────────────────────────────────────────
+/** Ansøgningernes afslutning, ordret (efter udenKommentarer) — én blok, ét sted. */
+export const ANSOEGNINGER_AFSLUTTES = "  let status = 200;\n  if (r.sender_rigtigt) {\n    if (r.fejlede > 0) await skrivAlarm(admin, r.fejlede_liste, a.nu, r);\n    r.ok = r.fejl.length === 0;\n    status = r.ok ? 200 : 500;\n  }\n";
 export const alarmenErRigtig = (cron: string, dom: string): boolean => {
   const c = udenKommentarer(cron), d = udenKommentarer(dom);
   const koer = c.slice(c.indexOf("export async function koerMetaSend("), c.indexOf("Deno.serve("));
   const alarm = c.slice(c.indexOf("async function skrivAlarm("), c.indexOf("export async function koerMetaSend("));
   return koer.includes("if (r.fejlede > 0) await skrivAlarm(admin, r.fejlede_liste, a.nu, r);") &&
-    foer(koer, "if (!r.sender_rigtigt) return", "await skrivAlarm(") && (c.match(/skrivAlarm\(/g) ?? []).length === 2 &&
+    // ANSØGNINGERNES AFSLUTNING (CTO 3/10): kun i en rigtig kørsel, LIGE efter løkken, FØR
+    // tilmeldingspasset — og ok/status sættes præcis ét sted, så passet ikke kan røre dem.
+    koer.includes(ANSOEGNINGER_AFSLUTTES) &&
+    foer(koer, "await sendTilMeta(", ANSOEGNINGER_AFSLUTTES) &&
+    foer(koer, ANSOEGNINGER_AFSLUTTES, "await planlaegTilmeldinger(") &&
+    (koer.match(/r\.ok\s*=/g) ?? []).length === 1 && (koer.match(/\bstatus\s*=/g) ?? []).length === 2 &&
+    koer.includes("return { status, resultat: r };") && (koer.match(/return \{ status/g) ?? []).length === 1 &&
+    (c.match(/skrivAlarm\(/g) ?? []).length === 2 &&
     d.includes("return `${ALARM_NOEGLE_PRAEFIKS}${kbhDato(nu)}`;") &&
     foer(alarm, 'from("email_send_log")', "await sendManagedEmail({") && alarm.includes("to: driftModtager(),") &&
     alarm.includes('r.alarm = "allerede_sendt_i_dag";') && alarm.includes("idempotencyKey: noegle,") &&
@@ -595,7 +606,7 @@ describe("metaSend.guard — dommene fanger fejlen på en kopi", () => {
     expect(ingenUhashetPersondata(dom.replace("normaliserNavnedel(ord[ord.length - 1])", 'normaliserNavnedel(ord.slice(1).join(" "))'), cron)).toBe(false);
   });
   it("3. afsendelse uden låsen/testkoden, eller dry_run vendt, fælder dom 3", () => {
-    expect(toerkoerselOgLaas(cron.replace("if (!r.sender_rigtigt) return { status: 200, resultat: r };", "if (a.toerKoersel) return { status: 200, resultat: r };"), dom)).toBe(false);
+    expect(toerkoerselOgLaas(cron.replace("  let status = 200;\n  if (r.sender_rigtigt) {\n", "  let status = 200;\n  if (true) {\n"), dom)).toBe(false);
     // løkken over ALLE planer, også i tørkørslen (3/10)
     expect(toerkoerselOgLaas(cron.replace("for (const p of r.sender_rigtigt ? planer : []) {", "for (const p of planer) {"), dom)).toBe(false);
     expect(toerkoerselOgLaas(cron.replace("raaBody?.dry_run !== false", "raaBody?.dry_run === true"), dom)).toBe(false);
@@ -633,9 +644,18 @@ describe("metaSend.guard — dommene fanger fejlen på en kopi", () => {
     expect(kolliderer(33, cronUdtryk(MIG_DIR), "meta-send").some((s) => s.includes("33"))).toBe(true);
   });
   it("8. alarmen i tørkørslen, eller til rådgiveradressen, fælder dom 8", () => {
-    const flyttet = cron.replace("  if (r.fejlede > 0) await skrivAlarm(admin, r.fejlede_liste, a.nu, r);\n", "").replace("  if (!r.sender_rigtigt) return { status: 200, resultat: r };\n", "  if (r.fejlede > 0) await skrivAlarm(admin, r.fejlede_liste, a.nu, r);\n  if (!r.sender_rigtigt) return { status: 200, resultat: r };\n");
-    expect(flyttet).not.toBe(cron);
-    expect(alarmenErRigtig(flyttet, dom)).toBe(false);
+    // alarmen ud af porten: skrivAlarm også i tørkørslen
+    const iToer = cron.replace("  if (r.sender_rigtigt) {\n    if (r.fejlede > 0) await skrivAlarm(admin, r.fejlede_liste, a.nu, r);\n", "  if (r.fejlede > 0) await skrivAlarm(admin, r.fejlede_liste, a.nu, r);\n  if (r.sender_rigtigt) {\n");
+    expect(iToer).not.toBe(cron);
+    expect(alarmenErRigtig(iToer, dom)).toBe(false);
+    // ansøgningernes afslutning flyttet EFTER tilmeldingspasset (CTO 3/10)
+    const blok = ANSOEGNINGER_AFSLUTTES;
+    expect(cron.includes(blok)).toBe(true);
+    const efterPasset = cron.replace(blok, "").replace("  return { status, resultat: r };", blok + "  return { status, resultat: r };");
+    expect(alarmenErRigtig(efterPasset, dom)).toBe(false);
+    // passet sætter ok/status igen
+    expect(alarmenErRigtig(cron.replace("  return { status, resultat: r };", "  r.ok = r.tilmeldinger.fejl.length === 0;\n  return { status, resultat: r };"), dom)).toBe(false);
+    expect(alarmenErRigtig(cron.replace("  return { status, resultat: r };", "  return { status: r.tilmeldinger.fejl.length > 0 ? 500 : status, resultat: r };"), dom)).toBe(false);
     expect(alarmenErRigtig(cron.replace("to: driftModtager(),", "to: raadgiverModtager(nu),"), dom)).toBe(false);
   });
   it("10. en anden fil, der parser _fbp/_fbc, en cookie der normaliseres, eller «meta» væk af body'en, fælder dom 10", () => {

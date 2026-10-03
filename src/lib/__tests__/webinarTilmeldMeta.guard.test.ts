@@ -33,9 +33,10 @@ import { TILMELDING_ART } from "../../../supabase/functions/_shared/metaTilmeldi
  *      læsning i planen (intet hentRaa/opslag, før porten er «klar»); passet kaster aldrig (try
  *      om planlægning og afsendelse); dets fejl står i tilmeldingernes egen liste og ALDRIG i
  *      kørslens r.fejl, r.fejlede, r.fejlede_liste, r.ok eller HTTP-status.
- *   9. RÆKKEFØLGEN I KØRSLEN (CTO 3/10, LAV): ansøgningsløkken → planlaegTilmeldinger →
- *      sendTilmeldinger → alarmerTilmeldinger → `if (!r.sender_rigtigt) return` → ansøgningernes
- *      alarm. Tørkørslen viser altså `tilmeldinger`, men passet står aldrig før ansøgningerne.
+ *   9. RÆKKEFØLGEN I KØRSLEN (CTO 3/10, LAV): ansøgningsløkken → ansøgningernes afslutning
+ *      (`if (r.sender_rigtigt) {` skrivAlarm · r.ok · status `}`) → planlaegTilmeldinger →
+ *      sendTilmeldinger → alarmerTilmeldinger → `return { status, resultat: r }`. Tørkørslen
+ *      viser `tilmeldinger`; passet står aldrig før ansøgningerne og sætter aldrig ok/status.
  *  10. PASSETS EGEN ALARM (CTO 3/10, LAV): kun når sender_rigtigt OG (fejl ELLER fejlede);
  *      nøglen «meta-tilmelding:<kbhDato>»; email_send_log slås op FØR sendManagedEmail; til
  *      driftModtager(); skriver kun r.alarm (passets); ingen klokke (ingen reference_type på
@@ -211,12 +212,15 @@ export const raekkefoelgen = (cron: string): boolean => {
   const c = udenKommentarer(cron);
   const koer = c.slice(c.indexOf("export async function koerMetaSend("), c.indexOf("Deno.serve("));
   const trin = [
-    "for (const p of r.sender_rigtigt ? planer : []) {", "await sendTilMeta(", "await planlaegTilmeldinger(",
-    "r.tilmeldinger = tilm.resultat;", "await sendTilmeldinger(", "await alarmerTilmeldinger(admin, r.tilmeldinger, a.nu);",
-    "if (!r.sender_rigtigt) return { status: 200, resultat: r };", "if (r.fejlede > 0) await skrivAlarm(",
+    "for (const p of r.sender_rigtigt ? planer : []) {", "await sendTilMeta(", "if (r.sender_rigtigt) {",
+    "if (r.fejlede > 0) await skrivAlarm(", "r.ok = r.fejl.length === 0;", "status = r.ok ? 200 : 500;",
+    "await planlaegTilmeldinger(", "r.tilmeldinger = tilm.resultat;", "await sendTilmeldinger(",
+    "await alarmerTilmeldinger(admin, r.tilmeldinger, a.nu);", "return { status, resultat: r };",
   ];
   return trin.every((t, i) => i === 0 || foer(koer, trin[i - 1], t)) &&
-    trin.every((t) => koer.split(t).length === 2);
+    trin.every((t) => koer.split(t).length === 2) &&
+    // ok og status sættes ét sted — før passet
+    (koer.match(/r\.ok\s*=/g) ?? []).length === 1 && (koer.match(/return \{/g) ?? []).length === 1;
 };
 
 // ── 10 ─────────────────────────────────────────────────────────────────────
@@ -368,6 +372,10 @@ describe("webinarTilmeldMeta.guard — dommene fanger fejlen på en kopi", () =>
     expect(raekkefoelgen(alarmSent)).toBe(false);
     // den gamle tidlige return tilbage over løkken
     expect(raekkefoelgen(skift(cron, "  for (const p of r.sender_rigtigt ? planer : []) {", "  if (!r.sender_rigtigt) return { status: 200, resultat: r };\n  for (const p of r.sender_rigtigt ? planer : []) {"))).toBe(false);
+    // ansøgningernes afslutning flyttet efter passet, eller passet der sætter ok igen
+    const afslut = "  let status = 200;\n  if (r.sender_rigtigt) {\n    if (r.fejlede > 0) await skrivAlarm(admin, r.fejlede_liste, a.nu, r);\n    r.ok = r.fejl.length === 0;\n    status = r.ok ? 200 : 500;\n  }\n";
+    expect(raekkefoelgen(skift(cron, afslut, "").replace("  return { status, resultat: r };", afslut + "  return { status, resultat: r };"))).toBe(false);
+    expect(raekkefoelgen(skift(cron, "  return { status, resultat: r };", "  r.ok = r.tilmeldinger.fejl.length === 0;\n  return { status, resultat: r };"))).toBe(false);
   });
   it("10. alarm i tørkørslen, uden fejl, uden logopslag, til en anden modtager, med klokke eller via kørslens skrivAlarm, fælder dom 10", () => {
     expect(egenAlarm(skift(dom, "return r.sender_rigtigt && (r.fejl.length > 0 || r.fejlede > 0);", "return r.fejl.length > 0 || r.fejlede > 0;"), koersel, cron)).toBe(false);

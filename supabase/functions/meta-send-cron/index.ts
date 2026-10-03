@@ -485,6 +485,16 @@ export async function koerMetaSend(
     else { r.fejlede++; r.fejlede_liste.push({ event_id: p.plan.event_id, udfald: svar.udfald, fejl: svar.fejl, forsoeg: p.plan.forsoeg }); }
   }
 
+  // Ansøgningerne AFSLUTTES HER — FØR tilmeldingspasset (CTO 3/10): deres alarm, ok og status
+  // er låst, før passet kører, så passet kan ikke påvirke dem. Tørkørslen kalder aldrig
+  // skrivAlarm og lader ok/status stå (true/200) — som den tidlige return på main.
+  let status = 200;
+  if (r.sender_rigtigt) {
+    if (r.fejlede > 0) await skrivAlarm(admin, r.fejlede_liste, a.nu, r);
+    r.ok = r.fejl.length === 0;
+    status = r.ok ? 200 : 500;
+  }
+
   // Tilmeldingspasset EFTER ansøgningsløkken — også i tørkørslen (beviset). Isoleret: det kaster
   // aldrig, og dets fejl og alarm står kun i r.tilmeldinger; ansøgningernes felter og status
   // røres ikke. Det sender kun, når sin egen dom siger ja (som forudsætter sender_rigtigt).
@@ -495,10 +505,7 @@ export async function koerMetaSend(
   await sendTilmeldinger(admin, tilm.planer, r.tilmeldinger, { nu: a.nu, testEventCode: a.testEventCode, startMs: a.startMs, budgetMs: BUDGET_MS, send: sendTilMeta });
   await alarmerTilmeldinger(admin, r.tilmeldinger, a.nu);
 
-  if (!r.sender_rigtigt) return { status: 200, resultat: r };
-  if (r.fejlede > 0) await skrivAlarm(admin, r.fejlede_liste, a.nu, r);
-  r.ok = r.fejl.length === 0;
-  return { status: r.ok ? 200 : 500, resultat: r };
+  return { status, resultat: r };
 }
 
 Deno.serve(async (req) => {
