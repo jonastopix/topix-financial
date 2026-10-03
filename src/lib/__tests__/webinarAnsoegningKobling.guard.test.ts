@@ -3,7 +3,7 @@
  * (skive 4, 3/10-2026; spec §A9, docs/webinarmotor.md §7.8).
  *
  * Seks domme, hver med mutationsbevis:
- *   1. Tokenet gemmes aldrig — hverken i en kolonne (functionen, migrationen) eller på
+ *   1. Tokenet gemmes aldrig — hverken i en kolonne (functionen, skive 1's migration) eller på
  *      enheden (hooken, siden): kun tilmeldingens id skrives.
  *   2. Tokenet når aldrig `landing` (= Metas event_source_url) — i begge spejle.
  *   3. Fail-soft: et ugyldigt token, en manglende secret, en manglende kolonne eller en
@@ -12,10 +12,11 @@
  *   4. Kun prædikatet fra _shared/webinarDeltagerAuth.ts — ansoegning-gem læser hverken
  *      secret'en eller tokenets HMAC selv.
  *   5. STRIKS body kender feltet, og klienten sender det kun med «opret».
- *   6. Migrationens første linje, kun tilføjende, skive 1 som forudsætning.
+ *   6. Koblingen skriver KUN webinar_tilmelding_id og KUN når den er null (ingen egen
+ *      migration: kolonnen står i skive 1's 20261003010000 §5).
  */
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   harWebinarToken,
@@ -38,7 +39,8 @@ const KOBLING = "supabase/functions/_shared/ansoegningWebinarKobling.ts";
 const HOOK = "src/hooks/useWebinarForudfyld.ts";
 const SIDE = "src/pages/Ansoeg.tsx";
 const API = "src/lib/ansoegning/api.ts";
-const MIGRATION = "supabase/migrations/20261003060000_ansoegning_webinar_tilmelding.sql";
+/** Kolonnen bor i skive 1's migration — skive 4 har ingen egen (koordinator 3/10: en kommentar alene er en kørsel uden virkning). */
+const SKIVE1 = "supabase/migrations/20261003010000_webinarmotor_skive1.sql";
 
 const TOKEN = `${"A".repeat(27)}.${"b".repeat(43)}`;
 const TILMELDING = "3f1c2b8e-9a4d-4c1e-8b2a-0d9e7f6a5b41";
@@ -108,10 +110,12 @@ describe("webinarAnsoegningKobling.guard 1 — tokenet gemmes aldrig", () => {
   it("hooken og siden holder tokenet KUN i hukommelsen", () => {
     expect(tokenPaaEnhedenAldrig(laes(HOOK), laes(SIDE))).toBe(true);
   });
-  it("migrationen skaber ingen token-kolonne", () => {
-    const m = laes(MIGRATION).replace(/--[^\n]*/g, "");
-    expect(m).not.toMatch(/add column[^;]*\b(webinar_|join_|deltager)?token\b/i);
-    expect(m.toLowerCase().match(/add column/g)).toHaveLength(1);
+  it("skive 1's migration giver ansoegninger kun id-kolonnen — ingen token-kolonne", () => {
+    const m = laes(SKIVE1).replace(/--[^\n]*/g, "");
+    const ans = [...m.matchAll(/alter table public\.ansoegninger\b[^;]*;/g)].map((x) => x[0]);
+    expect(ans).toHaveLength(1);
+    expect(ans[0]).toMatch(/add column if not exists webinar_tilmelding_id uuid references public\.webinar_tilmeldinger\(id\) on delete set null/);
+    expect(ans[0]).not.toMatch(/token/i);
   });
   it("MUTATION: et update med webinar_token fanges", () => {
     const m = laes(GEM).replace(
@@ -313,38 +317,51 @@ describe("webinarAnsoegningKobling.guard 5 — STRIKS body kender feltet", () =>
   });
 });
 
-// ── 6. Migrationen ───────────────────────────────────────────────────────────
+// ── 6. Kun kolonnen, kun når den er null ─────────────────────────────────────
 
-/** Første linje præcis, kun tilføjende, skive 1 som forudsætning, FK on delete set null. */
-export function migrationenErRigtig(sql: string): boolean {
-  if (sql.split("\n")[0] !== "-- IKKE KØRT. DEPLOY: manuelt i Lovable → SQL editor efter merge (FØR Update-klik).") return false;
-  const k = sql.replace(/--[^\n]*/g, "").toLowerCase();
-  if (/\bdrop\b|\balter column\b|\bupdate\s+public\.|\bdelete\s+from\b|\bcreate policy\b|\bgrant\b/.test(k)) return false;
-  if (!/add column if not exists webinar_tilmelding_id uuid references public\.webinar_tilmeldinger\(id\) on delete set null/.test(k)) return false;
-  if (!/create index if not exists ansoegninger_webinar_tilmelding_idx/.test(k)) return false;
-  return /raise exception[^;]*20261003010000/.test(k);
+/**
+ * Koblingens ENESTE skrivning: ét .update på ansoegninger med præcis
+ * { [KOBLINGS_KOLONNE]: dom.deltager.id }, vagtet .is(KOBLINGS_KOLONNE, null), og
+ * ingen insert/upsert/delete/rpc — og ansoegning-gem rører ikke kolonnen selv.
+ */
+export function skriverKunKolonnenNaarNull(kobling: string, gem: string): boolean {
+  const k = udenKommentarer(kobling);
+  if (!/export const KOBLINGS_KOLONNE = "webinar_tilmelding_id";/.test(k)) return false;
+  if (/\.(insert|upsert|delete|rpc)\(/.test(k)) return false;
+  const updates = [...k.matchAll(/\.update\(([^)]*)\)/g)].map((m) => m[1].trim());
+  if (updates.length !== 1 || updates[0] !== "{ [KOBLINGS_KOLONNE]: dom.deltager.id }") return false;
+  const kaede = k.slice(k.indexOf(".update("), k.indexOf(".select(", k.indexOf(".update(")));
+  if (!/\.from\("ansoegninger"\)/.test(k.slice(k.indexOf(".update(") - 80, k.indexOf(".update(")))) return false;
+  if (!/\.eq\("id", ansoegningId\)/.test(kaede) || !/\.is\(KOBLINGS_KOLONNE, null\)/.test(kaede)) return false;
+  return !/webinar_tilmelding_id/.test(udenKommentarer(gem));
 }
 
-describe("webinarAnsoegningKobling.guard 6 — migrationen", () => {
-  it("første linje, kun tilføjende, kræver skive 1", () => {
-    expect(migrationenErRigtig(laes(MIGRATION))).toBe(true);
+describe("webinarAnsoegningKobling.guard 6 — kun webinar_tilmelding_id, kun når den er null", () => {
+  it("én update, én kolonne, vagtet på null; functionen skriver ikke kolonnen selv", () => {
+    expect(skriverKunKolonnenNaarNull(laes(KOBLING), laes(GEM))).toBe(true);
   });
-  it("samme kolonne og indeks som skive 1 (no-op efter den)", () => {
-    const s1 = laes("supabase/migrations/20261003010000_webinarmotor_skive1.sql").replace(/--[^\n]*/g, "");
-    expect(s1).toMatch(/add column if not exists webinar_tilmelding_id uuid references public\.webinar_tilmeldinger\(id\) on delete set null/);
-    expect(s1).toMatch(/create index if not exists ansoegninger_webinar_tilmelding_idx/);
+  it("adfærden: kun kolonnen i update'en", async () => {
+    const opt: Optagelse = { updates: [] };
+    await koblWebinarTilmelding(falskAdmin({ data: [{ id: "a" }] }, opt), "a", TOKEN, godkend);
+    expect(opt.updates.map((u) => Object.keys(u))).toEqual([["webinar_tilmelding_id"]]);
   });
-  it("MUTATION: forklaringen som første linje fanges", () => {
-    const m = laes(MIGRATION).replace(/^[^\n]*\n/, "-- WEBINARMOTOREN, SKIVE 4\n");
-    expect(migrationenErRigtig(m)).toBe(false);
+  it("ingen egen migration for skive 4", () => {
+    const alle = readdirSync(resolve(ROD, "supabase/migrations"));
+    expect(alle.filter((f) => /ansoegning_webinar_tilmelding/.test(f))).toEqual([]);
   });
-  it("MUTATION: en DROP fanges", () => {
-    const m = laes(MIGRATION).replace("commit;", "alter table public.ansoegninger drop column kilde_raa;\ncommit;");
-    expect(migrationenErRigtig(m)).toBe(false);
+  it("MUTATION: uden null-vagten fanges (en kobling ville kunne overskrives)", () => {
+    const m = laes(KOBLING).replace("      .is(KOBLINGS_KOLONNE, null)\n", "");
+    expect(m).not.toBe(laes(KOBLING));
+    expect(skriverKunKolonnenNaarNull(m, laes(GEM))).toBe(false);
   });
-  it("MUTATION: uden skive 1-porten fanges", () => {
-    const m = laes(MIGRATION).replace(/^\s+raise exception[^;]*;/m, "    null;");
-    expect(m).not.toBe(laes(MIGRATION));
-    expect(migrationenErRigtig(m)).toBe(false);
+  it("MUTATION: en ekstra kolonne i update'en fanges", () => {
+    const m = laes(KOBLING).replace("{ [KOBLINGS_KOLONNE]: dom.deltager.id }", "{ [KOBLINGS_KOLONNE]: dom.deltager.id, kilde: \"webinar\" }");
+    expect(m).not.toBe(laes(KOBLING));
+    expect(skriverKunKolonnenNaarNull(m, laes(GEM))).toBe(false);
+  });
+  it("MUTATION: ansoegning-gem, der skriver kolonnen i insert'en, fanges", () => {
+    const m = laes(GEM).replace(".insert({ kilde, kilde_raa: kildeSpor, ip_hash: ipHash, ...del.svar })", ".insert({ kilde, kilde_raa: kildeSpor, ip_hash: ipHash, webinar_tilmelding_id: null, ...del.svar })");
+    expect(m).not.toBe(laes(GEM));
+    expect(skriverKunKolonnenNaarNull(laes(KOBLING), m)).toBe(false);
   });
 });

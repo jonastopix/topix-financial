@@ -206,8 +206,7 @@ describe("webinarKonsol.guard 5 — migrationen", () => {
   it("tidsstemplet ligger efter 20261003040000 (ukørte efter alle andre)", () => {
     expect(MIG.split("/")[2].slice(0, 14) > "20261003040000").toBe(true);
     const alle = readdirSync(resolve(ROD, "supabase/migrations")).filter((f) => f.endsWith(".sql")).sort();
-    // Efter konsollen kun webinarmotorens egne senere skiver (3/10: skive 4, ansøgningskoblingen).
-    expect(alle.slice(alle.indexOf(MIG.split("/")[2]) + 1)).toEqual(["20261003060000_ansoegning_webinar_tilmelding.sql"]);
+    expect(alle[alle.length - 1]).toBe(MIG.split("/")[2]);
   });
   it("MUTATION: forkert første linje, SECURITY DEFINER, anon, tjenestekonto-hul og løsere trigger fanges", () => {
     const m = laes(MIG);

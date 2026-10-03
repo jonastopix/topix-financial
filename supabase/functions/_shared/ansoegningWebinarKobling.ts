@@ -16,8 +16,17 @@
  *
  * FAIL-SOFT, SOM ANNONCESPORET: en EGEN update efter insert'en. Et ugyldigt,
  * forfalsket eller tilbagekaldt token, en manglende secret, en manglende
- * kolonne (42703 — migrationen ikke kørt) eller en undtagelse giver et udfald,
+ * kolonne (42703 — skive 1 ikke kørt) eller en undtagelse giver et udfald,
  * ALDRIG en stoppet ansøgning. Funktionen kaster aldrig.
+ *
+ * KOLONNEN (ingen egen migration): `ansoegninger.webinar_tilmelding_id uuid null
+ * references webinar_tilmeldinger(id) on delete set null` + det delvise indeks
+ * `ansoegninger_webinar_tilmelding_idx` står i 20261003010000_webinarmotor_skive1.sql
+ * §5 («skive 4 skriver den»). Den skrives KUN herfra, KUN efter verifyDeltagertoken,
+ * og KUN når den er null (en kobling overskrives aldrig). NULL = ingen kobling
+ * (intet/ugyldigt token, eller fra før skive 4) — mailkoblingen er reserven. Tragten
+ * læser den endnu ikke (docs/webinarmotor.md §7.8). RLS (20260918200000 §6): ingen
+ * anon- eller medlemspolitik på ansoegninger — kun service role og rådgivere skriver.
  *
  * Prædikatet gives IND (det rigtige i index.ts), så dommen kan prøves uden Deno.
  * NUL IMPORTS: klienten er en minimal strukturel type (KoblingsKlient), så
