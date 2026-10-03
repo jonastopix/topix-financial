@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
+import { CANONICAL_TO_DANISH as ADAPTER_MAP } from "@/lib/factsAdapter";
+import { omkostningsparKanoniskTilDansk } from "@/lib/omkostningsnoegler";
 // reportOverrideHelpers importeres IKKE som modul: den trækker Supabase-klienten ind, hvis auth-refresh i jsdom
 // giver en «Unhandled Rejection» (storage.getItem) og lader hele suiten ende med exit 1 trods grønne tests.
 // Kildelæsende i stedet — som de øvrige værn.
@@ -107,22 +109,36 @@ describe("kanoniske_noegler — koden og databasen kender de samme nøgler", () 
 });
 
 describe("kanoniske_noegler — de danske nøgler er de samme som adapterens og formularens", () => {
+  // 3/10-2026: adapteren AFLEDER omkostningsparrene af omkostningsnoegler.ts (`...omkostningsparKanoniskTilDansk()`),
+  // så kilden har ikke længere alle par som linjer — værnet læser derfor modulets FAKTISKE map (factsAdapter
+  // importerer kun omkostningsnoegler, ingen Supabase-klient).
   function adapterensDanske(): Record<string, string> {
-    const k = laes("src/lib/factsAdapter.ts");
-    const start = k.indexOf("const CANONICAL_TO_DANISH");
-    expect(start).toBeGreaterThan(-1);
-    const blok = k.slice(start, k.indexOf("};", start));
-    const par = [...blok.matchAll(/^\s+([a-z_]+): "([a-z_]+)",/gm)].map((m) => [m[1], m[2]] as const);
-    expect(par.length).toBeGreaterThanOrEqual(15);
-    return Object.fromEntries(par);
+    const par = { ...ADAPTER_MAP };
+    expect(Object.keys(par).length).toBeGreaterThanOrEqual(15);
+    return par;
   }
 
-  it("factsAdapter.CANONICAL_TO_DANISH = seedens (noegle → dansk_noegle), bortset fra årsrapportens `equity`-alias", () => {
+  /** LÆSENAVNE (3/10-2026, docs/OVERLEVERING.md DEL 2 «3. oktober — de danske flader taber tre omkostningsnøgler»):
+      omkostningsnøgler, som de danske flader viser og summerer under et dansk navn, men som seeden bevidst ikke
+      mapper (dansk_noegle NULL) — den manuelle formular har intet felt for dem, så databasen skal ikke tage imod
+      navnet. Listen er LUKKET: en ny nøgle her kræver, at seeden siger omkostning + NULL, og at navnet kommer fra
+      omkostningsnoegler.ts. Om seeden skal have navnene, er et åbent punkt (kræver Jonas). */
+  const LAESENAVNE = ["payroll_related", "other_staff_costs", "vehicle_costs"];
+
+  it("factsAdapter.CANONICAL_TO_DANISH = seedens (noegle → dansk_noegle), bortset fra årsrapportens `equity`-alias og de tre læsenavne", () => {
     const adapter = adapterensDanske();
     // `equity` er årsrapportens rå nøgle (extract-annual-report), ikke en canonical nøgle — den er en adapter-undtagelse, ikke en listenøgle.
     expect(adapter.equity, "adapterens equity-undtagelse er væk — så skal denne linje væk").toBe("egenkapital");
     delete adapter.equity;
-    const seedDansk = Object.fromEntries(seedIMigrationen().filter((r) => r.dansk !== null).map((r) => [r.noegle, r.dansk as string]));
+    const seed = seedIMigrationen();
+    for (const n of LAESENAVNE) {
+      const raekke = seed.find((r) => r.noegle === n);
+      expect(raekke?.gruppe, n).toBe("omkostning");
+      expect(raekke?.dansk, `${n}: seeden har fået et dansk navn — så skal læsenavnet væk fra listen og seeden afgøre`).toBeNull();
+      expect(adapter[n], n).toBe(omkostningsparKanoniskTilDansk()[n]);
+      delete adapter[n];
+    }
+    const seedDansk = Object.fromEntries(seed.filter((r) => r.dansk !== null).map((r) => [r.noegle, r.dansk as string]));
     expect(adapter).toEqual(seedDansk);
   });
 

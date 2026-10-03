@@ -110,7 +110,9 @@ export const rimelighedRegner = (r: string, o: string): boolean =>
   r.includes('import { CANONICAL as OMK, ANDEL_NOEGLER_TIL_RIMELIGHED, ebtRegnet, kontrolsum, sumOmkostninger, udaekketErStort, udaekketTekst } from "./omkostningsnoegler.ts";') &&
   r.includes("const beregnetEbt = ebtRegnet(grossProfit, m, OMK);") &&
   r.includes("financial_income?: number | null;") &&
-  o.includes('drift: ["payroll", "payroll_related", "other_staff_costs", "sales_costs", "facility_costs", "admin_costs", "vehicle_costs", "other_costs"],') &&
+  // 3/10-2026: driftslisten står som CANONICAL_DRIFT (as const), og CANONICAL.drift peger på den.
+  o.includes('export const CANONICAL_DRIFT = ["payroll", "payroll_related", "other_staff_costs", "sales_costs", "facility_costs", "admin_costs", "vehicle_costs", "other_costs"] as const;') &&
+  o.includes("  drift: CANONICAL_DRIFT,") &&
   o.includes('finansielleIndtaegter: "financial_income",') &&
   o.includes("return ebitda - (afskr === null ? 0 : Math.abs(afskr)) - (finans === null ? 0 : Math.abs(finans)) + finansielleIndtaegter(m, s);");
 
@@ -151,7 +153,7 @@ describe("skabelonerAC.guard — A, A2 og C: admin og renter i PDF'erne, ebt afl
     expect(prompten(i.replace("   - I RESULTATOPGØRELSER: se på omsætningslinjen FØRST:", "   - I RESULTATOPGØRELSER: Aflæs DIREKTE — negativt = tab, positivt = overskud"))).toBe(false);
   });
   it("selvbevis 6: vehicle_costs ude af OPEX_FELTER falder", () => {
-    expect(rimelighedRegner(rd, od.replace('"admin_costs", "vehicle_costs", "other_costs"],', '"admin_costs", "other_costs"],'))).toBe(false);
+    expect(rimelighedRegner(rd, od.replace('"admin_costs", "vehicle_costs", "other_costs"] as const;', '"admin_costs", "other_costs"] as const;'))).toBe(false);
     expect(rimelighedRegner(rd, od.replace(" + finansielleIndtaegter(m, s);", ";"))).toBe(false);
   });
 });

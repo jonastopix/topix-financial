@@ -17,6 +17,7 @@
  * strukturer af facts (monthlyData o.lign.) skal selv bære feltet med fra
  * rækken, når de en dag skal skelne estimat fra måling.
  */
+import { omkostningsparKanoniskTilDansk } from "@/lib/omkostningsnoegler";
 
 /**
  * Mapping from canonical English metric keys (as stored in financial_report_facts.metrics)
@@ -25,18 +26,14 @@
  * This must match the FULL key set that getEffectiveMetrics() / getEffectiveKeyFigures()
  * currently produce. Any key used by a consumer must be present here.
  */
-const CANONICAL_TO_DANISH: Record<string, string> = {
+export const CANONICAL_TO_DANISH: Record<string, string> = {
   revenue: "omsaetning",
   gross_profit: "daekningsbidrag",
-  payroll: "loenninger",
-  cogs: "direkte_omkostninger",
-  sales_costs: "salgsomkostninger",
-  facility_costs: "lokaleomkostninger",
-  admin_costs: "administrationsomkostninger",
-  depreciation: "afskrivninger",
-  // Saldobalance-XLSX (17/9-2026): resultatkonti uden for de navngivne grupper, og en gruppe hvis netto er en indtægt.
-  other_costs: "oevrige_omkostninger",
-  other_operating_income: "andre_driftsindtaegter",
+  // Omkostningsnøglerne og andre driftsindtægter AFLEDES af omkostningsnoegler.ts (3/10-2026) — ÉN definition.
+  // Før stod de her som en lokal liste uden payroll_related, other_staff_costs og vehicle_costs, så «Omk. total»
+  // (Dine tal, virksomhedssiden, CSV'en) og budget/BVA/simulator/cashflow tabte dem (op til +48 % for én måned).
+  // Værn: __tests__/danskeFladerTreNoegler.guard.test.ts.
+  ...omkostningsparKanoniskTilDansk(),
   ebt: "resultat_foer_skat",
   net_result: "resultat_efter_skat",
   ebitda: "ebitda",

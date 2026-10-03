@@ -8,9 +8,9 @@ describe("omkostningsnoegler — nøglesættene", () => {
     expect(omkostningsnoegler(CANONICAL, "drift")).not.toContain("cogs");
     expect(omkostningsnoegler(CANONICAL, "alle")).not.toContain("other_operating_income");
   });
-  it("dansk: de syv kf-nøgler; finans findes ikke i kf", () => {
-    expect(omkostningsnoegler(DANSK, "alle")).toEqual(["direkte_omkostninger", "loenninger", "salgsomkostninger", "lokaleomkostninger", "administrationsomkostninger", "oevrige_omkostninger", "afskrivninger"]);
-    expect(omkostningsnoegler(DANSK, "vareforbrug_og_drift")).toEqual(["direkte_omkostninger", "loenninger", "salgsomkostninger", "lokaleomkostninger", "administrationsomkostninger", "oevrige_omkostninger"]);
+  it("dansk: de ti kf-nøgler (3/10-2026: drift afledt af CANONICAL — også pension/sociale, øvrige personale, autodrift); finans findes ikke i kf", () => {
+    expect(omkostningsnoegler(DANSK, "alle")).toEqual(["direkte_omkostninger", "loenninger", "pensioner_sociale", "oevrige_personale", "salgsomkostninger", "lokaleomkostninger", "administrationsomkostninger", "autodrift", "oevrige_omkostninger", "afskrivninger"]);
+    expect(omkostningsnoegler(DANSK, "vareforbrug_og_drift")).toEqual(["direkte_omkostninger", "loenninger", "pensioner_sociale", "oevrige_personale", "salgsomkostninger", "lokaleomkostninger", "administrationsomkostninger", "autodrift", "oevrige_omkostninger"]);
     expect(DANSK.finans).toBeNull();
   });
 });

@@ -19,6 +19,7 @@ import {
   SHORT_MONTHS,
   formatDKK,
   getEffectiveKeyFigures,
+  rapportkortTal,
   getEffectiveReportPeriod,
   getEffectiveReportPeriodKey,
 } from "@/lib/financialUtils";
@@ -749,7 +750,8 @@ export const RapporteringView = () => {
               const view = statusFor(report);
               const expanded = expandedReport === report.id;
               const keyFigures = getEffectiveKeyFigures(report as any) ?? {};
-              const figureEntries = Object.entries(keyFigures).filter(([, v]) => typeof v === "number");
+              // rapportkortTal: højst seks tal, uden nøgler der kun tæller i totalen (3/10-2026).
+              const figureEntries = rapportkortTal(keyFigures);
               return (
                 <li
                   key={report.id}
@@ -832,7 +834,7 @@ export const RapporteringView = () => {
                         </div>
                         {figureEntries.length > 0 && (
                           <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                            {figureEntries.slice(0, 6).map(([name, value]) => (
+                            {figureEntries.map(([name, value]) => (
                               <div key={name}>
                                 <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-hb-ink-soft">
                                   {name.replace(/_/g, " ")}
