@@ -1081,6 +1081,14 @@
       beslutning 46 · fejl 21 · ide 12; 118 lukkede) — målt med samme metode som
       tidligere (kortenes div-tag med class card og data-status, efter
       filhovedet). Tælleren i værktøjslinjen regner selv.
+    3/10 EFTERMIDDAG (de danske flader, CTO'ens «ret først» på
+      fix/danske-flader-tre-noegler): +4 kort under «Dine tal» —
+      g03-manuel-rettelse-taber-noegler (fejl) · g03-budget-finans-som-
+      omkostning (fejl) · g03-baseline-budget-uden-tre-noegler (mangler) ·
+      g03-floren-udtraekshul (mangler). Målt før: 328 kort (210 åbne:
+      mangler 130 · beslutning 46 · fejl 22 · ide 12; 118 lukkede). Efter:
+      332 kort (214 åbne: mangler 132 · beslutning 46 · fejl 24 · ide 12;
+      118 lukkede).
   SÅDAN TILFØJER MAN ET KORT
     1. Find afsnittet (<section class="topic">). Ét emne, ét sted:
        Indgangen · Betaling og fornyelse · Dine tal · Chat og
@@ -3436,6 +3444,30 @@
   <h2>Dine tal — rapportering, KPI, budget, handouts, parsing</h2>
   <p class="lede">Fungerer teknisk, bruges ikke nok. To mails fra betalende medlemmer, modtaget 22. august, står stadig åbne: «den har ikke taget alle mine omkostningsposter med … jeg kan ikke slette poster den allerede har lavet … jeg skal manuelt indtaste tal i hvert felt» og «den vil ikke uploade. Den skriver, at jeg skal indtaste tallene manuelt — kan det passe?»</p>
   <div class="grid">
+    <div class="card blocked new" id="g03-manuel-rettelse-taber-noegler" data-status="fejl" data-spor="1" data-rammer="medlem">
+      <h3>En manuel rettelse SLETTER autodrift, pension/sociale, øvrige personale, finans og ekstraordinære poster af facts — 18 rækker hos to medlemmer har allerede mistet autodriften</h3>
+      <p><strong>Målt 3/10 (pg_get_functiondef + SELECT):</strong> <code>commit_report_facts</code> gør <code>SET metrics = _candidate.metrics_preview</code> (hele objektet). Den manuelle gren i <code>resolve_report_commit_candidate</code> bygger det KUN af nøglerne i <code>manual_normalized_data.metrics</code>, der matcher <code>kanoniske_noegler.dansk_noegle</code>/<code>danske_aliaser</code>, og formularen skriver kun <code>PNL_FIELDS</code>. <code>payroll_related</code>, <code>other_staff_costs</code>, <code>vehicle_costs</code>, <code>financial_costs</code>, <code>financial_income</code> og <code>extraordinary_items</code> har <code>dansk_noegle</code> NULL → en manuel rettelse sletter dem, også af Score's og kontrolsummens grundlag. Ramt i dag: 18 manuelle facts-rækker, hvis kilderapport har <code>vehicle_costs</code> ≠ 0 — BR Roset 14 (2025-01…2026-07, 109.000 kr.), Livja 4 (2026-03…06, 11.989 kr.); <code>financial_costs</code> 7 rækker hos 3 (59.133 kr.), <code>financial_income</code> 2 hos 2. Ingen af de 25 rækker, der bærer de tre i dag, er manuelle. Valget: felter i formularen, danske navne i seeden (migration), eller lad den manuelle gren beholde kildens nøgler, den ikke selv nævner. Hænger sammen med <a href="#m17-manuelle-rettelser">m17-manuelle-rettelser</a>. OVERLEVERING DEL 2 «3. oktober — de danske flader taber tre omkostningsnøgler».</p>
+      <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 3 · rådgiver 2 · forretning 2 · risiko 3 · indsats M</p>
+      <div class="meta"><span class="tag ny">Ny 3/10</span><span class="tag rust">Data tabes</span><span class="tag size">Mellem</span></div>
+    </div>
+    <div class="card blocked new" id="g03-budget-finans-som-omkostning" data-status="fejl" data-spor="1" data-rammer="medlem">
+      <h3>BVA tæller budgettets finans-, ekstraordinære og sekundære INDTÆGTER som omkostninger (|beløb|)</h3>
+      <p><strong>Målt 3/10:</strong> Warburgs budget 2026 har <code>finansieringsudgifter</code> 61.596 · <code>finansieringsindtaegter</code> 8.232 · <code>ekstraordinaere_udgifter</code> 67.968 · <code>ekstraordinaere_indtaegter</code> 375.672 · <code>sekundaere_udgifter</code> 133.032 · <code>sekundaere_indtaegter</code> 14.280 kr./år. Uden <code>__group__</code>-markør lander de i «variable» (<code>budgetEngine.ts</code> extraCategories), og <code>computeEbitda</code> og <code>HbBudgetBva</code>'s <code>totalBudgetCosts</code> tager Σ|værdi| over alt uden for «indtaegter» — 398.184 kr./år indtægt står som omkostning, og budgettets EBITDA er for lav med det dobbelte. Den realiserede side har til gengæld hverken finans eller ekstraordinære poster (<code>DANSK.finans</code> er null). Rettes som én skive: budgettets fortegn og hvad «Omk. total» skal omfatte (Jonas). OVERLEVERING DEL 2 «3. oktober» (finans-afsnittet).</p>
+      <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 2 · rådgiver 2 · forretning 1 · risiko 2 · indsats M</p>
+      <div class="meta"><span class="tag ny">Ny 3/10</span><span class="tag rust">Forkert tal</span><span class="tag gold">Beslutning hos Jonas</span><span class="tag size">Mellem</span></div>
+    </div>
+    <div class="card new" id="g03-baseline-budget-uden-tre-noegler" data-status="mangler" data-spor="1" data-rammer="medlem">
+      <h3>Det automatiske budget kender ikke autodrift, pension/sociale og øvrige personale — BVA viser «overforbrug» på præcis autodriften</h3>
+      <p><strong>Målt 3/10:</strong> <code>auto-create-baseline-budget</code> lægger kun vareforbrug, løn, salg, lokaler, admin (+ øvrige) og afskrivninger i budgettet. Efter rettelsen på <code>fix/danske-flader-tre-noegler</code> tæller de realiserede omkostninger de tre, så Rallysupport viser +22.534 / +24.873 kr. (jan/feb 2025) og Livja +2.589 / +995 kr. (aug/sep 2026) over budget — præcis autodriften. Samme hul: <code>validate-facts-parity</code> har sin egen kanonisk→dansk-liste uden de tre, og <code>ReportReviewDialog.METRIC_LABELS</code> har ingen dansk etiket for dem (viser nøglenavnet). Alt i edge-laget/dialogen: kræver udrulning (functions) og Update. OVERLEVERING DEL 2 «3. oktober».</p>
+      <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 2 · rådgiver 1 · forretning 1 · risiko 1 · indsats S</p>
+      <div class="meta"><span class="tag ny">Ny 3/10</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="g03-floren-udtraekshul" data-status="mangler" data-spor="1" data-rammer="medlem">
+      <h3>Floren 2026-01, -02, -04 og -05: <code>admin_costs</code> og <code>sales_costs</code> mangler helt — resultatet går ikke op med 13.202–33.944 kr.</h3>
+      <p><strong>Målt 3/10:</strong> fire af Florens otte målte måneder i 2026 har hverken <code>admin_costs</code> eller <code>sales_costs</code> i facts (nøglerne findes ikke); 2026-03 og -06…-08 har begge og går op til kronen med den gemte <code>ebt</code>. Regnet resultat (dækningsbidrag − drift − afskrivninger − finans) minus gemt <code>ebt</code>: +33.944 (jan) · +13.202 (feb) · +20.183 (apr) · +23.774 (maj) kr. — «Omk. total» er tilsvarende for lav. Et udtrækshul i de fire rapporter: genkør eller «Erstat gammel data», og find hvilken skabelon/hvilket udtræk der tabte grupperne. Kontrolsummen (<code>quality_signals.udaekket</code>) burde vise det — ikke målt pr. rapport. OVERLEVERING DEL 2 «3. oktober».</p>
+      <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 2 · rådgiver 2 · forretning 1 · risiko 1 · indsats S</p>
+      <div class="meta"><span class="tag ny">Ny 3/10</span><span class="tag rust">Forkert tal</span><span class="tag size">Lille</span></div>
+    </div>
     <div class="card decision new" id="m17-manuelle-rettelser" data-status="beslutning" data-spor="1" data-rammer="raadgiver">
       <h3>56 manuelt rettede måneder (9 virksomheder) står i vejen for genkørslen — slip rettelsen pr. rapport, eller behold?</h3>
       <p><strong>Omskrevet 3/10:</strong> Målt 3/10: 56 rapporter har <code>manual_override_status</code> = 'applied' (ANLA 17, BR Roset 14, Livja 7, Booking Innovation 6, Rezycl 4, Capture IT 3, YKRG 2, Green Solar 2, Rallysupport 1). Rettelsen har forrang i resolveren, så genkørsler og de nye nøgler (#971–#982) når aldrig deres facts — ANLA's måneder er derfor aldrig læst af Mamut-skabelonen (#980). Chattens tal «45 identiske» kunne ikke genskabes (0 er lig <code>normalized_data</code>) — mål igen med <code>udkast-sidste-ukendte/README.md</code> §5 FØR valget. Pr. rapport: slip (ryd <code>manual_override_status</code> og genkør) eller behold. Historik: OVERLEVERING DEL 2 «17. september» §8.</p>

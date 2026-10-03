@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { CANONICAL, CANONICAL_DRIFT, DANSK, DANSK_DRIFT_NAVN, omkostningerIAlt, omkostningsnoegler, omkostningsparKanoniskTilDansk } from "@/lib/omkostningsnoegler";
 import { CANONICAL_TO_DANISH as ADAPTER, factsToDanishMetrics, factsToDanishMetricsNullable } from "@/lib/factsAdapter";
-import { calcTotalExpenses, getCanonicalOrLegacyMetrics, getEffectiveKeyFigures, type ReportData } from "@/lib/financialUtils";
+import { KUN_I_TOTALEN, NAEVNTE_DANSKE, RAPPORTKORT_ANTAL, calcTotalExpenses, getCanonicalOrLegacyMetrics, getEffectiveKeyFigures, getEffectiveMetrics, rapportkortTal, type ReportData } from "@/lib/financialUtils";
 
 /**
  * De danske flader taber tre omkostningsnøgler (3/10-2026, docs/OVERLEVERING.md DEL 2 «3. oktober»).
@@ -184,5 +184,95 @@ describe("kildeværn — ingen lokal kanonisk→dansk-liste for omkostningerne",
     const k = laes("src/lib/omkostningsnoegler.ts");
     expect(k).toMatch(/drift: CANONICAL_DRIFT\.map\(\(k\) => DANSK_DRIFT_NAVN\[k\]\)/);
     expect(k).not.toMatch(/drift: \["loenninger"/);
+  });
+});
+
+describe("getEffectiveMetrics — den manuelle gren læser de DANSKE navne", () => {
+  // Formularen gemmer danske nøgler i manual_normalized_data.metrics. Grenen skal derfor slå `da` op — en
+  // mutation til `(en) => mnd.metrics[en]` ville læse det kanoniske navn og fælder her.
+  const manuel = (metrics: Record<string, number>): ReportData => ({
+    id: "m", report_period: "Marts 2026", extracted_data: null, status: "processed",
+    normalized_data: { metrics: { vehicle_costs: 1, payroll_related: 1, other_staff_costs: 1 } },
+    manual_override_status: "applied",
+    manual_normalized_data: { metrics },
+  });
+
+  it("de tre danske nøgler fra den manuelle rettelse bæres med; de kanoniske navne i samme objekt ignoreres", () => {
+    const r = getEffectiveMetrics(manuel({ loenninger: 120000, autodrift: 9000, pensioner_sociale: 18000, oevrige_personale: 4000, vehicle_costs: 777 }))!;
+    expect(r.source).toBe("manual");
+    expect(r.metrics.autodrift).toBe(9000);
+    expect(r.metrics.pensioner_sociale).toBe(18000);
+    expect(r.metrics.oevrige_personale).toBe(4000);
+    // Regnestykket: 120.000 + 9.000 + 18.000 + 4.000 = 151.000 (normalized_data's 1-taller er IKKE med — rettelsen vinder).
+    expect(calcTotalExpenses(r.metrics)).toBe(151000);
+  });
+  it("uden de tre i rettelsen er de null — og falder IKKE tilbage på normalized_data (som databasens manuelle gren)", () => {
+    const r = getEffectiveMetrics(manuel({ loenninger: 120000 }))!;
+    expect(r.metrics.autodrift).toBeNull();
+    expect(r.metrics.pensioner_sociale).toBeNull();
+    expect(r.metrics.oevrige_personale).toBeNull();
+  });
+});
+
+describe("NAEVNTE_DANSKE er låst mod listerne i begge grene", () => {
+  const kilde = readFileSync(resolve(process.cwd(), "src/lib/financialUtils.ts"), "utf8");
+  const omkostningsnavne = new Set(Object.values(omkostningsparKanoniskTilDansk()));
+
+  /** De danske omkostningsnavne, en grens håndskrevne liste nævner. Grenen findes mellem `start` og `slut`. */
+  function naevnteI(k: string, start: string, slut: string, linje: RegExp): Set<string> {
+    const a = k.indexOf(start);
+    const b = k.indexOf(slut, a);
+    expect(a, start).toBeGreaterThan(-1);
+    expect(b, slut).toBeGreaterThan(a);
+    const navne = [...k.slice(a, b).matchAll(linje)].map((m) => m[1]);
+    expect(navne.length, "parseren ramte ved siden af").toBeGreaterThanOrEqual(15);
+    return new Set(navne.filter((n) => omkostningsnavne.has(n)));
+  }
+  const kanoniskGren = (k: string) => naevnteI(k, "export function getCanonicalOrLegacyMetrics", "// Legacy fallback", /^\s+([a-z_]+): m\.[a-z_]+ \?\? null,/gm);
+  const manuelGren = (k: string) => naevnteI(k, 'source: "manual"', "...manglendeOmkostninger((_en, da)", /^\s+([a-z_]+): mnd\.metrics\.[a-z_]+ \?\? null,/gm);
+  const laast = (k: string) => {
+    const n = JSON.stringify([...NAEVNTE_DANSKE].sort());
+    return JSON.stringify([...kanoniskGren(k)].sort()) === n && JSON.stringify([...manuelGren(k)].sort()) === n;
+  };
+
+  it("begge grene nævner præcis NAEVNTE_DANSKE, og resten af omkostningsnavnene er KUN_I_TOTALEN", () => {
+    expect(laast(kilde)).toBe(true);
+    expect([...KUN_I_TOTALEN].sort()).toEqual(["autodrift", "oevrige_personale", "pensioner_sociale"]);
+    for (const n of omkostningsnavne) expect(NAEVNTE_DANSKE.has(n) !== KUN_I_TOTALEN.has(n), n).toBe(true);
+  });
+  it("selvbevis: en ny linje i den kanoniske gren (uden at ændre sættet) fælder", () => {
+    const muteret = kilde.replace("        kreditorer: m.current_liabilities ?? null,\n", "        kreditorer: m.current_liabilities ?? null,\n        autodrift: m.vehicle_costs ?? null,\n");
+    expect(muteret).not.toBe(kilde);
+    expect(laast(muteret)).toBe(false);
+  });
+  it("selvbevis: en fjernet linje i den manuelle gren fælder", () => {
+    const muteret = kilde.replace("          oevrige_omkostninger: mnd.metrics.oevrige_omkostninger ?? null,\n", "");
+    expect(muteret).not.toBe(kilde);
+    expect(laast(muteret)).toBe(false);
+  });
+});
+
+describe("rapportkortet — de tre nøgler er aldrig blandt de seks tal", () => {
+  it("en tynd række (< 6 tal): de tre vises ikke, og de andre står i hjælperens rækkefølge", () => {
+    const report: ReportData = {
+      id: "t", report_period: "Marts 2026", extracted_data: null, status: "processed",
+      normalized_data: { metrics: { revenue: 100000, payroll: 30000, vehicle_costs: 9000, payroll_related: 4000, other_staff_costs: 1000, ebt: 20000 } },
+    };
+    const kf = getEffectiveKeyFigures(report)!;
+    // Hjælperen bærer dem (totalen tæller dem) …
+    expect(kf.autodrift).toBe(9000);
+    // … men kortet viser kun de tre tal, der var der før 3/10.
+    expect(rapportkortTal(kf)).toEqual([["omsaetning", 100000], ["loenninger", 30000], ["resultat_foer_skat", 20000]]);
+  });
+  it("en fuld række: højst seks, ingen af de tre", () => {
+    const kf = { omsaetning: 1, autodrift: 2, daekningsbidrag: 3, pensioner_sociale: 4, loenninger: 5, direkte_omkostninger: 6, oevrige_personale: 7, salgsomkostninger: 8, lokaleomkostninger: 9, administrationsomkostninger: 10 };
+    const tal = rapportkortTal(kf);
+    expect(tal.length).toBe(RAPPORTKORT_ANTAL);
+    expect(tal.map(([n]) => n)).toEqual(["omsaetning", "daekningsbidrag", "loenninger", "direkte_omkostninger", "salgsomkostninger", "lokaleomkostninger"]);
+  });
+  it("RapporteringView bruger rapportkortTal og skærer ikke selv", () => {
+    const k = readFileSync(resolve(process.cwd(), "src/components/hjemmebane/rapportering/RapporteringView.tsx"), "utf8");
+    expect(k).toMatch(/const figureEntries = rapportkortTal\(keyFigures\);/);
+    expect(k).not.toMatch(/figureEntries\.slice\(/);
   });
 });

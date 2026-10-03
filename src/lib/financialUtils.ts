@@ -75,17 +75,26 @@ export interface ReportMetricsResult {
   metrics: Record<string, number | null>;
 }
 
-/** De danske omkostningsnøgler (omkostningsnoegler.omkostningsparKanoniskTilDansk), som de håndskrevne
-    lister i getCanonicalOrLegacyMetrics/getEffectiveMetrics ikke nævner — så ingen kanonisk omkostningsnøgle
-    tabes her (3/10-2026). `laes` får det kanoniske og det danske navn og vælger selv. */
-const NAEVNTE_DANSKE = new Set([
+/** De danske omkostningsnøgler, som de håndskrevne lister i getCanonicalOrLegacyMetrics/getEffectiveMetrics
+    NÆVNER. Låst mod begge grene af danskeFladerTreNoegler.guard (selvbevis): en linje tilføjet eller fjernet
+    i én af grenene uden at ændre sættet fælder værnet. */
+export const NAEVNTE_DANSKE: ReadonlySet<string> = new Set([
   "direkte_omkostninger", "loenninger", "salgsomkostninger", "lokaleomkostninger",
   "administrationsomkostninger", "oevrige_omkostninger", "andre_driftsindtaegter", "afskrivninger",
 ]);
+/** De danske omkostningsnøgler (omkostningsnoegler.omkostningsparKanoniskTilDansk), som listerne IKKE nævner
+    — pension/sociale, øvrige personale og autodrift (3/10-2026). De tæller i totalen (calcTotalExpenses), men
+    har ingen egen linje nogen steder (åbent punkt, OVERLEVERING DEL 2 «3. oktober»). */
+export const KUN_I_TOTALEN: ReadonlySet<string> = new Set(
+  Object.values(omkostningsparKanoniskTilDansk()).filter((da) => !NAEVNTE_DANSKE.has(da)),
+);
+
+/** Lægger KUN_I_TOTALEN-nøglerne til en grens svar, så ingen kanonisk omkostningsnøgle tabes her.
+    `laes` får det kanoniske og det danske navn og vælger selv (kanonisk gren: m[en]; manuel gren: mnd.metrics[da]). */
 function manglendeOmkostninger(laes: (en: string, da: string) => unknown): Record<string, number | null> {
   const ud: Record<string, number | null> = {};
   for (const [en, da] of Object.entries(omkostningsparKanoniskTilDansk())) {
-    if (NAEVNTE_DANSKE.has(da)) continue;
+    if (!KUN_I_TOTALEN.has(da)) continue;
     const v = laes(en, da);
     ud[da] = typeof v === "number" && Number.isFinite(v) ? v : null;
   }
@@ -188,6 +197,16 @@ export function getEffectiveMetrics(report: ReportData): ReportMetricsResult | n
   }
   // Fallback to canonical/legacy
   return getCanonicalOrLegacyMetrics(report);
+}
+
+/** Rapportkortets tal (RapporteringView): højst seks talværdier i hjælperens rækkefølge — UDEN KUN_I_TOTALEN.
+    Kortet har ingen etiketmapning (det viser nøglenavnet), og før 3/10-2026 kom de tre nøgler aldrig med; de må
+    ikke skubbe et af de seks tal ud på en tynd række. */
+export const RAPPORTKORT_ANTAL = 6;
+export function rapportkortTal(keyFigures: Record<string, number | null | undefined>): [string, number][] {
+  return Object.entries(keyFigures)
+    .filter((e): e is [string, number] => typeof e[1] === "number" && !KUN_I_TOTALEN.has(e[0]))
+    .slice(0, RAPPORTKORT_ANTAL);
 }
 
 /** Get effective key figures (legacy compat — uses effective metrics) */
