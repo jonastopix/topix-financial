@@ -2,7 +2,7 @@
 
 Dokumentet holdes ajour af Claude ved hver afsluttet opgave; antal åbne kort står i mangellisten.
 
-**Målt 3/10-2026** (ca. kl. 04–05 dansk) mod `origin/main` = `2b7c6bf9` (#1260). Kun recon: ingen kode ændret, intet skrevet i prod; databasen er kun læst med SELECT (Lovable `query_database`, som `postgres`). Hvad der er MÅLT i prod og hvad der er LÆST i repoet/dokumenterne er skilt ad i hver linje. «Ikke målt» betyder, at det ikke er målt her. Efter målingen: #1260 og #1264 merget 3/10 (kun dokumentation; ingen migration eller function berørt). Mangellisten har nu 209 åbne kort.
+**Målt 3/10-2026** (ca. kl. 04–05 dansk) mod `origin/main` = `2b7c6bf9` (#1260). Kun recon: ingen kode ændret, intet skrevet i prod; databasen er kun læst med SELECT (Lovable `query_database`, som `postgres`). Hvad der er MÅLT i prod og hvad der er LÆST i repoet/dokumenterne er skilt ad i hver linje. «Ikke målt» betyder, at det ikke er målt her. Efter målingen: #1264 merget 3/10 (kun dokumentation; ingen migration eller function berørt). Mangellisten har nu 209 åbne kort.
 
 Format pr. linje: **hvad** · hvor (gren/PR/fil) · status (målt/læst) · ejer · næste skridt · siden.
 
