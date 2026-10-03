@@ -36,10 +36,10 @@ const DENO_DIR = "supabase/functions/_shared/webinarMotor";
 const FILER = readdirSync(resolve(process.cwd(), SRC_DIR)).filter((f) => f.endsWith(".ts")).sort();
 
 describe("webinarMotor.paritet — kildeteksten", () => {
-  it("de to mapper har PRÆCIS de samme filer (elleve — skive 3 lagde fremmoede.ts og mail.ts til)", () => {
+  it("de to mapper har PRÆCIS de samme filer (tretten — skive 3 lagde fremmoede.ts og mail.ts til, skive 5 klokke.ts og svarMail.ts)", () => {
     const deno = readdirSync(resolve(process.cwd(), DENO_DIR)).filter((f) => f.endsWith(".ts")).sort();
     expect(deno).toEqual(FILER);
-    expect(FILER).toEqual(["fremmoede.ts", "ics.ts", "interaktioner.ts", "mail.ts", "puls.ts", "sessionplan.ts", "spolning.ts", "svar.ts", "tilmelding.ts", "token.ts", "ur.ts"]);
+    expect(FILER).toEqual(["fremmoede.ts", "ics.ts", "interaktioner.ts", "klokke.ts", "mail.ts", "puls.ts", "sessionplan.ts", "spolning.ts", "svar.ts", "svarMail.ts", "tilmelding.ts", "token.ts", "ur.ts"]);
   });
 
   for (const f of FILER) {

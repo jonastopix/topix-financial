@@ -5,7 +5,7 @@ import { HbCard } from "@/components/hjemmebane/HbCard";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 import { HbTextarea } from "@/components/hjemmebane/admin/HbField";
 import { useAuth } from "@/hooks/useAuth";
-import { useIRummet, useKonsolSession, useServerForskydning, useSpoergsmaalKoe, useSvarSpoergsmaal } from "@/hooks/webinarKonsol";
+import { useIRummet, useKonsolSession, useServerForskydning, useSpoergsmaalKoe, useSvarMailLaas, useSvarSpoergsmaal } from "@/hooks/webinarKonsol";
 import {
   erUbesvaret,
   KONSOL_SVAR_MAKS,
@@ -17,6 +17,7 @@ import {
   posTekst,
   RUM_ORD,
   sorterKoe,
+  svarLoefteTekst,
   visSvarfelt,
 } from "@/lib/webinarMotorAdmin/konsol";
 import { tidskode } from "@/lib/webinarMotorAdmin/opsaetning";
@@ -40,6 +41,7 @@ export const WebinarKonsol = ({ sessionId }: { sessionId: string | undefined }) 
   const iRummet = useIRummet(sessionId, () => Date.now() + (forskydning ?? 0));
   const koe = useSpoergsmaalKoe(sessionId);
   const svar = useSvarSpoergsmaal(sessionId);
+  const svarMailLaas = useSvarMailLaas();
   const [udkast, setUdkast] = useState<Record<string, string>>({});
   const [fejl, setFejl] = useState<Record<string, string>>({});
 
@@ -119,7 +121,7 @@ export const WebinarKonsol = ({ sessionId }: { sessionId: string | undefined }) 
       </HbSection>
 
       <HbSection eyebrow="Spørgsmål" title={ubesvarede > 0 ? `${ubesvarede} ubesvarede` : "Spørgsmålskøen"} hairline className="mt-10">
-        <p className="mb-4 text-xs text-hb-ink-soft">Opdateres hvert 10. sekund. Svaret vises for seeren ved næste puls, hvis seeren stadig er i rummet — der sendes intet på mail.</p>
+        <p className="mb-4 text-xs text-hb-ink-soft">Opdateres hvert 10. sekund. {svarLoefteTekst(svarMailLaas.isError ? null : svarMailLaas.data ?? null)}</p>
         {koe.isPending ? (
           <div className="h-16 animate-pulse rounded-hb bg-hb-line/60" />
         ) : koe.isError ? (

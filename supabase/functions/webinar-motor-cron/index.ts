@@ -37,8 +37,19 @@
 //      KUN i den globale kørsel med låsen (aldrig i prøven). Aggregatet i
 //      webinar_deltagelser bliver.
 //
-// BODY (STRIKS, bodyFelter.guard): dry_run · session_id · nu. `nu` flytter
-// uret og er KUN tilladt i en tørkørsel.
+//   5. SVAR PÅ MAIL (skive 5, 3/10-2026; docs/webinarmotor.md §7.10) — et
+//      ISOLERET pas EFTER fremmødet (_shared/webinarSvarMailKoersel.ts, dommen
+//      webinarMotor/svarMail.ts): et besvaret spørgsmål med leveret IS NULL, hvor
+//      seeren ikke har pulset i SVAR_MAIL_GAAET_SEK (180 s) eller sessionen er
+//      slut, sendes på mail gennem Mailgun EU — én pr. spørgsmål (vagtet UPDATE
+//      FØR afsendelsen). EGEN LÅS app_config.webinar_svar_mail_aktiv (fraværende
+//      = false) og prøven til én adresse (`email`) uden låsen. Passet kaster
+//      aldrig, rører aldrig fremmødedommen eller kørslens ok/fejl/status, og har
+//      sin EGEN alarm (én pr. dansk time, driftModtager(), aldrig i tørkørslen).
+//      Beviset: feltet `svar_mail` i svaret — kun den nye kode har det.
+//
+// BODY (STRIKS, bodyFelter.guard): dry_run · session_id · nu · email. `nu` flytter
+// uret og er KUN tilladt i en tørkørsel; `email` er svarpassets prøve.
 //
 // BEVISET I SVARET: `motor: "boardroom-3"` — kun den nye kode kan svare med det.
 // KASTER ALDRIG mod én tilmelding: fejler én, tælles den, og sessionen
@@ -65,13 +76,16 @@ import { doemSetGrad, SET_GRAENSE_PROCENT, type SetGrad } from "../_shared/webin
 import { afgoerOvergang, byggFremmoede } from "../_shared/webinarHaendelser.ts";
 import { erAfmeldt } from "../_shared/webinarAfmelding.ts";
 import { sendHvisMail } from "../_shared/klaviyoAfsendelse.ts";
+import { alarmerSvarMail, koerSvarMail, svarMailLaasAktiv } from "../_shared/webinarSvarMailKoersel.ts";
+import { MAILGUN_SECRET } from "../_shared/mailgunAfsendelse.ts";
+import { AFMELD_SECRET } from "../_shared/webinarAfmeldToken.ts";
 
 const LOG = "[webinar-motor-cron]";
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 /** De felter, body'en må have. Alt andet afvises med 400 (bodyFelter.guard: STRIKS). */
-export const KENDTE_FELTER = ["dry_run", "session_id", "nu"] as const;
+export const KENDTE_FELTER = ["dry_run", "session_id", "nu", "email"] as const;
 
 /** Låsen. Fraværende = false — som webinar_mail_aktiv. */
 export const LAAS_NOEGLE = "webinar_motor_aktiv";
@@ -394,18 +408,39 @@ Deno.serve(async (req) => {
   // `nu` flytter uret — kun i en tørkørsel: en rigtig dom på et falsk ur skriver en falsk sandhed.
   if (harNu && !toerKoersel) return json({ motor: MOTOR_VERSION, error: "nu_kun_i_toerkoersel" }, 400);
   const nu = harNu ? new Date(raaBody.nu as string) : new Date();
+  // Svarpassets prøve til ÉN adresse (som webinar-mail-cron): sender uden låsen, kun dertil.
+  if (raaBody.email !== undefined && !(typeof raaBody.email === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raaBody.email.trim()))) {
+    return json({ motor: MOTOR_VERSION, error: "email" }, 400);
+  }
+  const proeveEmail = typeof raaBody.email === "string" ? raaBody.email.trim().toLowerCase() : null;
 
   const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
   const laas = await laasErAktiv(admin);
 
+  let r: MotorResultat | null = null;
+  let vaeltet: string | null = null;
   try {
-    const r = await koer({ admin, toerKoersel, laas, sessionId: sessionRaa, nu, startMs });
+    r = await koer({ admin, toerKoersel, laas, sessionId: sessionRaa, nu, startMs });
     const doemte = r.sessioner.reduce((n, s) => n + s.tilmeldte, 0);
     console.log(`${LOG} ${r.dry_run ? "TØRKØRSEL" : r.sender_rigtigt ? "SKRIVER" : "LÅST"} — sessioner klar ${r.klar} (ikke klar ${r.ikke_klar}, for gamle ${r.for_gammel}), tilmeldinger ${doemte}, udsat ${r.udsat}, afsluttet ${r.sessioner.filter((s) => s.afsluttet).length}, pulser ${r.pulser.slettet ?? r.pulser.at_slette ?? "-"}, fejl ${r.fejl.length}`);
-    return json(r);
   } catch (err) {
-    const grund = err instanceof Error ? err.message : String(err);
-    console.error(`${LOG} kørslen væltede:`, grund);
-    return json({ motor: MOTOR_VERSION, ok: false, dry_run: toerKoersel, nu: nu.toISOString(), fejl: [grund] }, 500);
+    vaeltet = err instanceof Error ? err.message : String(err);
+    console.error(`${LOG} kørslen væltede:`, vaeltet);
   }
+
+  // 5. SVAR PÅ MAIL — ISOLERET: efter fremmødet, egen lås, kaster aldrig, rører
+  //    aldrig `r` (fremmødets ok/fejl/status); dets fejl står kun i svar_mail.fejl.
+  const svarLaas = await svarMailLaasAktiv(admin);
+  const svarMail = await koerSvarMail(admin, {
+    toerKoersel, laas: svarLaas, proeveEmail, nu, startMs,
+    mailgunNoegle: Deno.env.get(MAILGUN_SECRET),
+    afmeldSecret: Deno.env.get(AFMELD_SECRET),
+    afmeldBasis: `${supabaseUrl.replace(/\/+$/, "")}/functions/v1/webinar-afmeld`,
+  });
+  // Alarmen på RIGTIG tid (body'ens `nu` flytter kun dommens ur) — og aldrig i tørkørslen (skalSvarMailAlarmere).
+  await alarmerSvarMail(admin, svarMail, new Date());
+  console.log(`${LOG} svar_mail ${svarMail.sender_rigtigt ? (svarMail.proeve ? "PRØVE" : "SENDER") : "TØR/LÅST"} — kandidater ${svarMail.kandidater}, skal ${svarMail.skal_sendes}, sendt ${svarMail.sendt}, sprunget ${svarMail.sprunget}, taget_imens ${svarMail.taget_imens}, fejlede ${svarMail.fejlede}, ukendte ${svarMail.ukendte}, udsat ${svarMail.udsat}, alarm ${svarMail.alarm}`);
+
+  if (r === null) return json({ motor: MOTOR_VERSION, ok: false, dry_run: toerKoersel, nu: nu.toISOString(), fejl: [vaeltet], svar_mail: svarMail }, 500);
+  return json({ ...r, svar_mail: svarMail });
 });

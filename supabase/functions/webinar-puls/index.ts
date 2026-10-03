@@ -20,6 +20,8 @@
 //      rådets fund 30/9; tallene og regnestykket i puls.ts:HANDLING_LOFT_PR_TIME.
 //      Talt i webinar_motor_log FØR indsættelsen; over loftet: «over_loft»,
 //      intet skrevet (en gentagelse af et allerede modtaget klient_id: «dublet»).
+//      Et NYT spørgsmål ringer rådgivernes klokke (skive 5, docs/webinarmotor.md
+//      §7.10; _shared/webinarSpoergsmaalKlokke.ts) — fail-soft, uden log.
 //   3. SVARET: serverens ur, rummet, set_procent, værtens svar på seerens
 //      spørgsmål (leveret «live» i samme øjeblik), «i rummet» (kun fra 10, aldrig
 //      pustet op) og tidslinjens version.
@@ -56,6 +58,7 @@ import {
 } from "../_shared/webinarMotor/puls.ts";
 import { doemSvar, svarKanModtages, type Tidslinje } from "../_shared/webinarMotor/interaktioner.ts";
 import { findMotorForbudte, MOTOR_VERSION } from "../_shared/webinarMotor/svar.ts";
+import { ringSpoergsmaalKlokke } from "../_shared/webinarSpoergsmaalKlokke.ts";
 
 // ── Fejlsummen: ét log pr. minut, aldrig ét pr. kald ─────────────────────────
 const fejlsum = { minut: -1, antal: 0, grunde: new Map<string, number>() };
@@ -176,7 +179,7 @@ async function antalIVinduet(admin: SupabaseClient, tilmeldingId: string, art: L
 async function udfoerHandling(
   admin: SupabaseClient,
   h: HandlingRaa,
-  a: { tilmeldingId: string; sessionId: string; deltagelseId: string; rum: string; posSek: number; tidslinje: Tidslinje | null; nuMs: number; talt: Map<LoftArt, number> },
+  a: { tilmeldingId: string; sessionId: string; deltagelseId: string; rum: string; posSek: number; tidslinje: Tidslinje | null; nuMs: number; talt: Map<LoftArt, number>; webinarTitel: string | null },
 ): Promise<string> {
   const interaktion = h.interaktion_id && a.tidslinje ? a.tidslinje.interaktioner.find((i) => i.id === h.interaktion_id) ?? null : null;
   const logArt = h.art === "svar" ? (interaktion?.art === "cta" ? "cta_klik" : interaktion?.art === "feedback" ? "feedback" : "svar") : h.art;
@@ -230,6 +233,11 @@ async function udfoerHandling(
       pos_sek: a.rum === "afspilning" ? a.posSek : null, art: "spoergsmaal",
     });
     if (error) { noterFejl("spoergsmaal"); return "fejl"; }
+    // KLOKKEN (skive 5, §7.10): hos alle rådgivere minus tjenestekonti, højst én
+    // ULÆST pr. (rådgiver, session). FAIL-SOFT: kaster aldrig, logger aldrig —
+    // en fejl lægges i fejlsummen, og spørgsmålet er stadig «ok».
+    const klokke = await ringSpoergsmaalKlokke(admin, { sessionId: a.sessionId, webinarTitel: a.webinarTitel });
+    if (klokke.fejl !== null) noterFejl(klokke.fejl);
     return "ok";
   }
   // reaktion
@@ -289,7 +297,7 @@ Deno.serve(async (req) => {
       // 2. Handlingerne — loftet tælles én gang pr. art pr. kald.
       const talt = new Map<LoftArt, number>();
       for (const h of krop.handlinger) {
-        const udfald = await udfoerHandling(admin, h, { tilmeldingId: d.id, sessionId: d.session_id, deltagelseId: deltagelse.id, rum: pos.rum, posSek: pos.forventetPosSek, tidslinje: rd.tidslinje, nuMs, talt });
+        const udfald = await udfoerHandling(admin, h, { tilmeldingId: d.id, sessionId: d.session_id, deltagelseId: deltagelse.id, rum: pos.rum, posSek: pos.forventetPosSek, tidslinje: rd.tidslinje, nuMs, talt, webinarTitel: rd.webinar.titel ?? null });
         handlingerUd.push({ klient_id: h.klient_id, udfald });
       }
     } else {

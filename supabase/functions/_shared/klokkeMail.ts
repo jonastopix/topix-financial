@@ -92,6 +92,7 @@ export const MORGEN_TYPER = [
   "nyhed_udkast_klar",          // nyhed-agent-cron (30/9): ugens nyhedsudkast venter på en rådgiver — mandag før kl. 07
   "opkald_anmodet",             // ring-mig-op (2/10): en webinardeltager bad om et opkald — Jonas 2/10: «Besked i morgenmailen, ikke straks — ja»; nummeret står KUN på /opkald
   "venter_paa_velkomst",        // stille-klokker-cron (2/10, a1002-velkomst): et nyt medlem kom ind i går og har ikke hørt fra os — Jonas: «Klokke i morgenmailen, vi skriver selv» (_shared/dag1Klokke.ts); skrevet kl. 04:30 UTC, før kl. 07 dansk
+  "webinar_spoergsmaal",        // webinar-puls (3/10, skive 5, docs/webinarmotor.md §7.10): et nyt spørgsmål i webinaret — ALDRIG en mail pr. spørgsmål under sessionen (værterne sidder i konsollen); højst én ULÆST pr. (rådgiver, session), og en klokke, ingen har læst før kl. 07, står i morgenmailen (spec §B1-forslaget)
 ] as const;
 
 /** ALDRIG mailet — med grunden. */
@@ -314,6 +315,9 @@ export function klokkeSti(n: Pick<KlokkeRaekke, "type" | "reference_type" | "ref
       return n.reference_id ? `/ansoegninger/${n.reference_id}` : "/ansoegninger";
     case "community_traad":
       return n.reference_id ? `/community/${n.reference_id}` : "/community";
+    // Webinarmotoren (3/10, skive 5): et nyt spørgsmål → værtskonsollen for sessionen (src/lib/webinarMotorAdmin/konsol.ts konsolSti).
+    case "webinar_session":
+      return n.reference_id ? `/webinar/motor/session/${encodeURIComponent(n.reference_id)}` : "/webinar/motor";
     default:
       return virksomhed;
   }

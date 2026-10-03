@@ -83,8 +83,8 @@ describe("klokkeChat.guard — samtalen, ikke indbakken", () => {
     expect(app).toContain('path="/chat"');
   });
 
-  it("klokke.ts er stadig ren — kun richtext-importen", () => {
-    expect(klokke.match(/^import .*$/gm) ?? []).toEqual(['import { renTekst } from "./richtext";']);
+  it("klokke.ts er stadig ren — kun richtext-importen (og konsollens stibygger, skive 5 3/10: webinarKonsol.guard dom 1 kræver, at stien kun bygges af konsolSti)", () => {
+    expect(klokke.match(/^import .*$/gm) ?? []).toEqual(['import { renTekst } from "./richtext";', 'import { konsolSti, OPSAETNING_STI } from "@/lib/webinarMotorAdmin/konsol";']);
   });
 });
 

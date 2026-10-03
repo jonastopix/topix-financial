@@ -137,7 +137,10 @@ describe("webinarMotor.guard 3 — ingen log pr. puls", () => {
     for (const f of delte) expect(`${f}: ${/\bconsole\./.test(utenKommentarer(laes(f)))}`).toBe(`${f}: false`);
     // Og pulsen importerer kun dem (plus de to husets fælles uden log).
     const imports = [...laes(PULS).matchAll(/from "\.\.\/_shared\/([^"]+)"/g)].map((m) => m[1]).sort();
-    expect(imports).toEqual(["edgeFunctionAuth.ts", "kendteFelter.ts", "webinarDeltagerAuth.ts", "webinarMotor/interaktioner.ts", "webinarMotor/puls.ts", "webinarMotor/svar.ts", "webinarMotor/ur.ts", "webinarMotorHent.ts"]);
+    // 3/10 (skive 5, §7.10): + klokken ved et nyt spørgsmål — den logger heller aldrig, og dens egne imports er spejlet klokke.ts og tjenestekonti.ts.
+    expect(imports).toEqual(["edgeFunctionAuth.ts", "kendteFelter.ts", "webinarDeltagerAuth.ts", "webinarMotor/interaktioner.ts", "webinarMotor/puls.ts", "webinarMotor/svar.ts", "webinarMotor/ur.ts", "webinarMotorHent.ts", "webinarSpoergsmaalKlokke.ts"]);
+    for (const f of ["supabase/functions/_shared/webinarSpoergsmaalKlokke.ts", "supabase/functions/_shared/tjenestekonti.ts"]) expect(`${f}: ${/\bconsole\./.test(utenKommentarer(laes(f)))}`).toBe(`${f}: false`);
+    expect([...laes("supabase/functions/_shared/webinarSpoergsmaalKlokke.ts").matchAll(/from "\.\/([^"]+)"/g)].map((m) => m[1]).sort()).toEqual(["tjenestekonti.ts", "webinarMotor/klokke.ts"]);
     expect(/\bconsole\./.test(utenKommentarer(laes("supabase/functions/_shared/kendteFelter.ts")))).toBe(false);
   });
   it("MUTATION: et console.log pr. kald fanges", () => {
@@ -241,7 +244,8 @@ describe("webinarMotor.guard 5 — migrationen", () => {
     expect(alle).toContain(MIGRATION.split("/")[2]);
     // 3/10: + ti_minutter (motorens 10-minutters-mail, CHECK'en på webinar_mails) — også motorens.
     // 3/10: + værtskonsollen (UPDATE-politik + kolonneværn på webinar_spoergsmaal) — også motorens.
-    expect(efter).toEqual(["20261003030000_webinarmotor_skive3.sql", "20261003031000_webinar_motor_cron.sql", "20261003040000_webinar_mails_ti_minutter.sql", "20261003050000_webinar_vaertskonsol.sql"]);
+    // 3/10: + webinarchattens bagende (låsen webinar_svar_mail_aktiv + klokkens delindeks, §7.10) — også motorens.
+    expect(efter).toEqual(["20261003030000_webinarmotor_skive3.sql", "20261003031000_webinar_motor_cron.sql", "20261003040000_webinar_mails_ti_minutter.sql", "20261003050000_webinar_vaertskonsol.sql", "20261003080000_webinar_chat_bagende.sql"]);
   });
   it("kun tilføjende", () => {
     expect(kunTilfoejende(laes(MIGRATION))).toBe(true);

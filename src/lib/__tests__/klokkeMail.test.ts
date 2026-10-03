@@ -288,6 +288,9 @@ describe("klokkeMail — linket følger fladen (paritet med raadgiverSti)", () =
     { type: "new_message", reference_type: "chat", reference_id: REF, company_id: CO },
     { type: "new_message", reference_type: "chat", reference_id: null, company_id: null },
     { type: "feedback_submitted", reference_type: "feedback", reference_id: REF, company_id: null },
+    // Webinarmotoren (3/10, skive 5): et nyt spørgsmål → konsollen; uden session → opsætningen.
+    { type: "webinar_spoergsmaal", reference_type: "webinar_session", reference_id: REF, company_id: null },
+    { type: "webinar_spoergsmaal", reference_type: "webinar_session", reference_id: null, company_id: null },
   ];
   it("samme sti for hver prøve", () => {
     for (const p of proever) expect(`${p.type}/${p.reference_type}: ${klokkeSti(p)}`).toBe(`${p.type}/${p.reference_type}: ${raadgiverSti(p)}`);

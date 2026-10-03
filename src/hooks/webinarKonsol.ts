@@ -14,8 +14,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { urForskydning } from "@/lib/webinarMotor/ur";
+import { SVAR_MAIL_LAAS_NOEGLE } from "@/lib/webinarMotor/svarMail";
 import {
   iRummetSiden,
+  laasFraRaekke,
   KONSOL_POLL_MS,
   KONSOL_UR_MAAL_MS,
   type KonsolSpoergsmaal,
@@ -112,6 +114,29 @@ export function useIRummet(sessionId: string | undefined, serverNu: () => number
         .gt("sidste_puls_at", iRummetSiden(serverNu()));
       if (error) throw new KonsolFejl("webinar_deltagelser", error);
       return count ?? 0;
+    },
+  });
+}
+
+/**
+ * Svarmailens lås (app_config.webinar_svar_mail_aktiv) — FAIL-SOFT: en fejl giver
+ * null (fladen siger, at det ikke vides), en manglende række false. Konsollens
+ * tekst følger den gennem svarLoefteTekst.
+ */
+export function useSvarMailLaas() {
+  const { user, isAdvisor } = useAuth();
+  return useQuery({
+    queryKey: [...KONSOL_KEY, "svar-mail-laas"],
+    enabled: !!user && isAdvisor === true,
+    staleTime: 60_000,
+    retry: false,
+    queryFn: async (): Promise<boolean | null> => {
+      try {
+        const { data, error } = await supabase.from("app_config").select("config_value").eq("config_key", SVAR_MAIL_LAAS_NOEGLE).maybeSingle();
+        return laasFraRaekke((data ?? null) as { config_value?: unknown } | null, error);
+      } catch {
+        return null;
+      }
     },
   });
 }
