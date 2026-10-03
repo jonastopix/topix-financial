@@ -1,6 +1,6 @@
 # Webinarmotoren
 
-Husets egen lead-motor, der skal erstatte eWebinar. Spec'en er `~/topix-financial-webinarmotor-spec.md` (30/9-2026). Den ligger uden for repoet, indtil den flyttes ind. Dette dokument er bogføringen: hvad der er bygget, hvad der står i drift, og hvad der mangler.
+Husets egen lead-motor, der skal erstatte eWebinar. Spec'en er `docs/webinarmotor-spec.md` (skrevet 30/9-2026 som `~/topix-financial-webinarmotor-spec.md`; flyttet ind uændret 3/10-2026). Den interaktive pakke er specificeret i §9. Dette dokument er bogføringen: hvad der er bygget, hvad der står i drift, og hvad der mangler.
 
 **Status 30/9-2026: skive 1 (motoren) er bygget på grenen `feat/webinarmotor-skive1` (PR #1158), skive 2 (seerens flade, §6) på `feat/webinarmotor-skive2` (PR #1161) oven på den, og skive 3 (det, der mangler til en INTERN prøvesession, §7) på `feat/webinarmotor-skive3` oven på skive 2 (med main flettet ind for #1162/#1167).** Intet er merget, ingen migration er kørt, og intet er udrullet. Runbooken for den interne prøvesession står i §7.3.
 
@@ -65,7 +65,13 @@ seerens side ──POST {t}──▶ webinar-rum  ──▶ rum, position, signe
 | Personligt `joinLink` | HMAC-token → `/w/<slug>?t=…` | **Bygget (skive 1 + 3)**: `webinar-mail-cron` udleder linket for motorens rækker (§7.1) |
 | `invite.ics` (`addToCalendarLink`) | `bygIcs` (egen UID, SEQUENCE, Europe/Copenhagen) + `webinar-rum` GET `ics` | **Bygget (skive 1 + 3)**: `webinar-mail-cron` vedhæfter husets egen fil for motorens rækker (§7.1) |
 | Synkron afspilning, venteværelse, exitrum | `positionDom` + signeret Bunny-embed (webinarbiblioteket) | **Motor (skive 1) + flade (skive 2, §6)**: `/w/:slug`. Mobil-spike på fysiske enheder UMÅLT |
-| CTA, poll, quiz, feedback på tidskoder | `webinar_interaktioner` (frossen tidslinje pr. session) + `webinar_svar` | **Motor (skive 1) + kort (skive 2)**: cta, poll, quiz, feedback, spoergsmaal_prompt. `haand`/`ressource` tegnes ikke endnu |
+| CTA, poll, quiz, feedback på tidskoder | `webinar_interaktioner` (frossen tidslinje pr. session) + `webinar_svar` | **Motor (skive 1) + kort (skive 2)**: cta, poll, quiz, feedback, spoergsmaal_prompt. `haand`/`ressource` tegnes ikke endnu. Kortene (også `placering: overlay`) står UNDER videoen |
+| Testimonial (citat, foto, person, rolle, firma, evt. CTA) | Arten `testimonial` (hjørne af videoen på desktop, under på mobil) | **Spec skrevet 3/10 (§9.3), ikke bygget** — skive 9a–9e; beslutning I3, I6 |
+| Image/Button Overlay, Hotspot (klikbart område med varighed og glimmer) | Arterne `billede`, `knap`, `hotspot` i et interaktionslag over Bunny-iframen, under spolespærren | **Spec skrevet 3/10 (§9.1, §9.4), ikke bygget** — 9a–9e; visuel placering = 9g; beslutning I5–I7 |
+| Poll med kumulative resultater efter svar | `webinar_poll_resultat` (aggregat) → `poll_resultater` i pulsens svar | **Spec skrevet 3/10 (§9.5), ikke bygget** — 9a–9d; beslutning I2 |
+| Private Message på tidskode med `{firstName}`, velkomstbesked | Arten `chatbesked` (`indgang · tidskode · exitrum`), afledt i klienten, mærket «Automatisk» | **Spec skrevet 3/10 (§9.7), ikke bygget** — 9a, 9d, 9e; beslutning I1a. Auto-svar: ikke med (I4) |
+| (findes ikke hos eWebinar) Fremhævet spørgsmål + svar på skærmen for alle | `webinar_spoergsmaal.offentlig_tekst/offentlig_svar/fremhaevet_at` → `fremhaevet` i pulsens svar; konsollens «Vis for alle»/«Tag ned» | **Spec skrevet 3/10 (§9.6), ikke bygget** — 9a–9d, 9f; bag låsen `webinar_fremhaev_aktiv`; beslutning I1b, I10 |
+| Tip, Special Offer, Next Webinar | Dækket: `chatbesked`/`knap`, `cta` med sand frist (`ctaVindue`), «Tag næste session» | **Bygges ikke** (§9.8, beslutning I4b) |
 | Chat/spørgsmål + svar pr. mail | `webinar_spoergsmaal` + svar i pulsens svar | **Spørgsmål ind og svar ud live (skive 1), panelet i rummet (skive 2), konsollen (§7.7)**. **Klokken ved et nyt spørgsmål og svaret på mail til den, der er gået: BYGGET 3/10-2026 (gren `feat/webinar-chat-bagende`), IKKE udrullet — §7.10.** Svaret på mail står bag låsen `webinar_svar_mail_aktiv` (false) |
 | Fremmøde-hændelser til Klaviyo (Deltog/Mødte ikke op) | `webinar-motor-cron` via `afgoerOvergang/byggFremmoede` | **Bygget (skive 3, §7.2)** — efter sessionen, ikke ved indgangen |
 | `interactionsSummary` i `raa` (stjerner på /webinar) | `raaAdapter` | **Ikke bygget** (skive 2). `raa` = `{kilde: "platform", motor}` |
@@ -456,5 +462,299 @@ Jonas 2/10: første rigtige session på egen platform i starten af november, til
 6. Lastprøve (k6), P0-sammenligningens SQL og E3-tjeklisten som ét resultatsæt.
 7. ~~`ansoegninger.webinar_tilmelding_id` (skive 4).~~ **BYGGET 3/10-2026** (gren `feat/webinar-ansoegning-kobling`, IKKE udrullet) — se §7.8. Rækkefølgen: `20261003010000` (skive 1) KØRT → kolonnen målt (`GET /rest/v1/ansoegninger?select=webinar_tilmelding_id&limit=0` → 200) → eksplicit deploy af `ansoegning-gem` → beviset `webinar_kobling` i et «opret»-svar (honningfeltet: ingen række) → Update (aldrig før deploy — STRIKS-body'en ville afvise `webinar_token`). Tragten læser endnu ikke kolonnen (§7.8 «Læseren»).
 8. Efter B2: udkast til indlejrings-scriptet (honningfelt, utm/fbclid, `_fbp`/`_fbc` kun med samtykke, `CompleteRegistration` med `eventID` = tilmeldings-id).
+9. **Den interaktive pakke — SPEC SKREVET 3/10-2026, IKKE BYGGET** (§9). Testimonials, overlays over videoen (billede, knap, hotspot), poll-resultater, fremhævet spørgsmål på skærmen og automatiske chatbeskeder. Skiverne 9a–9g (§9.10), hver med færdig-definition; beslutningerne I1a–I10 står i §9.11 og skal tages, før de skiver, de blokerer, går i gang. **Ikke på stien til 3/11** (Mortens 22/9 brugte chat, feedback og CTA — det har motoren), men 9a–9c kan påbegyndes med anbefalingerne som standardværdier (I2, I5, I6 og I7 er hver én konstant i 9a); I1a, I1b, I3 og I10 blokerer først fladerne (9d–9f) og låsen.
 
 **~~Kendt hul (fra v2-flettet)~~ — LUKKET 2/10-2026** (gren `fix/webinar-intern-maal-annoncer`): `maalstreger` og `annoncepriser` filtrerer nu `erInternTilmelding` i dommens indgang i begge spejle (`src/lib/webinar/maalstreger.ts` ⇄ `_shared/webinarMaalstreger.ts`, `src/lib/webinar/annoncepriser.ts` ⇄ `_shared/annoncepriser.ts`) — målt: de fik de RÅ rækker fra hooken og fra `webinar-delt`, og begge hentninger beder allerede om `intern:raa->>intern`. Prøver i `maalstreger.test.ts` og `annoncepriser.test.ts`; værn `webinarMotorRaad.guard` dom 5b (med mutationer). Ruller med næste udrulning af `webinar-delt` (delt fil) og Update.
+
+## 9. Den interaktive pakke — spec (3/10-2026, KUN DOKUMENTATION, intet bygget)
+
+**Bestillingen (Jonas 3/10 kl. 06:01, ordret):** «Lige nu kan man lave interaktioner, vise testimonials, CTA, oprette Hotspots på slideshowet, lave automatiske chatbeskeder til deltagere, opsætte polls, stille spørgsmål osv, og sætte dem til at blive skudt på bestemte tidspunkter i løbet af et webinar. Og alt det skal vi kunne, for at den interaktive del af webinaret blive fed. Folk skal kunne stille spørgsmål, som vi nemt kan svare på i chat til dem. Måske endda i løbet af webinaret highlighte spørgsmål, som kommer frem på skærmen, så alle deltagere kan se det og hvad der er svaret til det.»
+
+**Skrevet til den agent, der bygger** (Fable, søndag 4/10). Alt, der står som «bygget» nedenfor, er læst i koden på grenen `feat/webinar-chat-bagende` (8fe0c29e). Intet er målt i prod, og ingen af motorens migrationer er kørt. Hvor en forudsætning ikke holder, når du bygger: **STOP og skriv det her** — gæt ikke.
+
+### 9.0 Grundlaget — målt og læst
+
+**Målt i prod 3/10 (recon):** Mortens webinar 22/9 — 384 tilmeldte — brugte **chat** (83 personer, 154 beskeder), **feedback** (40 stjerner, 15 kommentarer) og **CTA** (17 «Ansøg» + 17 «Ikke klar endnu»). Ingen polls, quiz, testimonials eller hotspots blandt dem, der reagerede. eWebinar logger kun reaktioner, så om Morten havde *opsat* andre interaktioner, som ingen rørte, er UMÅLT.
+
+**eWebinars funktioner** (spec §K's kilder; ikke genlæst 3/10): Testimonial (citat, foto, navn, titel, firma, evt. CTA) · Hotspot (usynligt klikbart område over videoen med varighed og «glimmer») · Image/Button Overlay · Private Message (1:1-chatbesked på tidskode med `{firstName}`, betingelser) · velkomstbesked · auto-svar · Poll (kumulative resultater efter svar) · Tip · Special Offer · Next Webinar. eWebinars chat er bevidst privat; «fremhæv for alle» findes ikke dér — det er vores eget.
+
+**Læst i koden (det, pakken bygger videre på):**
+
+| Hvad | Hvor | Betydning for §9 |
+|---|---|---|
+| Ni arter: `cta, feedback, poll, quiz, spoergsmaal_prompt, reaktion, haand, ressource, kapitel` | `INTERAKTION_ARTER` (`webinarMotor/interaktioner.ts`, spejlet ordret) = CHECK `webinar_interaktioner.art` (`20261003010000`) | Nye arter kræver begge, i takt |
+| `placering`: `overlay · sidepanel · exitrum` | samme | `overlay` findes allerede — men **tegnes i dag UNDER videoen**, ikke oven på (`WebinarRum.tsx`: `kortListe` står efter `<Afspiller>`) |
+| `webinar_svar.art` CHECK: `cta, feedback, poll, quiz, spoergsmaal_prompt`; unik på `(deltagelse_id, interaktion_id)` — det første svar står | `20261003010000` §9 | Klik på nye arter kræver CHECK-udvidelse |
+| `doemSvar` tager kun svar for de fem; alt andet → `ikke_et_svar` | `interaktioner.ts` | Udvides for klik |
+| `laesTidslinje` kasserer en række, skemaet ikke kender (fail-closed) | `interaktioner.ts` | En function, der ikke er udrullet med den nye skemafil, viser simpelthen intet af det nye — godt |
+| Snapshot'et er de RÅ rækker; skemaet dømmer ved LÆSNING | `_shared/webinarMotorHent.ts:frysTidslinje` | Ingen ændring i frysningen |
+| `findMotorForbudte` afviser HELE svaret (500 `svar_afvist`), hvis en nøgle hvor som helst i træet hedder `navn`, `fornavn`, `email`, `by`, `enhed`, `origin`, `raa` … | `webinarMotor/svar.ts:MOTOR_FORBUDTE_NOEGLER` | **Et testimonial med nøglen `navn` eller `by` ville lægge rummet ned for alle.** Nøglenavnene i §9.2 er valgt derefter |
+| Kortene (`KORT_ARTER`): cta, poll, quiz, feedback, spoergsmaal_prompt | `webinarRum/overlay.ts` | Testimonial kommer på listen; knap/billede/hotspot får et eget lag |
+| Afspillerboksen: `relative aspect-video`; spolespærren = `div` `absolute inset-x-0 bottom-0 z-10 h-14` (`data-spolespaerre`); «Tryk for lyd» og «Tilbage til webinaret» `z-20` | `components/webinarRum/Afspiller.tsx` | Det nye lag skal ind mellem iframen og spærren — §9.1 |
+| Fuld skærm = `boksRef.requestFullscreen()` (boksen, ikke iframen), kun hvor `document.fullscreenEnabled` | samme | Alt i boksen følger med i fuld skærm; kort, panel og bånd UNDER boksen gør ikke |
+| Pulsen: hvert 15. s (spiller), 60 s (lobby/pause), 5 s i 10 min efter et spørgsmål; svaret bærer `svar[]`, `i_rummet`, `tidslinje_version` | `webinar-puls`, `webinarRum/pulsplan.ts` | Fremhævet spørgsmål og poll-resultater rider med her — ingen Realtime for seerne (spec §D3) |
+| Cache pr. isolat 10 s (`CACHE_MS`) for rumdata og «i rummet» | `webinarMotorHent.ts` | Samme mønster for de nye aggregater |
+| `webinar_spoergsmaal.offentlig` (bool, default false) og `offentlig_tekst` (text) FINDES; ingen kolonne til et offentligt SVAR | `20261003010000` | §9.6 tilføjer `offentlig_svar`, `fremhaevet_at`, `fremhaevet_af` |
+| Rådgiverens UPDATE på `webinar_spoergsmaal` er låst af kolonneværnet: KUN `status, svar_tekst, svaret_af, svaret_at`, KUN `ny → besvaret`, KUN mens `leveret IS NULL` | `20261003050000` `webinar_spoergsmaal_vaert_kolonnevaern` | «Vis for alle» kræver en ny gren i værnet (§9.6) — ikke et hul |
+| `hilsen.fornavn` er den ENE vej, seerens fornavn når klienten | `svar.ts:NAVNGIVNE_UNDTAGELSER` | `{fornavn}` i automatiske beskeder udfyldes i KLIENTEN med den (§9.7) |
+| `sessionStorage` kun i `webinarRum/lager.ts`; ingen localStorage/cookie/pixel | `webinarRum.guard` dom 3 | Indgangspositionen til chatbeskeder gemmes dér (§9.7) |
+| `vaert_billede` er en fri URL, tegnet med `<img src>` | `WebinarTilmelding.tsx`, `Vaerelse.tsx` | Nye billeder får en værtsliste (§9.2) — `vaert_billede` er ikke omfattet i denne pakke |
+| Ingen storage-bucket til webinarbilleder (grep i migrationerne 3/10: kun `aftaler`, community, chat m.fl.) | — | Beslutning I6 |
+| Editoren: `EDITOR_ARTER` = cta, poll, quiz, feedback, spoergsmaal_prompt, kapitel; tidskoder tastes; **ingen skrubber, ingen preview** (§7.4) | `webinarMotorAdmin/opsaetning.ts` | Hotspots kan placeres med tal først, visuelt senere (9g) |
+| `CTA_MAAL` = `ansoeg, ikke_klar, ressource, link`; editoren tilbyder kun de to første («et mål, der ikke fører nogen steder hen, tilbydes ikke») | samme | §9.2 giver `link` en vej |
+
+### 9.1 Laget over videoen — fælles for alt, der står OVEN PÅ afspilleren
+
+**Problemet:** Bunnys iframe er cross-origin. Vi kan hverken style den indefra eller lægge noget ind i den. Alt, der skal stå «på videoen», er derfor søskende til iframen inde i afspillerboksen, absolut placeret over den.
+
+**Lagene i `Afspiller.tsx`s boks, nedefra og op (z-index er en del af spec'en):**
+
+| z | Lag | pointer-events | Hvad |
+|---|---|---|---|
+| 0 | iframen | — | Bunny |
+| 10 | **interaktionslaget** (nyt, `data-interaktionslag`) | `none` på laget, `auto` på hvert barn | billede, knap, hotspot, testimonial (kun desktop), fremhævet-toast og fuld-skærm-toast |
+| 20 | spolespærren (`data-spolespaerre`) — **flyttes fra z-10 til z-20** | `auto` | dækker kontrolbjælken, som i dag |
+| 30 | «Tryk for lyd» og «Tilbage til webinaret» — **flyttes fra z-20 til z-30** | `auto` | som i dag; på pause dækker «Tilbage til webinaret» alt, også laget |
+
+- **Spolespærren bevares, og den vinder altid:** laget ligger UNDER spærren. Et barn i laget, der rækker ned i spærrens område (de nederste 56 px), dækkes af spærren og kan ikke klikkes dér — klippet sker i den rene dom `fladeOverVideo` (nedenfor), ikke i CSS-held. Spærren tegnes, når `overlayDom.daekKontroller` er sand — uændret.
+- **Klik uden for et barn går til Bunny** (laget er `pointer-events: none`). Et tryk på videoen pauser den, som i dag — pause er tilladt (D2.4).
+- **Koordinater er procent af videobilledet** (`x`, `y`, `b`, `h` ∈ [0, 100], højst én decimal), målt fra øverste venstre hjørne. Boksen er `aspect-video` (16:9). **Er Mortens video ikke 16:9, letterboxer Bunny den, og procenterne rammer skævt.** Videoens billedformat er UMÅLT → `webinarer.billedformat` (beslutning I7, standard `16:9`), og `fladeOverVideo` regner den indre ramme ud fra boksens og videoens format.
+- **Den rene dom** (`src/lib/webinarRum/overlayFlade.ts`, kun klient, tiden og målene gives ind):
+  ```
+  fladeOverVideo({ x, y, b, h }, boks: { bredde, hoejde }, billedformat, spaerrePx = 56)
+    → { venstre, top, bredde, hoejde } i px | null
+  ```
+  1. Den indre ramme: `rammeHoejde = min(boks.hoejde, boks.bredde / format)`, `rammeBredde = rammeHoejde · format`, centreret (letterbox).
+  2. Rektanglet i rammen.
+  3. **Klip** mod `boks.hoejde − spaerrePx` (spærren vinder).
+  4. **Træfflade ≥ 44 × 44 px** (WCAG 2.5.5-pejling, husets `h-11`): er rektanglet mindre, udvides KLIKFLADEN symmetrisk (den synlige ramme bliver).
+  5. **`null`, når der er under 24 px højde tilbage efter klippet** — så tegnes barnet IKKE over videoen, kun i listen under videoen (nedenfor). Regnestykket skrives ud i kommentaren: på en 360 px bred telefon er boksen 202,5 px høj, og spærren tager 56 px = 27,7 %.
+- **Mobil (< 768 px, `md`):** kun `hotspot`, `billede` og `knap` står over videoen — de er små. Alt med læsbar tekst (testimonial, CTA, poll, quiz, feedback, prompt) står UNDER videoen, som kortene gør i dag. Den rene dom `overlayPlads(art, placering, breddePx) → "over_video" | "under_video"` afgør det ét sted.
+- **Desktop:** testimonial med `placering: "overlay"` står i et hjørne af videoen (højst 40 % af bredden, `hjoerne` i indholdet); de andre kort står under videoen som i dag. **Kortene flyttes IKKE op på videoen i denne pakke** — det er en designændring for sig (beslutning I8).
+- **Fuld skærm:** kun boksen er i fuld skærm. Det, der står under den (kort, chatpanel, fremhævet bånd), ses ikke. Derfor: når `document.fullscreenElement === boks`, viser laget en lille toast nederst over spærren (ikke i den), når noget nyt kommer ud for videoen: «Ny besked fra Morten», «Spørgsmål på skærmen», «Nyt kort under videoen» — med knappen «Afslut fuld skærm» (`document.exitFullscreen()`). Toasten står 8 s og tages ikke igen for samme id. iPhone har ingen elementfuld skærm (`fullscreenEnabled` er falsk; knappen tegnes ikke i dag), så grenen findes ikke dér.
+- **Tilgængelighed — gælder alle børn i laget:**
+  - Hvert klikbart barn er et RIGTIGT `<a>` eller `<button>` med `aria-label` = indholdets `tekst` (hotspottets er påkrævet i skemaet). Aldrig `div onClick` (værn).
+  - Synlig fokusring (`focus-visible:ring-2`), også på et ellers usynligt hotspot. Tab-rækkefølge: laget står i DOM'en EFTER iframen og FØR kontrolknapperne under videoen.
+  - Når et barn kommer frem, læses det op ÉN gang gennem en `aria-live="polite"`-region i boksen («Ny knap på videoen: Hent tjeklisten») — aldrig igen for samme id, aldrig hvert sekund.
+  - **Listen «På videoen nu»** under videoen (synlig, ikke kun `sr-only`): alle klikbare børn, der er aktive nu, som almindelige links/knapper. Den er tastatur- og skærmlæservejen, den er mobilvejen for et hotspot, `fladeOverVideo` gav `null`, og den er sikkerhedsnettet for et usynligt område, ingen kan se.
+  - `prefers-reduced-motion`: ingen glimmer, ingen indtoning — en statisk kant.
+- **Tiden:** et barn står der, når `iVindue` siger ja på **serverens** forventede position (`kortPaaSkaermen`-mønstret). Afspillerens egen position bruges aldrig — en, der snyder med spolingen, udløser intet før tid (princippet fra skive 1).
+
+### 9.2 Nye arter og skemaer (`interaktionSkema`, `doemSvar`)
+
+Fem nye arter: **`testimonial`, `billede`, `knap`, `hotspot`, `chatbesked`**. `INTERAKTION_ARTER` og CHECK'en på `webinar_interaktioner.art` får dem i SAMME PR. `webinar_svar.art` får de fire klikbare (`testimonial`, `billede`, `knap`, `hotspot`); `chatbesked` er aldrig et svar.
+
+**Nøglenavnene er valgt mod `MOTOR_FORBUDTE_NOEGLER`** — aldrig `navn`, `fornavn`, `email`, `by`, `enhed`, `origin`, `ip`, `raa`. Værn 9-2 prøver hver ny art gennem `findMotorForbudte` (§9.8).
+
+**Fælles for de klikbare:** `maal` ∈ `{ansoeg, link}`.
+- `ansoeg` → `ansoegUrl(token)` (tokenet i FRAGMENTET, som i dag — `webinarRum.guard` dom 6).
+- `link` → `url`: `https://` og en vært på `LINK_VAERTER` (beslutning I5; anbefaling: `topix.dk`, `www.topix.dk`, `theboardroom.dk`, `www.theboardroom.dk`). Ingen query-parametre med token, mail eller navn — `url` må ALDRIG indeholde tokenet (værn). `target="_blank" rel="noopener noreferrer"`.
+- **Klikket sendes FØR navigationen** med `sendFoerNavigation` (keepalive), som CTA'ens «Ansøg» i dag, som handlingen `svar` med `{ maal }`. `CTA_MAAL` er uændret; editoren får nu lov at tilbyde `link`, fordi det har en vej.
+
+| Art | `indhold` (skemaet) | `placering` | Svar (`doemSvar`) |
+|---|---|---|---|
+| `testimonial` | `citat` (1–600) · `person` (1–100) · `rolle` (≤ 100, valgfri) · `virksomhed` (≤ 100, valgfri) · `foto_url` (valgfri; https + `BILLED_VAERTER`) · `samtykke` (skal være `true` — editorens kryds «Personen har givet lov til, at citatet og navnet vises», I3) · `knap` (valgfri: `{ tekst 1–80, maal, url? }`) · `hjoerne` (valgfri: `oe_h · oe_v · ne_h · ne_v`, standard `ne_h`) | `overlay` (hjørne på desktop, under på mobil) · `sidepanel` (under videoen) · `exitrum` | `{ maal }` — kun når der er en knap |
+| `billede` | `billed_url` (https + `BILLED_VAERTER`) · `alt` (1–200, påkrævet; tomt alt kun med `pynt: true`) · `x, y, b, h` · `maal`/`url` (valgfri — uden er billedet ikke klikbart) | kun `overlay` | `{ maal }` — kun når klikbart |
+| `knap` | `tekst` (1–60) · `x, y` (knappens øverste venstre hjørne; bredden følger teksten, højst 60 % af videoen) · `maal`, `url?` · `stil` (`primaer · sekundaer`) | kun `overlay` | `{ maal }` |
+| `hotspot` | `tekst` (1–80, PÅKRÆVET — det er `aria-label` og linjen i «På videoen nu») · `x, y, b, h` (b, h ≥ 3) · `maal`, `url?` · `glimmer` (bool, standard `true`) | kun `overlay` | `{ maal }` |
+| `chatbesked` | `tekst` (1–1000) · `tekst_uden_navn` (PÅKRÆVET, når `tekst` indeholder `{fornavn}`; må ikke selv indeholde `{`) · `udloeser` (`indgang · tidskode · exitrum`) · `knap` (valgfri: `{ tekst, maal, url? }`) | kun `sidepanel` | — |
+
+- **Pladsholdere:** kun `{fornavn}`. Enhver anden `{…}` i `tekst` afvises af skemaet (fail-closed) — en skrivefejl som `{fornavm}` må aldrig nå en seer som rå tekst.
+- **Rektanglet** (`x, y, b, h`): tal i [0, 100] med højst én decimal; `x + b ≤ 100`, `y + h ≤ 100`; `b, h ≥ 3` for hotspot og billede. Skemaet afviser alt andet.
+- **`vis_til_sek` er PÅKRÆVET for `billede`, `knap` og `hotspot`** (højst 600 s efter `vis_fra_sek`): et overlay uden slut står over videoen resten af webinaret. For `testimonial` på `overlay` det samme; på `sidepanel`/`exitrum` som kortene i dag.
+- **`chatbesked`:** `vis_fra_sek` bruges kun ved `udloeser: "tidskode"`; ved `indgang`/`exitrum` gemmes 0 (CHECK'en kræver ≥ 0) og læses ikke. `vis_til_sek` er null. `betingelse` virker som for alle andre (`efter_svar`, `min_set_procent`) — det er eWebinars «betingede private messages».
+- **`iVindue`, `aktiveInteraktioner` og `svarKanModtages` returnerer FALSK for `chatbesked`** (som `kapitel`) — en chatbesked er aldrig et kort og aldrig et svar. Den har sin egen dom (§9.6).
+- **`svarKanModtages` for de klikbare** følger `iVindue` + `SVAR_NAADE_SEK` (30 s) som i dag; et klik efter vinduet + nåde er `ikke_aktiv`.
+- **`webinar-puls` logger klikket** som `cta_klik` (eksisterende log-art — ingen ændring i `webinar_motor_log`s CHECK) med `data: { interaktion_id, version, art, maal }`. Linje 185 (`logArt`) udvides: alle fire klikbare arter → `cta_klik`.
+- **`BILLED_VAERTER`** (beslutning I6): anbefaling en offentlig bucket `webinar-billeder` i husets Supabase Storage, skrivbar kun for rådgivere (minus tjenestekonti), læsbar for alle; skemaet kræver præfikset `https://<projekt>.supabase.co/storage/v1/object/public/webinar-billeder/`. Om Supabase Storage sætter cookies på et offentligt objekt: UMÅLT — måles i skive 9d (DevTools → Application) og bogføres i `docs/tracking.md` som Bunnys.
+
+### 9.3 Funktion 1 — Testimonials
+
+**Formål:** socialt bevis på det tidspunkt i videoen, hvor Morten taler om netop det. Ærligt: et rigtigt citat fra en rigtig person, der har sagt ja.
+
+**Seeren ser:**
+- **Desktop, `placering: overlay`:** et kort i det valgte hjørne af videoen (inden for laget, over spærrens højde, højst 40 % af bredden): citat i anførselstegn (`font-editorial`), foto (rundt, 48 px, `alt=""` — navnet står ved siden af), `person` · `rolle`, `virksomhed`, evt. knap. «×» lukker det for denne seer (som kortene, `lukkede`).
+- **Mobil eller `sidepanel`:** samme kort under videoen, i kortlisten.
+- **`exitrum`:** i exitrummets kortliste.
+- Skærmlæser: kortet er en `<figure>` med `<blockquote>` og `<figcaption>`, og annonceres én gang («Udtalelse fra …»).
+
+**Værten gør (editoren):** art «Udtalelse», felterne fra §9.2, foto-upload til bucketten (9e; indtil da en URL), krydset «Personen har givet lov …» — uden kryds kan kortet ikke gemmes.
+
+**Data:** arten i begge CHECK'er; klik i `webinar_svar` (art `testimonial`).
+
+**Måling:** «vist» UDLEDES af bitmappen — en deltager har set testimonialet, når `set_bits` har mindst ét stykke i `[vis_fra_sek/5, vis_til_sek/5)` (ingen ny skrivning, samme bits som `set_procent`). «Klik» = rækker i `webinar_svar`. En SQL-funktion til fladen (skive 7) er ikke en del af pakken; beviset i 9d er en SELECT.
+
+**Ærlighed:** ingen opdigtede udtalelser, ingen stockfotos af «kunder». Krydset er en påmindelse, ikke et bevis — beslutning I3 afgør, om samtykket skal gemmes andetsteds (fx som fil). Det er min vurdering, ikke juridisk rådgivning, at markedsføringsloven kræver, at en udtalelse er ægte og repræsentativ.
+
+### 9.4 Funktion 2 — Billede, knap og hotspot over videoen
+
+**Formål:** eWebinars «Image/Button Overlay» og «Hotspot»: et klikbart område på et slide («Hent tjeklisten her»), en knap, der dukker op, mens Morten siger «klik her», eller et billede (et logo, en QR-kode, et skærmbillede).
+
+**Seeren ser:**
+- `knap`: en rund knap (husets `h-12`, primær eller sekundær) på positionen; tones ind på 200 ms (ikke med reduceret bevægelse).
+- `billede`: billedet på rektanglet (`object-contain`), klikbart hvis det har et mål (så med fokusring og `aria-label` = `alt`).
+- `hotspot`: et usynligt område — med `glimmer: true` en blød, pulserende kant de første 3 s og igen hvert 10. s (CSS-animation; ingen ved reduceret bevægelse — da en statisk, tynd kant hele tiden, så det ikke er usynligt for den, der ikke kan se animationen). Hover: markøren bliver en hånd, og kanten bliver synlig.
+- Altid: linjen i «På videoen nu» under videoen (§9.1).
+- **Mobil:** som desktop, men med `fladeOverVideo`s træfflade ≥ 44 × 44 og fald-tilbage til listen.
+
+**Værten gør:** editoren (9e) — art, tidskode fra/til, `x, y, b, h` som tal (procent), mål/URL, tekst. **Visuel placering** (træk en ramme over videoen) kræver en afspiller i editoren med en signeret embed for en rådgiver — `webinar-rum` «preview» eller tilsvarende Bucket A-signering findes IKKE (spec §B2, «skive 6»). Den er skive 9g. Indtil da: tallene + en intern prøvesession (§7.3) som forhåndsvisning.
+
+**Data:** arterne i begge CHECK'er; klik i `webinar_svar`.
+
+**Måling:** «vist» af bitmappen som §9.3; klik pr. interaktion; klik ÷ vist under «for få» (< 5) vises ikke som procent (husets regel).
+
+### 9.5 Funktion 3 — Poll-resultater (kumulative, efter svar, aggregat)
+
+**Formål:** eWebinars «kumulative resultater efter svar»: seeren svarer og ser, hvad de andre svarede. Det gør en poll interessant at svare på.
+
+**Seeren ser:** efter sit eget svar (aldrig før — resultatet må ikke styre svaret, samme princip som quiz' facit) en vandret bar pr. valg med procent og «N har svaret» — ordlyden afhænger af grundlaget (I2): «… af dem, der har set webinaret» eller «… i dag». Under `POLL_MINDST = 5` svarere: «For få svar endnu — vi viser resultatet, når flere har svaret» (husets «for få»-regel, samme tal som `KURVE_MINDST`). Ved flervalg: «Man kunne vælge flere» (summen er over 100 %). Barerne har tekst (procent og antal), ikke kun farve; `role="img"` med en `aria-label`, der læser alle tal op.
+
+**Værten gør:** i editoren et kryds «Vis resultatet efter svar» (`indhold.vis_resultat`, standard `true`, I2). Skemaet: `vis_resultat` er boolean eller fraværende.
+
+**Data og server:**
+- **SQL-funktionen** `public.webinar_poll_resultat(p_interaktion_id uuid, p_session_id uuid, p_kumulativ boolean) returns table (valg integer, antal integer, svarere integer)` — `SECURITY INVOKER`, `STABLE`, EXECUTE KUN til `service_role` (som `webinar_puls_skriv`). `antal` = rækker i `webinar_svar` for interaktionen, hvor `svar->'valg'` indeholder valget; `svarere` = rækker i alt. `p_kumulativ = true`: alle sessioner med samme interaktion (interaktions-id'et er fælles for alle sessioner, der har frosset samme version) **minus interne sessioner** (`webinar_sessioner.intern`), plus den aktuelle session, hvis den selv er intern. `false`: kun `p_session_id`. **Den returnerer aldrig et id på en seer, en deltagelse eller et svar.**
+- **`webinar-puls`** svarer med **`poll_resultater`**: `Array<{ interaktion_id, svarere, fordeling: number[] | null, grundlag: "webinar" | "session" }>` — `fordeling` er `null` under `POLL_MINDST`. Kun for polls, der (a) har `vis_resultat`, (b) er i vindue eller i nåden (`svarKanModtages`), og (c) DENNE seer har svaret (ét opslag `webinar_svar where deltagelse_id = … and interaktion_id in (…)` — kun når der ER en aktiv poll med resultat; ellers intet opslag). Aggregatet caches pr. (interaktion, grundlag) i 10 s (`CACHE_MS`). Fejl = fail-soft: feltet udelades for den poll, fejlsummen tæller.
+- **Ren dom** `pollResultatDom(raekker, antalValg, mindst) → { svarere, fordeling | null }` (spejlet ordret, paritet) — normaliserer til præcis `antalValg` pladser, kaster aldrig.
+
+**Måling:** fordelingen er selve målingen; den står allerede i `webinar_svar`.
+
+### 9.6 Funktion 4 — Fremhævet spørgsmål og svar på skærmen for alle
+
+**Formål (Jonas):** «highlighte spørgsmål, som kommer frem på skærmen, så alle deltagere kan se det og hvad der er svaret til det.» Det gør den private chat synlig som socialt bevis — uden at afsløre, hvem der spurgte.
+
+**Seeren ser:**
+- Et **bånd lige under videoen**, over kortene: eyebrow «Spørgsmål fra en deltager» (ordlyden er I1b), spørgsmålet (`offentlig_tekst`), og under det «Morten svarer:» + svaret (`offentlig_svar`). Båndet står, til værten tager det ned eller sætter et nyt op. Det er en `<section aria-labelledby>` med en `aria-live="polite"`-region, der læser det NYE spørgsmål op én gang.
+- **Over videoen** en kort toast i laget (8 s, øverst): «Nyt spørgsmål på skærmen ↓» — på desktop og mobil; i fuld skærm toasten fra §9.1 med spørgsmålets første 80 tegn.
+- Også i **exitrummet** (værten svarer stadig dér). Ikke i venteværelset (ingen er «på skærmen» endnu) og ikke i `afsluttet`.
+- Spørgeren selv ser sit spørgsmål i båndet som alle andre — intet «dit spørgsmål blev vist» (det ville afsløre over for en, der kigger med på skærmen).
+
+**Værten gør (konsollen, 9f):**
+- Ved et BESVARET spørgsmål: knappen **«Vis for alle»** åbner en lille formular med to felter: «Spørgsmålet, som alle ser» (forudfyldt med spørgsmålet) og «Svaret, som alle ser» (forudfyldt med svaret). Begge kan rettes — fx «Hej Anne» ud, firmanavnet ud. **Spærre:** den rene dom `anonymDom(tekst, fornavn)` (`webinarMotorAdmin/fremhaev.ts`) finder spørgerens fornavn (helt ord, uden store/små bogstaver), en mailadresse, et telefonnummer (8 cifre med eller uden mellemrum, +45) eller et CVR-lignende tal (8 cifre) i NOGEN af de to tekster og blokerer «Vis for alle» med grunden — værten retter teksten. Fail-closed: ukendt fornavn = kun mail/telefon/CVR-tjek.
+- Ved et UBESVARET spørgsmål: **«Svar og vis for alle»** — svaret går til spørgeren (som i dag), og samme formular åbner bagefter. Et spørgsmål vises aldrig uden et svar (videoen er optaget; Morten kan ikke svare mundtligt).
+- Øverst i konsollen: **«På skærmen nu»** med teksten og knappen **«Tag ned»**. Sættes et nyt op, tages det gamle ned i samme handling.
+- Tjenestekontoen ser hverken «Vis for alle» eller «Tag ned» (`visSvarfelt`-mønstret), og RLS siger det samme.
+
+**Data (migration, §9.9):**
+- Nye kolonner på `webinar_spoergsmaal`: `offentlig_svar text` (1–1000 efter trim, null), `fremhaevet_at timestamptz`, `fremhaevet_af uuid references auth.users on delete set null`. `offentlig` (findes) sættes `true`, første gang spørgsmålet vises — det betyder «har været vist for alle», ikke «må genbruges i senere sessioner» (det er spec §A7's «Spørgsmål fra tidligere deltagere» og beslutning I9).
+- **Højst ét fremhævet pr. session:** delvist unikt indeks `webinar_spoergsmaal_et_fremhaevet_uidx on (session_id) where fremhaevet_at is not null` (husets mønster fra community-spørgsmålet). Skrivevejen er en RPC — `public.webinar_fremhaev_spoergsmaal(p_id uuid, p_tekst text, p_svar text)` og `public.webinar_tag_ned(p_session_id uuid)` — **SECURITY INVOKER** (ingen SECURITY DEFINER, intet grønt lys nødvendigt), som i én transaktion rydder sessionens nuværende og sætter det nye; RLS + kolonneværnet dømmer stadig hver række.
+- **Kolonneværnet udvides** (`create or replace function public.webinar_spoergsmaal_vaert_kolonnevaern()` — en funktion fra vores egen `20261003050000`, IKKE en af de forbudte `protect_*`): **to grene**, valgt af hvilke kolonner der ændres:
+  1. *Svar-grenen* — uændret ordret: kun `status, svar_tekst, svaret_af, svaret_at`, kun `ny → besvaret`, kun mens `leveret IS NULL`.
+  2. *Fremhæv-grenen* — KUN `offentlig, offentlig_tekst, offentlig_svar, fremhaevet_at, fremhaevet_af`; kræver `old.status = 'besvaret'`; når `new.fremhaevet_at` ikke er null: `offentlig_tekst` og `offentlig_svar` 1–1000 efter trim, `fremhaevet_af = auth.uid()`, `fremhaevet_at = now()` (serverens ur, som `svaret_at`), `offentlig = true`; «tag ned» = KUN `fremhaevet_at → null` (og `fremhaevet_af` urørt).
+  3. En UPDATE, der blander kolonner fra begge grene, afvises (42501). Service role og postgres passerer som i dag.
+  Migrationens PRØVE (savepoints, forventet udfald pr. linje, som `050000`'s) dækker: fremhæv et `ny` → 55000; blanding → 42501; to fremhævede i samme session via direkte UPDATE → 23505; tjenestekonto → 0 rækker; medlem → 0 rækker; `fremhaevet_af` ≠ dig → 42501.
+- **Serveren:** `webinar-puls` svarer med **`fremhaevet`**: `{ id, spoergsmaal, svar, siden_ms } | null` — KUN `offentlig_tekst` og `offentlig_svar`, ALDRIG `tekst`, `svar_tekst`, `tilmelding_id` eller noget om spørgeren (værn). Opslaget er ét indekseret `select … where session_id = … and fremhaevet_at is not null limit 1`, cachet pr. session i **5 s** (ikke 10: værten skal kunne se det komme frem). I rummene `lobby`, `intro`, `afsluttet` og `aflyst` er feltet `null` uden opslag.
+- **Forsinkelsen, regnestykket:** cache 5 s + pulsinterval 15 s (spiller) = **op til 20 s**, før en seer ser et nyt fremhævet spørgsmål (60 s på pause — men da dækker «Tilbage til webinaret» alligevel). Konsollen siger det: «Vises for seerne inden for ca. 20 sekunder.» Det er godt nok og koster ingen Realtime (spec §D3).
+
+**Måling:** rækken bærer `fremhaevet_at`/`fremhaevet_af` for den SENESTE visning; hvor mange der var i rummet, kan udledes af `webinar_deltagelser`/`webinar_pulser` på tidspunktet. Historikken over flere visninger af samme spørgsmål gemmes ikke (et bevidst valg; en egen tabel, hvis I9 åbner genbrug).
+
+**Ærlighed og privatliv:**
+- **«En deltager spurgte» — ÅBEN beslutning I1b** (anbefaling: anonymt, ingen by, ingen branche). Spec §A7 foreslog «En direktør fra Aarhus spurgte …» til de kuraterede; det er mere persondata, end båndet behøver.
+- Det er en behandling af spørgerens tekst for andre. **Privatlivsteksten** på topix.dk (B4) skal derfor også sige: «Dine spørgsmål kan blive vist anonymt for de andre deltagere, hvis vi svarer på dem for alle.» Og panelets løfte («Kun Morten ser det») skal rettes, FØR fremhævningen tændes: «Kun Morten ser dit navn. Svarer han for alle, vises spørgsmålet uden navn.» (værn: teksten følger låsen — se nedenfor).
+- **Låsen `app_config.webinar_fremhaev_aktiv`** (fraværende = false, fail-closed): uden den viser konsollen ikke knapperne, og pulsen svarer altid `fremhaevet: null`. Låsen åbnes først, når privatlivsteksten er publiceret.
+
+### 9.7 Funktion 5 — Automatiske chatbeskeder på tidskode (og velkomst)
+
+**Formål:** eWebinars «Private Message» og velkomstbesked: en besked i chatpanelet, der kommer på et bestemt tidspunkt («Hej Anne — skriv gerne dit spørgsmål her, jeg svarer løbende»; «Om lidt viser jeg regnearket — du får det i exitrummet»).
+
+**Seeren ser:**
+- I chatpanelet (`SpoergPanel`, der bliver en samtale) beskederne og seerens egne spørgsmål og svar i ÉN tidsordnet liste. Beskedens tid = sessionens start + intro + `vis_fra_sek` (for `indgang`: seerens indgang; for `exitrum`: exitrummets start).
+- **Mærkningen (anbefaling, ÅBEN beslutning I1a):** hver automatisk besked har en lille etiket over sig, **«Automatisk besked fra Morten»**, i en anden tone end værtens svar («Morten svarer»). Ingen «Morten skriver …», ingen kunstig forsinkelse, ingen tid, der foregiver at være «lige nu». Alternativet (eWebinars: beskeden står som Mortens uden etiket) frarådes — det er præcis den live-illusion, G1 siger nej til.
+- `{fornavn}` udfyldes i KLIENTEN med `hilsen.fornavn` (den navngivne undtagelse); er fornavnet ukendt, vises `tekst_uden_navn`. Den rene dom `udfyldBesked(indhold, fornavn) → string` (spejlet, paritet) — aldrig «Hej , …».
+- En knap i beskeden virker som §9.2's klikbare (`maal`, klik med `sendFoerNavigation`).
+- **Ny besked, mens panelet ikke er i syne** (mobil: panelet står under videoen og kortene): en lille boble nederst på skærmen «Ny besked fra Morten» (`aria-live="polite"`), der ruller panelet ind ved tryk. I fuld skærm: toasten fra §9.1.
+- Seeren kan svare i panelet. Svaret er et ALMINDELIGT spørgsmål (`webinar_spoergsmaal`) og lander i konsollen — rigtigt, ikke simuleret.
+
+**Hvornår en besked vises — den rene dom** `synligeBeskeder(tidslinje, rum, posSek, indgangPosSek, k) → Besked[]` (`webinarMotor/interaktioner.ts`, spejlet):
+- `indgang`: i `lobby`, `intro`, `afspilning` og `exitrum` — altid først i listen.
+- `tidskode`: når `rum = afspilning` og `posSek ≥ vis_fra_sek`, eller rummet er `exitrum`/`afsluttet` — **men kun hvis `vis_fra_sek ≥ indgangPosSek − 60`**: en sen indgang får IKKE alle de passerede beskeder på én gang (det ville afsløre automatikken og vise forældede «om lidt …»). `indgangPosSek` = serverens forventede position, første gang seeren gik ind i denne fane, gemt i `sessionStorage` gennem `webinarRum/lager.ts` (pr. token; den ENE fil, der må — `webinarRum.guard` dom 3). En genindlæsning beholder den; en ny fane eller enhed begynder forfra (bevidst).
+- `exitrum`: i `exitrum`.
+- `betingelse` (`efter_svar`, `min_set_procent`) som for kortene, på seerens egne svar og serverens `set_procent`.
+- **Ingen opbevaring:** beskederne er AFLEDT af tidslinje + position + indgang. De skrives aldrig i `webinar_spoergsmaal`, `webinar_svar` eller loggen — så der findes ingen «chathistorik», der kan forveksles med en rigtig (værn 9-6).
+
+**Værten gør (editoren, 9e):** art «Chatbesked», udløser (ved indgang / på tidskode / i exitrummet), tidskode, tekst med `{fornavn}`-knap, «tekst uden navn» (påkrævet, når `{fornavn}` står i teksten), valgfri knap, valgfri betingelse. En forhåndsvisning viser begge udgaver («Anne» og uden navn). Velkomsten er blot en `chatbesked` med `udloeser: "indgang"`. **Konsollen (9f)** viser «Næste automatiske besked kl. 11.23: …», så værten ved, hvad seerne lige har fået.
+
+**Data:** arten i `webinar_interaktioner`s CHECK (ikke i `webinar_svar`s). Ingen nye kolonner.
+
+**Måling:** «vist» = deltagere, der pulsede i `afspilning` på beskedens tidspunkt og var gået ind før `vis_fra_sek + 60` (udledes af `webinar_deltagelser.foerste_ind_at` og `webinar_pulser`). «Svar på beskeden» = spørgsmål stillet inden for 3 min efter (`webinar_spoergsmaal.pos_sek`). Begge er SQL til skive 7; ingen ny skrivning.
+
+**Ikke med (bevidst):** eWebinars **auto-svar** («Morten er ikke ved tasterne …») kræver en «online»-status i konsollen — ikke bygget (§7.7, spec §A7). Beslutning I4.
+
+### 9.8 Funktion 6 — Tip, Special offer, Next webinar: vurdering
+
+**Vurderingen:** ingen af de tre er nødvendige for paritet med det, Morten faktisk bruger (chat, feedback, CTA — §9.0). De dækkes af det, der findes, eller af pakken:
+
+| eWebinar | Hos os | Ny kode? |
+|---|---|---|
+| **Special Offer** (tilbud med udløb) | `cta` med `nedtaelling: true` + `udloeber_kilde` — KUN en sand frist (`ctaVindue`, spec §A6.1) | Nej |
+| **Next Webinar** | «Tag næste session» i exitrummet, efter `afsluttet` og ved sen indgang (`gen_tilmeld`, skive 2) | Nej |
+| **Tip** (en kort tekst på skærmen) | `chatbesked` på tidskode, eller `knap`/`billede` over videoen | Nej |
+
+**Anbefaling: byg dem ikke.** Spec'ens risiko 6 («scope-creep — eWebinar har 25+ interaktioner») gælder. Jonas kan vende den (beslutning I4b).
+
+### 9.9 Værn (mutationsbeviser) og migrationen
+
+**Migrationen** `2026100309xxxx_webinar_interaktiv.sql` — tidsstemplet vælges, så filen sorterer EFTER enhver kørt og efter `20261003080000` (`metaSend.guard` dom 11 `ukoerteFoerKoerte`). Første linje `-- IKKE KØRT. DEPLOY: …`. ÉN transaktion, kun tilføjende bortset fra de to CHECK'er og kolonneværnets funktion. Porten: `raise exception`, hvis skive 1 (`webinar_interaktioner`) eller konsollen (`webinar_spoergsmaal_vaert_kolonnevaern`) ikke findes.
+1. `webinar_interaktioner.art` CHECK: drop + add med de 14 arter. **Navnet på den nuværende CHECK MÅLES i FØR-SQL** (`pg_constraint`, `conrelid = 'public.webinar_interaktioner'::regclass and contype = 'c'`) — forventet `webinar_interaktioner_art_check`; afviger det, STOP.
+2. `webinar_svar.art` CHECK: drop + add med de 9 (`cta, feedback, poll, quiz, spoergsmaal_prompt, testimonial, billede, knap, hotspot`). Samme måling.
+3. `webinar_spoergsmaal`: `offentlig_svar`, `fremhaevet_at`, `fremhaevet_af` + CHECK'er + det delvise unikke indeks.
+4. Kolonneværnet: `create or replace` med de to grene (§9.6).
+5. RPC'erne `webinar_fremhaev_spoergsmaal`, `webinar_tag_ned` (SECURITY INVOKER; EXECUTE `authenticated`, ikke `anon`).
+6. `webinar_poll_resultat` (SECURITY INVOKER, STABLE; EXECUTE kun `service_role`).
+7. Låsen `webinar_fremhaev_aktiv = false` (`ON CONFLICT DO NOTHING`).
+8. (Hvis I6 = Supabase Storage) bucketten `webinar-billeder` og dens politikker: SELECT `public`, INSERT/UPDATE/DELETE `to authenticated` med `has_role(auth.uid(),'advisor')` og NOT tjenestekonto. Ellers udelades punktet.
+FØR- og EFTER-SQL som ÉT resultatsæt hver (UNION ALL med sektionskolonne — Lovables SQL editor eksporterer kun det sidste), ROLLBACK i filhovedet, PRØVEN fra §9.6 i én transaktion med `rollback`.
+
+**Værnet `webinarInteraktiv.guard.test.ts`** — hver dom med et mutationsbevis (mutationen skrives i testen og SKAL fælde):
+
+| # | Dommen | Mutationen, der skal fælde |
+|---|---|---|
+| 1 | `INTERAKTION_ARTER` = den nyeste CHECK på `webinar_interaktioner.art`; de klikbare + de fem gamle = CHECK'en på `webinar_svar.art` | en art fjernet fra CHECK'en; en art tilføjet i TS alene |
+| 2 | Et eksempel af HVER ny art gennem `seerTidslinje` → `findMotorForbudte` = tom; intet skema bruger en nøgle fra `MOTOR_FORBUDTE_NOEGLER` | `person` omdøbt til `navn` i testimonial-skemaet |
+| 3 | `poll_resultater` bærer kun `interaktion_id, svarere, fordeling, grundlag`; `fordeling` = null under `POLL_MINDST`; kun for polls, seeren har svaret | `POLL_MINDST` = 0; opslaget i egne svar fjernet |
+| 4 | `fremhaevet` læser KUN `offentlig_tekst`/`offentlig_svar` — `webinar-puls` nævner aldrig `tekst`/`svar_tekst` i det opslag; feltet er null uden låsen | `select("tekst, …")` i opslaget; låsen ignoreret |
+| 5 | Hver `chatbesked` tegnes med etiketten (`AUTOMATISK_ETIKET` fra én konstant — ordlyden er I1a) | etiketten fjernet fra komponenten |
+| 6 | Ingen fil skriver en `chatbesked` til `webinar_spoergsmaal`, `webinar_svar` eller `webinar_motor_log`; `svarKanModtages` er falsk for arten | en insert fra tidslinjen; `iVindue` sand for `chatbesked` |
+| 7 | Spolespærren står over interaktionslaget (z-20 > z-10) og tegnes, når `daekKontroller` | z-værdierne byttet; spærren bag et `if` på laget |
+| 8 | Hvert klikbart barn i laget er `<a>`/`<button>` med `aria-label`; intet `div onClick`; «På videoen nu» findes | et hotspot som `div onClick`; listen fjernet |
+| 9 | `url` er `https://` på `LINK_VAERTER`, og intet klikbart barns `href` indeholder tokenet uden for `ansoegUrl`s fragment | `http://` accepteret; tokenet lagt i en query |
+| 10 | Kolonneværnet: fremhæv-grenen kræver `besvaret`; blanding af grene afvises; det delvise unikke indeks findes | grenvalget fjernet; indekset uden `where` |
+| 11 | Migrationen: IKKE KØRT-hovedet, porten, ÉN transaktion, sorterer efter enhver kørt, ingen SECURITY DEFINER | `security definer` på en af RPC'erne |
+| 12 | `udfyldBesked`: `{fornavn}` uden fornavn giver `tekst_uden_navn`; en ukendt `{…}` afvises af skemaet | fald-tilbage til `tekst` med tom streng |
+| 13 | `fladeOverVideo`: klip mod spærren, træfflade ≥ 44 px, `null` under 24 px, letterbox regnet | klippet fjernet; minimumsfladen 0 |
+| 14 | `anonymDom` blokerer fornavn, mail, telefon og 8-cifret tal i begge tekster | telefonmønstret fjernet |
+| 15 | Hooks i topblokken i alle nye komponenter (React #310) | en hook efter en betinget return |
+
+Eksisterende værn, der skal FLYTTES til den nye sandhed (ikke slækkes): `webinarMotor.paritet` (nye/ændrede spejlede filer), `webinarMotor.guard` dom 5 (den nye migration), `webinarRum.guard` dom 3 (`lager.ts`s nye nøgle), `webinarKonsol.guard` dom 4 (svaret skrives stadig kun i svarkolonnerne af SVAR-handlingen; fremhævningen går gennem RPC'en) og dom 5 (migrationen efter), `webinarMotorSkive3.guard` dom 6 (editorens nye arter), `tjenestekonto.guard` (konsollens nye knapper).
+
+### 9.10 Skiverne — motor før flade
+
+Hver skive: egen gren fra den forrige → `bun run test` + `bunx tsc --noEmit -p tsconfig.app.json` + `bun run check:edge-auth` grønne → bogført i dette dokument (nyt underafsnit §9.12 ff. pr. skive) → ingen merge uden Jonas. «Færdig» betyder alle punkter, ikke de fleste.
+
+| Skive | Indhold | Afhænger af | Færdig når |
+|---|---|---|---|
+| **9a Motoren** | `interaktioner.ts`: de fem arter, skemaerne, `doemSvar` for klik, `iVindue`/`svarKanModtages` falsk for `chatbesked`, `synligeBeskeder`, `udfyldBesked`, `pollResultatDom` (spejlet ordret, paritet). Klient-domme: `overlayFlade.ts` (`fladeOverVideo`, `overlayPlads`), `fremhaev.ts` (`anonymDom`). `KORT_ARTER` + `testimonial`. Ingen migration, ingen function, ingen flade | — | Prøver for hver dom inkl. kanterne (25/10-skiftet er ikke relevant; letterbox 4:3 i 16:9-boks; 360 px-telefonen; `{fornavn}` med og uden; en sen indgang 40 % inde med 5 passerede beskeder → kun dem fra −60 s; flervalgs-poll; 4 svarere → null) · værn 1 (TS-delen), 2, 6, 12, 13, 14 grønne med mutationsbevis · paritetstesten kender de nye/ændrede filer |
+| **9b Data** | Migrationen §9.9 (punkt 1–7; 8 efter I6) | 9a | FØR/EFTER/PRØVE/ROLLBACK i filhovedet; værn 1 (SQL-delen), 10, 11 grønne · **ikke kørt** — Jonas kører den |
+| **9c Serveren** | `webinar-puls`: klik på de nye arter (`cta_klik`), `poll_resultater`, `fremhaevet` (låsen, 5 s cache), fejl i fejlsummen, aldrig log pr. kald. `MOTOR_VERSION` = «boardroom-4». `webinar-rum` uændret bortset fra den delte fil | 9a, 9b | Værn 3, 4 grønne · `webinarMotor.guard` dom 3 (pulsens imports, intet `console` ud over fejlsummen) grøn · svaret bærer `poll_resultater` og `fremhaevet` (også som `[]`/`null`) — beviset for udrulningen |
+| **9d Seerens flade** | Interaktionslaget (§9.1), `knap`/`billede`/`hotspot`, «På videoen nu», testimonial-kortet, poll-resultat i `InteraktionsKort`, fremhævet-båndet + toast, samtalen i `SpoergPanel` (beskeder + egne spørgsmål), boblen og fuld-skærm-toasten, panelets nye løfte bag låsen | 9a, 9c | Værn 5, 7, 8, 9, 15 grønne · prøvet i browser (Claude_Browser, en lokal side med syntetiske data — ingen prod) på 360 px og 1280 px, tastatur alene, VoiceOver eller NVDA på ét overlay, `prefers-reduced-motion` · **Bunny-iframe i fuld skærm prøvet på desktop**; mobil på fysiske enheder hører til runbookens §8.1 trin 7 (UMÅLT) |
+| **9e Editoren** | `EDITOR_ARTER` + formularer for de fem arter, `{fornavn}`-forhåndsvisning, samtykke-krydset, `vis_resultat`, `link`-målet; foto-upload hvis I6 = Storage (ellers URL-felt med værtslisten) | 9a (9b for at gemme) | `webinarMotorSkive3.guard` dom 6 flyttet · formularerne dømmes af SAMME `interaktionSkema` (prøvet: editoren og serveren afviser det samme for hver art) |
+| **9f Konsollen** | «Vis for alle» / «Svar og vis for alle» med `anonymDom`, «På skærmen nu» + «Tag ned», «Næste automatiske besked», knapperne skjult for tjenestekonti og bag låsen | 9a, 9b | `webinarKonsol.guard` flyttet · `tjenestekonto.guard` grøn · fail-soft før migrationen (42883/PGRST202 → knapperne vises ikke, med grunden) |
+| **9g Visuel hotspot-placering** | En afspiller i editoren med signeret embed for en rådgiver (Bucket A; `authenticateUser` + rådgiver FØR signering) og en trækbar ramme, der skriver `x, y, b, h` | 9e; spec §B2 «preview» | `check-edge-function-auth` grøn · ingen embed uden rådgiver-JWT (prøvet) · **kan vente til efter P1** |
+
+**Rækkefølgen ved udrulning (når Jonas siger til, ét skridt ad gangen):** merge 9a–9f → migrationen KØRT (FØR-SQL gemt, sektionen med CHECK-navnene som forventet, ellers STOP) → kolonnerne MÅLT (`GET /rest/v1/webinar_spoergsmaal?select=offentlig_svar,fremhaevet_at&limit=0` → 200) → eksplicit deploy af **alle fire functions, der bundler `_shared/webinarMotor/interaktioner.ts` gennem `webinarMotorHent.ts`: `webinar-puls`, `webinar-rum`, `webinar-tilmeld`, `webinar-motor-cron`** (målt med grep 3/10) — beviset `motor: "boardroom-4"` og `poll_resultater`/`fremhaevet` i et pulssvar → **Update** (aldrig før deploy: den gamle `webinar-puls` afviser klikkene som `ikke_et_svar`, og den gamle `laesTidslinje` kasserer de nye arter — fail-closed, men en udgivet tidslinje med nye arter viser da intet) → prøve i en intern session (§7.3) med én af hver art → **Jonas åbner `webinar_fremhaev_aktiv`** (SELECT før/efter, UPDATE vagtet på `false`) først efter privatlivsteksten.
+
+### 9.11 Beslutninger, Jonas skal tage
+
+| | Beslutning | Anbefaling | Blokerer |
+|---|---|---|---|
+| **I1a** | Automatiske chatbeskeder: mærket «Automatisk besked fra Morten» (G1), eller som eWebinar uden mærke? | **Mærket.** Det er G1's ånd: ingen live-illusion i et hus, der sælger tillid | 9d (ordlyden i `AUTOMATISK_ETIKET`) |
+| **I1b** | Fremhævet spørgsmål: «Spørgsmål fra en deltager» helt anonymt, eller med by/branche? | **Helt anonymt.** Båndet behøver ikke mere persondata | 9d, 9f |
+| **I2** | Poll-resultater: kumulativt over alle (ikke-interne) sessioner med samme version, eller kun denne session? Og `vis_resultat` som standard til? | **Kumulativt, mærket «af dem, der har set webinaret»**, standard til. Én session når sjældent 5 svar på en poll tidligt | 9a (`grundlag`), 9c |
+| **I3** | Testimonials: er editorens kryds nok, eller skal samtykket gemmes som fil/mail? | Krydset + en linje i dette dokument pr. person, der har sagt ja (hvem, hvornår, hvordan). Ingen fil i v1 | 9e |
+| **I4** | Auto-svar («Morten er ikke ved tasterne …») og en «online»-status i konsollen | **Ikke nu.** Svaret på mail (§7.10) dækker den, der er gået | — |
+| **I4b** | Tip / Special offer / Next webinar som egne arter (§9.8) | **Nej** — dækket | — |
+| **I5** | `LINK_VAERTER` — hvilke værter må en knap/hotspot/besked linke til? | `topix.dk`, `www.topix.dk`, `theboardroom.dk`, `www.theboardroom.dk` | 9a |
+| **I6** | Hvor bor billederne (testimonial-foto, billed-overlay)? | En offentlig Supabase Storage-bucket `webinar-billeder`, kun rådgivere skriver. Alternativ: Bunny Storage (ny secret, ny pull zone) | 9a (`BILLED_VAERTER`), 9b punkt 8, 9e |
+| **I7** | Videoens billedformat — er Mortens video 16:9? | Mål den (Bunnys `video-info` `width`/`height`); `webinarer.billedformat` kun, hvis den ikke er 16:9 (ellers en konstant) | 9a (`fladeOverVideo`) |
+| **I8** | Skal de eksisterende kort (CTA, poll, quiz, feedback) også op OVER videoen på desktop, som hos eWebinar? | **Ikke i denne pakke.** De står under videoen i dag; at flytte dem er et designvalg, der skal ses på skærme først | — |
+| **I9** | Må fremhævede spørgsmål genbruges i SENERE sessioner («Spørgsmål fra tidligere deltagere», spec §A7)? | **Ikke nu** — kræver en egen visning og et ord i privatlivsteksten | — |
+| **I10** | Privatlivsteksten (B4) udvides med fremhævningen og panelets løfte, FØR låsen `webinar_fremhaev_aktiv` åbnes | Ja — samme publicering som B4 | Låsen |
