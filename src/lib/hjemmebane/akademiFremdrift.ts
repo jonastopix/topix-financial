@@ -8,9 +8,11 @@
  * (hentEngagement, iEngagementUniverset). En lektion tæller som set, når
  * ÉT af virksomhedens medlemmer selv har set den (foreningsmængden) — ikke
  * summen over medlemmer: to medlemmer, der ser samme video, har stadig set
- * 1 af M, og tallet kan aldrig overstige M. Målt 3/10: 28 medlemmer i 29
- * virksomheder, så forskellen på «pr. medlem» og «pr. virksomhed» er i dag
- * næsten ingen; reglen er valgt, så den holder, når den ikke er det.
+ * 1 af M, og tallet kan aldrig overstige M. Målt 3/10: universet er 29
+ * virksomheder; 26 af dem har medlemmer (28 medlemmer, rådgivere og
+ * tjenestekonti fraregnet), 3 har ingen. Forskellen på «pr. medlem» og
+ * «pr. virksomhed» er i dag lille; reglen er valgt, så den holder, når den
+ * ikke er det. Det enkelte medlems tal står i ProgressView (Akademi-admin).
  *
  * KATALOGET (M) er det, et fuldt medlem KAN nå i Akademiet:
  *   publiceret (listPublishedItems henter kun status = 'published')
@@ -18,7 +20,19 @@
  *   · i et område med akademi = true (Start her · Fundamentet · Kurser).
  * Optagelser (talks), Quick Wins (skjult 1/10) og forsidens gamle indslag
  * (ugens_video, push, evergreen …) er IKKE i M. Dryp tæller ikke: rådgiveren
- * ser råt set/M som i ProgressView. Målt i prod 3/10: 3 + 47 + 27 = 77.
+ * ser råt set/M som i ProgressView. Målt i prod 3/10 (content_items,
+ * status = 'published', bunny + video-id, pr. område): start_her 3 +
+ * classroom 47 + academy 27 = 77. Uden for M: talks 2, ugens_video 1
+ * (quick_wins har 0 publicerede). BEMÆRK: ProgressView's «N af M» tæller
+ * ALLE sporede videoer minus de skjulte områder = 77 + 2 + 1 = 80 — et
+ * ÅBENT punkt (docs/OVERLEVERING.md «3. oktober aften»), ikke rørt her.
+ * Kataloget er filtreret på akademi = true; quickWinsSkjult.guard dom 1
+ * holder, at et medlems-skjult område aldrig har akademi = true, og dom 7
+ * kender denne læser (src/hooks/trofaeer.ts).
+ *
+ * RLS (målt i pg_policy 3/10): «Advisors can view all progress» (PERMISSIVE
+ * SELECT, has_role(auth.uid(),'advisor') — admin arver) lader rådgiveren
+ * læse alle medlemmers member_progress; ingen RESTRICTIVE-politik.
  *
  * DOMMEN pr. lektion er itemProgressState (progressState.ts) — ALDRIG en egen
  * læsning af seen_at/acknowledged_at:

@@ -54,6 +54,12 @@ const KATALOG_LAESERE: Record<string, Laeser> = {
     filterFil: "src/components/hjemmebane/admin/views/ProgressView.tsx",
     filter: /MEDLEM_SKJULTE_OMRAADER\.has\(item\.area\)/,
   },
+  // /engagement «Akademiet» (3/10-2026): kataloget er KUN områder med
+  // akademi = true — dom 1 holder, at et skjult område aldrig er det.
+  "src/hooks/trofaeer.ts": {
+    filterFil: "src/lib/hjemmebane/akademiFremdrift.ts",
+    filter: /omraader\.filter\(\(o\) => o\.akademi\)/,
+  },
   // HENVISNINGS_OMRAADER = OMRAADE_LABELS' nøgler = TILLADTE_OMRAADER (linkKort.guard dom 6).
   "src/components/hjemmebane/community/CommunityComposer.tsx": {
     filterFil: "src/components/hjemmebane/community/CommunityComposer.tsx",

@@ -62,9 +62,19 @@ describe("Akademiet på /engagement — kildeværn", () => {
   });
 
   it("4. fladen viser dommens ord (akademiTekst) og ikke en egen tælling", () => {
-    const flade = udenKommentarer(laes("src/components/hjemmebane/engagement/EngagementView.tsx"));
-    expect(flade).toMatch(/akademiTekst\(r\.akademi\)/);
-    expect(flade).toMatch(/akademiSorteringsnoegle\(r\.akademi\)/);
-    expect(flade).not.toMatch(/member_progress|itemProgressState/);
+    const fladenBrugerDommen = (kilde: string) => {
+      const kode = udenKommentarer(kilde);
+      return (
+        /akademiTekst\(r\.akademi\)/.test(kode) &&
+        /akademiSorteringsnoegle\(r\.akademi\)/.test(kode) &&
+        !/member_progress|itemProgressState|egetStempel|erRaadgiverensStempel/.test(kode)
+      );
+    };
+    expect(fladenBrugerDommen(laes("src/components/hjemmebane/engagement/EngagementView.tsx"))).toBe(true);
+    // Selvbevis: en flade, der tæller selv, eller som dømmer med progressState direkte, fældes.
+    expect(fladenBrugerDommen(`const t = \`\${r.akademi.set} af \${r.akademi.ialt}\`;`)).toBe(false);
+    expect(
+      fladenBrugerDommen(`akademiTekst(r.akademi); akademiSorteringsnoegle(r.akademi); itemProgressState(row);`),
+    ).toBe(false);
   });
 });

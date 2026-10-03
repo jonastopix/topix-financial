@@ -397,6 +397,48 @@ referrer-låst til `app.theboardroom.dk`.
 
 ## DEL 2 · Tilstanden
 
+### 3. oktober aften — Akademiet på /engagement
+
+**Dataændringen før bygningen: Circle-markeringerne er medlemmets eget «set»** (løser det åbne spørgsmål i «3. oktober kl. 20:19» nedenfor)
+- Jonas sagde ja 3/10 kl. 20:38 til, at Circle-markeringerne tæller som medlemmets eget «set».
+- Kl. 20:38:38 dansk blev `markeret_at`/`markeret_af` ryddet på **199** `member_progress`-rækker hos **19** brugere. UPDATE'en var guardet på `markeret_at < '2026-08-13' AND markeret_af IS NULL AND acknowledged_at = markeret_at AND seen_at = markeret_at`.
+- **FØR:** 199 rækker med `markeret_at` (5/8: 23, 12/8: 176), alle med `markeret_af` NULL.
+- **EFTER:** 0 rækker med `markeret_at`. Alle 199 bærer `updated_at = '2026-10-03 18:38:38.275552+00'`. Genmålt 3/10 ca. 20:55: 353 rækker i alt, 0 med `markeret_at`, 199 rækker / 19 brugere med det `updated_at`.
+- **Tilbagerulning:** `UPDATE member_progress SET markeret_at = acknowledged_at WHERE updated_at = '2026-10-03 18:38:38.275552+00' AND markeret_at IS NULL;`
+- **Følgen:** `run-company-agent` v8 (F0) er nu enig med frontenden og kan udrulles. Det kræver stadig Jonas' ja; svaret 3/10 kl. 20:19 var «Nej».
+
+**Ønsket** (Jonas 3/10 kl. 20:38): «vi rådgivere bør kunne se under /engagement hvor meget af akademiet et medlem har set.»
+
+**Bygget** (gren `feat/engagement-akademi`, ingen PR, ingen migration):
+- **Dommen** er `src/lib/hjemmebane/akademiFremdrift.ts` (ren). Den giver pr. virksomhed `set`, `paabegyndt`, `gennemgaaetMedRaadgiver`, `ialt` (M), `procent` og `senesteAktivitet`.
+  - Pr. lektion dømmer den KUN gennem `itemProgressState`, `markeringsTilstand` og `medlemmetsSenesteStempel`.
+  - Rådgiverens stempel tæller aldrig som set. Det vises for sig som «N gennemgået med rådgiver».
+- **Enheden er virksomheden.** /engagement har én række pr. kundevirksomhed. En lektion er set, når ét medlem selv har set den (foreningsmængden), så tallet aldrig overstiger M. Det enkelte medlems tal står fortsat i ProgressView.
+- **Kataloget M** er publicerede, sporede videoer (bunny + video-id) i områder med `akademi = true`.
+  - Målt i prod 3/10: start_her 3 + classroom 47 + academy 27 = **77**.
+  - Udenfor: talks 2, ugens_video 1. quick_wins har 0 publicerede.
+- **Hentningen** ligger i `hentEngagement` (`src/hooks/trofaeer.ts`) i samme `Promise.all`: kataloget (`listPublishedItems`) + alle `member_progress`-rækker sidevis. Ingen N+1.
+  - Den er fail-soft: fejler den, står kolonnen med «—» og siden med en rolig linje (`akademiHentefejl`).
+  - Rådgivere og tjenestekonti (`hentRaadgiverListe`) trækkes fra i dommen, også hvis de står i `company_members`.
+- **RLS** (målt i `pg_policy` 3/10): «Advisors can view all progress» er PERMISSIVE SELECT med `has_role(auth.uid(),'advisor')`. Der er ingen RESTRICTIVE-politik på `member_progress`.
+- **Fladen:** kolonnen «Akademiet» efter «Trofæer». Den er sorterbar på antal set og viser:
+  - «N af M set»,
+  - under det «N påbegyndt · N gennemgået med rådgiver», kun når de findes,
+  - «Sidst i Akademiet <dato>».
+  - På mobil står det samme i kortet.
+- **Værn:**
+  - `akademiEngagement.guard.test.ts` (fire domme med selvbevis): fladen og hentningen læser aldrig `seen_at`/`acknowledged_at`/`skipped_at`/`markeret_at` selv, og dommen går gennem progressState.
+  - `quickWinsSkjult.guard` dom 7 kender den nye kataloglæser (`trofaeer.ts` → filtret `o.akademi` i dommen; dom 1 holder, at et skjult område aldrig er et Akademi-område).
+
+**Tallene i prod 3/10 ca. 20:55** (SQL-genskabelse af dommen, kun aggregater):
+- 29 virksomheder i universet; 26 har medlemmer (28 medlemmer i alt).
+- Fordeling af «N af 77 set»: 0 → 8 virksomheder · 1–5 → 8 · 6–10 → 4 · 11–20 → 5 · 21+ → 4.
+- Median 4, højeste 77. Ingen virksomhed har påbegyndt uden at have set mindst én.
+
+**ÅBENT — ProgressView tæller et andet M.** ProgressView's «N af M videoer» tæller alle sporede videoer minus de medlems-skjulte områder: 77 + talks 2 + ugens_video 1 = **80**. Rådgiveren ser derfor «N af 80» pr. medlem og «N af 77» på /engagement. Ikke rørt her; det er Jonas' valg, om ProgressView skal følge Akademiets katalog.
+
+**Rækkefølgen:** PR → merge → Update. Frontend alene; ingen migration, ingen edge function.
+
 ### 3. oktober kl. 20:19 — Jonas' fem svar, og hvad der er målt bagefter
 
 **Svarene** (ordret i chatten):
@@ -421,7 +463,7 @@ referrer-låst til `app.theboardroom.dk`.
 - Alle 199 har intet eget stempel: `acknowledged_at` og `seen_at` er NULL eller lig `markeret_at`.
 - Det er Jonas' Circle-markeringer. De blev backfillet ind i `markeret_at`, da F0 blev bygget 2/10.
 - Under F0's dom (`itemProgressState`, i frontenden siden Update 2/10) er de RÅDGIVERENS stempel. Medlemsfladerne (Akademiet, forløbet, «Næste for dig», «Måske relevant») viser derfor de 199 som IKKE set. Det er det modsatte af Jonas' hensigt: «sørge for medlemmerne ikke skulle se tingene igen».
-- **Bogført, ikke afgjort:** skal de 199 Circle-markeringer tælle som medlemmets eget «set»? Hvis ja: ryd `markeret_at`/`markeret_af` på præcis de 199 rækker, guardet på `markeret_at < '2026-08-13'` og `acknowledged_at = markeret_at`. Det er en dataændring, der kræver Jonas' ja. Bagefter er frontenden og v8 enige, og v8 kan udrulles.
+- **LØST 3/10 kl. 20:38** (Jonas: ja; ryddet — se «3. oktober aften — Akademiet på /engagement»). Oprindeligt bogført, ikke afgjort: skal de 199 Circle-markeringer tælle som medlemmets eget «set»? Hvis ja: ryd `markeret_at`/`markeret_af` på præcis de 199 rækker, guardet på `markeret_at < '2026-08-13'` og `acknowledged_at = markeret_at`. Det er en dataændring, der kræver Jonas' ja. Bagefter er frontenden og v8 enige, og v8 kan udrulles.
 
 ### 3. oktober — de danske flader taber tre omkostningsnøgler (#1275, merget 3/10 aften efter Jonas' ja kl. 20:19; frontend alene — ingen migration, ingen udrulning; **KRÆVER Update**; beviset: virksomhed 7b0056eb, august 2026, «Omk. total» 341.000 kr. i stedet for 328.000)
 
