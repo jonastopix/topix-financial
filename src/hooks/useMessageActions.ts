@@ -7,6 +7,7 @@ import { indenForVinduet, kanRedigereBesked, kanSletteBesked } from "@/lib/beske
 import { byggChatBesked } from "@/lib/chatDokument";
 import { laesChatVideo } from "@/lib/chatVideo";
 import { sletGennemfoert } from "@/lib/chatVideoFlade";
+import { vedhaeftningerAtSlette } from "@/lib/chatVedhaeftningSletning";
 
 /** 15 minutter — reglen bor i src/lib/beskedRegler.ts (delt af redigering og sletning, 10/9). */
 export function canEditMessage(createdAt: string): boolean {
@@ -102,8 +103,19 @@ export function useMessageActions(
       toast.error("Kunne ikke slette beskeden");
       return false;
     }
+
+    // VEDHÆFTNINGERNE EFTER (3/10-2026, a29-vedhaeftning-slettes-ikke): først
+    // når beskeden er væk, så en fejlet sletning aldrig efterlader en besked
+    // med døde filer. Kun afsenderens egne stier (vedhaeftningerAtSlette).
+    // Fail-soft: beskeden ER slettet; en fil, der ikke kunne fjernes, ryddes
+    // ved hard-sletningen (slet-medlemsdata-cron), som før.
+    const stier = vedhaeftningerAtSlette(contextMeta, currentUserId);
+    if (stier.length > 0) {
+      const { error: filFejl } = await supabase.storage.from("chat-attachments").remove(stier);
+      if (filFejl) console.warn("Vedhæftningerne kunne ikke slettes:", filFejl);
+    }
     return true;
-  }, [messageTable]);
+  }, [messageTable, currentUserId]);
 
   const canEdit = useCallback((senderId: string, createdAt: string) => {
     // Advisors can edit own messages without time limit; members have 15-min window
