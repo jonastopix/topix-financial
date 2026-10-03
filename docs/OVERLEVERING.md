@@ -397,6 +397,17 @@ referrer-låst til `app.theboardroom.dk`.
 
 ## DEL 2 · Tilstanden
 
+### 3. oktober kl. 11:30 — morgenlisten (sendt til Jonas)
+
+**Mangellisten: 209 åbne kort** (130 mangler · 46 beslutning · 21 fejl · 12 idé; før gennemgangen 203). Merget i dag (kun dokumentation): #1260 (dokumenterne mod prod), #1264 (mangellisten gennemgået), #1265 (åben-listen), #1266 (SMS-recon), #1267 (værdilisten og søndagsplanen).
+
+**Update-målingen (U-punkt 30) — LØST 3/10 ca. 11:25 (målt):** frisk fane på app.theboardroom.dk, hele bundlen hentet rekursivt (245 chunks) og søgt efter strenge, kun hver PR's egen `src/`-ændring tilføjede (`/home/claude/ml-gennemgang/bundle-markoerer.json`, udledt af git-diffene): #1224, #1225, #1226, #1229, #1230, #1232, #1233, #1235, #1236, #1237, #1238, #1239, #1242, #1243, #1245, #1246, #1247, #1250, #1252, #1253, #1254 — alle markører fundet. #1234: den ene markør er mailteksten (`onboardingRytme`, edge — ikke bundlen); frontendens strenge («Skriv din første besked», «Udfyld din virksomhed», «Lav din første øvelse i Akademiet») fundet. #1241 og #1248 har ingen streng-markør (kun logik/korte strenge) og er ikke målt på denne måde. Alt merget frontend til og med #1254 er i drift.
+
+**Nyt siden værdilisten:** `g03-fjorten-dage-otte-mangler` er recon'et og rettet — PR #1269 (`fix/webinarmail-sultet-hale`, CI grøn, CTO GODKENDT i tre runder): målt årsag = den alfabetiske hale blev sultet af budgettet bag 211 fejlede 29/9 (ikke loft/pause); 3 uden invitation, 5 med, 1 afmeldt korrekt udeladt. Rettelsen bygger på main (ikke oven på #1258, som værdilisten §2 punkt 2 sagde — rådet: den skal i drift før stakken). Merges KUN efter Jonas' ja/nej; udrulningen i DEL 3 «Den sultede hale — udrulning».
+
+**Venter på Jonas** (efter frist): #1269 ja/nej (fristen for at nå de 8: søn 5/10 23:59) · de to fejlende træk før man 10:02 / ons 11:01 · B1–B9 + I3/I6 + «Kør selv» søndag før søn 08:00 · grønt lys søndag (REVOKE trin 1a, with-check, overskrivning af tal, Bunny/secrets) · fase 3a man 12:00 · uge 41: Klaviyo-flowene, persondatateksten, #1262 til samtykke-krydset · fire beslutninger om brugen (Dine mål, Akademiet, Netværket, svartid). Hele listen: `docs/vaerdiliste.md` §3.
+
+
 ### 3. oktober — SMS: recon, intet bygget (gren `docs/sms-recon`)
 
 Jonas' ord 3/10 kl. 06:08 (sendt i hovedsessionen): «Der skal også opsættes SMS system på platformen. Det kan bruges til både medlemmer og webinardeltagere.» — peger på en omstødelse af «SMS: ikke nu» (30/9, D2.6: 0 træf i repoet) og af forbeholdet 1/10; den bekræftes i `docs/sms.md` §8.1 (`docs/mailplan-14-dage-og-sms.md`, `docs/samtykke-og-opkald.md`). Reconen (udbydere, jura, repoets mønstre, anbefaling GatewayAPI, syv beslutninger hos Jonas) står i **`docs/sms.md`** — læs den FØR nogen SMS-kode. Intet bygget, ingen migration, ingen udbyder-konto.

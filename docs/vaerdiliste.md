@@ -110,6 +110,7 @@ Model efter `docs/claude-regelsaet.md` §5: Haiku = bogføring, recon, målinger
 - **Afhænger af:** intet. **Hvem:** Jonas (opkald) · Claude (opslag). **Model:** Opus (penge, men kun læsning). **Indsats:** S. **Formel:** 21,9 / 17,5 / nr. 1.
 
 ### 2. «Om to uger» tabte dem, der aldrig blev forsøgt — `g03-fjorten-dage-otte-mangler` (HASTER)
+- **Opdateret 3/10 kl. 11:30:** recon'en målte årsagen (budgettet sultede den alfabetiske hale bag 211 fejlede — ikke loft/pause; 3 uden invitation, 5 med) og rettelsen er bygget på MAIN, ikke oven på #1258: PR #1269 (CTO godkendt). Skiverne herunder er afløst af #1269 + Jonas' ja/nej; se OVERLEVERING «3. oktober kl. 11:30».
 - **Værdi:** dommen dømmer en, der blev holdt tilbage af loft/pause/budget uden forsøg, som «sen tilmelding» og taber mailen tavst; samme mønster kan ramme hver art.
 - **Kritisk note:** kortets skridt (1) — «mål årsagen for de 8 i `net._http_response` 29/9» — **kan ikke længere tages**: pg_net-svar lever ca. 6 timer (regelsættet (mm)), og driftsagentens log begyndte først 30/9. Årsagen kan kun udledes (probationspausen 29/9 er den sandsynlige), ikke måles. Skriv det på kortet.
 - **Færdig, i to skiver:**
