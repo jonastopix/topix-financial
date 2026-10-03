@@ -17,10 +17,10 @@ Relateret:
 |---|---|---|
 | 1/10-2026 kl. 14:28 | «Nej, vi har ikke SMS. Men det kan da sættes op som en frivillig ting … vi gør intet blindt.» | `docs/mailplan-14-dage-og-sms.md`, indledningen |
 | 1/10-2026 (aftenlisten) | «Jeg synes ikke det giver mening at begynde at bruge SMS før vi tager webinaret ind i vores egen platform. Vi skal ikke putte mere på eWebinar, som vi alligevel gerne vil væk fra.» | `docs/samtykke-og-opkald.md`, indledningen |
-| 30/9-2026, D2.6 | «SMS: ikke nu.» | Opgivet af hovedsessionen. **Ikke målt:** D2.6 står ikke i repoet på main (`git grep` på «D2.6» i `docs/` rammer kun en uvedkommende linje i `OVERLEVERING.md` om 14/9). `docs/analyser-30-09/webinarmotor-spec.md:657-658` har den nærmeste linje: SMS «udenfor v1». |
-| **3/10-2026** | **«Der skal også opsættes SMS system på platformen. Det kan bruges til både medlemmer og webinardeltagere.»** | Jonas, via hovedsessionen |
+| 30/9-2026, D2.6 | «SMS: ikke nu.» | Opgivet af hovedsessionen. **D2.6: 0 træf i repoet (søgt med grep i git).** `docs/analyser-30-09/webinarmotor-spec.md:657-658` har den nærmeste linje: SMS «udenfor v1». |
+| **3/10-2026** | **«Der skal også opsættes SMS system på platformen. Det kan bruges til både medlemmer og webinardeltagere.»** | Jonas' ord 3/10 kl. 06:08, sendt i hovedsessionen (ikke set i repoet) |
 
-Det er en **omstødelse** af «SMS: ikke nu» (30/9) og af forbeholdet 1/10 («før webinaret er i vores egen platform»). Forbeholdet er ikke opfyldt endnu (webinaret ligger stadig hos eWebinar); ejeren har alligevel bedt om systemet. Omstødelsen skal bogføres som en beslutning, ikke gå i glemmebogen (se §8, spørgsmål 1).
+Jonas' ord 3/10 kl. 06:08 (sendt i hovedsessionen) peger på en omstødelse af «SMS: ikke nu» (30/9) og af forbeholdet 1/10 («før webinaret er i vores egen platform»); den bekræftes i §8.1. Forbeholdet er ikke opfyldt endnu (webinaret ligger stadig hos eWebinar). Beslutningen skal bogføres, ikke gå i glemmebogen.
 
 Ejerens formulering har to målgrupper: **medlemmer** og **webinardeltagere**. Det er to forskellige samtykke-, data- og formålsspørgsmål; de behandles hver for sig i §4 og §6.
 
@@ -43,7 +43,7 @@ Mærkning: **[målt]** = hentet 3/10 fra udbyderens egen side i denne session. *
 
 - $0,0592 pr. SMS til Danmark; carrier fees kommer oveni; alfanumerisk afsender gratis, lejet nummer $15/md.; fejlede beskeder $0,001 — [twilio.com/en-us/sms/pricing/dk](https://www.twilio.com/en-us/sms/pricing/dk) **[målt]**.
 - EU data residency for SMS (Irland, IE1) er GA: «SMS message personal data is stored and processed in the EU up to the point it reaches Twilio's connections with telecommunications providers» — [Twilio changelog](https://www.twilio.com/en-us/changelog/data-residency-for-sms--eu--is-now-generally-available--ga-) **[målt]**. **Rettelse til recon-rapporten:** rapporten sagde GA 30/6-2026; changelog'en er dateret **9/6-2026**. Datoen er ikke afgørende, men tallet står som målt.
-- Dyrere end GatewayAPI pr. SMS (sekundær kilde for GatewayAPI; ikke sammenlignet i samme valuta).
+- GatewayAPI er formentlig billigere end Twilio (sekundær kilde); kroneprisen er ikke læst; SureSMS' recon-tal (DKK 0,18) er lavere og ikke efterprøvet.
 
 ### 1.3 Øvrige **[recon — ikke genhentet]**
 
@@ -124,7 +124,7 @@ Et medlem har en konto og en virksomhed, men **ingen telefon på `profiles`**; `
 
 ## 5. Anbefaling
 
-**Udbyder: GatewayAPI.** Dansk, EU, ISAE, billigst af dem der er læst, og et færdigt Lovable-integrationsspor findes (men bruges ikke). **Forbehold, der skal lukkes før beslutning:** DPA'en er ikke læst, og det danske kronebeløb pr. SMS er ikke læst.
+**Udbyder: GatewayAPI.** Dansk, EU, ISAE, formentlig billigere end Twilio (kroneprisen ikke læst; SureSMS' recon-tal på DKK 0,18 er lavere og ikke efterprøvet), og et færdigt Lovable-integrationsspor findes (men bruges ikke). **Forbehold, der skal lukkes før beslutning:** DPA'en er ikke læst, og det danske kronebeløb pr. SMS er ikke læst.
 
 **Første skive — webinarpåmindelse 1 time før:**
 - **Samtykke:** eget, tomt kryds på en tokenside (spejl af `ring-mig-op`: token over `ewebinar_id`, STRIKS body, ét svar for ukendt/udløbet). Ordlyd i stil med `docs/mailplan-14-dage-og-sms.md` §3.2: «Send mig en SMS 1 time før webinaret starter (valgfrit)». Gemmes ordret, i E.164, som opkaldsrækken.
@@ -149,7 +149,7 @@ Et medlem har en konto og en virksomhed, men **ingen telefon på `profiles`**; `
 - De seks øvrige udbyderes oplysninger (§1.3) er hovedsessionens, ikke genlæst.
 - Markedsføringslovens § 10-tekst: ikke hentet (retsinformation.dk blev afvist af værktøjet).
 - Telenor DK's +0,235 DKK for numerisk afsender: recon.
-- Beslutningen D2.6 af 30/9: ikke fundet i repoet.
+- Beslutningen D2.6 af 30/9: 0 træf i repoet (søgt med grep i git).
 
 ---
 
@@ -159,13 +159,13 @@ Rettet i forhold til hovedsessionens opsummering:
 1. Twilio-GA dateret **9/6-2026** på Twilios egen changelog (rapporten: 30/6).
 2. GatewayAPI's gamle REST-API kalder referencefeltet **`userref`**; rapportens `reference` hører til det nye API og er ikke genlæst.
 3. «Intet gemmer telefonnummer på `webinar_tilmeldinger`/`profiles`» er kodelæst i migrationerne; ikke målt i prod (`information_schema`).
-4. «D2.6» findes ikke som identifikator i repoet.
+4. D2.6: 0 træf i repoet (søgt med grep i git).
 
 ---
 
 ## 8. Beslutninger for Jonas
 
-1. **Omstød «SMS: ikke nu» (30/9, D2.6)** — ja/nej, og skal forbeholdet fra 1/10 («før webinaret bor i platformen») droppes?
+1. **Bekræft omstødelsen af «SMS: ikke nu» (30/9, D2.6)** — ja/nej, og skal forbeholdet fra 1/10 («før webinaret bor i platformen») droppes?
 2. **Skal SMS'en ERSTATTE `en_time`-mailen** for dem, der har sagt ja? Anbefaling: ja (`docs/mailplan-14-dage-og-sms.md` §3.1).
 3. **Opbevaring:** nummeret slettes 7 dage efter sessionen (anbefaling) — og hvad gemmes som samtykkebevis efter sletningen?
 4. **Afsendernavn** (≤ 11 tegn, alfanumerisk): fx «Boardroom» (10 tegn)? Valget er envejs (§1.4).

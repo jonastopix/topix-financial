@@ -397,6 +397,10 @@ referrer-låst til `app.theboardroom.dk`.
 
 ## DEL 2 · Tilstanden
 
+### 3. oktober — SMS: recon, intet bygget (gren `docs/sms-recon`)
+
+Jonas' ord 3/10 kl. 06:08 (sendt i hovedsessionen): «Der skal også opsættes SMS system på platformen. Det kan bruges til både medlemmer og webinardeltagere.» — peger på en omstødelse af «SMS: ikke nu» (30/9, D2.6: 0 træf i repoet) og af forbeholdet 1/10; den bekræftes i `docs/sms.md` §8.1 (`docs/mailplan-14-dage-og-sms.md`, `docs/samtykke-og-opkald.md`). Reconen (udbydere, jura, repoets mønstre, anbefaling GatewayAPI, syv beslutninger hos Jonas) står i **`docs/sms.md`** — læs den FØR nogen SMS-kode. Intet bygget, ingen migration, ingen udbyder-konto.
+
 ### 3. oktober — mangellisten gennemgået (alle 203 åbne kort; gren `docs/mangelliste-gennemgang-3-10`, kun dokumentation)
 
 **Metoden.** Alle 203 åbne kort i `docs/mangelliste.html` (data-status ≠ `loest`) blev delt i 13 bunker og målt kort for kort af 9 anmeldere (Opus) mod koden på `origin/main`, prod (kun SELECT gennem Lovables `query_database`; tal og id'er, ingen persondata) og dokumenterne — med «kodelæst» eller «målt i prod» ved hvert bevis. Hver anmelder gav én dom pr. kort (gælder · omskriv · del op · slå sammen · løst · arkiv · kræver livetjek) og en værdisætning 0–5 (medlem · rådgiver · forretning · risiko) + indsats S/M/L. **Rådet** efterprøvede derefter alle 24 forslag om at lukke/arkivere/slå sammen/dele, en stikprøve på 50 af de øvrige, dubletter og modsigelser; hvor rådet sagde «holder ikke», gælder rådets dom. Hovedsessionen tog et **livetjek** som rådgiver (claude@, frisk fane: forsiden, /webinar, /chat, virksomhedssiden) og som medlem (Floren Engros i virksomhedsvisning, ~400 px; Akademiet; vandret scroll ved 390 px på ni ruter). Dommene, rådets efterprøvning og livetjekket er arbejdsfiler uden for repoet; resultatet står på kortene («LUKKET 3/10 — …», «Omskrevet 3/10» med titlen før, «Livetjek 3/10: …», «Rådet 3/10: …» og en «Værdi 3/10»-linje på hvert åbent kort) og i filhovedets blok «RØRT 3/10».
@@ -12025,11 +12029,6 @@ Rådets punkter 8, 11 og 12 var ikke rettelser (ingen handling bestilt).
 Værn: `ringMigOp.guard` dom 8 (indsend), 9 (RLS), 10 (IP-hash); `opkaldDom.test`/`.paritet` (de tre nye domme).
 
 **Åbent:** spørgsmålet i platformens eget webinarrum (Jonas 08:17 «senere») · profilegenskaben målt på en rigtig profil · «Deltog»-flowet kræver Hovedlisten OG samtykke — en deltager uden for får linket på profilen, men ingen mail · persondatateksten («opkald på anmodning», 90 dage — Jonas godkender) · «Træk tilbage» er en mail til kontakt@ + sletning i SQL editor (ingen klientknap) · typegenereringen (`types.ts`) efter migrationen — `api.ts` bruger `as any` som nyhederApi.
-
-
-### 3. oktober — SMS: recon, intet bygget (gren `docs/sms-recon`)
-
-Jonas 3/10: «Der skal også opsættes SMS system på platformen. Det kan bruges til både medlemmer og webinardeltagere.» — en **omstødelse** af «SMS: ikke nu» (30/9, D2.6) og af forbeholdet 1/10 (`docs/mailplan-14-dage-og-sms.md`, `docs/samtykke-og-opkald.md`). Reconen (udbydere, jura, repoets mønstre, anbefaling GatewayAPI, syv beslutninger hos Jonas) står i **`docs/sms.md`** — læs den FØR nogen SMS-kode. Intet bygget, ingen migration, ingen udbyder-konto.
 
 ---
 
