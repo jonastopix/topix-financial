@@ -23,6 +23,7 @@ import type {
 } from "./canonicalTypes.ts";
 import { rimelighedstjek } from "./rimelighed.ts";
 import { CANONICAL as OMK, ebitdaRegnet, kontrolsum } from "./omkostningsnoegler.ts";
+import { AI_POSITIVE_DRIFTSFELTER } from "./aiSkema.ts";
 
 import type {
   SemanticExtractionResult,
@@ -40,7 +41,8 @@ import {
 const TOLERANCE = 2;
 
 // ── Danish key_figures → English canonical metrics mapping ──
-const KF_TO_CANONICAL: Record<string, keyof CanonicalMetrics> = {
+// Eksporteret (3/10-2026, pakke B skive 1) så værnet aiSkemaGrupper.guard kan dømme AI-skemaet mod den ENE mapning.
+export const KF_TO_CANONICAL: Record<string, keyof CanonicalMetrics> = {
   omsaetning: "revenue",
   direkte_omkostninger: "cogs",
   daekningsbidrag: "gross_profit",
@@ -220,7 +222,11 @@ export function aiResultatFortegnsdom(kf: Record<string, unknown>, lineItems: un
   const opexUdenTech =
     (abs("loenninger") ?? 0) + (abs("marketing") ?? abs("salgsomkostninger") ?? 0) +
     (abs("lokaler") ?? abs("lokaleomkostninger") ?? 0) + (abs("admin") ?? abs("administrationsomkostninger") ?? 0) +
-    (abs("afskrivninger") ?? 0);
+    (abs("afskrivninger") ?? 0) +
+    // Pakke B skive 1 (3/10-2026): de fire driftsgrupper AI-skemaet fik — uden dem ville en rapport med pension,
+    // personale, auto eller andre eksterne aldrig ramme «samme tal, modsat fortegn». Ekstraordinære poster er
+    // bevidst UDE, som i ebtRegnet (omkostningsnoegler.ts; regnestykket i _shared/aiSkema.ts).
+    AI_POSITIVE_DRIFTSFELTER.reduce((sum, f) => sum + (abs(f) ?? 0), 0);
   const tech = abs("tech_software") ?? 0;
   const finKf = (abs("finansielle_omkostninger") ?? 0) - (abs("finansielle_indtaegter") ?? 0);
   let finLinjer = 0;
@@ -284,7 +290,9 @@ export function normalizeToCanonical(extractedData: any, extractionMethod?: stri
 
   // Map key_figures → canonical, applying sign rules
   const revenueFields = ["omsaetning", "omsaetning_aar"];
-  const alwaysPositiveExpenseFields = ["loenninger", "marketing", "lokaler", "admin", "tech_software", "afskrivninger", "finansielle_omkostninger"];
+  // Pakke B skive 1 (3/10-2026): + de fire driftsgrupper fra AI-skemaet (pension, øvrige personale, autodrift,
+  // andre eksterne) — omkostninger er POSITIVE (7/9). Ekstraordinære poster bærer fortegn og står ikke her.
+  const alwaysPositiveExpenseFields = ["loenninger", "marketing", "lokaler", "admin", "tech_software", "afskrivninger", "finansielle_omkostninger", ...AI_POSITIVE_DRIFTSFELTER];
   // A2/C (18/9-2026): AI-skemaet fik finansielle_omkostninger og finansielle_indtaegter (begge positive tal).
   const alwaysPositiveIncomeFields = ["finansielle_indtaegter"];
   const profitFields = ["daekningsbidrag", "daekningsbidrag_aar"];
@@ -370,7 +378,9 @@ export function normalizeToCanonical(extractedData: any, extractionMethod?: stri
       const opexTotal = Math.abs(kf.loenninger || 0) + Math.abs(kf.marketing || kf.salgsomkostninger || 0) +
         Math.abs(kf.lokaler || kf.lokaleomkostninger || 0) +
         Math.abs(kf.admin || kf.administrationsomkostninger || 0) +
-        Math.abs(kf.tech_software || 0) + Math.abs(kf.afskrivninger || 0);
+        Math.abs(kf.tech_software || 0) + Math.abs(kf.afskrivninger || 0) +
+        // Pakke B skive 1 (3/10-2026): de fire nye driftsgrupper tæller med i krydstjekket.
+        AI_POSITIVE_DRIFTSFELTER.reduce((sum, f) => sum + Math.abs(kf[f] || 0), 0);
 
       if (absGP > 0) {
         const expectedResult = absGP - opexTotal;
@@ -453,10 +463,11 @@ export function normalizeToCanonical(extractedData: any, extractionMethod?: stri
       const statedResult = metrics.ebt;
       const canReconcile = gp != null && statedResult != null;
 
-      const opexWithoutTech =
-        (metrics.payroll || 0) + (metrics.sales_costs || 0) +
-        (metrics.facility_costs || 0) + (metrics.admin_costs || 0) +
-        (metrics.vehicle_costs || 0);
+      // Pakke B skive 1 (3/10-2026): ALLE driftsposter gennem omkostningsnoegler (OMK.drift) — før kun fem.
+      // Med pension/personale/andre eksterne i metrics ville de fem gøre begge grene skæve med samme beløb X, og
+      // |a − X| mod |a − X − tech| kan vælge forkert gren. Regnestykket: forventet = gp − Σ|drift| − depr (± tech).
+      const opexWithoutTech = OMK.drift.reduce(
+        (sum, k) => sum + Math.abs(((metrics as unknown as Record<string, number | null>)[k]) || 0), 0);
       const depreciation = metrics.depreciation || 0;
 
       let deltaWithout: number | null = null;
@@ -1597,6 +1608,76 @@ export function buildAiEligiblePayload(canonical: CanonicalOutput): AiEligiblePa
     validation_status: "PASS",
     metrics: canonical.metrics,
   };
+}
+
+// ── AI-vejens driftssignaler (pakke B skive 1, CTO-fund 2 og 3, 3/10-2026) ──
+//
+// FAIL-SOFT: signalerne afviser intet og ændrer intet tal — de lægges i quality_signals, så sporet efter en
+// vending eller en mulig dobbelttælling ikke forsvinder.
+//
+// negativ_driftsgruppe (fund 2): motoren vender en negativ driftsgruppe positiv (expense_must_be_positive — husets
+// regel for AI-vejen, 7/9). Et negativt NETTO kan dog være en ægte indtægt i gruppen; derfor bæres feltet og det
+// OPRINDELIGE beløb med, aflæst af correction_log.
+//
+// mulig_dobbelttaelling (fund 3): står pension, øvrige personale, autodrift eller andre eksterne BÅDE i en
+// overgruppe (fx lønsummen) og i sit eget felt, er omkostningerne talt X for meget. Kontrolsummen ser det:
+//   regnet   = basis + indtægter − Σ|omkostninger|          (Σ er X for stor)
+//   udaekket = resultat − regnet                            (= +X, når resten stemmer)
+// POSITIVT udækket = «der mangler indtægter» = for mange omkostninger. (CTO-fundet skrev «≈ −payroll_related»;
+// fortegnet er +: en dobbelttælling gør regnet MINDRE, så resultat − regnet bliver STØRRE. Rettet højt 3/10.)
+// Dommen: |udaekket − X| ≤ max(DOBBELT_TOLERANCE_PCT × X, DOBBELT_TOLERANCE_MIN_KR), og X ≥ DOBBELT_MIN_BELOEB.
+//   Eksempel: X = 12.000 → tolerance max(120, 50) = 120 kr.; udækket 11.950 … 12.050 giver signalet.
+//   Kontrolsummen er i hele kroner (Math.round), så en ren dobbelttælling rammer inden for 1 kr.; 1 % tager
+//   små afrundinger i dokumentets egne i-alt-linjer. Gulvet på 500 kr. holder et tilfældigt lille udækket ude.
+export const DOBBELT_TOLERANCE_PCT = 0.01;
+export const DOBBELT_TOLERANCE_MIN_KR = 50;
+export const DOBBELT_MIN_BELOEB = 500;
+/** De kanoniske nøgler skive 1 gav AI-skemaet felter for — dem en dobbelttælling kan ramme. */
+export const DOBBELT_NOEGLER = ["payroll_related", "other_staff_costs", "vehicle_costs", "other_costs"] as const;
+/** Summer af nøgler, der dobbelttælles SAMMEN, når en overgruppe («Personaleomkostninger i alt») lægges i
+ *  ét felt OG dens underposter i deres egne (CTO runde 2, 3/10): udækket = summen, ikke en enkelt nøgle.
+ *  Eksempel: pension 12.000 + øvrige personale 5.000 → udækket +17.000 → signal med noegle
+ *  «payroll_related+other_staff_costs». Kun summer, hvor BEGGE led har et tal. */
+export const DOBBELT_SUMMER = [["payroll_related", "other_staff_costs"]] as const;
+
+export interface AiDriftsSignaler {
+  negativ_driftsgruppe?: Array<{ felt: string; noegle: string; oprindeligt: number; gemt: number }>;
+  mulig_dobbelttaelling?: Array<{ noegle: string; beloeb: number; udaekket: number; tolerance: number }>;
+}
+
+export function aiDriftsSignaler(
+  metrics: CanonicalMetrics,
+  correction_log: readonly CorrectionLogEntry[],
+  udaekket: number | null | undefined,
+): AiDriftsSignaler {
+  const ud: AiDriftsSignaler = {};
+  const drift = new Set<string>(OMK.drift);
+  const negative = correction_log
+    .filter((c) => c.rule === "expense_must_be_positive" && typeof c.raw_value === "number" && c.raw_value < 0)
+    .map((c) => ({ felt: c.field, noegle: KF_TO_CANONICAL[c.field] as string, oprindeligt: c.raw_value as number, gemt: c.normalized_value as number }))
+    .filter((n) => drift.has(n.noegle));
+  if (negative.length > 0) ud.negativ_driftsgruppe = negative;
+  if (typeof udaekket === "number" && Number.isFinite(udaekket) && udaekket > 0) {
+    const mulige = [];
+    for (const noegle of DOBBELT_NOEGLER) {
+      const v = metrics[noegle];
+      if (typeof v !== "number" || !Number.isFinite(v)) continue;
+      const x = Math.abs(v);
+      if (x < DOBBELT_MIN_BELOEB) continue;
+      const tolerance = Math.max(DOBBELT_TOLERANCE_PCT * x, DOBBELT_TOLERANCE_MIN_KR);
+      if (Math.abs(udaekket - x) <= tolerance) mulige.push({ noegle, beloeb: x, udaekket, tolerance });
+    }
+    for (const led of DOBBELT_SUMMER) {
+      const vaerdier = led.map((n) => metrics[n]);
+      if (!vaerdier.every((v) => typeof v === "number" && Number.isFinite(v))) continue;
+      const x = (vaerdier as number[]).reduce((sum, v) => sum + Math.abs(v), 0);
+      if (x < DOBBELT_MIN_BELOEB) continue;
+      const tolerance = Math.max(DOBBELT_TOLERANCE_PCT * x, DOBBELT_TOLERANCE_MIN_KR);
+      if (Math.abs(udaekket - x) <= tolerance) mulige.push({ noegle: led.join("+"), beloeb: x, udaekket, tolerance });
+    }
+    if (mulige.length > 0) ud.mulig_dobbelttaelling = mulige;
+  }
+  return ud;
 }
 
 // ── Main: Build full canonical output ──
