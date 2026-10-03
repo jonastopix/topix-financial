@@ -377,6 +377,18 @@ export function webinarAlarmTekst(r: WebinarAlarmTekstInput, alarm: Alarm, nu: D
     if (r.loft.pause !== null) loftAfsnit.push(`Pausen gælder til ${danskKlokke(r.loft.pause.til)}: ${r.loft.pause.grund}. Indtil da sender cronen intet.`);
   }
 
+  // «ti_minutter»-afsnittet (3/10) — som loftAfsnit bygget ÉN gang og båret af
+  // BÅDE sin egen art og «fejl», som vinder alvorsordenen (CTO-rådet runde 2,
+  // fund 3): ellers ville en fejl i samme kørsel skjule, at mails lige før
+  // start er tabt eller i fare.
+  const tiAfsnit: string[] = [];
+  const { iFare: tiFare, tabt: tiTabte } = alarm.tiMinutter;
+  if (tiTabte > 0) tiAfsnit.push(`${tiTabte} ${tiTabte === 1 ? "mail" : "mails"} «${ART_ORD.ti_minutter}» (vinduet T−30 … T−5 min) er dømt for sent uden at være sendt — personen var tilmeldt, før vinduet lukkede. Den indhentes aldrig.`);
+  if (tiFare.length > 0) {
+    const foerste = tiFare[0];
+    tiAfsnit.push(`${tiFare.length} ${tiFare.length === 1 ? "mail" : "mails"} «${ART_ORD.ti_minutter}» står udsat eller over loftet med en frist højst 10 min ude — den første ${danskDatoKlokke(foerste.frist)} (webinar ${danskDatoKlokke(new Date(foerste.session_tid))}). Næste slot kan være for sent.`);
+  }
+
   let emne: string, titel: string;
   const afsnit: string[] = [koerslen];
   const blokke: { overskrift: string; tekst: string }[] = [];
@@ -388,6 +400,7 @@ export function webinarAlarmTekst(r: WebinarAlarmTekstInput, alarm: Alarm, nu: D
     emne = `${hvad} kunne ikke sendes — webinar-mail-cron har brug for et menneske`;
     titel = `Webinarmails: ${hvad} kunne ikke sendes (${stemplet})`;
     afsnit.push(`${n === 1 ? "Én fejl" : `${n} fejl`} af andre grunde end loftet${dele ? ` (${dele})` : ""} — det retter throttlen ikke.`);
+    afsnit.push(...tiAfsnit);
     afsnit.push(...loftAfsnit);
     const linjer = alarm.andreFejl.slice(0, ALARM_FEJL_LINJER_MAKS);
     for (const linje of linjer) {
@@ -398,17 +411,12 @@ export function webinarAlarmTekst(r: WebinarAlarmTekstInput, alarm: Alarm, nu: D
     const resten = alarm.andreFejl.length - linjer.length;
     if (resten > 0) blokke.push({ overskrift: "…", tekst: `og ${resten} ${resten === 1 ? "linje" : "linjer"} mere — alle står i webinar_mails (udfald <> 'ok').` });
   } else if (alarm.art === "ti_minutter") {
-    const { iFare: fare, tabt: tabte } = alarm.tiMinutter;
     const dele: string[] = [];
-    if (tabte > 0) dele.push(`${tabte} tabt`);
-    if (fare.length > 0) dele.push(`${fare.length} i fare`);
+    if (tiTabte > 0) dele.push(`${tiTabte} tabt`);
+    if (tiFare.length > 0) dele.push(`${tiFare.length} i fare`);
     emne = `«Vi begynder» lige før start: ${dele.join(", ")} — webinar-mail-cron når ikke ud`;
     titel = `Webinarmails lige før start: ${dele.join(", ")} (${stemplet})`;
-    if (tabte > 0) afsnit.push(`${tabte} ${tabte === 1 ? "mail" : "mails"} «${ART_ORD.ti_minutter}» (vinduet T−30 … T−5 min) ${tabte === 1 ? "er" : "er"} dømt for sent uden at være sendt — personen var tilmeldt, før vinduet lukkede. Den indhentes aldrig.`);
-    if (fare.length > 0) {
-      const foerste = fare[0];
-      afsnit.push(`${fare.length} ${fare.length === 1 ? "mail" : "mails"} står udsat eller over loftet med en frist højst 10 min ude — den første ${danskDatoKlokke(foerste.frist)} (webinar ${danskDatoKlokke(new Date(foerste.session_tid))}). Næste slot kan være for sent.`);
-    }
+    afsnit.push(...tiAfsnit);
     afsnit.push(...loftAfsnit);
   } else if (alarm.art === "tabt") {
     const n = alarm.tabt;

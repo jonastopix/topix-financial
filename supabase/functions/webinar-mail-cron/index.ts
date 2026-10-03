@@ -148,7 +148,7 @@ import { driftModtager } from "../_shared/driftModtager.ts";
 import { indgangsMailHtml } from "../_shared/indgangsMail.ts";
 import { type KonfigDom, laesVideoKonfig, mailVideo, VIDEO_ART, VIDEO_KONFIG_NOEGLE, type VideoKonfig, type VideoStatus, videoIKoerslen } from "../_shared/webinarVideo.ts";
 import { joinSecret } from "../_shared/webinarDeltagerAuth.ts";
-import { erMotorId, type MailVej, mailVejDom, type MotorMailTal, type MotorOpslag, tomtMotorMailTal } from "../_shared/webinarMotor/mail.ts";
+import { erMotorId, type MailVej, mailVejDom, type MotorMailTal, type MotorOpslag, taelTabteUdenAflyste, tomtMotorMailTal } from "../_shared/webinarMotor/mail.ts";
 import { hentMotorOpslag, motorMailDele } from "../_shared/webinarMotorMail.ts";
 
 const LOG = "[webinar-mail-cron]";
@@ -212,8 +212,11 @@ export interface MailResultat {
    *                tal er 0.
    *   ikke_motor   eWebinar-personer, dommen nægtede arten (sprunget.ikke_motor)
    *   skal_sendes  motorens ti_minutter-mails, der skal sendes nu
-   *   tabt         dømt for_sent uden ok-række for en, der var tilmeldt før
-   *                fristen (dommens kortNaadeTabt) — alarmens grundlag
+   *   tabt         dømt for_sent uden ok-række for en, der var tilmeldt senest
+   *                frist − største hul (dommens kortNaadeTabte), FRARÅDET de
+   *                aflyste sessioner (taelTabteUdenAflyste) — alarmens grundlag
+   *   (sprunget.samme_koersel: ti_minutter holdt tilbage, fordi samme person
+   *    fik bekræftelsen eller «om en time» i samme kørsel — runde 2, fund 4)
    * SAMME GRUNDLAG (rådets fund 5): alle tre er talt EFTER prøvens filter —
    * med `email` er tilmeldingerne allerede læst for den ene adresse; med en
    * anden `art` end ti_minutter er alle tre 0. Den ene forskel, der står
@@ -331,7 +334,7 @@ const tomt = (a: { toer: boolean; laas: boolean; email: string | null; art: stri
   ok: true, dry_run: a.toer, laas_aktiv: a.laas, sender_rigtigt: a.senderRigtigt,
   nu: a.nu.toISOString(), email: a.email, art: a.art,
   tilmeldinger_laest: 0, afmeldte_laest: 0, sendte_foer: 0, fejlede_foer: 0, ukendte_foer: 0, skal_sendes: 0,
-  sprunget: { afmeldt: 0, ingen_session: 0, ingen_mail: 0, for_sent: 0, endnu_ikke: 0, sessionen_begyndt: 0, allerede_sendt: 0, for_tidlig_tilmelding: 0, for_sent_efter_fejl: 0, senere_session: 0, levering_ukendt: 0, ikke_motor: 0 },
+  sprunget: { afmeldt: 0, ingen_session: 0, ingen_mail: 0, for_sent: 0, endnu_ikke: 0, sessionen_begyndt: 0, allerede_sendt: 0, for_tidlig_tilmelding: 0, for_sent_efter_fejl: 0, senere_session: 0, levering_ukendt: 0, ikke_motor: 0, samme_koersel: 0 },
   ti_minutter: { port: "migration_mangler", ikke_motor: 0, skal_sendes: 0, tabt: 0 }, udsatte: [],
   sprunget_senere_session: 0, ukendt_ikke_indhentet: 0,
   indhentet: 0, sendt: 0, fejlede: 0, udsat: 0, budget: tomtBudgetBevis(), dublet: 0, med_invitation: 0, uden_invitation: 0,
@@ -398,7 +401,11 @@ async function koer(a: { admin: SupabaseClient; toerKoersel: boolean; laas: bool
   //     ingen forespørgsel, og eWebinars rækker får vejen «ewebinar» (uændret).
   //     En motor-række uden link tages ud HER, før loft og budget: den forsøges
   //     ikke, koster intet forsøg og står ikke som over_loft.
-  const motorIds = planlagte.map((s) => s.ewebinarId).filter(erMotorId);
+  // De TABTE «ti_minutter» slås op med (runde 2, fund 2): en aflyst session
+  // fraregnes i tabt-tallet, og det kræver opslagets status.
+  const proevenTagerTi = a.art === null || kunMotor(a.art);
+  const tabte = proevenTagerTi ? plan.kortNaadeTabte : [];
+  const motorIds = [...new Set([...planlagte.map((s) => s.ewebinarId), ...tabte])].filter(erMotorId);
   const motorOpslag = motorIds.length > 0 ? await hentMotorOpslag(a.admin, motorIds, r.fejl) : new Map<string, MotorOpslag>();
   const motorSecret = motorIds.length > 0 ? joinSecret() : null;
   const veje = new Map<Sending, MailVej>();
@@ -412,12 +419,12 @@ async function koer(a: { admin: SupabaseClient; toerKoersel: boolean; laas: bool
   }
   r.skal_sendes = sendinger.length;
   // Samme grundlag som skal_sendes (fund 5): en prøve på en ANDEN art tæller 0.
-  const proevenTagerTi = a.art === null || kunMotor(a.art);
   r.ti_minutter = {
     port: tiMinutterPort,
     ikke_motor: proevenTagerTi ? plan.sprunget.ikke_motor : 0,
     skal_sendes: sendinger.filter((s) => kunMotor(s.art)).length,
-    tabt: proevenTagerTi ? plan.kortNaadeTabt : 0,
+    // Tabte uden de aflyste (runde 2, fund 2) — den rene taelTabteUdenAflyste.
+    tabt: taelTabteUdenAflyste(tabte, (id) => mailVejDom(id, motorOpslag.get(id), motorSecret !== null)),
   };
   r.indhentet = sendinger.filter((s) => s.indhentning === true).length;
   for (const s of sendinger.slice(0, EKSEMPLER_MAKS)) {

@@ -667,7 +667,10 @@ export const alarmenKunIRigtigKoersel = (cron: string, alarm: string): boolean =
     f.includes("for (const v of sendinger.slice(i + 1)) r.ventende.push({ art: v.art, session_tid: v.sessionTid });") &&
     // 3/10 (CTO-rådets fund 1): de UDSATTE (budgettet) og de TABTE «ti_minutter» når alarmen.
     f.includes("if (r.budget.stoppet_af_budget) { r.udsat++; r.udsatte.push({ art: s.art, session_tid: s.sessionTid }); continue; }") &&
-    f.includes("tabt: proevenTagerTi ? plan.kortNaadeTabt : 0,") &&
+    // Runde 2, fund 2: de tabte NØGLER slås op med, og en aflyst session fraregnes (den rene hjælper).
+    f.includes("const tabte = proevenTagerTi ? plan.kortNaadeTabte : [];") &&
+    f.includes("const motorIds = [...new Set([...planlagte.map((s) => s.ewebinarId), ...tabte])].filter(erMotorId);") &&
+    f.includes("tabt: taelTabteUdenAflyste(tabte, (id) => mailVejDom(id, motorOpslag.get(id), motorSecret !== null)),") &&
     a.includes('export const WEBINAR_ALARM_KLOKKE_TYPE = "drift";') &&
     a.includes('export const WEBINAR_ALARM_REFERENCE = "webinar_mails";')
   );
@@ -691,6 +694,14 @@ export const tiMinutterKunMotor = (dom: string, spejl: string, cron: string, mot
     if (!/senereSession,\s*\n\s*motorRaekke,\s*\n\s*nu: i\.nu,/.test(u)) return false;
     if (!u.includes("p.straks !== true && p.kunMotor !== true")) return false;
     if (motorForm === null || form(k, "MOTOR_ID_FORM_DOM") !== motorForm) return false;
+    // Runde 2, fund 1: «tabt» kun for en tilmeldt mindst ét helt hul før fristen.
+    if (!u.includes("return !Number.isFinite(reg) || reg <= frist - STOERSTE_HUL_MS;")) return false;
+    if (!u.includes("export const STOERSTE_HUL_MS = 10 * 60_000;")) return false;
+    // Runde 2, fund 4: aldrig tre mails i samme kørsel — pr. ewebinar_id, efter dommen, før sorteringen.
+    if (!u.includes('export const SAMME_KOERSEL_ARTER: readonly MailArt[] = ["bekraeftelse", "en_time"];')) return false;
+    if (!u.includes("const fikAndenNu = new Set(sendinger.filter((s) => SAMME_KOERSEL_ARTER.includes(s.art)).map((s) => s.ewebinarId));")) return false;
+    if (!u.includes("if (kunMotor(sendinger[n].art) && fikAndenNu.has(sendinger[n].ewebinarId)) {")) return false;
+    if (!foer(u, "const fikAndenNu = new Set(", "sendinger.sort((a, b) =>")) return false;
   }
   const c = udenKommentarer(cron);
   // Beviset i svaret — og (fund 5) talt på SAMME grundlag som skal_sendes: efter prøvens filter.
@@ -878,6 +889,26 @@ describe("webinarMail.guard dom 20 — eWebinar-rækker kan ALDRIG få ti_minutt
     const c = cron.split("ikke_motor: proevenTagerTi ? plan.sprunget.ikke_motor : 0,").join("ikke_motor: plan.sprunget.ikke_motor,");
     expect(c).not.toBe(cron);
     expect(tiMinutterKunMotor(dom, spejl, c, motor)).toBe(false);
+  });
+  it("MUTATION (runde 2, fund 2): tabt talt som den rå liste — aflyste sessioner ville alarmere", () => {
+    const c = cron.split("tabt: taelTabteUdenAflyste(tabte, (id) => mailVejDom(id, motorOpslag.get(id), motorSecret !== null)),").join("tabt: tabte.length,");
+    expect(c).not.toBe(cron);
+    expect(alarmenKunIRigtigKoersel(c, laes(ALARM))).toBe(false);
+  });
+  it("MUTATION (runde 2, fund 2): de tabte ikke slået op — mailVejDom ville se «ikke_fundet» for en aflyst", () => {
+    const c = cron.split("const motorIds = [...new Set([...planlagte.map((s) => s.ewebinarId), ...tabte])].filter(erMotorId);").join("const motorIds = planlagte.map((s) => s.ewebinarId).filter(erMotorId);");
+    expect(c).not.toBe(cron);
+    expect(alarmenKunIRigtigKoersel(c, laes(ALARM))).toBe(false);
+  });
+  it("MUTATION (runde 2, fund 1): grænsen for «tabt» tilbage til fristen (uden det største hul)", () => {
+    const [d, s] = begge("reg <= frist - STOERSTE_HUL_MS;", "reg <= frist;");
+    expect(tiMinutterKunMotor(d, s, cron, motor)).toBe(false);
+  });
+  it("MUTATION (runde 2, fund 4): «samme_koersel» fjernet i det ene spejl", () => {
+    const linje = "    if (kunMotor(sendinger[n].art) && fikAndenNu.has(sendinger[n].ewebinarId)) {";
+    const s2 = spejl.split(linje).join("    if (false) {");
+    expect(s2).not.toBe(spejl);
+    expect(tiMinutterKunMotor(dom, s2, cron, motor)).toBe(false);
   });
   it("MUTATION: vinduet snævret tilbage til T−15 (fund 1) fanges", () => {
     const [d, s] = begge("tidligstFoerMs: 20 * 60_000,", "tidligstFoerMs: 5 * 60_000,");

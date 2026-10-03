@@ -320,6 +320,19 @@ describe("webinarMailAlarm — «ti_minutter» lige før start (3/10-2026, CTO-r
     expect(doemAlarm({ ...LOFT_STOP, udsatte: TI(1), sprunget: { for_sent_efter_fejl: 3 } }, nu)?.art).toBe("ti_minutter");
   });
 
+  it("RUNDE 2, fund 3: vinder «fejl», bærer fejl-mailen STADIG ti_minutter-afsnittet (som loftAfsnit)", () => {
+    const nu = ved("2026-10-13T08:57:03Z");
+    const r: WebinarAlarmTekstInput = { ...ROLIG, fejl: ["en_dag: ugyldig — Mailgun svarede 400"], fejlede: 1, udsatte: TI(2), ti_minutter: { tabt: 3 }, sendt: 1, skal_sendes: 4 };
+    const a = doemAlarm(r, nu)!;
+    expect(a.art).toBe("fejl");
+    const t = webinarAlarmTekst(r, a, nu);
+    expect(t.tekst).toContain("3 mails «lige før start»");
+    expect(t.tekst).toContain("2 mails «lige før start» står udsat");
+    // Uden ti_minutter i kørslen: ingen sådan linje i fejl-mailen.
+    const ren: WebinarAlarmTekstInput = { ...r, udsatte: [], ti_minutter: { tabt: 0 } };
+    expect(webinarAlarmTekst(ren, doemAlarm(ren, nu)!, nu).tekst).not.toContain("lige før start");
+  });
+
   it("aldrig i en tørkørsel", () => {
     expect(doemAlarm({ ...ROLIG, sender_rigtigt: false, udsatte: TI(5), ti_minutter: { tabt: 5 } }, ved("2026-10-13T08:50:00Z"))).toBeNull();
   });

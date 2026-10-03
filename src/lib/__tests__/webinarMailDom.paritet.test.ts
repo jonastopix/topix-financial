@@ -103,6 +103,15 @@ describe("webinarMailDom.paritet — dommene svarer ens", () => {
       for (const art of deno.ARTER) expect(deno.erTabtKortNaade(art, SESSION, reg), `${art}/${reg}`).toBe(src.erTabtKortNaade(art, SESSION, reg));
     }
     expect([...deno.TI_MINUTTER_PORTE]).toEqual([...src.TI_MINUTTER_PORTE]);
+    // Runde 2: grænsen for «tabt» og «samme kørsel».
+    expect(deno.STOERSTE_HUL_MS).toBe(src.STOERSTE_HUL_MS);
+    expect([...deno.SAMME_KOERSEL_ARTER]).toEqual([...src.SAMME_KOERSEL_ARTER]);
+    for (const reg of ["2026-10-13T08:44:00.000Z", "2026-10-13T08:53:00.000Z"]) {
+      expect(deno.erTabtKortNaade("ti_minutter", SESSION, reg), reg).toBe(src.erTabtKortNaade("ti_minutter", SESSION, reg));
+    }
+    const sen = [{ ...motor[0], registreret_at: "2026-10-13T08:40:00.000Z" }];
+    const kSen = { raekker: sen, afmeldte: new Set<string>(), sendte: new Set<string>(), nu: new Date("2026-10-13T08:41:03Z"), tiMinutterPort: "klar" as const };
+    expect(deno.planlaegKoersel(kSen)).toEqual(src.planlaegKoersel(kSen));
     for (const udfald of ["ok", "timeout", "fejl", "loft", "ugyldig", "noegle_afvist", "ingen_noegle"]) {
       for (const status of [null, 200, 404, 429, 500, 503]) {
         expect(deno.afsendelseUkendt({ udfald, status }), `${udfald}/${status}`).toBe(src.afsendelseUkendt({ udfald, status }));

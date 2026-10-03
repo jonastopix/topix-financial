@@ -377,7 +377,11 @@ export type Springgrund =
   // «ti_minutter» til en række, der IKKE er webinarmotorens (Plan.kunMotor, 3/10).
   // Én pr. eWebinar-person og kørsel — beviset for, at eWebinars tilmeldte aldrig
   // får vores 10-minutters-mail. Skrives aldrig i sporet.
-  | "ikke_motor";
+  | "ikke_motor"
+  // «ti_minutter» til en person (samme ewebinar_id), der i SAMME kørsel får
+  // bekræftelsen eller «om en time» (SAMME_KOERSEL_ARTER, CTO-rådet runde 2,
+  // fund 4): aldrig tre mails i én kørsel. Skrives aldrig i sporet; tælles i svaret.
+  | "samme_koersel";
 
 export type MailDom =
   // `indhentning: true` KUN når mailen sendes, fordi et tidligere forsøg fejlede, og
@@ -735,11 +739,11 @@ export function planlaegKoersel(i: {
    */
   tiMinutterPort?: TiMinutterPort;
   nu: Date;
-}): { sendinger: Sending[]; sprunget: Record<Springgrund, number>; kortNaadeTabt: number } {
+}): { sendinger: Sending[]; sprunget: Record<Springgrund, number>; kortNaadeTabte: string[] } {
   const sprunget: Record<Springgrund, number> = {
     afmeldt: 0, ingen_session: 0, ingen_mail: 0, for_sent: 0,
     endnu_ikke: 0, sessionen_begyndt: 0, allerede_sendt: 0, for_tidlig_tilmelding: 0,
-    for_sent_efter_fejl: 0, senere_session: 0, levering_ukendt: 0, ikke_motor: 0,
+    for_sent_efter_fejl: 0, senere_session: 0, levering_ukendt: 0, ikke_motor: 0, samme_koersel: 0,
   };
 
   // 1. Én person pr. (mail, session).
@@ -773,8 +777,11 @@ export function planlaegKoersel(i: {
 
   const sendinger: Sending[] = [];
   // En kort-nåde-art («ti_minutter»), dømt for_sent, hvor personen var tilmeldt
-  // FØR vinduet lukkede (erTabtKortNaade) — alarmens grundlag (webinarMailAlarm.ts).
-  let kortNaadeTabt = 0;
+  // i god tid før vinduet lukkede (erTabtKortNaade) — alarmens grundlag
+  // (webinarMailAlarm.ts). NØGLERNE (ewebinar_id), ikke et tal (CTO-rådet runde 2,
+  // fund 2): cronen fraregner dem, hvis session er aflyst (mailVejDom «aflyst»),
+  // gennem den rene taelTabteUdenAflyste i webinarMotor/mail.ts.
+  const kortNaadeTabte: string[] = [];
   for (const r of [...personer.values()]) {
     const mail = r.email.trim().toLowerCase();
     const afmeldt = i.afmeldte.has(mail) || afmeldtIEwebinar.has(mail);
@@ -806,7 +813,7 @@ export function planlaegKoersel(i: {
       // diskrimineret union (samme fælde som cvrLoft.laesTal).
       if (dom.send === false) {
         sprunget[dom.grund]++;
-        if (dom.grund === "for_sent" && erTabtKortNaade(art, r.session_tid as string, r.registreret_at)) kortNaadeTabt++;
+        if (dom.grund === "for_sent" && erTabtKortNaade(art, r.session_tid as string, r.registreret_at)) kortNaadeTabte.push(r.ewebinar_id);
         continue;
       }
       sendinger.push({
@@ -821,6 +828,18 @@ export function planlaegKoersel(i: {
         ewebinarId: r.ewebinar_id,
         ...(dom.indhentning === true ? { indhentning: true as const } : {}),
       });
+    }
+  }
+  // ALDRIG TRE MAILS I SAMME KØRSEL (CTO-rådet runde 2, fund 4): får en person
+  // (samme ewebinar_id) bekræftelsen eller «om en time» i denne kørsel, springes
+  // en kunMotor-art («ti_minutter») over som «samme_koersel». Typisk en sen
+  // tilmelding 20 min før start: bekræftelse + om en time + vi begynder på ét
+  // minut. Næste slot i vinduet kan tage den (en ok-række for de andre findes da).
+  const fikAndenNu = new Set(sendinger.filter((s) => SAMME_KOERSEL_ARTER.includes(s.art)).map((s) => s.ewebinarId));
+  for (let n = sendinger.length - 1; n >= 0; n--) {
+    if (kunMotor(sendinger[n].art) && fikAndenNu.has(sendinger[n].ewebinarId)) {
+      sprunget.samme_koersel++;
+      sendinger.splice(n, 1);
     }
   }
   // RÆKKEFØLGEN (Jonas 29/9): BEKRÆFTELSER FØRST, derefter ældste planlagte, så
@@ -847,16 +866,33 @@ export function planlaegKoersel(i: {
     (kortNaade(a.art) && kortNaade(b.art) ? fristMs(a) - fristMs(b) : 0) ||
     a.planlagt.localeCompare(b.planlagt) ||
     a.email.localeCompare(b.email));
-  return { sendinger, sprunget, kortNaadeTabt };
+  return { sendinger, sprunget, kortNaadeTabte };
 }
+
+/** Arterne, der i samme kørsel holder en kunMotor-art tilbage (fund 4, runde 2). */
+export const SAMME_KOERSEL_ARTER: readonly MailArt[] = ["bekraeftelse", "en_time"];
+
+/**
+ * DET STØRSTE HUL mellem to slots i job 573 «webinar-mail» (CTO-rådet runde 2,
+ * fund 1). Minutterne 9, 14, 24, 27, 29, 37, 39, 44, 47, 57, 59 (migration
+ * 20260922172000) giver hullerne 5, 10, 3, 2, 8, 2, 5, 3, 10, 2, 10 min — det
+ * største er 10 min. Låst til den målte slotliste i webinarMailDom.test.ts.
+ */
+export const STOERSTE_HUL_MS = 10 * 60_000;
 
 /**
  * TABT LIGE FØR START (3/10-2026, CTO-rådets fund 1): en art med egen nåde
  * (Plan.naadeMs — i dag kun «ti_minutter»), dømt for_sent (så uden en ok-række:
  * allerede_sendt svarer før), for en person, der var tilmeldt SENEST ved
- * fristen (planlagt + nåde = T − 5 min). Den mail SKULLE være gået — loft,
- * pause, budget eller et link, der ikke kunne bygges, tabte den — og alarmen
- * lyder. En tilmelding EFTER fristen er ikke tabt: den kom for sent til vinduet.
+ * fristen MINUS det største hul mellem cronens slots (STOERSTE_HUL_MS):
+ *   tilmeldt senest  frist − 10 min = (T − 5) − 10 = T − 15 min.
+ * RUNDE 2, fund 1: grænsen var «senest ved fristen» (T − 5). En tilmelding kl.
+ * T − 7 kan ligge efter det sidste slot i vinduet (hullet er op til 10 min) og
+ * aldrig være blevet tilbudt — det er ikke et tab, men en sen tilmelding. Kun
+ * den, der var tilmeldt mindst ét helt hul før fristen, har med sikkerhed haft
+ * et slot — så den mail SKULLE være gået (loft, pause, budget eller et link,
+ * der ikke kunne bygges, tabte den), og alarmen lyder. Prøvet: T − 7 ikke
+ * tabt, T − 16 tabt.
  * Ukendt eller ulæselig registreret_at tælles som tabt (hellere en alarm for
  * meget end en tavs tabt mail). Andre arter: aldrig (de har indhentningen og
  * alarmens «tabt» via for_sent_efter_fejl).
@@ -867,7 +903,7 @@ export function erTabtKortNaade(art: MailArt, sessionTid: string, registreretAt:
   if (planlagt === null) return false;
   const frist = planlagt.getTime() + naadeFor(art);
   const reg = registreretAt === null ? NaN : Date.parse(registreretAt);
-  return !Number.isFinite(reg) || reg <= frist;
+  return !Number.isFinite(reg) || reg <= frist - STOERSTE_HUL_MS;
 }
 
 // ── Kalenderlinkene ────────────────────────────────────────────────────────
