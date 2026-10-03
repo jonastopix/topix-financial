@@ -27,9 +27,32 @@ export interface Noeglesaet {
   resultat: string;
 }
 
+/** De kanoniske driftsposter i visningsrækkefølge. `as const`, så DANSK_DRIFT_NAVN nedenfor er tvunget til at
+    kende HVER af dem — en ny kanonisk driftsnøgle uden dansk navn er en typefejl, ikke et stille tab. */
+export const CANONICAL_DRIFT = ["payroll", "payroll_related", "other_staff_costs", "sales_costs", "facility_costs", "admin_costs", "vehicle_costs", "other_costs"] as const;
+export type KanoniskDrift = (typeof CANONICAL_DRIFT)[number];
+
+/** Det danske navn på hver kanonisk driftspost (3/10-2026). DANSK.drift AFLEDES herfra, og fladernes
+    oversættelse kanonisk → dansk (src/lib/factsAdapter.ts, financialUtils) læser parrene gennem
+    omkostningsparKanoniskTilDansk — ÉN definition. (Den manuelle formulars map i reportOverrideHelpers følger
+    databasens seed, som ikke mapper de tre — kanoniskeNoegler.guard.) Før stod de danske navne i en egen liste
+    på fem, og de danske flader tabte payroll_related, other_staff_costs og vehicle_costs (målt 3/10 i prod:
+    op til +48 % viste omkostninger for én måned; docs/OVERLEVERING.md DEL 2 «3. oktober»). De tre nye navne
+    er skabelonernes egne kildefelter (dkCombinedBalancePnlV1, dkEconomicResultatopgoerelsePdfV1). */
+export const DANSK_DRIFT_NAVN: Readonly<Record<KanoniskDrift, string>> = {
+  payroll: "loenninger",
+  payroll_related: "pensioner_sociale",
+  other_staff_costs: "oevrige_personale",
+  sales_costs: "salgsomkostninger",
+  facility_costs: "lokaleomkostninger",
+  admin_costs: "administrationsomkostninger",
+  vehicle_costs: "autodrift",
+  other_costs: "oevrige_omkostninger",
+};
+
 export const CANONICAL: Noeglesaet = {
   vareforbrug: "cogs",
-  drift: ["payroll", "payroll_related", "other_staff_costs", "sales_costs", "facility_costs", "admin_costs", "vehicle_costs", "other_costs"],
+  drift: CANONICAL_DRIFT,
   afskrivninger: "depreciation",
   finans: "financial_costs",
   andreDriftsindtaegter: "other_operating_income",
@@ -41,7 +64,7 @@ export const CANONICAL: Noeglesaet = {
 
 export const DANSK: Noeglesaet = {
   vareforbrug: "direkte_omkostninger",
-  drift: ["loenninger", "salgsomkostninger", "lokaleomkostninger", "administrationsomkostninger", "oevrige_omkostninger"],
+  drift: CANONICAL_DRIFT.map((k) => DANSK_DRIFT_NAVN[k]),
   afskrivninger: "afskrivninger",
   finans: null,
   andreDriftsindtaegter: "andre_driftsindtaegter",
@@ -50,6 +73,22 @@ export const DANSK: Noeglesaet = {
   daekningsbidrag: "daekningsbidrag",
   resultat: "resultat_foer_skat",
 };
+
+/** Parrene kanonisk → dansk for omkostningsnøglerne (vareforbrug, drift, afskrivninger, og finans hvor DANSK har
+    en nøgle — det har den ikke) og andre driftsindtægter, afledt af de to sæt rolle for rolle. Det er DEN liste,
+    fladernes oversættelse bruger for omkostningerne; den rører ikke omsætning, resultat eller balance. */
+export function omkostningsparKanoniskTilDansk(): Record<string, string> {
+  const ud: Record<string, string> = {};
+  const par = (kanonisk: string | null, dansk: string | null) => {
+    if (kanonisk && dansk) ud[kanonisk] = dansk;
+  };
+  par(CANONICAL.vareforbrug, DANSK.vareforbrug);
+  CANONICAL.drift.forEach((k, i) => par(k, DANSK.drift[i]));
+  par(CANONICAL.afskrivninger, DANSK.afskrivninger);
+  par(CANONICAL.finans, DANSK.finans);
+  par(CANONICAL.andreDriftsindtaegter, DANSK.andreDriftsindtaegter);
+  return ud;
+}
 
 /** Et objekt med tal under nøglerne — CanonicalMetrics, dansk kf, RimelighedInput … (interfaces har ingen
     indeks-signatur, derfor `object` og opslag via laes). */

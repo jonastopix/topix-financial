@@ -397,6 +397,62 @@ referrer-låst til `app.theboardroom.dk`.
 
 ## DEL 2 · Tilstanden
 
+### 3. oktober — de danske flader taber tre omkostningsnøgler (gren `fix/danske-flader-tre-noegler`; frontend alene — ingen migration, ingen udrulning; **IKKE merget — KRÆVER JONAS' JA FØR MERGE**)
+
+**Rettelsen hæver de viste omkostninger for 5 virksomheder (25 måneder). Medlemmerne ser andre tal end i dag — derfor kræver den Jonas' ja før merge.**
+
+- **Fundet (målt i koden 3/10):** Dine tal (KPI'en «Omk. total» i `NoegletalView` og på rådgiverens virksomhedsside via `kpiDefs` → `omkostningerKendte` → `calcTotalExpenses`, og CSV-eksportens kolonne), budget/BVA (`HbBudgetBva`, `budgetAktualer` → simulator og cashflow), `CombinedBudgetWidget` (rettes med, men komponenten renderes INGEN steder — målt med grep 3/10, kun en kommentar i `useVirksomhed.ts` nævner den) og rapporteringens rapportkort (`getEffectiveKeyFigures`) læser facts gennem `factsToDanishMetrics` → `CANONICAL_TO_DANISH` (`src/lib/factsAdapter.ts`) og summerer med `calcTotalExpenses` → `omkostningsnoegler.DANSK`. Begge var lokale lister uden `payroll_related`, `other_staff_costs` og `vehicle_costs` — kun den kanoniske vej (Boardroom Score, kontrolsummen, rimeligheden) talte dem. **Rettet fra opgavens formulering:** rådgiverforsiden, periodeopgørelsen (`PERIODE_DEFINITIONER`) og forsidens tal går også gennem adapteren, men læser kun omsætning, dækningsbidrag, lønninger, resultat og bank — de viser ikke omkostninger i alt og ændres IKKE. Samme huller i to andre lokale lister: `getCanonicalOrLegacyMetrics`/`getEffectiveMetrics` (`src/lib/financialUtils.ts`) og `reportOverrideHelpers.CANONICAL_TO_DANISH`.
+- **Rettelsen — ÉN definition:** `omkostningsnoegler.ts` (begge spejle) har nu `CANONICAL_DRIFT` (`as const`) og `DANSK_DRIFT_NAVN` (`Record<KanoniskDrift, string>` — en ny kanonisk driftsnøgle uden dansk navn er en TYPEFEJL); `DANSK.drift` AFLEDES (`CANONICAL_DRIFT.map(…)`), og `omkostningsparKanoniskTilDansk()` giver parrene til `factsAdapter` og `financialUtils` (`getCanonicalOrLegacyMetrics`/`getEffectiveMetrics` lægger de unævnte nøgler SIDST, så rapportkortets første seks tal står i samme rækkefølge som før). **`reportOverrideHelpers.CANONICAL_TO_DANISH` er IKKE afledt — med vilje:** det er den manuelle formulars map, og `kanoniskeNoegler.guard` kræver, at formularen kun kender danske navne, databasens seed (`public.kanoniske_noegler.dansk_noegle`) mapper; seeden har `dansk_noegle = NULL` for de tre. Værnet kræver i stedet, at formularens navne er de samme som `omkostningsnoegler.ts`', og at den mangler præcis de tre. De nye danske navne er skabelonernes egne kildefelter: `pensioner_sociale`, `oevrige_personale`, `autodrift`. `DANSK.drift` gik fra fem til otte nøgler. Edge-laget læser ikke `DANSK` (målt med grep), så `_shared`-spejlet ændrer ingen kørende function — ingen udrulning.
+- **Grupper eller kun totalen:** husets mønster er `oevrige_omkostninger` — den har ingen egen linje, kun totalen. De tre følger det: de tæller i «Omk. total», BVA's EBITDA og totaler, `CombinedBudgetWidget`, simulatorens/cashflowets omkostninger og kontrolsummen, men har INGEN egen linje. Der er ikke bygget ny UI.
+- **Dataene bekræfter rettelsen (prod 3/10):** regnet `gross_profit − drift − afskrivninger − finans + finansielle indtægter` mod den gemte `ebt` går 18 af de 25 berørte måneder op til kronen MED de tre nøgler, og i alle 25 er afstanden mindre med dem end uden. Uden dem er resultatet før skat regnet af posterne op til 328.272 kr. for højt (3a429199, marts 2026). (De 7, der ikke går op, har en rest uden for denne skive — kontrolsummen viser den.)
+
+**Før/efter — «omkostninger i alt» pr. måned (målt prod 3/10 på `financial_report_facts`; gammel = |cogs, payroll, sales, facility, admin, other_costs, depreciation|, ny = gammel + |payroll_related, other_staff_costs, vehicle_costs|; hele kroner; alle rækker `measured`):**
+
+| Virksomhed | Måned | Før (kr.) | Efter (kr.) | Forskel | % |
+|---|---|---:|---:|---:|---:|
+| 3254539d | 2026-01 | 244.412 | 254.125 | 9.712 | 4,0 |
+| 3254539d | 2026-02 | 291.104 | 307.028 | 15.924 | 5,5 |
+| 3254539d | 2026-03 | 356.581 | 368.921 | 12.341 | 3,5 |
+| 3254539d | 2026-04 | 369.419 | 380.473 | 11.054 | 3,0 |
+| 3254539d | 2026-05 | 404.688 | 429.306 | 24.618 | 6,1 |
+| 3254539d | 2026-06 | 472.890 | 488.611 | 15.721 | 3,3 |
+| 3254539d | 2026-07 | 322.012 | 339.178 | 17.166 | 5,3 |
+| 3254539d | 2026-08 | 463.883 | 477.955 | 14.072 | 3,0 |
+| 3a429199 | 2025-07 | 743.940 | 913.097 | 169.157 | 22,7 |
+| 3a429199 | 2025-09 | 1.105.309 | 1.292.158 | 186.849 | 16,9 |
+| 3a429199 | 2025-10 | 1.322.926 | 1.497.651 | 174.725 | 13,2 |
+| 3a429199 | 2025-11 | 1.285.570 | 1.507.415 | 221.845 | 17,3 |
+| 3a429199 | 2026-01 | 1.026.720 | 1.238.213 | 211.492 | 20,6 |
+| 3a429199 | 2026-02 | 1.146.610 | 1.254.823 | 108.213 | 9,4 |
+| 3a429199 | 2026-03 | 1.383.621 | 1.711.893 | 328.272 | 23,7 |
+| 3a429199 | 2026-04 | 1.191.047 | 1.363.874 | 172.827 | 14,5 |
+| 3a429199 | 2026-05 | 1.283.264 | 1.415.559 | 132.296 | 10,3 |
+| 3a429199 | 2026-06 | 1.424.780 | 1.641.120 | 216.341 | 15,2 |
+| 3a429199 | 2026-07 | 1.213.180 | 1.323.904 | 110.724 | 9,1 |
+| 3a429199 | 2026-08 | 1.315.191 | 1.444.751 | 129.560 | 9,9 |
+| 5d7fb0a3 | 2026-08 | 72.892 | 75.480 | 2.589 | 3,6 |
+| 5d7fb0a3 | 2026-09 | 105.965 | 106.960 | 995 | 0,9 |
+| 7b0056eb | 2026-08 | 328.000 | 341.000 | 13.000 | 4,0 |
+| 86d4a4fa | 2025-01 | 46.593 | 69.128 | 22.534 | 48,4 |
+| 86d4a4fa | 2025-02 | 84.247 | 109.120 | 24.873 | 29,5 |
+
+Pr. virksomhed: 3254539d +120.608 kr. (+4,1 %, 8 mdr., kun autodrift) · **3a429199 +2.162.300 kr. (+15,0 %, 12 mdr., den eneste med pension/sociale og øvrige personale — plus autodrift)** · 5d7fb0a3 +3.583 kr. (+2,0 %) · 7b0056eb +13.000 kr. (+4,0 %) · **86d4a4fa +47.408 kr. (+36,2 %; 2025-01 +48,4 %)**. I alt +2.346.899 kr. = 1.217.436 + 909.240 + 220.225 (afrunding). En sjette virksomhed (382fd787) har `vehicle_costs` = 0 i to rækker — uændret.
+
+Tællingerne (prod 3/10): `vehicle_costs` 27 rækker hos 6 virksomheder, heraf 25 ≠ 0 hos 5 (1.217.436 kr.); `payroll_related` 12/1 (909.240 kr.); `other_staff_costs` 12/1 (220.225 kr.); `financial_costs` 74 rækker hos 12, heraf 58 ≠ 0 hos 9 (443.171 kr.); `financial_income` 32/7, 14 ≠ 0 hos 4; `extraordinary_items` 3/1 (395.979 kr.).
+
+**`financial_costs` — IKKE rettet, åbent punkt (ikke en entydig fejl):**
+- De danske flader taber `financial_costs` på samme måde: `DANSK.finans` er `null` («hvor konventionen ingen nøgle har»), og adapteren har ingen dansk nøgle for den (heller ikke for `financial_income`). «Omk. total» på de danske flader er derfor kanonisk `omkostningerIAlt` MINUS finans.
+- **Resultatet før skat tabes IKKE:** `resultat_foer_skat` er `ebt` sendt ordret igennem adapteren, og ingen dansk flade regner resultatet før skat af posterne (målt: `ebtRegnet` bruges kun med `CANONICAL` — Score og rimeligheden; `reportOverrideHelpers.computeDerivedMetrics` regner kun EBITDA/EBIT).
+- **Hvorfor det ikke er entydigt:** BVA'en sammenligner med et budget, der ingen finanslinje har, og `CombinedBudgetWidget` (urenderet) kalder `omsætning − calcTotalExpenses` for «EBITDA», og budgettet har ingen finanslinje; at lægge finans i totalen ville gøre «EBITDA» og budgetsammenligningen forkert i den anden retning. (At «EBITDA» dér allerede trækker afskrivninger fra, er en egen, ældre unøjagtighed.) Samme for prognosens «resultat» (`forecastResult` = omsætning − omkostninger, uden finans). Beslutningen er: skal «Omk. total» være drift + afskrivninger (i dag) eller alle omkostninger (kanonisk)? Kræver Jonas.
+
+**Andre åbne punkter fundet undervejs (ikke rettet her):**
+- **Linjerne:** «Lønninger» (KPI, periodeopgørelsen, virksomhedssidens kort, trendgrafen) er KUN `payroll` — pension/sociale og øvrige personale står ikke i den linje. BVA's grupper er 1:1 (`budgetEngine.GROUP_TO_REPORT_FIELD`: personale ↔ `loenninger`), så personalegruppens realiserede tal er uden de to, og autodrift har ingen gruppe — de tre er kun i totalen. Skal de have egne linjer eller ligge i «personale»/«drift»? Ny UI — kræver Jonas.
+- **Den manuelle rettelse** har intet inputfelt for de tre (`PNL_FIELDS`); en rapport med en anvendt manuel rettelse bærer dem derfor ikke i `getEffectiveMetrics`. Om facts-rækken også taber dem ved en manuel rettelse, er IKKE målt.
+- **Seeden:** `public.kanoniske_noegler` har `dansk_noegle = NULL` for `payroll_related`, `other_staff_costs`, `vehicle_costs` (migration `20260918170000`). Adapteren bærer derfor tre «læsenavne», databasen ikke kender (`kanoniskeNoegler.guard`: lukket liste, fælder hvis seeden får et navn). Skal seeden have `pensioner_sociale`/`oevrige_personale`/`autodrift` (en migration — den manuelle vej ville så tage imod navnene)? Kræver Jonas; ikke nødvendigt for denne rettelse.
+- **Edge (kræver udrulning, ikke rørt):** `auto-create-baseline-budget` lægger ikke de tre i budgettet; `validate-facts-parity` har sin egen kanonisk→dansk-liste uden dem; `ReportReviewDialog.METRIC_LABELS` har ingen dansk etiket for dem (viser nøglenavnet).
+
+**Rækkefølgen:** Jonas' ja → merge → Update. Beviset: på en virksomhed med autodrift (fx 7b0056eb, august 2026) viser «Omk. total» 341.000 kr. i stedet for 328.000 kr. Værn: `src/lib/__tests__/danskeFladerTreNoegler.guard.test.ts` (paritet med selvbevis på den gamle liste, enhedstest af `calcTotalExpenses`/`factsToDanishMetrics` med regnestykket, kildeværn mod lokale omkostningslinjer); `saldobalanceFortegn.guard`, `kanoniskeNoegler.guard` (læser nu modulets map; de tre læsenavne som lukket undtagelse) og `skabelonerAC.guard` dom 6 (driftslisten står som `CANONICAL_DRIFT`) flyttet til den nye sandhed.
+
 ### 3. oktober — pakke D, hastighed skive 1 (gren `perf/forside-hastighed-1`; frontend alene — ingen migration, ingen edge function; afventer merge og Update)
 
 - **Målingen (prod 3/10):** rådgiverens forside laver 57 API-kald, og det sidste er færdigt efter 4.272 ms. `process-pending-invitation` (PPI) kaldes også for rådgivere, tager 1,49 s og svarer næsten altid `no_pending_invitation`. SELECT 3/10: 3 rådgivere/admins i alt, 0 med en afventende `company_invitations`-række (`accepted_at IS NULL`, match på lower(email)).

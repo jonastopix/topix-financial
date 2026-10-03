@@ -120,7 +120,10 @@ describe("saldobalance — alle læsere der summerer omkostninger går gennem om
 
 describe("saldobalance — de to nye nøgler kendes overalt hvor nøgler regnes op", () => {
   const steder: { fil: string; moenstre: RegExp[] }[] = [
-    { fil: "src/lib/factsAdapter.ts", moenstre: [/other_costs: "oevrige_omkostninger"/, /other_operating_income: "andre_driftsindtaegter"/] },
+    // 3/10-2026: adapteren AFLEDER omkostningsparrene af omkostningsnoegler.ts (der står other_costs →
+    // oevrige_omkostninger og other_operating_income → andre_driftsindtaegter) — se danskeFladerTreNoegler.guard.
+    { fil: "src/lib/omkostningsnoegler.ts", moenstre: [/other_costs: "oevrige_omkostninger"/, /andreDriftsindtaegter: "andre_driftsindtaegter"/] },
+    { fil: "src/lib/factsAdapter.ts", moenstre: [/\.\.\.omkostningsparKanoniskTilDansk\(\)/] },
     { fil: "src/lib/reportOverrideHelpers.ts", moenstre: [/"oevrige_omkostninger",\s*\n\s*"andre_driftsindtaegter",/, /other_costs: "oevrige_omkostninger"/, /oevrige_omkostninger: "Øvrige omkostninger"/, /andre_driftsindtaegter: "Andre driftsindtægter"/] },
     { fil: "src/lib/financialUtils.ts", moenstre: [/oevrige_omkostninger: m\.other_costs \?\? null/, /andre_driftsindtaegter: mnd\.metrics\.andre_driftsindtaegter \?\? null/] },
     { fil: "src/components/ReportReviewDialog.tsx", moenstre: [/other_costs: "Øvrige omkostninger"/, /other_operating_income: "Andre driftsindtægter"/] },
