@@ -38,9 +38,15 @@ async function kald<T>(fn: "ansoegning-gem" | "ansoegning-cvr" | "ansoegning-lin
 export interface OpretSvar {
   token: string;
   fremdrift: Fremdrift;
+  /** Skive 4 (3/10): koblingen til webinartilmeldingen — beviset for udrulningen; fladen læser det ikke. */
+  webinar_kobling?: "koblet" | "intet_token" | "ugyldigt" | "fejl";
 }
-/** `firma` er honningfeltet — tomt for et menneske. Serveren svarer som om alt gik godt, når det er udfyldt. */
-export function opretAnsoegning(args: { kilde: Kilde; kilde_raa: string | null; annoncespor: Annoncespor; ga: GaOpsamling; meta: MetaCookies; svar: Partial<AnsoegningsSvar>; firma: string; visning_id: string }): Promise<OpretSvar> {
+/**
+ * `firma` er honningfeltet — tomt for et menneske. Serveren svarer som om alt gik godt, når det er udfyldt.
+ * `webinar_token` (skive 4, 3/10): deltagertokenet fra exitrummets #wt= — kun i hukommelsen, sendt én gang.
+ * Udeladt (undefined) forsvinder af JSON'en; serveren svarer da «intet_token».
+ */
+export function opretAnsoegning(args: { kilde: Kilde; kilde_raa: string | null; annoncespor: Annoncespor; ga: GaOpsamling; meta: MetaCookies; svar: Partial<AnsoegningsSvar>; firma: string; visning_id: string; webinar_token?: string }): Promise<OpretSvar> {
   return kald<OpretSvar>("ansoegning-gem", { handling: "opret", ...args });
 }
 

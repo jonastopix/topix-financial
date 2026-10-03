@@ -112,7 +112,9 @@ const Ansoeg = () => {
 
   // Fra webinarrummets knap (#wt=…, skive 2 30/9): navn og mail udfyldt på forhånd, aldrig i URL'en.
   // Kun tomme felter udfyldes — et svar, ansøgeren allerede har gemt, vinder altid.
-  useWebinarForudfyld((f) => setKladde((k) => ({ ...k, navn: k.navn || f.navn || undefined, email: k.email || f.email || undefined })));
+  // Skive 4 (3/10): tokenet holdes KUN i hukommelsen og sendes med «opret» som webinar_token,
+  // så ansøgningen kobles til tilmeldingen på id (ansoegninger.webinar_tilmelding_id).
+  const webinarToken = useWebinarForudfyld((f) => setKladde((k) => ({ ...k, navn: k.navn || f.navn || undefined, email: k.email || f.email || undefined })));
 
   // Kilden afgøres én gang, af den URL siden blev åbnet med — før ?t= erstatter den.
   const kilde = useRef(
@@ -206,7 +208,8 @@ const Ansoeg = () => {
       setGemmer(true);
       try {
         if (!token) {
-          const o = await opretAnsoegning({ kilde: kilde.current.kilde, kilde_raa: kilde.current.raa, annoncespor: annoncespor.current, ga: ga.current, meta: metaCookies.current, svar: del, firma: honning, visning_id: visningsId.current });
+          const o = await opretAnsoegning({ kilde: kilde.current.kilde, kilde_raa: kilde.current.raa, annoncespor: annoncespor.current, ga: ga.current, meta: metaCookies.current, svar: del, firma: honning, visning_id: visningsId.current, webinar_token: webinarToken.current ?? undefined });
+          webinarToken.current = null;
           husk(o.token);
           if (navn) await gemSvar(o.token, {}, false, navn);
         } else {
