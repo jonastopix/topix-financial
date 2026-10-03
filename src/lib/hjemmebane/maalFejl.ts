@@ -43,10 +43,16 @@ export function loeftestangStatus(antalAktive: number): "active" | "parked" {
 
 /** Toasten efter løftestangen, pr. status.
     3/10 (CTO): målet oprettes med source «handout» og UDEN bekraeftet_at — det er et FORSLAG, der venter på
-    medlemmets ja (maalBekraeft), ikke «et aktivt mål». Teksten siger det sande. At loeftestangStatus tæller ALLE
-    aktive, mens triggeren kun tæller bekræftede, står på kortet g03-handout-maal-ubekraeftet (ikke rettet her). */
-export function loeftestangToast(status: "active" | "parked", titel: string): { title: string; description: string } {
+    medlemmets ja (maalBekraeft), ikke «et aktivt mål». Teksten siger det sande. Tællingen følger triggerens regel
+    (handoutEngine.createLeverMilestone, kort g03-handout-maal-ubekraeftet, rettet 3/10); talte forslag med (kun under
+    den gamle regel «alle»), siger den parkerede tekst «aktive mål og forslag» — aldrig «3 aktive», når de er forslag. */
+export function loeftestangToast(status: "active" | "parked", titel: string, fyldtAfForslag = false): { title: string; description: string } {
   return status === "parked"
-    ? { title: "Gemt som parkeret mål", description: `Gemt som parkeret mål — du har allerede ${MAX_AKTIVE_MAAL} aktive. Aktivér det når der er plads.` }
+    ? {
+        title: "Gemt som parkeret mål",
+        description: fyldtAfForslag
+          ? `Gemt som parkeret mål — I har allerede ${MAX_AKTIVE_MAAL} aktive mål og forslag. Svar på forslagene på Dine mål, så er der plads.`
+          : `Gemt som parkeret mål — du har allerede ${MAX_AKTIVE_MAAL} aktive. Aktivér det når der er plads.`,
+      }
     : { title: "Gemt som forslag", description: `"${titel}" er gemt som forslag — sig ja til det på Dine mål.` };
 }

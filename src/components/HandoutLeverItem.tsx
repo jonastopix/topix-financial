@@ -34,10 +34,10 @@ const HandoutLeverItem = ({ index, value, onChange, handoutId, linkedMilestone, 
     setCreating(true);
     try {
       // H4 i motoren — milestone + junction-rækken (UNIQUE bærer idempotensen)
-      const { status } = await createLeverMilestone({ userId: user.id, companyId, handoutId, leverIndex: index, title: value.trim() });
+      const { status, fyldtAfForslag } = await createLeverMilestone({ userId: user.id, companyId, handoutId, leverIndex: index, title: value.trim() });
 
       // Fase 2: parkeret når der allerede er tre aktive — toasten siger det (lib/hjemmebane/maalFejl).
-      const t = loeftestangToast(status, value.trim());
+      const t = loeftestangToast(status, value.trim(), fyldtAfForslag);
       toast.success(t.title, { description: t.description });
       onMilestoneCreated?.();
     } catch (e: any) {

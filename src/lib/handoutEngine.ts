@@ -1,5 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { loeftestangStatus } from "@/lib/hjemmebane/maalFejl";
+import { aktiveDerTaeller } from "@/lib/hjemmebane/maalPladsdom";
+import { hentMaalPladsdom } from "@/hooks/maalPladsdom";
 import type { HandoutModule } from "@/lib/handoutConfig";
 import { notifyHandoutCompleted } from "@/lib/handoutNotify";
 import { kraevRaekker } from "@/lib/kraevRaekker";
@@ -170,24 +172,35 @@ export async function toggleHandoutCompleted(args: {
     alle (trigger 20260917150000), så er der allerede tre, oprettes målet
     PARKERET (dommen: lib/hjemmebane/maalFejl.loeftestangStatus), og
     kalderen siger det i toasten (loeftestangToast). Tællingen læser
-    virksomhedens aktive mål med medlemmets egen SELECT-politik. */
+    virksomhedens aktive mål med medlemmets egen SELECT-politik.
+    3/10 (kort g03-handout-maal-ubekraeftet): tællingen følger TRIGGERENS
+    regel, målt gennem maal_pladser_kun_bekraeftede() (hentMaalPladsdom,
+    fail-closed «alle»). Under «kun_bekraeftede» (20261002241000, KØRT 2/10;
+    RPC'en svarede true i prod 3/10) tager et ubekræftet forslag ingen
+    plads — før talte ALLE aktive, og en virksomhed med tre forslag fik
+    løftestangens mål PARKERET (målt 3/10: 3 virksomheder med ≥ 3 aktive,
+    heraf < 3 bekræftede). `fyldtAfForslag` siger, at forslag var med i
+    tællingen (kun under «alle»), så toasten kan sige det sande. */
 export async function createLeverMilestone(args: {
   userId: string;
   companyId: string | null;
   handoutId: string;
   leverIndex: number;
   title: string;
-}): Promise<{ milestoneId: string; status: "active" | "parked" }> {
+}): Promise<{ milestoneId: string; status: "active" | "parked"; fyldtAfForslag: boolean }> {
   const { userId, companyId, handoutId, leverIndex, title } = args;
   let antalAktive = 0;
+  let fyldtAfForslag = false;
   if (companyId) {
-    const { count, error: taelErr } = await supabase
-      .from("milestones")
-      .select("id", { count: "exact", head: true })
-      .eq("company_id", companyId)
-      .eq("status", "active");
-    if (taelErr) throw taelErr;
-    antalAktive = count ?? 0;
+    const [taelling, pladsdom] = await Promise.all([
+      supabase.from("milestones").select("bekraeftet_at").eq("company_id", companyId).eq("status", "active"),
+      hentMaalPladsdom(),
+    ]);
+    const aktive = kraevRaekker(taelling as any, "milestones") as { bekraeftet_at?: string | null }[];
+    const bekraeftede = aktive.filter((m) => !!m.bekraeftet_at).length;
+    const ubekraeftede = aktive.length - bekraeftede;
+    antalAktive = aktiveDerTaeller(bekraeftede, ubekraeftede, pladsdom);
+    fyldtAfForslag = pladsdom === "alle" && ubekraeftede > 0;
   }
   const status = loeftestangStatus(antalAktive);
   const insertData: Record<string, any> = { user_id: userId, title, source: "handout", company_id: companyId, status };
@@ -203,7 +216,7 @@ export async function createLeverMilestone(args: {
     .insert({ handout_id: handoutId, lever_index: leverIndex, milestone_id: (ms as any).id });
   if (linkErr) throw linkErr;
 
-  return { milestoneId: (ms as any).id, status };
+  return { milestoneId: (ms as any).id, status, fyldtAfForslag };
 }
 
 /** H5 — AI-feedback-kaldet (HandoutAIFeedback.requestFeedback ordret,

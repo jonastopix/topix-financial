@@ -43,6 +43,7 @@ describe("loeftestangStatus — aktiv når der er plads, ellers parkeret", () =>
   });
   it("toasten pr. status — ordret", () => {
     expect(loeftestangToast("parked", "Flere leads")).toEqual({ title: "Gemt som parkeret mål", description: "Gemt som parkeret mål — du har allerede 3 aktive. Aktivér det når der er plads." });
+    expect(loeftestangToast("parked", "Flere leads", true).description).toBe("Gemt som parkeret mål — I har allerede 3 aktive mål og forslag. Svar på forslagene på Dine mål, så er der plads.");
     expect(loeftestangToast("active", "Flere leads")).toEqual({ title: "Gemt som forslag", description: '"Flere leads" er gemt som forslag — sig ja til det på Dine mål.' });
   });
 });

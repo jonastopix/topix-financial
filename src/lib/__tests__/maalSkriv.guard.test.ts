@@ -139,7 +139,10 @@ export const klientskrivere = (filer: readonly string[], laesFil: (f: string) =>
 /** Dom 3b: løftestangen tæller aktive og lader dommen vælge status. */
 export const loeftestangHolder = (kode: string): boolean =>
   kode.includes('import { loeftestangStatus } from "@/lib/hjemmebane/maalFejl";') &&
-  /\.from\("milestones"\)\s*\.select\("id", \{ count: "exact", head: true \}\)\s*\.eq\("company_id", companyId\)\s*\.eq\("status", "active"\)/.test(kode) &&
+  /\.from\("milestones"\)\s*\.select\("bekraeftet_at"\)\s*\.eq\("company_id", companyId\)\s*\.eq\("status", "active"\)/.test(kode) &&
+  // 3/10 (g03-handout-maal-ubekraeftet): tællingen følger triggerens MÅLTE regel — aldrig alle aktive råt.
+  /hentMaalPladsdom\(\)/.test(kode) &&
+  /antalAktive = aktiveDerTaeller\(bekraeftede, ubekraeftede, pladsdom\);/.test(kode) &&
   /const status = loeftestangStatus\(antalAktive\);/.test(kode) &&
   /source: "handout", company_id: companyId, status \}/.test(kode) &&
   !/functions\.invoke\("maal-skriv"/.test(kode);
@@ -282,6 +285,8 @@ describe("maalSkriv.guard — fase 2: medlemmet ejer sine mål, rådgiveren skri
     const h = udenKommentarer(laes(HANDOUT));
     expect(loeftestangHolder(h.replace("const status = loeftestangStatus(antalAktive);", 'const status = "active";'))).toBe(false);
     expect(loeftestangHolder(h + '\nawait supabase.functions.invoke("maal-skriv", {});')).toBe(false);
+    // 3/10: en rå tælling af alle aktive (uden triggerens regel) falder.
+    expect(loeftestangHolder(h.replace("antalAktive = aktiveDerTaeller(bekraeftede, ubekraeftede, pladsdom);", "antalAktive = aktive.length;"))).toBe(false);
   });
   it("selvbevis 4: flade uden den stiplede plads, en plads uden dommen, eller hook med den rå fejl falder", () => {
     const view = udenKommentarer(laes(MEDLEM)), hook = udenKommentarer(laes(HOOK)), fejl = laes(MAALFEJL);

@@ -8,7 +8,11 @@ import { createHandoutTablesMock, type HandoutTablesMock } from "@/test/handoutT
     toggleCompleted m. completed_at-friskning + H6-notifikationen,
     lever-milestone m. junction/idempotens og isOwner-gaten. */
 
-const h = vi.hoisted(() => ({ current: null as unknown as HandoutTablesMock }));
+const h = vi.hoisted(() => ({
+  current: null as unknown as HandoutTablesMock,
+  /** Svaret fra maal_pladser_kun_bekraeftede() — undefined = RPC'en kaster (dømmes «alle»). */
+  pladsdom: undefined as boolean | undefined,
+}));
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
@@ -20,6 +24,10 @@ vi.mock("@/integrations/supabase/client", () => ({
     },
     auth: {
       getSession: () => h.current.supabase.auth.getSession(),
+    },
+    rpc: async (navn: string) => {
+      if (navn !== "maal_pladser_kun_bekraeftede" || h.pladsdom === undefined) throw new Error("rpc ikke i mocken");
+      return { data: h.pladsdom, error: null };
     },
   },
 }));
@@ -51,6 +59,7 @@ const emptyArgs = {
 
 beforeEach(() => {
   h.current = createHandoutTablesMock();
+  h.pladsdom = undefined;
 });
 
 describe("mock-invarianter (unikke nøgler)", () => {
@@ -225,6 +234,42 @@ describe("H4 — createLeverMilestone (+ junction + idempotens)", () => {
     h.current.tables.milestones[0].status = "completed";
     const igen = await createLeverMilestone({ userId: MEMBER, companyId: COMPANY, handoutId, leverIndex: 3, title: "Mere" });
     expect(igen.status).toBe("active");
+  });
+});
+
+describe("H4 — løftestangen tæller som triggeren (g03-handout-maal-ubekraeftet, 3/10)", () => {
+  const treForslag = () => [
+    { user_id: MEMBER, company_id: COMPANY, title: "F1", status: "active", bekraeftet_at: null },
+    { user_id: MEMBER, company_id: COMPANY, title: "F2", status: "active", bekraeftet_at: null },
+    { user_id: MEMBER, company_id: COMPANY, title: "F3", status: "active", bekraeftet_at: null },
+  ];
+
+  it("«kun_bekraeftede» (prod 3/10): tre UBEKRÆFTEDE forslag tager ingen plads → løftestangens mål er aktivt (før: parkeret)", async () => {
+    h.pladsdom = true;
+    h.current.seed("handouts", [{ user_id: MEMBER, module: "salg", status: "in_progress" }]);
+    h.current.seed("milestones", treForslag());
+    const handoutId = h.current.tables.handouts[0].id;
+    const r = await createLeverMilestone({ userId: MEMBER, companyId: COMPANY, handoutId, leverIndex: 0, title: "Flere leads" });
+    // Tæller = aktiveDerTaeller(0 bekræftede, 3 ubekræftede, kun_bekraeftede) = 0 < 3 → active.
+    expect(r).toMatchObject({ status: "active", fyldtAfForslag: false });
+  });
+
+  it("«kun_bekraeftede»: tre BEKRÆFTEDE → parkeret, og teksten «du har allerede 3 aktive» er sand", async () => {
+    h.pladsdom = true;
+    h.current.seed("handouts", [{ user_id: MEMBER, module: "salg", status: "in_progress" }]);
+    h.current.seed("milestones", treForslag().map((m) => ({ ...m, bekraeftet_at: "2026-10-01T10:00:00Z" })));
+    const handoutId = h.current.tables.handouts[0].id;
+    const r = await createLeverMilestone({ userId: MEMBER, companyId: COMPANY, handoutId, leverIndex: 0, title: "Flere leads" });
+    expect(r).toMatchObject({ status: "parked", fyldtAfForslag: false });
+  });
+
+  it("«alle» (RPC fejler → fail-closed): forslagene tæller, målet parkeres, og fyldtAfForslag siger det", async () => {
+    h.current.seed("handouts", [{ user_id: MEMBER, module: "salg", status: "in_progress" }]);
+    h.current.seed("milestones", treForslag());
+    const handoutId = h.current.tables.handouts[0].id;
+    const r = await createLeverMilestone({ userId: MEMBER, companyId: COMPANY, handoutId, leverIndex: 0, title: "Flere leads" });
+    // Tæller = 0 + 3 = 3 → parked; forslag var med.
+    expect(r).toMatchObject({ status: "parked", fyldtAfForslag: true });
   });
 });
 
