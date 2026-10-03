@@ -279,7 +279,7 @@ describe("webinarMotorSkive3.guard 6 — /webinar/motor", () => {
   it("ruten er bag AdvisorRoute", () => {
     expect(laes("src/App.tsx")).toContain('<Route path="/webinar/motor" element={<AdvisorRoute><WebinarMotor /></AdvisorRoute>} />');
   });
-  it("ingen menu linker til den (kun App.tsx nævner stien)", () => {
+  it("ingen menu linker til den (kun App.tsx og konsollens stibygger nævner stien)", () => {
     const alle: string[] = [];
     const gaa = (dir: string) => {
       for (const n of readdirSync(resolve(ROD, dir), { withFileTypes: true })) {
@@ -288,7 +288,9 @@ describe("webinarMotorSkive3.guard 6 — /webinar/motor", () => {
       }
     };
     gaa("src");
-    expect(alle.filter((f) => /["'`]\/webinar\/motor/.test(udenKommentarer(laes(f))))).toEqual(["src/App.tsx"]);
+    // 3/10: værtskonsollen (/webinar/motor/session/:id) — konsol.ts er stiernes ENESTE bygger
+    // (OPSAETNING_STI, konsolSti); webinarKonsol.guard dom 1 holder den ude af menuerne.
+    expect(alle.filter((f) => /["'`]\/webinar\/motor/.test(udenKommentarer(laes(f)))).sort()).toEqual(["src/App.tsx", "src/lib/webinarMotorAdmin/konsol.ts"]);
   });
   it("fladen skriver kun gennem hooken, og alle hooks står i topblokken", () => {
     const k = udenKommentarer(laes(FLADE));

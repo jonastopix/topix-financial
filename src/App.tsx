@@ -90,6 +90,7 @@ const DeltWebinar = lazy(() => import("./pages/DeltWebinar"));
 const WebinarSide = lazy(() => import("./pages/WebinarSide"));
 // Lazy — webinarmotorens opsætning (skive 3, 30/9-2026): rådgiver, i ingen menu endnu.
 const WebinarMotor = lazy(() => import("./pages/WebinarMotor"));
+const WebinarKonsol = lazy(() => import("./pages/WebinarKonsol"));
 
 // Lazy — demo routes (no auth)
 const DemoLayout = lazy(() => import("./demo/DemoLayout"));
@@ -373,6 +374,9 @@ const App = () => (
               {/* Webinarmotorens opsætning (skive 3, 30/9-2026 — docs/webinarmotor.md §7): webinar, sessioner
                   (intern ja/nej) og tidslinjen. AdvisorRoute + RLS (kun rådgivere skriver). Intet menupunkt endnu. */}
               <Route path="/webinar/motor" element={<AdvisorRoute><WebinarMotor /></AdvisorRoute>} />
+              {/* Værtskonsollen, minimal (3/10-2026 — docs/webinarmotor.md §7.7): spørgsmålskøen under en session, hentet hvert 10. s.
+                  AdvisorRoute + RLS (rådgivere ikke-tjenestekonti svarer, triggeren afgrænser kolonnerne). Intet menupunkt — nås fra /webinar/motor. */}
+              <Route path="/webinar/motor/session/:id" element={<AdvisorRoute><WebinarKonsol /></AdvisorRoute>} />
               {/* Kontoen i Hjemmebane (9/9): navn, adgangskode, login, log ud — for alle roller. */}
               <Route path="/konto" element={<ProtectedRoute><Konto /></ProtectedRoute>} />
               {/* Delingskreativen (14/9, første skridt): én kreativ på skærmen. Intet menupunkt endnu. */}
