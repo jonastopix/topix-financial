@@ -8,17 +8,19 @@
 /**
  * Beviset for udrulningen (CLAUDE.md «Deployment af edge functions»): hvert
  * svar fra motorens functions bærer `motor: MOTOR_VERSION`. Kun den nye kode
- * kan svare med det. Skifter ved hver skive, der ændrer et svar.
+ * kan svare med det. Skifter ved hver skive, der ændrer et svar: «boardroom-2»
+ * (skive 2) bærer rummets `tidslinje`, `hilsen` og handlingerne `gen_tilmeld`
+ * og `forudfyld`.
  */
-export const MOTOR_VERSION = "boardroom-1";
+export const MOTOR_VERSION = "boardroom-2";
 
 /**
  * Nøgler, der ALDRIG må stå i et svar fra webinar-tilmeld, webinar-rum eller
  * webinar-puls — hvor dybt i objektet de end ligger. Tilmeldingens personfelter
  * og annoncespor (samme ånd som webinarDelingSvar.ts) + motorens egne
- * (ip_dagshash, user_agent, fornavn). Seerens egen hilsen («Hej Anne») er
- * skive 3's beslutning og går så gennem en navngiven undtagelse — ikke gennem
- * et hul her.
+ * (ip_dagshash, user_agent, fornavn). Seerens egen hilsen («Hej Anne») og
+ * ansøgningens forudfyldning går gennem NAVNGIVNE_UNDTAGELSER — ikke gennem et
+ * hul her.
  */
 export const MOTOR_FORBUDTE_NOEGLER = [
   "email", "navn", "fornavn", "ewebinar_id", "ip", "ip_dagshash", "user_agent",
@@ -42,4 +44,26 @@ export function findMotorForbudte(obj: unknown, sti = ""): string[] {
     ud.push(...findMotorForbudte(v, her));
   }
   return ud;
+}
+
+/**
+ * DE ENESTE steder, et personfelt må stå i et svar (skive 2, 30/9-2026) — og
+ * kun til den, der har tokenet, dvs. personen selv:
+ *   hilsen     «Hej Anne» i rummet og «Tak fordi du så med, Anne» i exitrummet
+ *              (spec §A7/§A8) — fornavnet, intet andet.
+ *   forudfyld  navn og mail til ansøgningen fra exitrummets knap (spec §A9) —
+ *              så intet persondata står i en URL.
+ * En undtagelse er en PRÆCIS sti, ikke en nøgle: «email» andetsteds i samme
+ * svar fanges stadig. Kun webinar-rum bruger dem (webinarRum.guard).
+ */
+export const NAVNGIVNE_UNDTAGELSER = {
+  hilsen: ["hilsen.fornavn"],
+  forudfyld: ["forudfyld.navn", "forudfyld.email"],
+} as const;
+export type Undtagelse = keyof typeof NAVNGIVNE_UNDTAGELSER;
+
+/** findMotorForbudte minus de præcise stier, én navngiven undtagelse tillader. */
+export function findMotorForbudteMed(obj: unknown, undtagelse: Undtagelse | null): string[] {
+  const tilladt: readonly string[] = undtagelse ? NAVNGIVNE_UNDTAGELSER[undtagelse] : [];
+  return findMotorForbudte(obj).filter((s) => !tilladt.includes(s));
 }

@@ -395,16 +395,22 @@ const sporTekst = (v: unknown, maks: number): string | null => {
   return t === "" ? null : t;
 };
 
-/** Landingssiden uden ?t= — en genoptaget side bærer tokenet i URL'en, og det hører ikke til i et spor. */
+/**
+ * Landingssiden uden ?t= og uden #-fragment — en genoptaget side bærer tokenet
+ * i URL'en, og webinarrummets knap bærer deltagertokenet i fragmentet
+ * (#wt=…, skive 2 30/9-2026). Ingen af dem hører til i et spor — og landing er
+ * Metas event_source_url.
+ */
 export function landingUdenToken(href: string | null | undefined): string | null {
   const h = (href ?? "").trim();
   if (!h) return null;
   try {
     const u = new URL(h);
     u.searchParams.delete(TOKEN_PARAM);
+    u.hash = "";
     return sporTekst(u.toString(), LANDING_MAKS);
   } catch {
-    return sporTekst(h, LANDING_MAKS);
+    return sporTekst(h.split("#")[0], LANDING_MAKS);
   }
 }
 
