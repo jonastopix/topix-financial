@@ -397,6 +397,83 @@ referrer-låst til `app.theboardroom.dk`.
 
 ## DEL 2 · Tilstanden
 
+### 3. oktober aften — spor 2, «tallene rigtige»: den manuelle rettelse bevarer nøglerne, tørkørslen af AI-genkørslen, finans i BVA (gren `fix/manuel-rettelse-noegler`; IKKE merget; migrationen KRÆVER GRØNT LYS; datafilerne KRÆVER JONAS' JA)
+
+Prod er kun læst med SELECT gennem `query_database`. Intet er skrevet.
+
+**A. Den manuelle rettelse bevarer nøgler, formularen ikke kan udtrykke** (kort `g03-manuel-rettelse-taber-noegler`)
+- **Målt 3/10 med `pg_get_functiondef`:** både `commit_report_facts` og `resolve_report_commit_candidate` er **SECURITY DEFINER**. `commit_report_facts` gør `SET metrics = _candidate.metrics_preview`, så hele objektet erstattes. Den manuelle gren bygger previewen KUN af formularens danske navne (`kanoniske_noegler.dansk_noegle`/`danske_aliaser`). Seeden har 13 nøgler med `dansk_noegle` NULL og ingen aliaser. Ud over de tre driftsnøgler og finans/ekstraordinære er det også balancenøglerne `inventory`, `liabilities_total`, `receivables_total`, `provisions_total`, `unbilled_wip`, `vat_payable` og `related_party_net`.
+- **Skaden er større end kortet sagde (målt 3/10):** 50 af 57 manuelle facts-rækker hos 9 virksomheder mangler 121 nøgle-værdier, som kilderapportens `normalized_data.metrics` har. 82 af værdierne er ≠ 0.
+  - `vehicle_costs`: 18 (alle ≠ 0, 120.989 kr. — BR Roset 14/109.000, Livja 4/11.989).
+  - `financial_costs`: 28 (7 ≠ 0, 59.133 kr.).
+  - `financial_income`: 6 (2 ≠ 0, 3.922 kr.).
+  - `extraordinary_items`: 14 (alle 0).
+  - Balancenøgler: `inventory` 14, `receivables_total` 14, `liabilities_total` 26, `provisions_total` 1.
+  - Kortets tal (18 / 7 / 2) var tallene ≠ 0 for de tre resultatnøgler. De er bekræftet.
+- **Rettelsen (migration `20261003221500_manuel_rettelse_bevarer_noegler.sql`, KRÆVER GRØNT LYS):**
+  - Én blok i den manuelle gren: kanoniske nøgler uden `dansk_noegle` og uden aliaser tages fra SAMME rapports `normalized_data.metrics`.
+  - Formularens tal vinder altid (`NOT (_mapped ? _k)`), og blokken sætter ikke `_has_any`.
+  - Resten af funktionen er tegn for tegn prod-definitionen 3/10. Fixturen ligger i `src/lib/__tests__/fixtures/resolve_report_commit_candidate.prod-2026-10-03.sql`; dens md5 `eaf5feab…` er målt i prod og genberegnet lokalt.
+  - Migrationen standser selv, hvis prod-md5 er en anden (DO-vagt i én transaktion). EFTER-md5 er `62938b01c9311c67020af28db981d741`.
+  - `commit_report_facts` røres ikke.
+- **Hvorfor ikke de to andre veje:**
+  - *Merge i commit* (`metrics || preview`) ville genoplive en nøgle, rådgiveren bevidst har tømt i formularen.
+  - *Danske navne i seeden* retter intet alene: formularen har ingen felter for nøglerne, og finans/balance har ingen navne.
+- **Genskabelsen (data, separat):** `docs/sql/20261003-genskab-manuelle-noegler.sql`. Den kræver Jonas' ja.
+  - Snapshot i `ops.genskab_manuelle_noegler_20261003`, med `metrics_foer` + `tilfoejet`.
+  - UPDATE'en er guardet både på snapshottet og på, at nøglen stadig mangler (`?|`).
+  - EFTER-SELECT og tilbagerulning, der er guardet på det skrevne.
+  - Trin 1 er KØRT som SELECT 3/10: 50 / 121 / 82.
+  - Sideeffekt: `trg_mark_commentaries_stale` markerer de berørte måneders kommentarer som forældede, og det er rigtigt.
+- **Fundet undervejs — BR Roset er skævere end nøglerne (kort `m17-manuelle-rettelser`):**
+  - 12 af BR Rosets 14 manuelle rækker har heller ikke `cogs`, `admin_costs`, `sales_costs`, `facility_costs` eller `depreciation` i facts. Formularen blev gemt med de felter tomme.
+  - Kilderapporterne er genkørt 17/9 EFTER rettelserne (seneste 7/9), og 7 af dem står i dag med status `error`.
+  - At lægge autodriften til gør «Omk. total» mere rigtig, men ikke rigtig. Datafilen har BR Roset med som standard, med en note om, hvordan den tages ud.
+- **Også fundet (målt 3/10, ikke rettet):**
+  - 20 af 49 manuelle facts-rækker er ikke lig den manuelle preview i dag: ANLA 17, YKRG 2 og Capture IT 1. Rettelserne er redigeret efter commit, eller facts er committet af en ældre funktion.
+  - Én Green Solar-række ejes af en rapport, hvis rettelse ikke længere er `applied`, så den resolver nu til `canonical_v2`.
+- **Værn:** `src/lib/__tests__/manuelRettelseNoegler.guard.test.ts` har fire domme med selvbevis:
+  1. Funktionen er fixturen + blokken.
+  2. Blokkens betingelser holder.
+  3. Filhovedet, FØR-vagten og EFTER-md5 holder.
+  4. Datafilens regel og vagter holder.
+
+  Den rene spejling er `src/lib/manuelRettelseNoegler.ts` (`bevaredeNoegler`, `tabteNoegler`) med `manuelRettelseNoegler.test.ts`.
+- **IKKE rørt:** `validate-facts-parity` (edge) spejler den manuelle gren og kender ikke blokken. Den vil melde de genskabte nøgler som afvigelse, til den rettes og udrulles. Det er bevidst ikke gjort før migrationen.
+
+**B. Tørkørsel af genkørslen af de 43 AI-rapporter** (kort `m17-koerelisten` (3), `m17-ai-skema-grupper`)
+- **Opdelingen af de 43 (målt 3/10):**
+  - 21 er genkørbare: processed, ingen manuel rettelse, ejer en facts-række, kunde.
+  - Ude: 14 manuelle, 3 Topix.dk (gæst), 4 med status ≠ processed (Livja 1, PHILBERT 1, Warburg 2) og 1 PHILBERT-rapport uden facts.
+- **Ingen LLM-kald fra prod.** Udækket er regnet med husets kontrolsum på `normalized_data.metrics`. Grupperne er vurderet på navnene i `raw_extracted_data.line_items`, som er afkortet til 15–25 linjer pr. rapport, så fravær er ikke bevis.
+
+| Virksomhed (id) | Måneder (genkørbare) | Udækket i dag (Σ; store) | De fem grupper i dokumentet | Sandsynlig gevinst |
+|---|---|---|---|---|
+| CARMA STUDIO (9797633d) | 2025-01, -04, -05, -06 | −55.124 (3 store, −16.697 / −15.994 / −15.968) | autodrift: «Brændstof», «Kørsel», «Leasing varebil» (5.315 kr. i -05, 17.401 i -06) | **Høj** — negativt udækket = manglende omkostninger, samme størrelse som autodriften |
+| Booking Innovation (48c09162) | 2026-03, -05, -06 | −115.572 (2 store: −107.153, −8.419) | autodrift: «Diverse transportomkostninger», «Parkering» (784 kr. i -05); personale: «Mad under kursus» | Lav — småbeløb; −107.153 forklares ikke af grupperne |
+| Rezycl.com (183f082e) | 2026-01, -04, -06 | −4.076 (1 stort: −5.147, -04) | personale: «Hotel, personale», «Konferencer» (rejser → salg) | Lav–middel |
+| Green Solar (01e54ef4) | 2026-09 | −377.723 (stort) | ingen af de fem | Lav — hullet er ikke en af grupperne |
+| Nordic By Hand (a4481db0) | 2026-01…-03 | +36.781 (1 stort, -01; positivt = mangler indtægter) | ingen | Lav |
+| PHILBERT (926f0b16) | 2026-01, -03…-07 | +8.857 (1 stort: +11.210, -06) | ingen («Fragt» er vareforbrug) | Lav |
+| KJ AUTO (daf913ac) | 2026-01 | +216 | personale: «Personaleudgifter» 286.834 | Ingen på kontrolsummen; mulig omfordeling løn → øvrige personale (Omk. total uændret) |
+
+- **Uden for holdet:** Warburg (3a429199, 2026-06, to rapporter) har «Autodrift ialt» 75.216 og «Pensioner & sociale bidrag ialt» 75.311 — præcis de nye grupper. Men begge står `error`, og måneden ejes af balancerapporten. ANLA, YKRG og 14 manuelle afgøres i `m17-manuelle-rettelser`.
+- **Snapshot/rollback:** `docs/sql/03-snapshot-og-rollback.sql`.
+  - Den oprindelige fra 17/9 findes kun i `~/Downloads` og ikke i repoet; filen er skrevet ny med de samme tabelnavne `ops.genkoersel_foer_rapporter`/`_facts`.
+  - Holdet fryses i snapshottet.
+  - EFTER-SELECT'en pr. rapport viser ai_skema, udækket før/efter, nye nøgler og facts ændret.
+  - Tilbagerulningen er guardet; nye facts-rækker STOP'er.
+  - Trin 1 og EFTER-forespørgslen er prøvet som SELECT 3/10 (21 rapporter).
+  - **Genkørslen kræver Jonas' ja.**
+
+**C. Finans i BVA — beslutningsnotat** (kort `g03-budget-finans-som-omkostning`): `docs/beslutning-bva-finans.md`.
+- Kun Warburg har ikke-driftslinjer i budgettet.
+- BVA-kortet «EBITDA» for 2026 viser −185.028 kr. i dag mod 575.808 kr., hvis begge sider kun er drift. Forskellen er 398.184 kr. indtægt, der tælles som omkostning, plus 362.652 kr. afskrivninger/ekstraordinære/finans/sekundære.
+- Grafens afvigelse jan–aug er +778.743 i dag mod +271.519 med samme definition på begge sider.
+- Finansudgifter i «Omk. total» ville hæve Dine tal 0,1–5,4 % hos 8 virksomheder (443.171 kr.).
+- Også fundet: kortene sammenligner helårsbudget med realiseret år til dato.
+- Anbefaling: A (drift + afskrivninger; ikke-drift som egen række med fortegn). Tre spørgsmål til Jonas står i notatet.
+
 ### 3. oktober kl. 20:19 — Jonas' fem svar, og hvad der er målt bagefter
 
 **Svarene** (ordret i chatten):
@@ -12147,6 +12224,36 @@ Værn: `ringMigOp.guard` dom 8 (indsend), 9 (RLS), 10 (IP-hash); `opkaldDom.test
 ## DEL 3 · Det der venter
 
 **Tracking (Meta, LinkedIn, GA4, TikTok, Stape, eWebinar, Klaviyo — hvad der sendes til hvem, principperne fra 21/9, det åbne):** `docs/tracking.md` er husets ENE dokument om det fra 21/9; recon-/rapportfilerne i `~/Downloads` er kilder.
+
+### Spor 2 — den manuelle rettelse og genskabelsen — rækkefølgen (3/10, gren `fix/manuel-rettelse-noegler`; kort `g03-manuel-rettelse-taber-noegler`)
+
+**Grønt lys og ja kræves.** Migrationen ændrer en SECURITY DEFINER-funktion (grønt lys), og datafilen overskriver facts (ja). Ingen frontend og ingen edge function ruller med grenen, så der skal ingen Update og ingen deploy til.
+
+| # | hvad | kanal | beviset før næste trin |
+|---|---|---|---|
+| 1 | merge `fix/manuel-rettelse-noegler` | GitHub | CI grøn (`gh run list --branch fix/manuel-rettelse-noegler`) |
+| 2 | FØR: `SELECT md5(pg_get_functiondef('public.resolve_report_commit_candidate(uuid)'::regprocedure));` | Lovable SQL editor | `eaf5feab333dd6a6bd3a695b8a6bd932` — ellers STOP |
+| 3 | kør `20261003221500_manuel_rettelse_bevarer_noegler.sql` (hele filen; den er én transaktion og standser selv ved forkert md5) | Lovable SQL editor | ingen fejl |
+| 4 | EFTER: filhovedets to SELECT'er (md5 + `blokken_findes`; BR Roset 2026-07 `har_auto`) | Lovable SQL editor | md5 `62938b01c9311c67020af28db981d741`, `blokken_findes` true; `har_auto` true, `auto` 4000 |
+| 5 | **Jonas' ja** til genskabelsen (med eller uden BR Roset — se filhovedet) | chatten | ja |
+| 6 | `docs/sql/20261003-genskab-manuelle-noegler.sql` trin 1 → 2 → 3 → 4, ét ad gangen | Lovable SQL editor | trin 1: 50 / 121 / 82; trin 2: «SELECT 50»; trin 3: «UPDATE 50»; trin 4: genskabt 50, mangler 0, rørt_andet 0, autodrift_kr 120989 |
+| 7 | livetjek: Dine tal for Livja 2026-03 viser «Omk. total» +5.165 kr. mod før (autodriften) | app.theboardroom.dk som rådgiver | tallet |
+| 8 | luk `g03-manuel-rettelse-taber-noegler` med tallene fra trin 4 | mangellisten | — |
+
+**Bagefter (eget kort):** `validate-facts-parity` spejler den manuelle gren og skal have blokken. Indtil da melder den de genskabte nøgler som afvigelse. Det kræver en eksplicit udrulning.
+
+### Spor 2 — genkørslen af de AI-læste rapporter — rækkefølgen (3/10; kort `m17-koerelisten` (3))
+
+**Kræver Jonas' ja.** Tørkørslen pr. virksomhed står i DEL 2 «3. oktober aften — spor 2». Kun CARMA har en sandsynlig, mærkbar gevinst (autodrift).
+
+| # | hvad | kanal | beviset før næste trin |
+|---|---|---|---|
+| 1 | **Jonas' ja** (hele holdet på 21, eller kun CARMA) | chatten | ja |
+| 2 | `docs/sql/03-snapshot-og-rollback.sql` trin 1 | Lovable SQL editor | 21 rapporter hos 7 virksomheder |
+| 3 | trin 2 (snapshot) + kontrollen | Lovable SQL editor | rapporter 21, facts 21 |
+| 4 | «Genkør rapporter» for id'erne i snapshottet, hold à 10 → «Godkend alle der er PASS» | app (rådgiver) | hvert hold færdigt |
+| 5 | trin 4 (EFTER pr. rapport) | Lovable SQL editor | `ai_skema` = `skive-1` på alle, udækket før/efter, `nye_noegler_efter` |
+| 6 | bogfør udækket før/efter pr. virksomhed; omskriv `m17-koerelisten` | OVERLEVERING + mangellisten | — |
 
 ### Pakke B skive 1 — udrulning (3/10, gren `fix/ai-skema-grupper`; kortet `m17-ai-skema-grupper`)
 
