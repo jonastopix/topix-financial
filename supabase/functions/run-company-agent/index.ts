@@ -19,9 +19,41 @@ import { klokkeRaekker } from "../_shared/agentKlokke.ts";
 import { doemSkrivning, SKRIVE_SELECT_KOLONNER, skriveFilter } from "../_shared/skridtForslag.ts";
 // Fase 5 («Én plan»): et skridt hører til et aktivt mål — motoren vælger det.
 import { maaForeslaaMod, vaelgMaalForForslag, type MaalTilValg } from "../_shared/maal.ts";
+// v8 (3/10-2026, F0): Akademi-fremdriften dømmes af husets itemProgressState —
+// rådgiverens markering (markeret_at) er ikke medlemmets «gennemført».
+import { agentProgressRaekke, F0_MARKOER } from "../_shared/agentIndholdsFremdrift.ts";
 
-const DEPLOY_STAMP = "run-company-agent v7 tjenestekonti (2026-09-30)";
+// v8 (3/10-2026): F0-dommen i get_member_content_progress, ordet «mål» i
+// prompt og værktøjsbeskrivelser, og markøren `f0` i svaret (beviset for
+// udrulningen — kun v8 svarer med den). docs/OVERLEVERING.md DEL 3 «run-company-agent v8».
+const DEPLOY_STAMP = "run-company-agent v8 f0 og ordet mål (2026-10-03)";
 const MODEL = "google/gemini-2.5-flash";
+
+// SVARENE (v8, CTO 3/10): HVERT svar går gennem svarJson, som lægger markøren
+// `f0` i kroppen — 200, 400, 401, 403, company_not_found og catch. Beviset for
+// udrulningen kan derfor læses af ethvert svar (også ?meta=version, der svarer
+// før auth). Værnet agentV8.guard dom 4 kræver, at Response-konstruktøren KUN
+// kaldes her. Preflight (body null) har ingen krop at bære markøren i.
+function svarJson(body: Record<string, unknown> | null, status = 200): Response {
+  if (body === null) return new Response(null, { status, headers: corsHeaders });
+  return new Response(
+    JSON.stringify({ ...body, f0: F0_MARKOER }),
+    { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+  );
+}
+
+/** authenticateUser's afvisning (401 m.fl.) bæres videre med samme status og markøren. */
+async function svarFraAuth(afvist: Response): Promise<Response> {
+  const tekst = await afvist.text();
+  let body: Record<string, unknown>;
+  try {
+    const tolket = JSON.parse(tekst);
+    body = tolket && typeof tolket === "object" && !Array.isArray(tolket) ? tolket : { error: tekst };
+  } catch {
+    body = { error: tekst };
+  }
+  return svarJson(body, afvist.status);
+}
 
 // ARBEJDSGANGS-MINIMUMMET I PROMPTEN — hvorfor det findes: målt mod prod
 // 2026-08-25 (agent_runs, tør kørsel) skrev agenten efter 2 iterationer og
@@ -66,8 +98,8 @@ DIN ARBEJDSGANG (i rækkefølge — sådan arbejder en grundig rådgiver):
    get_handout_levers og get_application_context er en fast del af billedet, ikke et tilvalg: de bærer hvad founder selv har fortalt og hvor de er i forløbet — det kan ikke udledes af tallene, og uden det bliver din sparring generisk. Kald gerne flere værktøjer parallelt.
 3. Analysér: hvad er det vigtigste signal i denne måneds tal? Sammenlign med forrige måned, med mål — og med hvad founder selv har sagt.
 4. Opdatér weekly focus-kortet på dashboardet med en kort overskrift og opsummering — det er dit primære output og skal bære dit vigtigste nøglefund. Fokusér på ét nøglefund, ikke fem.
-5. Opret én konkret handlingsopgave med write_company_action hvis der er et klart næste skridt founder skal tage inden for de næste 7 dage — et skridt hører til ét af virksomhedens AKTIVE mål (get_milestones): angiv milestone_id. Har virksomheden ingen aktive mål, foreslår du intet skridt (målene sætter rådgiveren sammen med medlemmet)
-6. Foreslå aldrig mål (milestones) — dem sætter rådgiveren sammen med medlemmet; du foreslår højst ét konkret skridt
+5. Opret én konkret handlingsopgave med write_company_action hvis der er et klart næste skridt founder skal tage inden for de næste 7 dage — et skridt hører til ét af virksomhedens AKTIVE mål (get_milestones): angiv målets id i feltet milestone_id. Har virksomheden ingen aktive mål, foreslår du intet skridt (målene sætter rådgiveren sammen med medlemmet)
+6. Foreslå aldrig mål — dem sætter rådgiveren sammen med medlemmet; du foreslår højst ét konkret skridt
 7. Du skubber ALDRIG til advisoren med notify_advisor
 8. Kald finish
 
@@ -76,8 +108,12 @@ INDHOLDSKOBLING (Akademiet):
 Nederst i denne prompt står hele Akademiets indholdsbibliotek: samlinger, titler og beskrivelser.
 
 - Når du peger på en udfordring i tallene, og biblioteket har et element der svarer direkte på den, SKAL du nævne det med titel som en del af dit forslag — fx stigende lønomkostninger → "Outsource klogt", bureau-udgifter der stikker af → videoen om at styre sit bureau.
-- Tjek FØRST get_member_content_progress. Har founder allerede set eller gennemført elementet, er det en anden samtale: følg op på om det er omsat til handling ("har set 'Outsource klogt' — er bogføringen lagt ud?") i stedet for at anbefale det som nyt. Har de IKKE set det, så anbefal det konkret.
+- Tjek FØRST get_member_content_progress. Feltet state er founders EGEN aktivitet. gennemgaaet_med_raadgiver betyder, at rådgiveren har gennemgået elementet med founder — det er IKKE det samme som at founder selv har set eller gennemført det; skriv aldrig «du har set» eller «du har gennemført» om et element, hvis state er urørt. Har founder allerede set eller gennemført elementet, er det en anden samtale: følg op på om det er omsat til handling ("har set 'Outsource klogt' — er bogføringen lagt ud?") i stedet for at anbefale det som nyt. Har de IKKE set det, så anbefal det konkret.
 - Koblingen skal være reel: elementet skal svare på udfordringen, ikke bare dele emneord. Findes der intet relevant element, så nævn ingen — opfind aldrig indhold.
+
+ORDET «MÅL» (vigtigt):
+
+- Til founder hedder det altid «mål» — aldrig «milestone», «milepæl» eller «milesten». Det gælder chatbeskeder, weekly focus, skridtets titel og kontekst. Værktøjs- og feltnavne (get_milestones, milestone_id) er tekniske navne og skrives aldrig til founder.
 
 HVAD DU IKKE GØR:
 
@@ -150,7 +186,7 @@ const tools = [
     function: {
       name: "get_pulse_checkins",
       description:
-        "Henter de seneste pulse check-ins fra founder. Viser hvad der gik godt, største udfordring og milestone-fremgang.",
+        "Henter de seneste pulse check-ins fra founder. Viser hvad der gik godt, største udfordring og fremgang mod målene.",
       parameters: {
         type: "object",
         properties: {
@@ -165,7 +201,7 @@ const tools = [
     type: "function",
     function: {
       name: "get_milestones",
-      description: "Henter aktive milestones for virksomheden med fremgang og deadline.",
+      description: "Henter virksomhedens aktive mål med fremgang og frist.",
       parameters: {
         type: "object",
         properties: { company_id: { type: "string" } },
@@ -191,7 +227,7 @@ const tools = [
     function: {
       name: "get_member_content_progress",
       description:
-        "Henter hvad founder har set i Akademiet: hvilke elementer fra indholdsbiblioteket (i systemprompten) der er åbnet, kvitteret som gennemført eller sprunget over — og hvor langt de nåede i en video (last_position_seconds mod duration_seconds). Kald dette FØR du peger på et element fra biblioteket: er det allerede set, følger du op på om det er omsat til handling i stedet for at anbefale det som nyt.",
+        "Henter hvad founder har set i Akademiet: hvilke elementer fra indholdsbiblioteket (i systemprompten) founder SELV har åbnet, kvitteret som gennemført eller sprunget over (state) — og hvor langt de nåede i en video (last_position_seconds mod duration_seconds). gennemgaaet_med_raadgiver=true betyder kun, at rådgiveren har gennemgået elementet med founder; det tæller ikke som founders egen aktivitet. Kald dette FØR du peger på et element fra biblioteket: er det allerede set, følger du op på om det er omsat til handling i stedet for at anbefale det som nyt.",
       parameters: {
         type: "object",
         properties: { company_id: { type: "string" } },
@@ -439,30 +475,17 @@ async function executeTool(name: string, args: any, adminClient: any, trigger: s
       const { data, error } = await adminClient
         .from("member_progress")
         .select(
-          "content_item_id, seen_at, acknowledged_at, skipped_at, last_position_seconds, content_items(title, area, duration_seconds)",
+          "content_item_id, seen_at, acknowledged_at, skipped_at, markeret_at, last_position_seconds, content_items(title, area, duration_seconds)",
         )
         .eq("user_id", member.user_id)
         .order("updated_at", { ascending: false });
       if (error) throw new Error(error.message);
 
-      // Tilstandsdommen spejler medlemsfladens itemProgressState
-      // (src/lib/hjemmebane/akademiApi.ts): gennemført > sprunget over > set.
-      return (data ?? []).map((r: any) => ({
-        content_item_id: r.content_item_id,
-        title: r.content_items?.title ?? null,
-        area: r.content_items?.area ?? null,
-        state: r.acknowledged_at
-          ? "gennemført"
-          : r.skipped_at
-            ? "sprunget_over"
-            : r.seen_at
-              ? "set_men_ikke_gennemført"
-              : "urørt",
-        seen_at: r.seen_at,
-        acknowledged_at: r.acknowledged_at,
-        last_position_seconds: r.last_position_seconds,
-        duration_seconds: r.content_items?.duration_seconds ?? null,
-      }));
+      // v8 (F0, 3/10-2026): tilstanden dømmes af husets itemProgressState
+      // (_shared/progressState.ts, ordret spejl af src/lib/hjemmebane/progressState.ts):
+      // et tidsstempel LIG markeret_at er rådgiverens, ikke medlemmets. markeret_at
+      // findes i prod (målt 3/10, CLAUDE.md «Akademiet F0»).
+      return (data ?? []).map(agentProgressRaekke);
     }
 
     case "get_kpi_targets": {
@@ -956,14 +979,11 @@ async function hentIndholdsbibliotek(adminClient: any): Promise<string> {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return svarJson(null);
   }
 
   if (new URL(req.url).searchParams.get("meta") === "version") {
-    return new Response(
-      JSON.stringify({ stamp: DEPLOY_STAMP, now: new Date().toISOString() }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return svarJson({ stamp: DEPLOY_STAMP, now: new Date().toISOString() }, 200);
   }
 
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -980,12 +1000,24 @@ Deno.serve(async (req) => {
   } else {
     // User-triggered call — validate JWT
     const auth = await authenticateUser(req);
-    if (auth instanceof Response) return auth;
+    if (auth instanceof Response) return await svarFraAuth(auth);
     callerClient = auth.callerClient;
     callerId = auth.callerId;
   }
 
-  const body = await req.json();
+  // Kroppen læses i sin egen try (CTO runde 2, 3/10): en krop, der ikke er
+  // JSON — eller ikke et objekt (fx `null`, som ville vælte destruktureringen
+  // nedenfor) — er 400 «ugyldig_krop» gennem svarJson, aldrig en 500 uden
+  // markør, CORS og JSON. Værn: agentV8.guard dom 5.
+  let body: any;
+  try {
+    body = await req.json();
+  } catch {
+    return svarJson({ ok: false, error: "ugyldig_krop" }, 400);
+  }
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    return svarJson({ ok: false, error: "ugyldig_krop" }, 400);
+  }
   // period_key/period_label er let: company_review må udelade perioden og
   // får den slået op (nyeste fact) efter adminClient er konstrueret.
   const { company_id, trigger } = body;
@@ -1020,33 +1052,21 @@ Deno.serve(async (req) => {
     "company_review",
   ];
   if (!KNOWN_TRIGGERS.includes(trigger)) {
-    return new Response(
-      JSON.stringify({ ok: false, error: `Unknown trigger '${trigger}' — must be one of: ${KNOWN_TRIGGERS.join(", ")}` }),
-      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return svarJson({ ok: false, error: `Unknown trigger '${trigger}' — must be one of: ${KNOWN_TRIGGERS.join(", ")}` }, 400);
   }
 
   // period_key er påkrævet for alle triggere UNDTAGEN company_review, som
   // selv finder nyeste periode med tal (opslag efter adminClient nedenfor).
   if (!company_id || (!period_key && trigger !== "company_review")) {
-    return new Response(
-      JSON.stringify({ ok: false, error: "Missing required fields" }),
-      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return svarJson({ ok: false, error: "Missing required fields" }, 400);
   }
 
   if (!UUID_RE.test(company_id)) {
-    return new Response(
-      JSON.stringify({ ok: false, error: "Invalid company_id (must be UUID)" }),
-      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return svarJson({ ok: false, error: "Invalid company_id (must be UUID)" }, 400);
   }
 
   if (period_key && !PERIOD_RE.test(period_key)) {
-    return new Response(
-      JSON.stringify({ ok: false, error: "Invalid period_key (must be YYYY-MM)" }),
-      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return svarJson({ ok: false, error: "Invalid period_key (must be YYYY-MM)" }, 400);
   }
 
   // Agenten poster ALDRIG uopfordret i founderens chat.
@@ -1098,10 +1118,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (!accessCheck) {
-      return new Response(
-        JSON.stringify({ error: "Forbidden" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return svarJson({ error: "Forbidden" }, 403);
     }
 
     // LIVE-porten (30/9-2026, sikkerhedsanalysen fund 9, _shared/agentLiveAdgang.ts):
@@ -1112,10 +1129,7 @@ Deno.serve(async (req) => {
       const { data: erRaadgiver } = await callerClient.rpc("has_role", { _user_id: callerId, _role: "advisor" });
       if (!maaKoereLive({ dryRun, isServiceRole, isAdvisor: erRaadgiver === true, trigger })) {
         console.warn(`[run-company-agent] denied live: caller=${callerId} trigger=${trigger} company=${company_id}`);
-        return new Response(
-          JSON.stringify({ ok: false, error: "live_kraever_raadgiver" }),
-          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return svarJson({ ok: false, error: "live_kraever_raadgiver" }, 403);
       }
     }
   }
@@ -1137,10 +1151,7 @@ Deno.serve(async (req) => {
 
     if (companyErr || !companyData) {
       console.error("Company lookup failed", companyErr);
-      return new Response(
-        JSON.stringify({ ok: false, error: "company_not_found" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return svarJson({ ok: false, error: "company_not_found" }, 200);
     }
 
     // Fetch founder's first name
@@ -1263,7 +1274,7 @@ ${trigger === "pulse_submitted"
   : trigger === "onboarding"
   ? `Founder ${founderFirstName} logger ind i The Boardroom for første gang.\n\nDette er en onboarding-kørsel. Du skriver IKKE i founderens chat — velkomsten er rådgiverens egen opgave. Gør følgende i rækkefølge:\n1. Hent ansøgningskontekst med get_application_context\n2. Hent virksomhedens brancheinfo\n3. Læs eventuelle mål med get_milestones — målene sættes af rådgiveren sammen med medlemmet, du opretter ingen\n4. Sæt weekly focus med en velkomst-headline — det er kørslens eneste forslag (en opgave som «upload første rapport» står allerede i medlemmets næste skridt og onboarding-tjekliste)\n5. Kald finish`
   : trigger === "company_review"
-  ? `Rådgiveren har bedt om en samlet gennemgang af virksomheden — et blik på virksomheden som helhed, ikke på et enkelt dokument.\n\n${rapportStatusBlok}\n\nFølg din arbejdsgang: get_previous_agent_messages først, dernæst minimum get_company_facts, get_handout_levers, get_application_context og get_member_content_progress — plus pulse, milestones og KPI-mål.\n\nHvis rapporteringsstatussen ovenfor viser at virksomheden mangler at rapportere, eller har uploadet uden at godkende, SKAL du adressere det som et af dine punkter: at rapportere og forholde sig til sine egne tal ER rådgivning, og et hul i rapporteringen er en observation på linje med et hul i tallene. Findes der ingen godkendte tal overhovedet, er DET dit vigtigste punkt — analysér ikke videre på estimater som om de var friske tal.\n\nVIGTIGT: weekly focus-kortet er FOUNDER-SYNLIGT. Opdatér det kun hvis gennemgangen giver et medlemsrettet fokus at sætte — det må ALDRIG bære rådgiver-intern gennemgang. Rådgiver-forberedelses-sporet findes ikke længere; har kørslen intet medlemsrettet at skrive, så kald finish uden yderligere output. Du må IKKE skrive i founderens chat.`
+  ? `Rådgiveren har bedt om en samlet gennemgang af virksomheden — et blik på virksomheden som helhed, ikke på et enkelt dokument.\n\n${rapportStatusBlok}\n\nFølg din arbejdsgang: get_previous_agent_messages først, dernæst minimum get_company_facts, get_handout_levers, get_application_context og get_member_content_progress — plus pulse, mål og KPI-mål.\n\nHvis rapporteringsstatussen ovenfor viser at virksomheden mangler at rapportere, eller har uploadet uden at godkende, SKAL du adressere det som et af dine punkter: at rapportere og forholde sig til sine egne tal ER rådgivning, og et hul i rapporteringen er en observation på linje med et hul i tallene. Findes der ingen godkendte tal overhovedet, er DET dit vigtigste punkt — analysér ikke videre på estimater som om de var friske tal.\n\nVIGTIGT: weekly focus-kortet er FOUNDER-SYNLIGT. Opdatér det kun hvis gennemgangen giver et medlemsrettet fokus at sætte — det må ALDRIG bære rådgiver-intern gennemgang. Rådgiver-forberedelses-sporet findes ikke længere; har kørslen intet medlemsrettet at skrive, så kald finish uden yderligere output. Du må IKKE skrive i founderens chat.`
   : `Ny rapport committed: ${period_label} (${period_key})\n\nFølg din arbejdsgang: get_previous_agent_messages først, og dernæst — gerne parallelt — get_company_facts, get_handout_levers, get_application_context, get_member_content_progress, get_milestones, get_kpi_targets og get_budget_vs_actual, så du har det fulde billede før du skriver. Hvis der er budget-afvigelser over 20%, prioritér disse.\n\nOpdatér weekly focus med dit vigtigste nøglefund. Du må IKKE skrive i founderens chat.\n\nBemærk: Hvis dette er virksomhedens første rapport, er der automatisk oprettet et udkast-budget og en årsbaseline baseret på de committede tal (annualiseret x12 med jævn fordeling). Tag dette med i din vurdering, fx at budgetmåneder der afviger fra gennemsnittet kan skulle justeres. Hvis der findes historiske årsrapport-facts (data_quality='estimat_fra_årsrapport_divideret_med_12') for tidligere år, så sammenlign årets udvikling med det historiske niveau.`
 }`,
       },
@@ -1460,18 +1471,15 @@ ${trigger === "pulse_submitted"
     }
 
     if (dryRun && !runId) {
-      return new Response(
-        JSON.stringify({
-          ok: false,
-          dry_run: true,
-          run_id: null,
-          iterations,
-          proposals: proposals.length,
-          annoncerede_vaerktoejer: annoncerede, // beviset for udrulningen (30/9, design §9)
-          error: `run_log_failed: ${runLogError} — tør-kørslens forslag er IKKE gemt (er agent_runs-migrationen kørt i Lovable?)`,
-        }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return svarJson({
+        ok: false,
+        dry_run: true,
+        run_id: null,
+        iterations,
+        proposals: proposals.length,
+        annoncerede_vaerktoejer: annoncerede, // beviset for udrulningen (30/9, design §9)
+        error: `run_log_failed: ${runLogError} — tør-kørslens forslag er IKKE gemt (er agent_runs-migrationen kørt i Lovable?)`,
+      }, 200);
     }
 
     // Godkendelseslaget (design §7): hvert opsnappet forslag spejles som
@@ -1494,18 +1502,15 @@ ${trigger === "pulse_submitted"
         .insert(proposalRows);
       if (propErr) {
         console.error("[run-company-agent] agent_proposals insert fejlede:", propErr.message);
-        return new Response(
-          JSON.stringify({
-            ok: false,
-            dry_run: dryRun,
-            run_id: runId,
-            iterations,
-            proposals: proposals.length,
-            annoncerede_vaerktoejer: annoncerede, // beviset for udrulningen (30/9, design §9)
-            error: `proposals_log_failed: ${propErr.message} — kørslen er logget (agent_runs), men forslagene er IKKE oprettet som beslutningsrækker (er agent_proposals-migrationen kørt i Lovable?)`,
-          }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return svarJson({
+          ok: false,
+          dry_run: dryRun,
+          run_id: runId,
+          iterations,
+          proposals: proposals.length,
+          annoncerede_vaerktoejer: annoncerede, // beviset for udrulningen (30/9, design §9)
+          error: `proposals_log_failed: ${propErr.message} — kørslen er logget (agent_runs), men forslagene er IKKE oprettet som beslutningsrækker (er agent_proposals-migrationen kørt i Lovable?)`,
+        }, 200);
       }
     }
 
@@ -1514,20 +1519,17 @@ ${trigger === "pulse_submitted"
     // medlemsrettet fokus). ok:false her betyder "koerslen producerede
     // intet" — laes den ikke automatisk som en fejl i agenten.
     if (!producedOutput) {
-      return new Response(
-        JSON.stringify({
-          ok: false,
-          done,
-          iterations,
-          dry_run: dryRun,
-          run_id: runId,
-          proposals: proposals.length,
-          annoncerede_vaerktoejer: annoncerede, // beviset for udrulningen (30/9, design §9)
-          error: lastError || "Agent fuldførte uden at producere output (weekly focus, handlingsopgave eller chat-besked)",
-          diagnostics: { stop_reason: stopReasonFinal, produced_output: false },
-        }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return svarJson({
+        ok: false,
+        done,
+        iterations,
+        dry_run: dryRun,
+        run_id: runId,
+        proposals: proposals.length,
+        annoncerede_vaerktoejer: annoncerede, // beviset for udrulningen (30/9, design §9)
+        error: lastError || "Agent fuldførte uden at producere output (weekly focus, handlingsopgave eller chat-besked)",
+        diagnostics: { stop_reason: stopReasonFinal, produced_output: false },
+      }, 200);
     }
 
     // Mark onboarding completed if this was an onboarding trigger
@@ -1538,25 +1540,19 @@ ${trigger === "pulse_submitted"
         .eq("id", company_id);
     }
 
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        iterations,
-        done,
-        produced_output: true,
-        message_written: messageWritten,
-        dry_run: dryRun,
-        run_id: runId,
-        proposals: proposals.length,
-        annoncerede_vaerktoejer: annoncerede, // beviset for udrulningen (30/9, design §9)
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return svarJson({
+      ok: true,
+      iterations,
+      done,
+      produced_output: true,
+      message_written: messageWritten,
+      dry_run: dryRun,
+      run_id: runId,
+      proposals: proposals.length,
+      annoncerede_vaerktoejer: annoncerede, // beviset for udrulningen (30/9, design §9)
+    }, 200);
   } catch (err) {
     console.error("run-company-agent error:", err);
-    return new Response(
-      JSON.stringify({ ok: false, error: err instanceof Error ? err.message : "Unknown error" }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return svarJson({ ok: false, error: err instanceof Error ? err.message : "Unknown error" }, 200);
   }
 });
