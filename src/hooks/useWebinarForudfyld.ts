@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { type MutableRefObject, useEffect, useRef } from "react";
 import { forudfyld } from "@/lib/webinarRum/api";
 import { laesWt } from "@/lib/webinarRum/links";
 
@@ -10,18 +10,26 @@ import { laesWt } from "@/lib/webinarRum/links";
  * fjernes fra adresselinjen, og navn og mail hentes fra webinar-rum
  * «forudfyld» (kun til den, der har tokenet — personen selv).
  *
+ * KOBLINGEN (skive 4, 3/10-2026): hooken giver tokenet tilbage i en ref — KUN i
+ * sidens hukommelse, aldrig i localStorage/sessionStorage og aldrig i URL'en —
+ * så «opret» kan sende det som `webinar_token`. ansoegning-gem verificerer det
+ * med husets prædikat og sætter ansoegninger.webinar_tilmelding_id
+ * (_shared/ansoegningWebinarKobling.ts). Fladen nulstiller ref'en, når «opret»
+ * er lykkedes.
+ *
  * FAIL-SOFT: et ukendt token eller et net, der hakker, giver blot en tom
  * formular — aldrig en fejl på skærmen og aldrig en stoppet ansøgning.
  * Kilden (?kilde=webinar) afgøres som altid af afgoerKilde; tokenet rører den
- * ikke. Koblingen på id (ansoegninger.webinar_tilmelding_id) er IKKE bygget
- * endnu — den kræver ansoegning-gem «fra_webinar» (spec §A9, skive 4).
+ * ikke.
  */
-export function useWebinarForudfyld(anvend: (f: { navn: string; email: string }) => void): void {
+export function useWebinarForudfyld(anvend: (f: { navn: string; email: string }) => void): MutableRefObject<string | null> {
   const cb = useRef(anvend);
   cb.current = anvend;
+  const webinarToken = useRef<string | null>(null);
   useEffect(() => {
     const wt = laesWt(typeof window !== "undefined" ? window.location.hash : null);
     if (!wt) return;
+    webinarToken.current = wt;
     window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}`);
     let aktiv = true;
     forudfyld(wt)
@@ -33,4 +41,5 @@ export function useWebinarForudfyld(anvend: (f: { navn: string; email: string })
       aktiv = false;
     };
   }, []);
+  return webinarToken;
 }

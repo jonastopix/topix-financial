@@ -35,6 +35,14 @@
 // Fladen venter aldrig på svaret. «opret» tager et valgfrit visning_id og
 // kobler visningens rækker til den nye ansøgning i en EGEN fail-soft update.
 //
+// WEBINARKOBLINGEN (skive 4, 3/10-2026): «opret» tager et valgfrit
+// webinar_token — deltagertokenet fra exitrummets knap (#wt=…). Det verificeres
+// med husets prædikat (verifyDeltagertoken, _shared/webinarDeltagerAuth.ts —
+// secret'en læses KUN dér), og ansøgningen får tilmeldingens id i
+// webinar_tilmelding_id i en EGEN fail-soft update (_shared/
+// ansoegningWebinarKobling.ts). Tokenet gemmes og logges aldrig, og et
+// ugyldigt token stopper aldrig ansøgningen. Svaret bærer webinar_kobling.
+//
 // ÉN ÅBEN ANSØGNING PR. MAIL: A's partielle unikke indeks
 // ansoegninger_aaben_email_uidx afviser en anden indsendt, åben ansøgning
 // på samme mail med 23505 → 409 «du har allerede en ansøgning hos os».
@@ -49,6 +57,8 @@ import { laesUserAgent, sporMedUserAgent } from "../_shared/ansoegningUserAgent.
 import { erVisningsId, loftetNaaet, sporRaekkeAf } from "../_shared/ansoegningVisning.ts";
 import { KONTAKT_ADRESSE } from "../_shared/indgangsMail.ts";
 import { planlaegKladde, registrerIndsendelse } from "../_shared/ansoegningMotor.ts";
+import { verifyDeltagertoken } from "../_shared/webinarDeltagerAuth.ts";
+import { koblWebinarTilmelding, udfaldUdenKobling } from "../_shared/ansoegningWebinarKobling.ts";
 import {
   annoncesporAf,
   gaAf,
@@ -81,11 +91,12 @@ const HANDLINGER = ["opret", "hent", "gem", "indsend", "spor"] as const;
  * BAGLOG → STRIKS). Målt i src/lib/ansoegning/api.ts: opret sender kilde,
  * kilde_raa, annoncespor, svar, firma (+ visning_id, 28/9); spor visning_id, trin,
  * kilde, kilde_raa, annoncespor; hent token; gem token, svar,
- * cvr_bekraeftet, virksomhedsnavn; indsend token, svar. Kildeværnet
+ * cvr_bekraeftet, virksomhedsnavn; indsend token, svar. «opret» tager også
+ * webinar_token (skive 4, 3/10: deltagertokenet fra exitrummet). Kildeværnet
  * ansoegningGemKendteFelter.guard holder listen op mod api.ts — et nyt felt
  * i klienten uden plads her afvises med 400, og værnet går rødt først.
  */
-const KENDTE_FELTER = ["handling", "token", "kilde", "kilde_raa", "annoncespor", "ga", "meta", "svar", "firma", "cvr_bekraeftet", "virksomhedsnavn", "visning_id", "trin"] as const;
+const KENDTE_FELTER = ["handling", "token", "kilde", "kilde_raa", "annoncespor", "ga", "meta", "svar", "firma", "cvr_bekraeftet", "virksomhedsnavn", "visning_id", "trin", "webinar_token"] as const;
 type Handling = (typeof HANDLINGER)[number];
 
 /**
@@ -257,7 +268,7 @@ Deno.serve(async (req) => {
       // som om alt gik godt, så botten ikke lærer noget.
       if (typeof body?.firma === "string" && body.firma.trim() !== "") {
         console.warn("[ansoegning-gem] honningfelt udfyldt — intet oprettet");
-        return jsonResponse({ token: crypto.randomUUID(), fremdrift: afgoerFremdrift(TOMME_SVAR) });
+        return jsonResponse({ token: crypto.randomUUID(), fremdrift: afgoerFremdrift(TOMME_SVAR), webinar_kobling: udfaldUdenKobling(body?.webinar_token) });
       }
 
       // 429-teksten giver en udvej (Jonas 18/9): det er sjældent ansøgerens egen skyld.
@@ -303,6 +314,13 @@ Deno.serve(async (req) => {
       await gemMetaCookies(adminClient, data.id, metaCookiesAf(body?.meta));
       // VISNINGEN (28/9): rækkens visning kobles på — EGEN fail-soft update, sidst af de fire.
       await koblVisning(adminClient, data.id, body?.visning_id);
+      // WEBINARKOBLINGEN (skive 4, 3/10): tilmeldingen bag deltagertokenet → webinar_tilmelding_id.
+      // EGEN fail-soft update, efter de fire: udfaldet går i svaret, aldrig i en afvisning.
+      // Tokenet logges aldrig — kun udfaldet og grunden.
+      const webinarKobling = await koblWebinarTilmelding(adminClient, data.id, body?.webinar_token, verifyDeltagertoken);
+      if (webinarKobling.udfald === "ugyldigt" || webinarKobling.udfald === "fejl") {
+        console.warn(`[ansoegning-gem] webinarkoblingen på ${data.id}: ${webinarKobling.udfald} (${webinarKobling.grund})`);
+      }
 
       // KLAVIYO: «Ansoegning paabegyndt» sendes IKKE her. Målt 19/9 kl. 22.22:
       // «opret» sker ved FØRSTE gem, og første skærm er CVR — mailen kommer
@@ -312,7 +330,7 @@ Deno.serve(async (req) => {
       // Kladde-påmindelsen er trappen «kladde» i den fælles rykkerkø (Jonas D6, 18/9):
       // én række dag 2 fra sidste gem, kun når der er en e-mail — ingen cron for sig.
       await planlaegKladde(adminClient, data, new Date());
-      return jsonResponse({ token: data.token, fremdrift: afgoerFremdrift({ ...TOMME_SVAR, ...del.svar }) });
+      return jsonResponse({ token: data.token, fremdrift: afgoerFremdrift({ ...TOMME_SVAR, ...del.svar }), webinar_kobling: webinarKobling.udfald });
     }
 
     // ── Alt andet: tokenet FØRST ───────────────────────────────────────
