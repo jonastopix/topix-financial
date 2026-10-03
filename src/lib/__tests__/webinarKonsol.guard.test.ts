@@ -65,9 +65,9 @@ describe("webinarKonsol.guard 1 — ruten", () => {
     const filer = alleKildefiler().map((sti) => ({ sti, kilde: laes(sti) }));
     expect(naevnerKonsolStien(filer).sort()).toEqual([APP, LIB].sort());
   });
-  it("konsolSti() kaldes kun fra opsætningens sessionsrække", () => {
+  it("konsolSti() kaldes kun fra opsætningens sessionsrække — og fra klokkens vej (skive 5: et nyt spørgsmål fører til konsollen)", () => {
     const kaldere = alleKildefiler().filter((f) => f !== LIB && /\bkonsolSti\(/.test(udenKommentarer(laes(f))));
-    expect(kaldere).toEqual(["src/components/hjemmebane/webinarMotor/WebinarMotorOpsaetning.tsx"]);
+    expect(kaldere.sort()).toEqual(["src/components/hjemmebane/webinarMotor/WebinarMotorOpsaetning.tsx", "src/lib/hjemmebane/klokke.ts"]);
   });
   it("MUTATION: en menu med stien og en rute uden AdvisorRoute fanges", () => {
     const filer = [{ sti: APP, kilde: laes(APP) }, { sti: LIB, kilde: laes(LIB) }, { sti: "src/lib/hjemmebane/hbNav.ts", kilde: 'const x = { sti: "/webinar/motor/session/1" };' }];
@@ -99,7 +99,8 @@ describe("webinarKonsol.guard 2 — ingen Realtime", () => {
 
 // ── 3. Persondata ────────────────────────────────────────────────────────────
 
-const SPOERGSMAAL_FELTER = ["id", "tekst", "pos_sek", "stillet_at", "art", "status", "svar_tekst", "svaret_at", "leveret", "leveret_at"];
+// + mail_udfald (skive 5, CTO 3/10 fund 7): svarmailens udfald — ingen persondata.
+const SPOERGSMAAL_FELTER = ["id", "tekst", "pos_sek", "stillet_at", "art", "status", "svar_tekst", "svaret_at", "leveret", "leveret_at", "mail_udfald"];
 
 /** Kolonnerne i køens select — og tilmeldingens indlejrede felter. */
 function koeensFelter(hook: string): { egne: string[]; tilmelding: string[] } | null {
@@ -206,7 +207,9 @@ describe("webinarKonsol.guard 5 — migrationen", () => {
   it("tidsstemplet ligger efter 20261003040000 (ukørte efter alle andre)", () => {
     expect(MIG.split("/")[2].slice(0, 14) > "20261003040000").toBe(true);
     const alle = readdirSync(resolve(ROD, "supabase/migrations")).filter((f) => f.endsWith(".sql")).sort();
-    expect(alle[alle.length - 1]).toBe(MIG.split("/")[2]);
+    // 3/10: kun webinarmotorens egne, senere skiver må ligge efter — nævnt ved navn
+    // (+ webinarchattens bagende, 20261003080000, §7.10; webinarChatBagende.guard).
+    expect(alle.slice(alle.indexOf(MIG.split("/")[2]) + 1)).toEqual(["20261003080000_webinar_chat_bagende.sql"]);
   });
   it("MUTATION: forkert første linje, SECURITY DEFINER, anon, tjenestekonto-hul og løsere trigger fanges", () => {
     const m = laes(MIG);

@@ -13,6 +13,7 @@ import { positionDom, type Position, type SessionUr } from "@/lib/webinarMotor/u
 import { I_RUMMET_SEK } from "@/lib/webinarMotor/puls";
 import { erManglendeKolonne, erManglendeTabel } from "@/lib/manglendeTabel";
 import { tidskode } from "@/lib/webinarMotorAdmin/opsaetning";
+import { laesSvarMailLaas, SVAR_MAIL_GAAET_SEK } from "@/lib/webinarMotor/svarMail";
 
 /** Spørgsmålskøen hentes hvert 10. sekund — ingen Realtime (spec §D3). */
 export const KONSOL_POLL_MS = 10_000;
@@ -40,6 +41,8 @@ export interface KonsolSpoergsmaal {
   svaret_at: string | null;
   leveret: string | null;
   leveret_at: string | null;
+  /** Svarmailens udfald (sendt · ukendt · afvist; null = intet mailforsøg) — migration 20261003080000. */
+  mail_udfald: string | null;
   /** webinar_tilmeldinger.fornavn — det ENESTE personfelt, konsollen henter. */
   fornavn: string | null;
 }
@@ -81,15 +84,47 @@ const klok = (iso: string): string =>
   new Date(iso).toLocaleTimeString("da-DK", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Copenhagen" });
 
 /**
- * Leveringens status i ord. Pulsen leverer kun til en seer, der stadig pulser —
- * svar på mail til den, der er gået, er skive 5 og ikke bygget; teksten lover det ikke.
+ * Leveringens status i ord. Pulsen leverer til en seer, der stadig pulser
+ * («live»); webinar-motor-cron leverer på mail til den, der er gået (skive 5,
+ * §7.10) — kun med låsen åben, så «mail» står kun på rækken, når det skete.
  */
-export function leveringTekst(s: Pick<KonsolSpoergsmaal, "status" | "leveret" | "leveret_at">): string {
+export function leveringTekst(s: Pick<KonsolSpoergsmaal, "status" | "leveret" | "leveret_at"> & { mail_udfald?: string | null }): string {
   if (s.status === "ny") return "Ubesvaret";
   if (s.status !== "besvaret") return s.status;
   if (s.leveret === "live" && s.leveret_at) return `Set i rummet kl. ${klok(s.leveret_at)}`;
-  if (s.leveret === "mail" && s.leveret_at) return `Sendt på mail kl. ${klok(s.leveret_at)}`;
+  // Mail skelnes på rækkens udfald (CTO 3/10, fund 7): sendt · ukendt · (under afsendelse).
+  if (s.leveret === "mail" && s.leveret_at) {
+    if (s.mail_udfald === "sendt") return `Sendt på mail kl. ${klok(s.leveret_at)}`;
+    if (s.mail_udfald === "ukendt") return `Forsøgt sendt på mail kl. ${klok(s.leveret_at)} — det vides ikke, om den kom frem`;
+    return `Sendes på mail (kl. ${klok(s.leveret_at)})`;
+  }
+  if (s.mail_udfald === "afvist") return "Mailen blev afvist — svaret vises, hvis seeren kommer tilbage i rummet";
   return "Besvaret — vises, når seeren er i rummet";
+}
+
+/**
+ * Låsens værdi, som hooken læste den: true/false — eller null, når den ikke kunne
+ * læses (fail-soft: teksten siger så, at det ikke vides). En manglende række er
+ * false (låsen er fraværende = lukket, som i cronen).
+ */
+export function laasFraRaekke(raekke: { config_value?: unknown } | null, fejl: unknown): boolean | null {
+  if (fejl) return null;
+  return raekke === null ? false : laesSvarMailLaas(raekke.config_value);
+}
+
+/**
+ * Konsollens løfte om leveringen — ÉN dom, så teksten følger låsen
+ * (app_config.webinar_svar_mail_aktiv, den samme, cronen læser):
+ *   true  → svaret går på mail, når seeren er gået (ingen puls i 3 min) eller sessionen er slut;
+ *   false → der sendes intet på mail;
+ *   null  → låsen kunne ikke læses; teksten lover intet.
+ */
+export function svarLoefteTekst(laas: boolean | null): string {
+  const rummet = "Svaret vises for seeren ved næste puls, hvis seeren stadig er i rummet";
+  const min = Math.round(SVAR_MAIL_GAAET_SEK / 60);
+  if (laas === true) return `${rummet}. Er seeren gået (ingen puls i ${min} min), eller er sessionen slut, sendes svaret på mail inden for ca. 5 minutter — hvis seeren kan modtage mail (ikke afmeldt, og adressen tager imod).`;
+  if (laas === false) return `${rummet} — der sendes intet på mail (svarmailen er slået fra).`;
+  return `${rummet}. Om svaret også sendes på mail til den, der er gået, kan ikke læses lige nu.`;
 }
 
 export const RUM_ORD: Record<Position["rum"], string> = {

@@ -20,6 +20,8 @@
 //      rådets fund 30/9; tallene og regnestykket i puls.ts:HANDLING_LOFT_PR_TIME.
 //      Talt i webinar_motor_log FØR indsættelsen; over loftet: «over_loft»,
 //      intet skrevet (en gentagelse af et allerede modtaget klient_id: «dublet»).
+//      Et NYT spørgsmål ringer rådgivernes klokke (skive 5, docs/webinarmotor.md
+//      §7.10; _shared/webinarSpoergsmaalKlokke.ts) — fail-soft, uden log.
 //   3. SVARET: serverens ur, rummet, set_procent, værtens svar på seerens
 //      spørgsmål (leveret «live» i samme øjeblik), «i rummet» (kun fra 10, aldrig
 //      pustet op) og tidslinjens version.
@@ -56,6 +58,7 @@ import {
 } from "../_shared/webinarMotor/puls.ts";
 import { doemSvar, svarKanModtages, type Tidslinje } from "../_shared/webinarMotor/interaktioner.ts";
 import { findMotorForbudte, MOTOR_VERSION } from "../_shared/webinarMotor/svar.ts";
+import { ringSpoergsmaalKlokke } from "../_shared/webinarSpoergsmaalKlokke.ts";
 
 // ── Fejlsummen: ét log pr. minut, aldrig ét pr. kald ─────────────────────────
 const fejlsum = { minut: -1, antal: 0, grunde: new Map<string, number>() };
@@ -291,6 +294,14 @@ Deno.serve(async (req) => {
       for (const h of krop.handlinger) {
         const udfald = await udfoerHandling(admin, h, { tilmeldingId: d.id, sessionId: d.session_id, deltagelseId: deltagelse.id, rum: pos.rum, posSek: pos.forventetPosSek, tidslinje: rd.tidslinje, nuMs, talt });
         handlingerUd.push({ klient_id: h.klient_id, udfald });
+      }
+      // KLOKKEN (skive 5, §7.10; CTO 3/10 fund 4): HØJST ÉN GANG PR. KALD, efter
+      // løkken, når mindst ét spørgsmål blev «ok». Hos alle rådgivere, højst én
+      // ULÆST pr. (rådgiver, session). FAIL-SOFT: kaster aldrig, logger aldrig,
+      // frist 2 s — en fejl lægges i fejlsummen; spørgsmålene er stadig «ok».
+      if (krop.handlinger.some((h, i) => h.art === "spoergsmaal" && handlingerUd[i]?.udfald === "ok")) {
+        const klokke = await ringSpoergsmaalKlokke(admin, { sessionId: d.session_id, webinarTitel: rd.webinar.titel ?? null });
+        if (klokke.fejl !== null) noterFejl(klokke.fejl);
       }
     } else {
       for (const h of krop.handlinger) handlingerUd.push({ klient_id: h.klient_id, udfald: "rummet_er_lukket" });

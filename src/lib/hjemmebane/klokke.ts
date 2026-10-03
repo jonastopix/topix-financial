@@ -21,6 +21,7 @@
  */
 
 import { renTekst } from "./richtext";
+import { konsolSti, OPSAETNING_STI } from "@/lib/webinarMotorAdmin/konsol";
 
 export type Prioritet = "info" | "important" | "action_required";
 
@@ -210,6 +211,9 @@ export function raadgiverSti(n: Pick<RaadgiverNotifikation, "type" | "reference_
     // «Må vi ringe til dig?» (2/10): én klokke pr. anmodning, til alle rådgivere — kortet med nummeret står på /opkald (også menupunktet «Opkald», 2/10).
     case "opkald":
       return "/opkald";
+    // Webinarmotoren (3/10, skive 5): et nyt spørgsmål → værtskonsollen for sessionen. Stien bygges KUN af konsolSti (webinarKonsol.guard dom 1).
+    case "webinar_session":
+      return n.reference_id ? konsolSti(n.reference_id) : OPSAETNING_STI;
     default:
       return virksomhed;
   }

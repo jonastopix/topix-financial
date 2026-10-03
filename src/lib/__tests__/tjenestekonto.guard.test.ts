@@ -87,6 +87,7 @@ const KLIENT_UNDTAGET: Readonly<Record<string, string>> = {
 /** Edge-steder, der BEVIDST ikke filtrerer — med grunden. */
 const EDGE_UNDTAGET: Readonly<Record<string, string>> = {
   "supabase/functions/_shared/raadgiverBesked.ts": "KLOKKER (advisor_notifications): kontoen skal se alt; mailen filtreres i klokke-mail-cron",
+  "supabase/functions/_shared/webinarSpoergsmaalKlokke.ts": "KLOKKER (advisor_notifications, webinar_spoergsmaal — CTO 3/10 fund 2): kontoen skal se alt; mailen filtreres i klokke-mail-cron",
   "supabase/functions/send-slack-chat-notification/index.ts": "KLOKKER (notifications): send-notification-email mailer ikke rådgivere",
   "supabase/functions/send-slack-report-notification/index.ts": "KLOKKER (notifications): send-notification-email mailer ikke rådgivere",
   "supabase/functions/send-slack-handout-notification/index.ts": "KLOKKER (notifications): send-notification-email mailer ikke rådgivere",
@@ -188,6 +189,7 @@ const LAESE_STEDER = [
   "src/components/hjemmebane/akademi/views/ElementView.tsx",
   "src/hooks/sidenSidst.ts",
   "src/hooks/useAuth.tsx",
+  "src/hooks/webinarKonsolKlokke.ts", // konsollen markerer sessionens webinarklokke læst (skive 5, CTO 3/10 fund 3)
 ];
 
 function laeseDom(kilder: Readonly<Record<string, string>>, undtaget: Readonly<Record<string, string>> = LAESE_UNDTAGET): string[] {

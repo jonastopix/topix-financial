@@ -14,8 +14,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { urForskydning } from "@/lib/webinarMotor/ur";
+import { SVAR_MAIL_LAAS_NOEGLE } from "@/lib/webinarMotor/svarMail";
 import {
   iRummetSiden,
+  laasFraRaekke,
   KONSOL_POLL_MS,
   KONSOL_UR_MAAL_MS,
   type KonsolSpoergsmaal,
@@ -116,6 +118,29 @@ export function useIRummet(sessionId: string | undefined, serverNu: () => number
   });
 }
 
+/**
+ * Svarmailens lås (app_config.webinar_svar_mail_aktiv) — FAIL-SOFT: en fejl giver
+ * null (fladen siger, at det ikke vides), en manglende række false. Konsollens
+ * tekst følger den gennem svarLoefteTekst.
+ */
+export function useSvarMailLaas() {
+  const { user, isAdvisor } = useAuth();
+  return useQuery({
+    queryKey: [...KONSOL_KEY, "svar-mail-laas"],
+    enabled: !!user && isAdvisor === true,
+    staleTime: 60_000,
+    retry: false,
+    queryFn: async (): Promise<boolean | null> => {
+      try {
+        const { data, error } = await supabase.from("app_config").select("config_value").eq("config_key", SVAR_MAIL_LAAS_NOEGLE).maybeSingle();
+        return laasFraRaekke((data ?? null) as { config_value?: unknown } | null, error);
+      } catch {
+        return null;
+      }
+    },
+  });
+}
+
 /** Spørgsmålskøen — hvert 10. sekund. Af tilmeldingen KUN fornavn. */
 export function useSpoergsmaalKoe(sessionId: string | undefined) {
   const { user, isAdvisor } = useAuth();
@@ -126,7 +151,7 @@ export function useSpoergsmaalKoe(sessionId: string | undefined) {
     retry: false,
     queryFn: async (): Promise<KonsolSpoergsmaal[]> => {
       const { data, error } = await tabel("webinar_spoergsmaal")
-        .select("id, tekst, pos_sek, stillet_at, art, status, svar_tekst, svaret_at, leveret, leveret_at, tilmelding:webinar_tilmeldinger(fornavn)")
+        .select("id, tekst, pos_sek, stillet_at, art, status, svar_tekst, svaret_at, leveret, leveret_at, mail_udfald, tilmelding:webinar_tilmeldinger(fornavn)")
         .eq("session_id", sessionId)
         .order("stillet_at", { ascending: false })
         .limit(500);
@@ -142,6 +167,7 @@ export function useSpoergsmaalKoe(sessionId: string | undefined) {
         svaret_at: r.svaret_at ?? null,
         leveret: r.leveret ?? null,
         leveret_at: r.leveret_at ?? null,
+        mail_udfald: (r.mail_udfald as string | null | undefined) ?? null,
         fornavn: (r.tilmelding?.fornavn as string | null | undefined) ?? null,
       }));
     },
