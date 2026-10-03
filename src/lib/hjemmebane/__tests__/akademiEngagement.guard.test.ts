@@ -4,6 +4,11 @@
 //   2. Dommen går gennem itemProgressState/markeringsTilstand/medlemmetsSenesteStempel
 //      og læser ikke de rå felter.
 //   3. Rådgivere og tjenestekonti trækkes fra (hentRaadgiverListe → dommen).
+//   4. Fladen viser dommens ord.
+//   5. member_progress hentes SIDEVIS (hentAlleSider + .order("id") + .range):
+//      PostgREST svarer højst 1000 rækker pr. kald, og en læsning uden range
+//      ville tabe rækker TAVST — 353 rækker i dag (målt 3/10), ét aktivt
+//      medlem med hele kataloget er 77. Rådets fund 3/10.
 // Selvbevis: hver dom prøves også på en lille kilde, der SKAL fælde den.
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -75,6 +80,20 @@ describe("Akademiet på /engagement — kildeværn", () => {
     expect(fladenBrugerDommen(`const t = \`\${r.akademi.set} af \${r.akademi.ialt}\`;`)).toBe(false);
     expect(
       fladenBrugerDommen(`akademiTekst(r.akademi); akademiSorteringsnoegle(r.akademi); itemProgressState(row);`),
+    ).toBe(false);
+  });
+
+  it("5. member_progress hentes sidevis — aldrig ét kald, der tavst kappes ved 1000", () => {
+    const sidevis = (kilde: string) =>
+      /hentAlleSider<AkademiFremdriftRaekke>\(\(fra, til\) =>\s*supabase\s*\.from\("member_progress"\)\s*\.select\(AKADEMI_FREMDRIFT_KOLONNER\)\s*\.order\("id"\)\s*\.range\(fra, til\)/.test(
+        udenKommentarer(kilde),
+      );
+    expect(sidevis(laes("src/hooks/trofaeer.ts"))).toBe(true);
+    // Selvbevis: én læsning uden range fældes.
+    expect(sidevis(`const { data } = await supabase.from("member_progress").select(AKADEMI_FREMDRIFT_KOLONNER);`)).toBe(false);
+    // … og en sidevis læsning uden stabil orden fældes (sider kan overlappe/tabe rækker).
+    expect(
+      sidevis(`hentAlleSider<AkademiFremdriftRaekke>((fra, til) => supabase.from("member_progress").select(AKADEMI_FREMDRIFT_KOLONNER).range(fra, til)`),
     ).toBe(false);
   });
 });

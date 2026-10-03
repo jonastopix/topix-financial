@@ -91,7 +91,7 @@ const KOLONNER: readonly { k: Kolonne; label: string; title?: string }[] = [
 const aktiveMaalTekst = (r: EngagementRaekke): string => (r.maal ? String(r.maal.aktive) : "—");
 const bevaegelse = (r: EngagementRaekke): string => bevaegelseTekst(r.maal?.dageSidenBevaegelse ?? null);
 
-/** Akademi-cellen: «N af M set», og under den påbegyndt/rådgiverens
+/** Akademi-cellen: «N af M set», og under den påbegyndt/sprunget over/rådgiverens
     markering og seneste egne aktivitet i Akademiet — alt fra dommen. */
 function AkademiCelle({ r }: { r: EngagementRaekke }) {
   const spor = akademiSporTekst(r.akademi);

@@ -37,8 +37,11 @@
  * DOMMEN pr. lektion er itemProgressState (progressState.ts) — ALDRIG en egen
  * læsning af seen_at/acknowledged_at:
  *   «set»       = state "done" hos mindst ét medlem,
- *   «påbegyndt» = ingen har "done", men mindst ét har "started" eller
- *                 "skipped" (egen aktivitet uden at være færdig),
+ *   «påbegyndt» = ingen har "done", men mindst ét har "started" (åbnet
+ *                 selv, ikke færdig),
+ *   «sprunget over» = ingen har "done" eller "started", men mindst ét har
+ *                 "skipped" — et aktivt fravalg er IKKE «påbegyndt» (rådets
+ *                 fund 3/10: den første version talte dem sammen),
  *   «gennemgået med rådgiver» = markeringsTilstand "gennemgaaet" hos mindst
  *                 ét medlem — rådgiverens stempel, VIST FOR SIG, tæller
  *                 ALDRIG som set (F0, akademi-grundlag §8).
@@ -83,8 +86,10 @@ export type AkademiFremdriftRaekke = Pick<
 export interface AkademiFremdrift {
   /** Lektioner i kataloget, mindst ét medlem selv har set (itemProgressState "done"). */
   set: number;
-  /** Lektioner, nogen har rørt selv, men ingen har set færdig. */
+  /** Lektioner, nogen har åbnet selv ("started"), men ingen har set færdig. */
   paabegyndt: number;
+  /** Lektioner, nogen har sprunget over, og ingen har åbnet eller set færdig. */
+  sprunget: number;
   /** Lektioner, en rådgiver har markeret «gennemgået med rådgiver» — tæller ikke i `set`. */
   gennemgaaetMedRaadgiver: number;
   /** M — kataloget. */
@@ -110,24 +115,30 @@ export function akademiFremdrift(
   katalog: ReadonlySet<string>,
 ): AkademiFremdrift {
   const set = new Set<string>();
-  const roert = new Set<string>();
+  const startet = new Set<string>();
+  const sprunget = new Set<string>();
   const gennemgaaet = new Set<string>();
   let senest: number | null = null;
   for (const r of raekker) {
     if (!katalog.has(r.content_item_id)) continue;
     const tilstand = itemProgressState(r);
     if (tilstand === "done") set.add(r.content_item_id);
-    else if (tilstand === "started" || tilstand === "skipped") roert.add(r.content_item_id);
+    else if (tilstand === "started") startet.add(r.content_item_id);
+    else if (tilstand === "skipped") sprunget.add(r.content_item_id);
     if (markeringsTilstand(r) === "gennemgaaet") gennemgaaet.add(r.content_item_id);
     const t = medlemmetsSenesteStempel(r);
     if (t !== null && (senest === null || t > senest)) senest = t;
   }
+  // Rækkefølgen er dommen pr. lektion over medlemmerne: set > påbegyndt > sprunget over.
   let paabegyndt = 0;
-  for (const id of roert) if (!set.has(id)) paabegyndt++;
+  for (const id of startet) if (!set.has(id)) paabegyndt++;
+  let sprungetOver = 0;
+  for (const id of sprunget) if (!set.has(id) && !startet.has(id)) sprungetOver++;
   const ialt = katalog.size;
   return {
     set: set.size,
     paabegyndt,
+    sprunget: sprungetOver,
     gennemgaaetMedRaadgiver: gennemgaaet.size,
     ialt,
     procent: ialt === 0 ? null : Math.round((100 * set.size) / ialt),
@@ -168,11 +179,12 @@ export function akademiTekst(f: AkademiFremdrift | null): string {
   return `${f.set} af ${f.ialt} set`;
 }
 
-/** Den lille linje under tallet: påbegyndt og rådgiverens markering, kun når de findes. */
+/** Den lille linje under tallet: påbegyndt, sprunget over og rådgiverens markering, kun når de findes. */
 export function akademiSporTekst(f: AkademiFremdrift | null): string | null {
   if (!f) return null;
   const dele: string[] = [];
   if (f.paabegyndt > 0) dele.push(`${f.paabegyndt} påbegyndt`);
+  if (f.sprunget > 0) dele.push(`${f.sprunget} sprunget over`);
   if (f.gennemgaaetMedRaadgiver > 0) dele.push(`${f.gennemgaaetMedRaadgiver} gennemgået med rådgiver`);
   return dele.length > 0 ? dele.join(" · ") : null;
 }

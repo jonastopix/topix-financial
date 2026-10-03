@@ -423,11 +423,11 @@ referrer-låst til `app.theboardroom.dk`.
 - **RLS** (målt i `pg_policy` 3/10): «Advisors can view all progress» er PERMISSIVE SELECT med `has_role(auth.uid(),'advisor')`. Der er ingen RESTRICTIVE-politik på `member_progress`.
 - **Fladen:** kolonnen «Akademiet» efter «Trofæer». Den er sorterbar på antal set og viser:
   - «N af M set»,
-  - under det «N påbegyndt · N gennemgået med rådgiver», kun når de findes,
+  - under det «N påbegyndt · N sprunget over · N gennemgået med rådgiver», kun når de findes,
   - «Sidst i Akademiet <dato>».
   - På mobil står det samme i kortet.
 - **Værn:**
-  - `akademiEngagement.guard.test.ts` (fire domme med selvbevis): fladen og hentningen læser aldrig `seen_at`/`acknowledged_at`/`skipped_at`/`markeret_at` selv, og dommen går gennem progressState.
+  - `akademiEngagement.guard.test.ts` (fem domme med selvbevis; dom 5 sidevis hentning): fladen og hentningen læser aldrig `seen_at`/`acknowledged_at`/`skipped_at`/`markeret_at` selv, og dommen går gennem progressState.
   - `quickWinsSkjult.guard` dom 7 kender den nye kataloglæser (`trofaeer.ts` → filtret `o.akademi` i dommen; dom 1 holder, at et skjult område aldrig er et Akademi-område).
   - `akademiF0.guard` dom 7 og `lektionBrugbar.guard` dom 3 tillader `akademiFremdrift.ts` (rådgiverens motor) at nævne `markeret_at`/`brugbar_at`. Kolonnelisten står ét sted (`AKADEMI_FREMDRIFT_KOLONNER`), så hentningen i `trofaeer.ts` ikke nævner felterne.
 
@@ -439,6 +439,15 @@ referrer-låst til `app.theboardroom.dk`.
 **ÅBENT — ProgressView tæller et andet M.** ProgressView's «N af M videoer» tæller alle sporede videoer minus de medlems-skjulte områder: 77 + talks 2 + ugens_video 1 = **80**. Rådgiveren ser derfor «N af 80» pr. medlem og «N af 77» på /engagement. Ikke rørt her; det er Jonas' valg, om ProgressView skal følge Akademiets katalog.
 
 **Rækkefølgen:** PR → merge → Update. Frontend alene; ingen migration, ingen edge function.
+
+**Rådets gennemsyn 3/10 nat** (SHA `1ef7ce4e`, kun læsning; rettelserne i commit'et efter):
+- **Dommen genberegnet i prod** for 3 virksomheder (SQL, kun aggregater, samme regel som `itemProgressState`): 77 af 77 · 7 af 77 · 6 af 77 — samme tal som dommen giver. 29 i universet (`er_kunde IS NOT FALSE` giver også 29). 0 rækker med `markeret_at`, 353 `member_progress`-rækker, 90 publicerede `content_items` (kataloget er 77).
+- **Universet:** rådgivere og tjenestekonti har 2 brugere med `member_progress`-rækker og 0 i `company_members` — de trækkes fra i dommen, også hvis det ændrer sig. Demo, legat, ikke-kunde, gæst og slettet er ude gennem `iEngagementUniverset`.
+- **Hentningen:** `member_progress` hentes sidevis (`hentAlleSider`, side 1000, `.order("id")`, stopper på en kort side) — ingen tavs kapning ved 1000. Kataloget (`listPublishedItems`) er ét kald; 90 rækker i dag. RISIKO, ikke målt: står PostgREST' `max_rows` under 1000, stopper `hentAlleSider` efter første side (husets fælles hjælper, ikke denne gren).
+- **Fund 1 (RETTET):** «påbegyndt» talte «sprunget over» med. Et fravalg er ikke påbegyndt. Nu tre tal pr. lektion over medlemmerne: set > påbegyndt > sprunget over; linjen viser «N sprunget over» for sig. Test med regnestykket.
+- **Fund 2 (RETTET):** intet værn holdt, at `member_progress` hentes sidevis. `akademiEngagement.guard` dom 5 (selvbevis: ét kald uden range og en sidevis læsning uden `.order("id")` fældes).
+- **Værnudvidelserne** er ikke slækket mere end nødvendigt: F0 dom 7 og brugbar dom 3 tilføjer ÉN fil (rådgiverens motor, der kun nævner felterne i kolonnelisten og typen); quickWinsSkjult dom 7 tilføjer en læser med et filter — en skærpelse.
+- **Mutationer:** fjernet rådgiverfilter → fældet; rådgiverens markering talt som set → fældet; `.order("id")` fjernet i hentningen → fældet (dom 5).
 
 ### 3. oktober kl. 20:19 — Jonas' fem svar, og hvad der er målt bagefter
 

@@ -62,10 +62,12 @@ describe("akademiFremdrift", () => {
       ],
       katalog,
     );
-    // set = {a} = 1; påbegyndt = {b, c} = 2; M = 4; procent = round(100 · 1 / 4) = 25.
+    // set = {a} = 1; påbegyndt = {b} = 1; sprunget over = {c} = 1 (et fravalg er ikke påbegyndt);
+    // M = 4; procent = round(100 · 1 / 4) = 25.
     expect(f).toEqual({
       set: 1,
-      paabegyndt: 2,
+      paabegyndt: 1,
+      sprunget: 1,
       gennemgaaetMedRaadgiver: 0,
       ialt: 4,
       procent: 25,
@@ -123,7 +125,25 @@ describe("akademiFremdrift", () => {
   });
 
   it("uden rækker: 0 af M og ingen seneste", () => {
-    expect(akademiFremdrift([], katalog)).toEqual({ set: 0, paabegyndt: 0, gennemgaaetMedRaadgiver: 0, ialt: 4, procent: 0, senesteAktivitet: null });
+    expect(akademiFremdrift([], katalog)).toEqual({ set: 0, paabegyndt: 0, sprunget: 0, gennemgaaetMedRaadgiver: 0, ialt: 4, procent: 0, senesteAktivitet: null });
+  });
+});
+
+describe("sprunget over er ikke påbegyndt", () => {
+  it("én lektion: set > påbegyndt > sprunget over over medlemmerne", () => {
+    const k = new Set(["a", "b", "c"]);
+    const f = akademiFremdrift(
+      [
+        r("u1", "a", { skipped_at: "2026-09-01T10:00:00Z" }),
+        r("u2", "a", { seen_at: "2026-09-02T10:00:00Z" }), // a: påbegyndt hos u2 slår sprunget hos u1
+        r("u1", "b", { skipped_at: "2026-09-01T10:00:00Z" }),
+        r("u2", "b", { acknowledged_at: "2026-09-02T10:00:00Z" }), // b: set slår alt
+        r("u1", "c", { skipped_at: "2026-09-01T10:00:00Z" }), // c: kun sprunget over
+      ],
+      k,
+    );
+    // set = {b} = 1; påbegyndt = {a} = 1; sprunget = {c} = 1.
+    expect([f.set, f.paabegyndt, f.sprunget]).toEqual([1, 1, 1]);
   });
 });
 
@@ -154,7 +174,7 @@ describe("akademiFremdriftPrVirksomhed", () => {
 });
 
 describe("tekster og sortering", () => {
-  const f = { set: 4, paabegyndt: 2, gennemgaaetMedRaadgiver: 1, ialt: 77, procent: 5, senesteAktivitet: null };
+  const f = { set: 4, paabegyndt: 2, sprunget: 0, gennemgaaetMedRaadgiver: 1, ialt: 77, procent: 5, senesteAktivitet: null };
   it("«N af M set», «—» uden data", () => {
     expect(akademiTekst(f)).toBe("4 af 77 set");
     expect(akademiTekst(null)).toBe("—");
@@ -162,6 +182,7 @@ describe("tekster og sortering", () => {
   it("sporet nævner kun det, der findes", () => {
     expect(akademiSporTekst(f)).toBe("2 påbegyndt · 1 gennemgået med rådgiver");
     expect(akademiSporTekst({ ...f, paabegyndt: 0, gennemgaaetMedRaadgiver: 0 })).toBeNull();
+    expect(akademiSporTekst({ ...f, paabegyndt: 0, sprunget: 3, gennemgaaetMedRaadgiver: 0 })).toBe("3 sprunget over");
     expect(akademiSporTekst(null)).toBeNull();
   });
   it("sorteringsnøglen er antal set; ikke hentet = −1", () => {
