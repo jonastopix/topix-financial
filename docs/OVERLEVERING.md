@@ -397,7 +397,33 @@ referrer-låst til `app.theboardroom.dk`.
 
 ## DEL 2 · Tilstanden
 
-### 3. oktober — de danske flader taber tre omkostningsnøgler (gren `fix/danske-flader-tre-noegler`; frontend alene — ingen migration, ingen udrulning; **IKKE merget — KRÆVER JONAS' JA FØR MERGE**)
+### 3. oktober kl. 20:19 — Jonas' fem svar, og hvad der er målt bagefter
+
+**Svarene** (ordret i chatten):
+1. **«Ja»** til #1275, hvor de danske flader tæller de tre nøgler. Merget, og den kræver Update. Pakke B (#1277) er merget efter den. `extract-financial-data` er IKKE udrullet; det kræver Jonas' ja.
+2. **«Er done»** — Update er klikket.
+3. **«Nej»** til at udrulle `run-company-agent` v8. Begrundelsen, ordret: «jeg har netop markeret det manuelt, da alle moduler er flyttet fra Circle. Så jeg har set på hvad de havde set i Circle, og sørge for medlemmerne ikke skulle se tingene igen.»
+   - **v8 ligger på main (#1272) og må IKKE udrulles.** En fremtidig udrulning af `run-company-agent`, også af andre grunde, tager v8 med. Før næste udrulning af functionen skal F0-spørgsmålet nedenfor være afgjort, eller F0-delen tages ud af agenten.
+4. **«Nej»** til #1269. PR'en er lukket med en kommentar. De 8, der aldrig blev forsøgt med «om to uger» 29/9, indhentes ikke. Grenen `fix/webinarmail-sultet-hale` står.
+5. **«Dem klarer jeg»** — Jonas tager de to Stripe-træk selv (TBR-0018 og TBR-0014/YKRG).
+
+**Målt efter Update** (frisk fane i Claudes browser, som claude@, rådgiverforsiden, 3/10 ca. 20:35):
+- Frontend-markørerne fra #1271 og #1274 er i bundlen:
+  - `index.html` henter `react-`, `tanstack-`, `sentry-` og `supabase-`-chunks (`manualChunks`).
+  - «Banksaldo er ikke med i de månedlige rapporter» står i `DinMaaned-*.js`.
+  - «Skridt til de foreslåede mål» står i `HbMemberShell-*.js`.
+- **`process-pending-invitation` blev kaldt 0 gange** (før: 1 kald à 1,49 s).
+- 56 kald mod Supabase, og det sidste var færdigt efter **3.987 ms** (baseline 57 kald / 4.272 ms). Det er én måling. Resten af ventetiden ligger i rådgiverforsidens mange kald (`g03-advisor-dashboard-skala`), ikke i PPI.
+- **IKKE gjort:** §4b-gennemsynet af forsiden som medlem. Knappen til «Vis som medlem» blev ikke fundet i den smalle fane, og gennemsynet blev ikke taget. Kortene `g03-bank-som-i-november`, `g03-din-plan-dobbelt-overskrift` og `g03-agent-milesten-ord` (forsidedelen) lukkes først efter det gennemsyn.
+
+**F0 og Circle-markeringerne — et åbent spørgsmål til Jonas** (målt i prod 3/10 kl. ca. 20:30):
+- `member_progress` har 199 rækker med `markeret_at` hos 19 brugere: 23 fra 5/8 og 176 fra 12/8. Ingen er nyere end 12/8.
+- Alle 199 har intet eget stempel: `acknowledged_at` og `seen_at` er NULL eller lig `markeret_at`.
+- Det er Jonas' Circle-markeringer. De blev backfillet ind i `markeret_at`, da F0 blev bygget 2/10.
+- Under F0's dom (`itemProgressState`, i frontenden siden Update 2/10) er de RÅDGIVERENS stempel. Medlemsfladerne (Akademiet, forløbet, «Næste for dig», «Måske relevant») viser derfor de 199 som IKKE set. Det er det modsatte af Jonas' hensigt: «sørge for medlemmerne ikke skulle se tingene igen».
+- **Bogført, ikke afgjort:** skal de 199 Circle-markeringer tælle som medlemmets eget «set»? Hvis ja: ryd `markeret_at`/`markeret_af` på præcis de 199 rækker, guardet på `markeret_at < '2026-08-13'` og `acknowledged_at = markeret_at`. Det er en dataændring, der kræver Jonas' ja. Bagefter er frontenden og v8 enige, og v8 kan udrulles.
+
+### 3. oktober — de danske flader taber tre omkostningsnøgler (#1275, merget 3/10 aften efter Jonas' ja kl. 20:19; frontend alene — ingen migration, ingen udrulning; **KRÆVER Update**; beviset: virksomhed 7b0056eb, august 2026, «Omk. total» 341.000 kr. i stedet for 328.000)
 
 **CTO'en 3/10: «ret først» på `a1dd68a2` — koden korrekt, dokumentationen havde fejl; rettet i næste commit (de 7 måneder, BVA-konsekvensen, finans-afsnittet, den manuelle formular målt, fire mangelkort, rapportkortet, testen af den manuelle gren).**
 
@@ -462,7 +488,7 @@ Tællingerne (prod 3/10): `vehicle_costs` 27 rækker hos 6 virksomheder, heraf 2
 
 **Rækkefølgen:** Jonas' ja → merge → Update. Beviset: på en virksomhed med autodrift (fx 7b0056eb, august 2026) viser «Omk. total» 341.000 kr. i stedet for 328.000 kr. Værn: `src/lib/__tests__/danskeFladerTreNoegler.guard.test.ts` (paritet med selvbevis på den gamle liste, enhedstest af `calcTotalExpenses`/`factsToDanishMetrics` med regnestykket, kildeværn mod lokale omkostningslinjer, den manuelle gren af `getEffectiveMetrics` (en mutation til `(en) => mnd.metrics[en]` fælder — prøvet), `NAEVNTE_DANSKE` låst mod begge grenes lister med selvbevis, rapportkortet på en tynd og en fuld række); `saldobalanceFortegn.guard`, `kanoniskeNoegler.guard` (læser nu modulets map; de tre læsenavne som lukket undtagelse) og `skabelonerAC.guard` dom 6 (driftslisten står som `CANONICAL_DRIFT`) flyttet til den nye sandhed.
 
-### 3. oktober — pakke D, hastighed skive 1 (gren `perf/forside-hastighed-1`; frontend alene — ingen migration, ingen edge function; afventer merge og Update)
+### 3. oktober — pakke D, hastighed skive 1 (#1274, merget; Update klikket af Jonas 3/10 aften; BEVIST i drift — se «3. oktober kl. 20:19»)
 
 - **Målingen (prod 3/10):** rådgiverens forside laver 57 API-kald, og det sidste er færdigt efter 4.272 ms. `process-pending-invitation` (PPI) kaldes også for rådgivere, tager 1,49 s og svarer næsten altid `no_pending_invitation`. SELECT 3/10: 3 rådgivere/admins i alt, 0 med en afventende `company_invitations`-række (`accepted_at IS NULL`, match på lower(email)).
 - **Rådgivere kalder aldrig PPI.** Dommen `skalKaldePendingInvitation` (`src/lib/authIndlaesning.ts`): en KENDT rådgiver/admin springer PPI over, uanset `invite_token`; ukendt rolle (roller-opslaget fejlede) og medlemmer kalder som før. Grunden er husets regel: PPI kan koble kontoen på en virksomhed, og en rådgiver/admin må aldrig kobles på en (`attach-user-to-company/index.ts:66-87`; ellers sender `if (isAdvisor && !companyId)`-vagterne rådgiveren ind i medlemsvisning). **PPI's e-mail-fallback (afventende invitation på verificeret mail) og token-stien kører altså ikke længere for rådgivere** — bevidst, 0 af 3 havde en. Springgrenen i `useAuth.tsx` nulstiller id/navn/tier, sætter `companyResolution = "none"` og returnerer true. Rollen er kendt fra `Promise.all` FØR PPI, så medlemmer venter ikke længere end før (et medlem venter på PPI præcis som i dag).
