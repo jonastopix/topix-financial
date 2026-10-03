@@ -397,6 +397,42 @@ referrer-låst til `app.theboardroom.dk`.
 
 ## DEL 2 · Tilstanden
 
+### 3. oktober nat — fejlkortene
+
+**Opgaven:** hvert kort med `data-status="fejl"` i `docs/mangelliste.html` læst og dømt S/M/L: kan det rettes rent i `src/` uden migration, udrulning eller beslutning? Gren `fix/fejlkort-nat` (fra `origin/main` `e39a9a29`), ingen PR. 24 kort (filens tre andre træf er formatskabelonen, en kommentar og filterknappen). Prod kun SELECT. Hvert kort har fået linjen «Udfald 3/10 nat».
+
+**Målt undervejs (prod 3/10 nat):** `maal_pladser_kun_bekraeftede()` = true; 3 virksomheder med ≥ 3 aktive mål, men < 3 bekræftede · `chat-attachments`: 63 filer, 59 referencer i 41 beskeder, 0 delte referencer, 0 uden for afsenderens mappe; storage-politikken «Users can delete own chat attachments» (DELETE, egen mappe) · 0 legatvirksomheder, 4 brugbar-svar, 0 fra legat/ikke-kunde · 0 gæster · 0 `rate_limited` · 0 spærrede invitationer, 0 `invitation_fejlet`-klokker; 12 af 12 invitationer de sidste 25 dage er `fallback`/`enabled_false` uden `efter_betaling` i metadata. Denne session kan IKKE nå app.theboardroom.dk (proxyen: 403 på CONNECT) — ingen bundle-måling i nat; bundle-beviserne nedenfor er fra 3/10 ca. 20:35.
+
+| Kort | Størrelse | Udfald |
+|---|---|---|
+| `g03-handout-maal-ubekraeftet` | S | **Rettet i kode** — løftestangen tæller pladserne som triggeren (`hentMaalPladsdom` + `aktiveDerTaeller`), toasten siger «aktive mål og forslag» når forslag talte. Afventer merge + Update. |
+| `g03-tavse-queryfn` | S | **Rettet i kode** — EventsView's to sidehentninger (tilmeldinger, optagelser) viser en fejllinje i stedet for «0». Tilbage: #928's bevis i drift. Afventer merge + Update. |
+| `a29-vedhaeftning-slettes-ikke` | S | **Rettet i kode** — `deleteMessage` fjerner afsenderens egne filer EFTER beskeden (fail-soft). Afventer merge + Update. |
+| `m16-brugbar-er-kunde` | — | **Lukket med bevis** — rettet i #1160 (30/9), i drift (forfader til #1271/#1274, målt i bundlen 20:35), 0 legat-svar i prod. |
+| `g03-bank-som-i-november` | — | I drift (bundle 20:35); mangler §4b-gennemsyn som medlem — Claude med browser / Jonas. |
+| `g03-din-plan-dobbelt-overskrift` | — | Som ovenfor. |
+| `g03-agent-milesten-ord` | — | Forsiden som ovenfor; agentdelen er v8 — Jonas «Nej» til udrulning 3/10. |
+| `a22-forside-langsom` | M | (a) bevist i drift (0 PPI-kald); (b) RPC = migration/grønt lys, (c) måling. |
+| `g03-vagt-roed-gentages` | S (edge) | `_shared/driftDom.ts` + udrulning af `drift-agent-cron` — Jonas' ja. |
+| `g03-dobbeltmail-1-1` | S (edge) | `stripe-webhook` + udrulning — Jonas («senere» 22/9). |
+| `g03-agent-budget-tomt` | M (edge) | `run-company-agent` + udrulning — blokeret af v8-nej. |
+| `g03-fjorten-dage-otte-mangler` | M (edge) | Jonas «Nej» til #1269; dommens hul for kommende hold kræver edge + udrulning. |
+| `m16-invitation-spaerret` | S (edge) | Bevis udestår; (2) kan ikke afgøres i loggen — kræver metadata-felt (udrulning) eller prøvemail. |
+| `n14-11` | M (edge) | Alarmen er edge; bogføringsudkastet skal merges — Jonas. |
+| `w14` | M | Hylster + tabel + udrulning — egen skive, Jonas. |
+| `g03-persondata-meta` | S efter beslutning | Ordlyden er Jonas' (uge 41) — derefter frontend + site-PR. |
+| `g03-manuel-rettelse-taber-noegler` | M | Beslutning Jonas (formular / seed-migration / SQL-funktion). |
+| `g03-budget-finans-som-omkostning` | M | Beslutning Jonas (fortegn, «Omk. total»). |
+| `g03-gamle-komponenter` | M | Beslutning Jonas (Hb-tvillinger), admin-adgang. |
+| `n14-4` | — | Jonas: testimport eller lad importen dø. |
+| `m16-economic-doed` | L | Jonas + bogholder. |
+| `g03-to-traek-fejler` | — | Jonas tager dem selv («Dem klarer jeg» 3/10). |
+| `w13` | — | 0 gæster — beviset ved den første gæst. |
+| `m28-nyhedsbrev-utm-felter` | S (site) | Site-repoet, ikke her. |
+
+**Rækkefølgen for de tre kodede:** PR → merge → Update (frontend alene; ingen migration, ingen edge function). Beviser efter Update: bundlen bærer «aktive mål og forslag» og «Tilmeldingerne kunne ikke hentes lige nu»; en slettet egen besked med vedhæftning efterlader ingen række i `storage.objects`.
+
+
 ### 3. oktober kl. 20:19 — Jonas' fem svar, og hvad der er målt bagefter
 
 **Svarene** (ordret i chatten):
