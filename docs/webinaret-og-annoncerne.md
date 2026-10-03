@@ -440,7 +440,11 @@ et tavst tab. Rettelsen, i begge spejle af `webinarMailDom`:
   `for_sent`, ingen alarm).
 - **KUN NÆRMESTE SESSION står ved magt:** lå en anden af personens sessioner
   mellem det planlagte tidspunkt og denne, blev mailen holdt tilbage med vilje, og
-  tilmeldingen beviser intet (`andreSessionerMs`).
+  tilmeldingen beviser intet (`andreSessionerMs`). Cronen læser derfor personernes
+  sessioner `SESSIONER_VINDUE_DAGE` = største `dageFoer` + 1 = **15** dage tilbage
+  (kun `email, session_tid`); med rækkernes 3 dage alene ville S2's `syv_dage` (S1
+  13/10, S2 20/10) være blevet indhentet 16/10 (fundet af CTO 3/10, prøvet i
+  `webinarMailDom.test.ts`).
 - **Sorteringen: bekræftelser · ALDRIG forsøgte · fejlede**, hver gruppe ældste
   planlagte og så mail. Regnestykket: de fejlede først kan sulte de aldrig
   forsøgte uden grænse (29/9: 11 kørsler, 0 forsøg på halen); de aldrig forsøgte
@@ -453,12 +457,15 @@ et tavst tab. Rettelsen, i begge spejle af `webinarMailDom`:
   (efter planlagt, senest planlagt + 2 t) uden fejlet række sendes kun til planlagt
   + nåde, men `fristFor` siger `indhentningSlut` — `Ventende` i cronens svar bærer
   ikke `registreret_at`. Rettes det, er det en ændring i cronen.
+- **Alarmens alvorsorden er nu fejl > frist > tabt > loft** (før: tabt før frist).
+  «tabt» står i dagevis med nøgle pr. dansk dag; stod den foran, dæmpede
+  morgenens tabt-mail en frist, der kom i fare senere samme dag og stadig kunne
+  reddes. Hver alarmmail nævner de andre tilstande i kørslen (`ogsaaAfsnit`).
 - **Dommen for prod-data 3/10** (prøvet anonymiseret, `webinarMailDom.test.ts`
   «DEN SULTEDE HALE» (e)): `fjorten_dage` til præcis de 8 (A–G, I) med
   `indhentning: true` frem til 5/10 22:00Z; H (afmeldt), J (29/9 07:40Z) og de 42
   senere tilmeldte forbliver ude (`for_sent` 43). Rækkefølgen for at udrulle uden
-  at sende (lås → deploy → tørkørsel `skal_sendes 8`/`indhentet 8` → Jonas' ja →
-  lås op) står i recon'en §3. Værn: `webinarMail.guard` dom 20.
+  at sende står i `docs/OVERLEVERING.md` DEL 3 «Den sultede hale — udrulning». Værn: `webinarMail.guard` dom 20.
 
 ### Bekræftelsen sendes ALDRIG bagud (Jonas ~19:05)
 

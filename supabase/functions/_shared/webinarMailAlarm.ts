@@ -15,7 +15,8 @@
  * får hele tiden disse mails»). Første udgave (#1115) havde nøgle pr. dansk
  * time og lød ved HVERT loft-stop — under Mailguns probation rammes loftet hver
  * time (26 går igennem, så 420), og det er throttlen, der virker som bygget.
- * Resultat: én mail i timen hele dagen. Nu fire arter, i alvorsorden:
+ * Resultat: én mail i timen hele dagen. Nu fire arter (listet i 29/9-ordenen; fra
+ * 3/10 er alvorsordenen fejl > frist > tabt > loft — se doemAlarm):
  *
  *   fejl   FEJLEDE AF ANDRE GRUNDE END LOFTET (noegle_afvist, ugyldig, fejl,
  *          timeout, sporet kunne ikke skrives …) — som i dag: nøgle pr. dansk TIME.
@@ -246,8 +247,19 @@ export interface Alarm {
 
 /**
  * Skal der alarmeres — og hvilken art? null = ingen alarm. Aldrig i en tørkørsel
- * eller en låst kørsel. Alvorsorden: fejl > tabt > frist > loft; den alvorligste
+ * eller en låst kørsel. Alvorsorden: fejl > frist > tabt > loft; den alvorligste
  * vinder, og dens mail bærer også loft-tallene, når nogen venter.
+ *
+ * FRIST FØR TABT (CTO 3/10-2026): «tabt» er en tilstand, der står i dagevis
+ * (sprunget.for_sent_efter_fejl tæller alle i vinduet i hver kørsel, og fra den
+ * sultede hale også rettidige, aldrig forsøgte), og dens nøgle er pr. dansk DAG.
+ * Stod tabt foran frist, ville den første tabt-mail om morgenen dæmpe resten af
+ * dagen — også en frist, der kom i fare kl. 10, og som STADIG kan reddes. Frist
+ * er handlingen; tabt er bogføringen. Derfor vinder frist, og hver mail nævner de
+ * andre tilstande, der står i samme kørsel (ogsaaAfsnit) — så en frist-mail siger
+ * også, hvor mange der er tabt, og en fejl-mail begge. Stadig én mail pr. art pr.
+ * dag (fejl pr. time). Tilbage: står frist hele dagen, får tabt ingen egen mail —
+ * men tallet står i frist-mailen.
  */
 export function doemAlarm(r: AlarmInput, nu: Date): Alarm | null {
   if (!r.sender_rigtigt) return null;
@@ -258,8 +270,8 @@ export function doemAlarm(r: AlarmInput, nu: Date): Alarm | null {
   const loftStop = r.loft.pause !== null || r.loft.stoppet_ved !== null || r.over_loft > 0;
   const art: AlarmArt | null =
     fejl.length > 0 ? "fejl"
-    : tabt > 0 ? "tabt"
     : iFare.length > 0 ? "frist"
+    : tabt > 0 ? "tabt"
     : loftStop ? "loft"
     : null;
   if (art === null) return null;
@@ -324,6 +336,22 @@ export function prognoseTekst(p: Prognose, nu: Date): string {
   return `${p.ventende} venter ÷ ${p.okPrTime} pr. time ≈ ${timerOrd(p.timer)} → ${faerdig}.`;
 }
 
+/**
+ * DE ANDRE TILSTANDE I SAMME KØRSEL (CTO 3/10-2026): en mail af én art må ikke
+ * skjule en anden. Frist og tabt nævnes i enhver mail, der ikke selv er dén art.
+ */
+export function ogsaaAfsnit(alarm: Alarm): string[] {
+  const ud: string[] = [];
+  if (alarm.art !== "frist" && alarm.iFare.length > 0) {
+    const f = alarm.iFare[0];
+    ud.push(`OGSÅ: ${alarm.iFare.length} ventende ${alarm.iFare.length === 1 ? "mail er" : "mails er"} i fare for fristen — den første ${danskDatoKlokke(f.frist)} (${ART_ORD[f.art]}).`);
+  }
+  if (alarm.art !== "tabt" && alarm.tabt > 0) {
+    ud.push(`OGSÅ: ${alarm.tabt} ${alarm.tabt === 1 ? "mail er tabt" : "mails er tabt"} (dommens for_sent_efter_fejl) — de sendes ikke.`);
+  }
+  return ud;
+}
+
 /** Teksterne til mail og klokke. Ren; rammen (indgangsMailHtml) lægges på i functionen. */
 export function webinarAlarmTekst(r: WebinarAlarmTekstInput, alarm: Alarm, nu: Date): WebinarAlarmTekst {
   const dato = webinarAlarmDato(nu);
@@ -382,6 +410,7 @@ export function webinarAlarmTekst(r: WebinarAlarmTekstInput, alarm: Alarm, nu: D
     afsnit.push(...loftAfsnit);
     afsnit.push("Det er throttlen, der virker som bygget: Mailgun-kontoen er på probation (100 pr. time), og cronen venter timen ud efter et stop. Der er ikke noget at gøre. Denne mail kommer højst én gang om dagen, så længe det kun er loftet; en egen alarm kommer, hvis en frist er i fare, en mail går tabt, eller noget fejler af en anden grund.");
   }
+  afsnit.push(...ogsaaAfsnit(alarm));
 
   const tekst = [
     ...afsnit,

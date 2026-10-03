@@ -106,7 +106,7 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateServiceRole, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { ukendteFelter, ukendteFelterBesked } from "../_shared/kendteFelter.ts";
-import { afsendelseUkendt, AKTIVE_ARTER, baererInvitation, type MailArt, noegle, planlaegKoersel, type Sending, type Springgrund, type Tilmeldt } from "../_shared/webinarMailDom.ts";
+import { afsendelseUkendt, AKTIVE_ARTER, baererInvitation, type MailArt, noegle, planlaegKoersel, SESSIONER_VINDUE_DAGE, type Sending, type Springgrund, type Tilmeldt } from "../_shared/webinarMailDom.ts";
 import { AFSENDER, bygWebinarMail, SVAR_TIL } from "../_shared/webinarMailTekster.ts";
 import { MAILGUN_DOMAENE, MAILGUN_SECRET, PAUSE_MS, sendMailgun, sendMailgunMime } from "../_shared/mailgunAfsendelse.ts";
 import { beregnKoerselsLoft, erStopStatus, LOFT_VINDUE_MS, type LoftRaekke, MAILGUN_LOFT_PR_TIME } from "../_shared/webinarMailLoft.ts";
@@ -275,6 +275,19 @@ async function koer(a: { admin: SupabaseClient; toerKoersel: boolean; laas: bool
   });
   r.tilmeldinger_laest = raekker.length;
 
+  // 1b. Personernes SESSIONER længere tilbage (3/10-2026) — kun email og
+  //     session_tid, SESSIONER_VINDUE_DAGE (= største dageFoer + 1 = 15) dage.
+  //     Dommens KUN NÆRMESTE SESSION-undtagelse i indhentningen skal kunne se en
+  //     nærmere session, der er ældre end de 3 dage ovenfor; ellers indhentes en
+  //     mail, den holdt tilbage, når den er ude af vinduet (regnestykket ved
+  //     SESSIONER_VINDUE_DAGE). Den mindste læsning: to kolonner, ingen dom bygges.
+  const sessionGraense = new Date(a.nu.getTime() - SESSIONER_VINDUE_DAGE * 86_400_000).toISOString();
+  const personSessioner = await alleSider<{ email: string | null; session_tid: string | null }>((fra, til) => {
+    let q = a.admin.from("webinar_tilmeldinger").select("email, session_tid").gte("session_tid", sessionGraense);
+    if (a.email) q = q.eq("email", a.email);
+    return q.order("ewebinar_id", { ascending: true }).range(fra, til);
+  });
+
   // 2. De afmeldte (vores egen tabel; eWebinars «unsubscribed» læses af dommen).
   const afmeldteRaekker = await alleSider<{ email: string }>((fra, til) =>
     a.admin.from("webinar_afmeldinger").select("email").order("email", { ascending: true }).range(fra, til));
@@ -303,7 +316,7 @@ async function koer(a: { admin: SupabaseClient; toerKoersel: boolean; laas: bool
   r.ukendte_foer = ukendte.size;
 
   // 4. Dommen.
-  const plan = planlaegKoersel({ raekker, afmeldte, sendte, fejlede, ukendte, nu: a.nu });
+  const plan = planlaegKoersel({ raekker, afmeldte, sendte, fejlede, ukendte, personSessioner, nu: a.nu });
   r.sprunget = plan.sprunget;
   r.sprunget_senere_session = plan.sprunget.senere_session;
   r.ukendt_ikke_indhentet = plan.sprunget.levering_ukendt;

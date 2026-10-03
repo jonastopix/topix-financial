@@ -12036,6 +12036,34 @@ Værn: `ringMigOp.guard` dom 8 (indsend), 9 (RLS), 10 (IP-hash); `opkaldDom.test
 
 **Tracking (Meta, LinkedIn, GA4, TikTok, Stape, eWebinar, Klaviyo — hvad der sendes til hvem, principperne fra 21/9, det åbne):** `docs/tracking.md` er husets ENE dokument om det fra 21/9; recon-/rapportfilerne i `~/Downloads` er kilder.
 
+### Den sultede hale — udrulning (3/10, gren `fix/webinarmail-sultet-hale`; BYGGET, IKKE merget, IKKE udrullet)
+
+Hvad og hvorfor: CLAUDE.md «Platformens webinarmails» (indhentningen og rækkefølgen) og `docs/webinaret-og-annoncerne.md` §7e «Den sultede hale». Kort: 29/9 blev 8 rettidigt tilmeldte til 13/10 aldrig forsøgt for `fjorten_dage` og dømt `for_sent` for altid. Rettelsen indhenter dem — men **job 573 kører `{"dry_run": false}` i hvert slot, og låsen `webinar_mail_aktiv` er åben: en udrulning SENDER de 8 (med invitationen) i næste slot.** Derfor låsen lukket rundt om udrulningen, og intet sendes før Jonas' ja. Ændringen rører kun delte filer (`_shared/webinarMailDom.ts`, `_shared/webinarMailAlarm.ts`) og cronen selv; ingen migration, ingen Update (spejlet `src/lib/webinar/mailDom.ts` vises ingen steder, der ændrer sig).
+
+**(a) Jonas' ja eller nej — FØR merge og udrulning.** Spørgsmålet: «Skal de 8 have "om to uger" (med kalenderinvitationen) fra platformen nu, 8–9 dage før webinaret?» A, B og C har aldrig fået en invitation (tilmeldt før bekræftelsen 22/9); D–G og I fik den med bekræftelsen.
+- **Ja** → trinene nedenfor, færdige før søndag 5/10 kl. 23:59 dansk (22:00Z) — derefter er `fjorten_dage` udløbet for alle (`indhentningSlut`).
+- **Nej** → merge og udrul først EFTER 5/10 22:00Z (så sendes intet af de 8; låsen behøver ikke lukkes). Følgen: fra den første kørsel efter udrulningen står de 8 som `for_sent_efter_fejl`, og alarmen «tabt: 8» kommer én gang om dagen, til sessionen er tre dage gammel (16/10). Den viser, at tabet nu ses — det er rettelsens pointe, ikke en fejl.
+
+| # | hvad | kanal | beviset før næste trin |
+|---|---|---|---|
+| 1 | merge | GitHub | CI grøn (`gh run list --branch fix/webinarmail-sultet-hale`) |
+| 2 | luk låsen, guarded — læg vinduet mellem to slots (fx lige efter :47, så :57 er det næste) | Lovable SQL editor | FØR: `SELECT config_value FROM public.app_config WHERE config_key = 'webinar_mail_aktiv';` → `true` (andet: STOP). Så `UPDATE public.app_config SET config_value = 'false'::jsonb, updated_at = now() WHERE config_key = 'webinar_mail_aktiv' AND config_value = 'true'::jsonb;` → én række |
+| 3 | **eksplicit deploy** af `webinar-mail-cron` | Lovable build-chat: bed den KØRE deploy-værktøjet for `webinar-mail-cron` og vise resultatet | «Successfully deployed … webinar-mail-cron» |
+| 3b | **(d) tjek, hvad build-chatten rørte** | Lovable MCP `list_edits` på projektet «Boardroom Compass» og `get_diff` på build-chattens besked | INGEN ændring i kode — kun udrulningen. Har den ændret en fil: STOP, lås forbliver lukket, og rettelsen af dens ændring går gennem git |
+| 4 | tørkørsel: `SELECT public.kald_edge('webinar-mail-cron', '{"dry_run": true}'::jsonb, 60000, 300000);` — derefter svaret: `SELECT id, status_code, left(content, 6000) FROM net._http_response ORDER BY id DESC LIMIT 1;` | Lovable SQL editor (to kørsler, én ad gangen) | se **(b)** |
+| 5 | Jonas' ja (igen, med tørkørslens tal foran sig) → åbn låsen, guarded: `UPDATE public.app_config SET config_value = 'true'::jsonb, updated_at = now() WHERE config_key = 'webinar_mail_aktiv' AND config_value = 'false'::jsonb;` | Lovable SQL editor | én række; næste slot sender |
+| 6 | beviset i drift: `SELECT art, udfald, count(*), min(forsoegt_at), max(forsoegt_at) FROM public.webinar_mails WHERE forsoegt_at > now() - interval '1 hour' GROUP BY 1, 2;` | Lovable SQL editor (efter første slot) | `fjorten_dage · ok · 8` (+ evt. bekræftelser, der ventede under lukningen) |
+
+**(b) Læs tørkørslen pr. art** (cronens svar; `eksempler` viser de første):
+- **Ny kode, som forventet:** `skal_sendes` 8 · `indhentet` 8 · alle 8 `eksempler` med `art: "fjorten_dage"` og `indhentning: true` · `sprunget.for_sent` **43** · `sprunget.afmeldt` **15** (3 afmeldte × 5 arter) · `sprunget.for_sent_efter_fejl` 0 · `sprunget.levering_ukendt` 0.
+- **+1 `bekraeftelse` i `skal_sendes`** (og typisk +1 i `for_sent`, +3 i `endnu_ikke`) = en ny tilmelding siden 3/10 07:29Z. **OK** — gå videre; den venter, til låsen er åben. En ny afmelding giver +5 i `afmeldt`.
+- **`skal_sendes` 0 og `for_sent` 51 (= 8 + 43)** = **den GAMLE kode kører** — udrulningen er ikke gået igennem (som 21/9 to gange). **Ikke STOP:** bed build-chatten om udrulningen igen (trin 3 og 3b) og tørkør igen.
+- **Ethvert andet billede** (andre arter i `indhentet`, `levering_ukendt` > 0, fejl i `fejl`): STOP. Låsen forbliver lukket; vej tilbage under (c).
+
+**(c) Fristen og vejen tilbage.** Mens låsen er lukket, sender cronen INTET — også nye tilmeldtes bekræftelser venter (de går i første slot efter åbningen; bekræftelsen har ingen nåde, så ingen går tabt). Derfor holdes vinduet på minutter. **Er låsen ikke åben igen senest 5/10 ca. 20:00Z** (to timer før `indhentningSlut`), går vi tilbage: `git revert -m 1 <merge-sha>` på en gren → PR → merge → eksplicit deploy af `webinar-mail-cron` (trin 3 + 3b) → tørkørsel viser den gamle kodes billede (`skal_sendes` 0 for fjorten_dage, `for_sent` 51) → åbn låsen guarded (trin 5's UPDATE). Rettelsen kan så udrulles igen efter 5/10 22:00Z som under «Nej».
+
+**Kendt og bogført:** kommentaren INDE i job 573's `$job$`-krop siger «functionens eget budget er 45 s» — forældet siden 30/9 (`_shared/webinarMailBudget.ts`: seneste start 32 s med invitation, 40 s uden). Den står ordret i prod's `cron.job` og er bevidst ikke rettet i migrationsfilen (kun filhovedet bærer rettelsen); den rettes med næste `cron.alter_job` af job 573.
+
 ### Dag-1-klokken — rækkefølgen i drift (2/10 aften, gren `feat/dag1-klokke`; aftenlisten a1002-velkomst)
 
 Jonas 2/10: «Klokke i morgenmailen, vi skriver selv». Forsidens «Kom ind i går, har ikke hørt fra os» ringer klokken `venter_paa_velkomst` (MORGEN) hos hver rådgiver kl. 04:30 UTC (06:30 dansk sommertid / 05:30 vintertid), så den står i samme morgens mail (klokke-mail-cron, første kørsel efter kl. 07 på en hverdag). Ét tredje pas i `stille-klokker-cron` — **intet nyt cron-job**: job 566 («30 4 * * *», `{"dry_run": false}`) kører det allerede; **låsen `app_config.dag1_klokke_aktiv` er kontakten**. Begrundelserne: CLAUDE.md «Dag-1-klokken» og `supabase/functions/_shared/dag1Klokke.ts`' filhoved. **Ingen Update**: `src/lib/venterPaaVelkomst.ts` er kun omskrevet (`doemVenterPaaVelkomst` trukket ud, adfærden uændret — paritetstesten beviser det), og klokkens link (`/chat?companyId=…`) findes allerede i `raadgiverSti`.

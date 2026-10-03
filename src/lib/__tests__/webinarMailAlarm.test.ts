@@ -105,10 +105,11 @@ describe("webinarMailAlarm — doemAlarm: de fire arter", () => {
     expect(andreFejl(["a: loft — x", "b: timeout", "WEBINAR_AFMELD_SECRET mangler — intet sendt"])).toEqual(["b: timeout", "WEBINAR_AFMELD_SECRET mangler — intet sendt"]);
   });
 
-  it("alvorsorden: fejl > tabt > frist > loft", () => {
+  it("alvorsorden: fejl > frist > tabt > loft (CTO 3/10: tabt må ikke skjule en frist i fare)", () => {
     const fare: AlarmInput = { ...LOFT_STOP, loft: { pause: PAUSE, stoppet_ved: null, ok_60_min: 1 }, ventende: [{ art: "en_dag", session_tid: "2026-09-30T09:00:00Z" }] };
     expect(doemAlarm(fare, NU)?.art).toBe("frist");
-    expect(doemAlarm({ ...fare, sprunget: { for_sent_efter_fejl: 1 } }, NU)?.art).toBe("tabt");
+    expect(doemAlarm({ ...fare, sprunget: { for_sent_efter_fejl: 1 } }, NU)?.art).toBe("frist");
+    expect(doemAlarm({ ...fare, ventende: [], sprunget: { for_sent_efter_fejl: 1 } }, NU)?.art).toBe("tabt");
     expect(doemAlarm({ ...fare, sprunget: { for_sent_efter_fejl: 1 }, fejl: ["dagen: fejl — x"] }, NU)?.art).toBe("fejl");
   });
 });
@@ -223,6 +224,25 @@ describe("webinarMailAlarm — teksten pr. art", () => {
     expect(t.afsnit[2]).toBe("Fordelt: 1 × en_dag.");
   });
 
+  it("TABT SKJULER IKKE FRIST: samme dag, tabt-mailen om morgenen, frist i fare senere → frist får sin EGEN nøgle (én pr. dag), og frist-mailen nævner de tabte", () => {
+    const morgen = new Date("2026-09-29T06:09:00Z"), formiddag = new Date("2026-09-29T08:09:00Z");
+    const tabtAlene: AlarmInput = { ...ROLIG, sprunget: { for_sent_efter_fejl: 8 } };
+    const a1 = doemAlarm(tabtAlene, morgen)!;
+    expect(a1.art).toBe("tabt");
+    const begge: AlarmInput = { ...LOFT_STOP, loft: { pause: PAUSE, stoppet_ved: null, ok_60_min: 1 }, ventende: [{ art: "en_dag", session_tid: "2026-09-30T09:00:00Z" }], sprunget: { for_sent_efter_fejl: 8 } };
+    const a2 = doemAlarm(begge, formiddag)!;
+    expect(a2.art).toBe("frist");
+    expect(a2.noegle).not.toBe(a1.noegle); // dæmpes ikke af morgenens tabt-mail
+    expect(doemAlarm(begge, new Date("2026-09-29T12:09:00Z"))!.noegle).toBe(a2.noegle); // stadig én pr. dag
+    const t = webinarAlarmTekst({ ...begge, sendt: 0, skal_sendes: 113 }, a2, formiddag);
+    expect(t.afsnit.some((x) => x.startsWith("OGSÅ: 8 mails er tabt"))).toBe(true);
+    // Og en fejl-mail nævner både fristen og de tabte.
+    const fejl = doemAlarm({ ...begge, fejl: ["en_dag: ugyldig — x"] }, formiddag)!;
+    const tf = webinarAlarmTekst({ ...begge, fejl: ["en_dag: ugyldig — x"], fejlede: 1, sendt: 0, skal_sendes: 113 }, fejl, formiddag);
+    expect(fejl.art).toBe("fejl");
+    expect(tf.afsnit.filter((x) => x.startsWith("OGSÅ:"))).toHaveLength(2);
+  });
+
   it("tabt: antallet og hvad det betyder", () => {
     const r = { ...bas, sprunget: { for_sent_efter_fejl: 2 } };
     const t = webinarAlarmTekst(r, doemAlarm(r, NU)!, NU);
@@ -255,7 +275,7 @@ describe("webinarMailAlarm — kildeværn: nøglen for loft-grenen er pr. dag, o
       k.includes('export const ARTER_PR_DAG: readonly AlarmArt[] = ["loft", "tabt", "frist"];') &&
       k.includes("const hale = ARTER_PR_DAG.includes(art) ? webinarAlarmDato(nu) : webinarAlarmDatoOgTime(nu);") &&
       k.includes("return `${WEBINAR_ALARM_NOEGLE_PRAEFIKS}${art}:${hale}`;") &&
-      /fejl\.length > 0 \? "fejl"\s*: tabt > 0 \? "tabt"\s*: iFare\.length > 0 \? "frist"\s*: loftStop \? "loft"\s*: null;/.test(k) &&
+      /fejl\.length > 0 \? "fejl"\s*: iFare\.length > 0 \? "frist"\s*: tabt > 0 \? "tabt"\s*: loftStop \? "loft"\s*: null;/.test(k) &&
       k.includes("if (!r.sender_rigtigt) return null;") &&
       k.includes("return l === null || l.udfald !== LOFT_UDFALD;") &&
       k.includes("if (okPrTime <= 0) return { ventende, okPrTime, timer: null, faerdig: null };") &&

@@ -31,6 +31,14 @@
 -- — kald_edge afviser en timeout, der ikke er kortere end intervallet.
 -- Functionens eget budget er 45 s; det, der ikke nås, hedder «udsat» i svaret
 -- og tages om fem minutter.
+-- RETTET 3/10-2026 (kun denne kommentar — ingen SQL ændret, intet skal køres):
+-- «45 s» er FORÆLDET. Siden 30/9 (_shared/webinarMailBudget.ts, analyse-drift fund 4)
+-- starter et forsøg kun, hvis forløbet + resttid ≤ 60 000 − 5 000 ms; resttid =
+-- ics 8 000 (kun MED_INVITATION) + Mailgun 10 000 + spor 5 000 → seneste start
+-- 32 s med invitation, 40 s uden. Samme forældede ord står i kommentaren INDE i
+-- $job$-kroppen nedenfor; den står ordret i prod's cron.job (job 573) og er
+-- bevidst IKKE rettet her, så repoet ikke påstår en kommando, prod ikke har.
+-- Den rettes med næste cron.alter_job af job 573.
 --
 -- HVORFOR SÅ TÆT OG IKKE HVER TIME: «om en time»-mailen skal gå 60 minutter
 -- før start. Med et timesinterval ville den ramme et sted mellem 60 og 120

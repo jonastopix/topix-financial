@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  afsendelseUkendt, AKTIVE_ARTER, ARTER, baererInvitation, BEKRAEFTELSE_FRA, erPaamindelse, BEKRAEFTELSE_FRA_MS, doemMail, erAfmeldtIEwebinar,
+  afsendelseUkendt, AKTIVE_ARTER, ARTER, SESSIONER_VINDUE_DAGE, baererInvitation, BEKRAEFTELSE_FRA, erPaamindelse, BEKRAEFTELSE_FRA_MS, doemMail, erAfmeldtIEwebinar,
   googleKalenderUrl, kbhTilUtc, MED_INVITATION, noegle, outlookKalenderUrl, PLANEN, planlaegKoersel,
   indhentningSlut, naesteTidssatteArt, planlagtTid, sammeDanskeDato, SEN_TILMELDING_NAADE_MS, UDGAAEDE_ARTER,
   type MailArt, type Plan, type Tilmeldt,
@@ -1055,5 +1055,37 @@ describe("DEN SULTEDE HALE — en rettidig tilmelding, der aldrig blev forsøgt,
       "fjorten_dage:z-aldrig@x.dk",
       ...Array.from({ length: 5 }, (_, n) => `fjorten_dage:a-fejl${n}@x.dk`),
     ]);
+  });
+});
+
+describe("KUN NÆRMESTE SESSION ud over cronens 3 dage (CTO 3/10-2026) — personSessioner", () => {
+  const S1 = "2026-10-13T09:00:00.000Z", S2 = "2026-10-20T09:00:00.000Z", MAIL = "to@x.dk";
+  // Cronen læser tilmeldingerne, der DØMMES, kun 3 dage tilbage: 16/10 10:00Z er S1 (13/10 09:00Z) ude.
+  const s2 = R({ email: MAIL, session_tid: S2, ewebinar_id: "s2", registreret_at: "2026-09-10T08:00:00.000Z" });
+  const nu = dansk("2026-10-16T10:00:00.000Z");
+
+  it("UDEN personens ældre session (fejlen): S2's syv_dage (holdt tilbage 13/10) indhentes 16/10", () => {
+    const { sendinger } = planlaegKoersel({ raekker: [s2], afmeldte: new Set(), sendte: new Set(), nu });
+    expect(sendinger.filter((s) => s.art === "syv_dage")).toMatchObject([{ sessionTid: S2, indhentning: true }]);
+  });
+
+  it("MED personSessioner (cronens 15 dage): S1 ses, og syv_dage til S2 er for_sent — ingen indhentning", () => {
+    const { sendinger, sprunget } = planlaegKoersel({ raekker: [s2], afmeldte: new Set(), sendte: new Set(), personSessioner: [{ email: "TO@x.dk", session_tid: S1 }], nu });
+    expect(sendinger.some((s) => s.art !== "bekraeftelse")).toBe(false);
+    expect(sprunget.for_sent).toBe(2); // fjorten_dage (6/10) og syv_dage (13/10) til S2
+    // 19/10 går «i morgen» til S2 som normalt.
+    const dag = planlaegKoersel({ raekker: [s2], afmeldte: new Set(), sendte: new Set(), personSessioner: [{ email: MAIL, session_tid: S1 }], nu: dansk("2026-10-19T06:05:00.000Z") });
+    expect(dag.sendinger.map((s) => s.art)).toEqual(["en_dag"]); // tilmeldt før BEKRAEFTELSE_FRA: ingen bekræftelse
+  });
+
+  it("vinduet er største dageFoer + 1 = 15, og det dækker hver mulig S' > T for hvert nu, hvor indhentningen spørger", () => {
+    expect(SESSIONER_VINDUE_DAGE).toBe(15);
+    for (const S of [S1, "2026-10-27T10:00:00.000Z", "2026-03-31T09:00:00.000Z", "2026-01-13T23:30:00.000Z"]) {
+      for (const art of ["fjorten_dage", "syv_dage", "en_dag"] as MailArt[]) {
+        const T = planlagtTid(S, art)!.getTime(), slut = indhentningSlut(S, art)!.getTime();
+        // nu ∈ [T, slut): enhver S' > T er ≥ nu − vinduet ⟺ nu − T ≤ vinduet.
+        expect(slut - T, `${S}/${art}`).toBeLessThanOrEqual(SESSIONER_VINDUE_DAGE * 86_400_000);
+      }
+    }
   });
 });

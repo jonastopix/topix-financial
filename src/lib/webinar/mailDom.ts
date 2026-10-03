@@ -142,6 +142,26 @@ export const UDGAAEDE_ARTER: readonly MailArt[] = ["tre_dage", "dagen"];
 export const AKTIVE_ARTER: readonly MailArt[] = PLANEN.map((p) => p.art);
 
 /**
+ * HVOR LANGT TILBAGE CRONEN SKAL LÆSE PERSONENS SESSIONER (3/10-2026) — til
+ * planlaegKoersel's `personSessioner`, som KUN NÆRMESTE SESSION-undtagelsen i
+ * indhentningen læser (doemMail.andreSessionerMs). Tilmeldingerne, der DØMMES,
+ * læses stadig kun 3 dage tilbage; men en NÆRMERE session, der holdt en mail
+ * tilbage, kan være ældre end det — og læses den ikke, ser dommen ingen session
+ * imellem og indhenter mailen alligevel (fundet af CTO 3/10: S1 13/10, S2 20/10 →
+ * syv_dage til S2 som indhentning 16/10, tre dage efter S1).
+ *
+ * REGNESTYKKET: holdt tilbage ⟺ en anden session S' med T < S' < S, hvor T er
+ * artens planlagte tidspunkt for S. Indhentningen spørger kun, når nu ≥ T (efter
+ * nåden), så S' > T = nu − (nu − T), og nu − T < S − T (nu < indhentningSlut ≤ S).
+ * S − T ≤ dageFoer kalenderdage + højst 1 døgn (08:00 dansk på dagen mod
+ * sessionens klokkeslæt; et sommertidsskifte flytter højst en time). Altså
+ * S' > nu − (største dageFoer + 1) døgn. Største dageFoer i PLANEN er 14
+ * (fjorten_dage) → 15 dage. en_time (minutterFoer 60) ligger langt inden for.
+ * Læst af PLANEN, så en ny art med flere dage før flytter vinduet med sig.
+ */
+export const SESSIONER_VINDUE_DAGE = Math.max(...PLANEN.map((p) => p.dageFoer ?? 0)) + 1;
+
+/**
  * NÅDEN FOR EN SEN TILMELDING. Melder nogen sig til fire dage før, er
  * «syv_dage»-tidspunktet passeret for længst — og «om en uge ses vi» er
  * forkert. Er tidspunktet passeret med MERE end det her, sendes mailen aldrig.
@@ -632,6 +652,12 @@ export function planlaegKoersel(i: {
   sendte: ReadonlySet<string>;
   fejlede?: ReadonlySet<string>;
   ukendte?: ReadonlySet<string>;
+  /**
+   * Personernes sessioner læst SESSIONER_VINDUE_DAGE tilbage (kun email +
+   * session_tid) — til KUN NÆRMESTE SESSION-undtagelsen i indhentningen. Lægges
+   * sammen med `raekker`. Udeladt = kun `raekker` (cronen giver den altid).
+   */
+  personSessioner?: readonly { email: string | null; session_tid: string | null }[];
   nu: Date;
 }): { sendinger: Sending[]; sprunget: Record<Springgrund, number> } {
   const sprunget: Record<Springgrund, number> = {
@@ -663,11 +689,15 @@ export function planlaegKoersel(i: {
 
   // 1c. ALLE personens sessioner pr. mail (ms), også de begyndte — indhentningen
   //     spørger, om en af dem holdt en mail tilbage (KUN NÆRMESTE SESSION).
+  //     Også personSessioner: en nærmere session ældre end cronens 3 dage
+  //     (SESSIONER_VINDUE_DAGE).
   const sessionerPrMail = new Map<string, number[]>();
-  for (const r of personer.values()) {
+  for (const r of [...personer.values(), ...(i.personSessioner ?? [])]) {
     const mail = (r.email ?? "").trim().toLowerCase();
+    const ms = Date.parse(r.session_tid ?? "");
+    if (!Number.isFinite(ms)) continue;
     const liste = sessionerPrMail.get(mail) ?? [];
-    liste.push(Date.parse(r.session_tid as string));
+    if (!liste.includes(ms)) liste.push(ms);
     sessionerPrMail.set(mail, liste);
   }
 
