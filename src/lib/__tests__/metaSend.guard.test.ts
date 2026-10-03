@@ -16,6 +16,8 @@ import { PERSONDATA_AFSNIT } from "@/lib/ansoegning/persondata";
  *   3. TØRKØRSEL STANDARD + LÅSEN: dry_run !== false; `if (!r.sender_rigtigt) return`
  *      før første sendTilMeta; låsen læses af app_config fail-closed.
  *   4. STRIKS-BODY + BUCKET B: KENDTE_FELTER præcis dry_run · nu · test_event_code ·
+ *      ansoegning_id · tilmelding_id (det femte kom 3/10-2026 med webinarmotorens tilmeldinger —
+ *      beviset for ÉN tilmelding; webinarTilmeldMeta.guard; de to id'er afvises sammen) ·
  *      ansoegning_id; authenticateServiceRole før createClient; config verify_jwt = true.
  *   5. USER AGENT FOR ALLE (vendt 22/9): ansoegning-gem læser headeren gennem laesUserAgent
  *      (≤ 512) og skriver den gennem sporMedUserAgent i gemAnnoncespor, UDEN fbclid-betingelse;
@@ -200,7 +202,9 @@ export const toerkoerselOgLaas = (cron: string, dom: string): boolean => {
 export const striksOgBucketB = (cron: string, config: string): boolean => {
   const c = udenKommentarer(cron);
   const blok = config.slice(config.indexOf("[functions.meta-send-cron]"));
-  return c.includes('export const KENDTE_FELTER = ["dry_run", "nu", "test_event_code", "ansoegning_id"] as const;') &&
+  return c.includes('export const KENDTE_FELTER = ["dry_run", "nu", "test_event_code", "ansoegning_id", "tilmelding_id"] as const;') &&
+    // ét bevis ad gangen: en ansøgning ELLER en tilmelding, aldrig begge
+    c.includes("if (ansoegningId !== null && tilmeldingId !== null) return json(") &&
     c.includes("ukendteFelter(raaBody, KENDTE_FELTER)") && c.includes("ukendteFelterBesked(ukendte, KENDTE_FELTER)") &&
     foer(c.slice(c.indexOf("Deno.serve(")), "authenticateServiceRole(req)", "createClient(") &&
     /^\s*\[functions\.meta-send-cron\]\s*\n\s*verify_jwt = true/m.test(blok);
@@ -590,7 +594,8 @@ describe("metaSend.guard — dommene fanger fejlen på en kopi", () => {
     expect(toerkoerselOgLaas(cron, dom.replace("if (a.dryRun) return false;\n  return a.laasAktiv || a.testEventCode !== null;", "return true;"))).toBe(false);
   });
   it("4. et felt mere, eller verify_jwt vendt, fælder dom 4", () => {
-    expect(striksOgBucketB(cron.replace('["dry_run", "nu", "test_event_code", "ansoegning_id"]', '["dry_run", "nu", "test_event_code", "ansoegning_id", "email"]'), laes(CONFIG))).toBe(false);
+    expect(striksOgBucketB(cron.replace('["dry_run", "nu", "test_event_code", "ansoegning_id", "tilmelding_id"]', '["dry_run", "nu", "test_event_code", "ansoegning_id", "tilmelding_id", "email"]'), laes(CONFIG))).toBe(false);
+    expect(striksOgBucketB(cron.replace("if (ansoegningId !== null && tilmeldingId !== null) return json(", "if (false) return json("), laes(CONFIG))).toBe(false);
     expect(striksOgBucketB(cron, laes(CONFIG).replace("[functions.meta-send-cron]\n    verify_jwt = true", "[functions.meta-send-cron]\n    verify_jwt = false"))).toBe(false);
   });
   it("5. fbclid-betingelsen tilbage, user agent i insert'en, en tom update-betingelse, eller en anden function, fælder dom 5", () => {

@@ -244,8 +244,9 @@ describe("webinarMotor.guard 5 — migrationen", () => {
     expect(alle).toContain(MIGRATION.split("/")[2]);
     // 3/10: + ti_minutter (motorens 10-minutters-mail, CHECK'en på webinar_mails) — også motorens.
     // 3/10: + værtskonsollen (UPDATE-politik + kolonneværn på webinar_spoergsmaal) — også motorens.
+    // 3/10: + tilmeldingerne i Metas spor (meta_haendelser.tilmelding_id + låsen webinarmotor_meta_aktiv) — også motorens.
     // 3/10: + webinarchattens bagende (låsen webinar_svar_mail_aktiv + klokkens delindeks, §7.10) — også motorens.
-    expect(efter).toEqual(["20261003030000_webinarmotor_skive3.sql", "20261003031000_webinar_motor_cron.sql", "20261003040000_webinar_mails_ti_minutter.sql", "20261003050000_webinar_vaertskonsol.sql", "20261003080000_webinar_chat_bagende.sql"]);
+    expect(efter).toEqual(["20261003030000_webinarmotor_skive3.sql", "20261003031000_webinar_motor_cron.sql", "20261003040000_webinar_mails_ti_minutter.sql", "20261003050000_webinar_vaertskonsol.sql", "20261003070000_meta_haendelser_tilmelding.sql", "20261003080000_webinar_chat_bagende.sql"]);
   });
   it("kun tilføjende", () => {
     expect(kunTilfoejende(laes(MIGRATION))).toBe(true);
