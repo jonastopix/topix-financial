@@ -20,6 +20,9 @@ import { resolve } from "node:path";
  *   lægger markøren i kroppen; authenticateUser's afvisning går gennem
  *   svarFraAuth. Et nyt svar uden om hjælperen fælder værnet, uanset hvor
  *   mange markører der står andre steder.
+ * Dom 5 — KROPPEN (CTO runde 2, 3/10): `await req.json()` står aldrig uden for
+ *   en try-blok — en krop, der ikke er JSON, er 400 «ugyldig_krop» gennem
+ *   svarJson, ikke en 500 uden markør, CORS og JSON.
  */
 
 const STI = "supabase/functions/run-company-agent/index.ts";
@@ -53,6 +56,24 @@ export function responsUdenomHjaelperen(tekst: string): number[] {
     if (fra >= 0 && til > fra && m.index > fra && m.index < til) continue;
     ud.push(tekst.slice(0, m.index).split("\n").length);
   }
+  return ud;
+}
+
+/** Linjenumre med `await req.json()` uden for en try-blok (dom 5). En forekomst
+    er inde i en try, når den nærmeste foregående ikke-tomme linje (efter
+    kommentarer) slutter med `try {`, og der ikke står andet på dens egen linje
+    end tildelingen. Stedbundet og bevidst snæver: én tildeling pr. try. */
+export function reqJsonUdenTry(tekst: string): number[] {
+  const linjer = tekst.split("\n");
+  const ud: number[] = [];
+  linjer.forEach((l, i) => {
+    if (!l.includes("await req.json()") || /^\s*\/\//.test(l)) return;
+    let j = i - 1;
+    while (j >= 0 && (linjer[j].trim() === "" || /^\s*\/\//.test(linjer[j]))) j--;
+    const forrige = j >= 0 ? linjer[j].trim() : "";
+    const egenLinjeRen = /^\s*[A-Za-z_$][\w$]*\s*=\s*await req\.json\(\);\s*$/.test(l);
+    if (!(forrige.endsWith("try {") && egenLinjeRen)) ud.push(i + 1);
+  });
   return ud;
 }
 
@@ -120,5 +141,35 @@ describe("agentV8.guard", () => {
     );
     expect(snydt).not.toBe(k);
     expect(responsUdenomHjaelperen(snydt)).toHaveLength(1);
+  });
+
+  it("dom 5: await req.json() står kun i en try, og parsefejlen er 400 «ugyldig_krop»", () => {
+    const k = kilde();
+    expect(reqJsonUdenTry(k)).toEqual([]);
+    expect((k.match(/await req\.json\(\)/g) ?? []).length).toBe(1);
+    expect(k).toContain(`  try {
+    body = await req.json();
+  } catch {
+    return svarJson({ ok: false, error: "ugyldig_krop" }, 400);
+  }`);
+    expect(k).toContain('if (body === null || typeof body !== "object" || Array.isArray(body)) {');
+  });
+
+  it("dom 5, SELVBEVIS: req.json() uden try fælder", () => {
+    expect(reqJsonUdenTry("  const body = await req.json();")).toEqual([1]);
+    expect(reqJsonUdenTry("  try {\n    const x = 1; body = await req.json();\n  } catch {}")).toEqual([2]);
+    expect(reqJsonUdenTry("  try {\n    body = await req.json();\n  } catch {}")).toEqual([]);
+    const k = kilde();
+    const snydt = k.replace(
+      `  let body: any;
+  try {
+    body = await req.json();
+  } catch {
+    return svarJson({ ok: false, error: "ugyldig_krop" }, 400);
+  }`,
+      "  const body = await req.json();",
+    );
+    expect(snydt).not.toBe(k);
+    expect(reqJsonUdenTry(snydt)).toHaveLength(1);
   });
 });

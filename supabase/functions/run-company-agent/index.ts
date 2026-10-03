@@ -1005,7 +1005,19 @@ Deno.serve(async (req) => {
     callerId = auth.callerId;
   }
 
-  const body = await req.json();
+  // Kroppen læses i sin egen try (CTO runde 2, 3/10): en krop, der ikke er
+  // JSON — eller ikke et objekt (fx `null`, som ville vælte destruktureringen
+  // nedenfor) — er 400 «ugyldig_krop» gennem svarJson, aldrig en 500 uden
+  // markør, CORS og JSON. Værn: agentV8.guard dom 5.
+  let body: any;
+  try {
+    body = await req.json();
+  } catch {
+    return svarJson({ ok: false, error: "ugyldig_krop" }, 400);
+  }
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    return svarJson({ ok: false, error: "ugyldig_krop" }, 400);
+  }
   // period_key/period_label er let: company_review må udelade perioden og
   // får den slået op (nyeste fact) efter adminClient er konstrueret.
   const { company_id, trigger } = body;
