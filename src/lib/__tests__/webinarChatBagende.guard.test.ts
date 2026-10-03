@@ -170,6 +170,8 @@ export function stoejenErVaek(klokkeMail: string, klokkeCron: string, hook: stri
   return m.includes("if (r.type === WEBINARKLOKKEN && !(r.reference_id !== null && sessionerMedUbesvarede.has(r.reference_id))) { sprunget++; continue; }") &&
     m.includes("if (sessionerMedUbesvarede === null) return { raekker: [...raekker], sprunget: 0 };") &&
     c.includes('.from("webinar_spoergsmaal").select("session_id").eq("status", "ny").in("session_id", webinarSessioner);') &&
+    // Cronens læsefejl er FAIL-OPEN: null → klokken mailes som før (aldrig et tomt sæt, der ville tie den ihjel).
+    c.includes("if (error) medUbesvarede = null;") &&
     foer(c, "const webinarDom = udenBesvaredeWebinarKlokker(raekker, medUbesvarede);", "const f = fordel(webinarDom.raekker, a.nu);") &&
     marker.includes("if (!laeseMarkeringTilladt || !user || !sessionId) return;") &&
     foer(marker, "if (!laeseMarkeringTilladt", '.update({ read_at:') &&
@@ -295,6 +297,10 @@ describe("webinarChatBagende.guard — VÆRNET VIRKER på kopier med fejlen inds
     const m = laes(KLOKKE_MAIL), c = laes(KLOKKE_CRON), h = laes(KLOKKE_HOOK), f = laes(FLADE);
     expect(stoejenErVaek(m, c.replace("const f = fordel(webinarDom.raekker, a.nu);", "const f = fordel(raekker, a.nu);"), h, f)).toBe(false);
     expect(stoejenErVaek(m.replace("if (sessionerMedUbesvarede === null) return { raekker: [...raekker], sprunget: 0 };", "if (sessionerMedUbesvarede === null) return { raekker: [], sprunget: raekker.length };"), c, h, f)).toBe(false);
+    // Rådets LAV 3/10: cronens læsefejl gjort fail-closed (et tomt sæt) skal fælde.
+    const failClosed = c.replace("if (error) medUbesvarede = null;", "if (error) medUbesvarede = new Set();");
+    expect(failClosed).not.toBe(c);
+    expect(stoejenErVaek(m, failClosed, h, f)).toBe(false);
     expect(stoejenErVaek(m, c, h.replace("if (!laeseMarkeringTilladt || !user || !sessionId) return;", "if (!user || !sessionId) return;"), f)).toBe(false);
     expect(stoejenErVaek(m, c, h, f.replace("useMarkerKonsolKlokkeLaest(sessionId, koe.dataUpdatedAt);", ""))).toBe(false);
   });
