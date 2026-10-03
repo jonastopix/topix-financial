@@ -4124,12 +4124,13 @@
       <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 0 · rådgiver 1 · forretning 0 · risiko 1 · indsats S</p>
       <div class="meta"><span class="tag gold">I DRIFT — BEVIS UDESTÅR: en fejlet hentning</span><span class="tag size">Lille</span></div>
     </div>
-    <div class="card new" id="m16-brugbar-er-kunde" data-status="fejl" data-spor="6" data-rammer="raadgiver">
+    <div class="card loest new" id="m16-brugbar-er-kunde" data-status="loest" data-spor="6" data-rammer="raadgiver">
       <h3>«Svar pr. lektion»: legatmedlemmers svar ville tælle med — latent (0 legatvirksomheder 3/10); <code>er_kunde-delen</code> dækket af test</h3>
       <p><strong>Omskrevet 3/10:</strong> #916 trækker ikke-kunders medlemmer fra tallet (udelukFraBrugbar, testet). Et skærmbevis kan ikke laves: prod 3/10 har 4 svar i alt, 0 fra ikke-kunder. Åbent: listAllMemberProgress henter uden virksomhedsfilter, så en legatmodtagers svar ville tælle — prod har 0 legatvirksomheder i dag. Ret i samme ombæring som udelukFraBrugbar næste gang filen røres (legatmedlemmer i udelukkelsen), med en test.</p>
       <p><em>Titel før 3/10: ««Svar pr. lektion» tæller kun kunders medlemmer — rettet #916, ubevist på skærm; legat-medlemmers svar tæller stadig»</em></p>
+      <p><strong>LUKKET 3/10 nat — beviset.</strong> (1) Kortets «åbne» del var allerede rettet, da kortet blev omskrevet: #1160 (merget 30/9, <code>2311070f</code>) lader <code>listMembers</code> bære <code>companyErLegat</code>, og <code>udelukFraBrugbar</code> tæller kun et medlemskab som kunde, når det er kunde OG ikke legat (<code>erKundeMedlemskab</code>); <code>brugbarLegat.test.ts</code> prøver hele vejen til tallet. (2) I drift: #1160 er forfader til #1271/#1274, hvis markører blev fundet i den udrullede bundle 3/10 ca. 20:35 (OVERLEVERING DEL 2 «3. oktober kl. 20:19»), og Update udgiver hele main. (3) Prod 3/10 (SELECT): 0 legatvirksomheder; 4 svar i alt, 0 fra legat- og 0 fra ikke-kunde-medlemmer — et skærmbevis kan derfor ikke skelne, og det er dommens test, der beviser reglen. Ingen ny kode.</p>
       <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 0 · rådgiver 1 · forretning 0 · risiko 1 · indsats S</p>
-      <div class="meta"><span class="tag">Omskrevet 3/10</span><span class="tag gold">I DRIFT — BEVIS UDESTÅR: tallet uden Topix.dk</span><span class="tag">Legat-svar tæller stadig</span><span class="tag size">Lille</span></div>
+      <div class="meta"><span class="tag loest">Lukket 3/10 — rettet #1160, i drift, målt</span><span class="tag">Omskrevet 3/10</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" id="m17-virksomhedssiden-pr1" data-status="mangler" data-spor="6" data-rammer="raadgiver">
       <h3>Planen stod gemt på virksomhedssiden — nu i midten: før tallene i fuld bredde, chatten lavere, aftalen foldet (#944, PR 1 af analysen) — I DRIFT, BEVIS UDESTÅR på Floren Engros</h3>
