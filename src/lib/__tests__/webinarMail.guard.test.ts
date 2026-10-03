@@ -700,7 +700,9 @@ export const tiMinutterKunMotor = (dom: string, spejl: string, cron: string, mot
     // Runde 2, fund 4: aldrig tre mails i samme kørsel — pr. ewebinar_id, efter dommen, før sorteringen.
     if (!u.includes('export const SAMME_KOERSEL_ARTER: readonly MailArt[] = ["bekraeftelse", "en_time"];')) return false;
     if (!u.includes("const fikAndenNu = new Set(sendinger.filter((s) => SAMME_KOERSEL_ARTER.includes(s.art)).map((s) => s.ewebinarId));")) return false;
-    if (!u.includes("if (kunMotor(sendinger[n].art) && fikAndenNu.has(sendinger[n].ewebinarId)) {")) return false;
+    if (!u.includes("if (kunMotor(sendinger[n].art) && fikAndenNu.has(sendinger[n].ewebinarId) && senereSlotFoerFristen(sendinger[n])) {")) return false;
+    // Runde 3: kun når et senere slot er garanteret før fristen.
+    if (!u.includes("const senereSlotFoerFristen = (s: Sending) => i.nu.getTime() + STOERSTE_HUL_MS <= Date.parse(s.planlagt) + naadeFor(s.art);")) return false;
     if (!foer(u, "const fikAndenNu = new Set(", "sendinger.sort((a, b) =>")) return false;
   }
   const c = udenKommentarer(cron);
@@ -904,8 +906,12 @@ describe("webinarMail.guard dom 20 — eWebinar-rækker kan ALDRIG få ti_minutt
     const [d, s] = begge("reg <= frist - STOERSTE_HUL_MS;", "reg <= frist;");
     expect(tiMinutterKunMotor(d, s, cron, motor)).toBe(false);
   });
+  it("MUTATION (runde 3): betingelsen «senere slot før fristen» fjernet — så kunne en ti_minutter springes over i sidste slot og tabes", () => {
+    const [d, s] = begge(" && senereSlotFoerFristen(sendinger[n])) {", ") {");
+    expect(tiMinutterKunMotor(d, s, cron, motor)).toBe(false);
+  });
   it("MUTATION (runde 2, fund 4): «samme_koersel» fjernet i det ene spejl", () => {
-    const linje = "    if (kunMotor(sendinger[n].art) && fikAndenNu.has(sendinger[n].ewebinarId)) {";
+    const linje = "    if (kunMotor(sendinger[n].art) && fikAndenNu.has(sendinger[n].ewebinarId) && senereSlotFoerFristen(sendinger[n])) {";
     const s2 = spejl.split(linje).join("    if (false) {");
     expect(s2).not.toBe(spejl);
     expect(tiMinutterKunMotor(dom, s2, cron, motor)).toBe(false);

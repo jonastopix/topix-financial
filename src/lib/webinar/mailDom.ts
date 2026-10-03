@@ -835,9 +835,17 @@ export function planlaegKoersel(i: {
   // en kunMotor-art («ti_minutter») over som «samme_koersel». Typisk en sen
   // tilmelding 20 min før start: bekræftelse + om en time + vi begynder på ét
   // minut. Næste slot i vinduet kan tage den (en ok-række for de andre findes da).
+  // KUN NÅR ET SENERE SLOT ER GARANTERET FØR FRISTEN (runde 3): næste slot
+  // kommer senest STOERSTE_HUL_MS efter denne kørsel, så der springes kun over, når
+  //   nu + STOERSTE_HUL_MS ≤ planlagt + naadeFor(art)   (= fristen, T − 5 min).
+  // Ellers sendes den med i samme kørsel — hellere tre mails end en tabt «vi
+  // begynder». Eksempel: session hh:02 (frist hh−1:57), kørsel hh−1:47:03 →
+  // 47:03 + 10 min = 57:03 > 57:00 → sendes nu. Session hh:00, kørsel
+  // hh−1:41:03 → 51:03 ≤ 55:00 → springes over; næste slot (:44) tager den.
   const fikAndenNu = new Set(sendinger.filter((s) => SAMME_KOERSEL_ARTER.includes(s.art)).map((s) => s.ewebinarId));
+  const senereSlotFoerFristen = (s: Sending) => i.nu.getTime() + STOERSTE_HUL_MS <= Date.parse(s.planlagt) + naadeFor(s.art);
   for (let n = sendinger.length - 1; n >= 0; n--) {
-    if (kunMotor(sendinger[n].art) && fikAndenNu.has(sendinger[n].ewebinarId)) {
+    if (kunMotor(sendinger[n].art) && fikAndenNu.has(sendinger[n].ewebinarId) && senereSlotFoerFristen(sendinger[n])) {
       sprunget.samme_koersel++;
       sendinger.splice(n, 1);
     }

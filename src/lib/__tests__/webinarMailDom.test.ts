@@ -1176,10 +1176,25 @@ describe("ti_minutter — påmindelsen lige før start, KUN webinarmotorens ræk
     expect(naeste.sprunget.samme_koersel).toBe(0);
   });
 
+  it("SAMME_KOERSEL (runde 3): session hh:02, tilmelding :46, kørsel :47:03 — intet senere slot før fristen, så ti_minutter går MED i samme kørsel, intet tabt", () => {
+    const S = "2026-10-13T09:02:00.000Z"; // 11:02 dansk; frist (T−5) = 08:57Z
+    const mo = R({ email: MAIL, ewebinar_id: MOTOR_ID, session_tid: S, join_link: null, kalender_link: null, registreret_at: "2026-10-13T08:46:00.000Z" });
+    const p = planlaegKoersel({ raekker: [mo], afmeldte: new Set(), sendte: new Set(), nu: dansk("2026-10-13T08:47:03.000Z"), tiMinutterPort: KLAR });
+    expect(p.sendinger.map((s) => s.art).sort()).toEqual(["bekraeftelse", "en_time", "ti_minutter"]);
+    expect(p.sprunget.samme_koersel).toBe(0);
+    expect(p.kortNaadeTabte).toEqual([]);
+    // Grænsen: 08:47:00 + 10 min = 08:57:00 ≤ fristen → springes over (næste slot :57 er i vinduet).
+    const graense = planlaegKoersel({ raekker: [mo], afmeldte: new Set(), sendte: new Set(), nu: dansk("2026-10-13T08:47:00.000Z"), tiMinutterPort: KLAR });
+    expect(graense.sprunget.samme_koersel).toBe(1);
+    // Og næste slot (08:57:03) er efter fristen? Nej — fristen er 08:57:00; derfor er :47:03 «send nu».
+    const efter = planlaegKoersel({ raekker: [mo], afmeldte: new Set(), sendte: andreSendt([MAIL, S]), nu: dansk("2026-10-13T08:57:03.000Z"), tiMinutterPort: KLAR });
+    expect(efter.sendinger.some((s) => s.art === "ti_minutter")).toBe(false);
+  });
+
   it("SAMME_KOERSEL gælder pr. ewebinar_id — en ANDEN persons bekræftelse holder intet tilbage, og kun én af de to arter er nok", () => {
     const mo = R({ email: MAIL, ewebinar_id: MOTOR_ID, join_link: null, kalender_link: null, registreret_at: "2026-10-01T08:00:00.000Z" });
     const ny = R({ email: "ny@x.dk", ewebinar_id: "P-00000000-0000-4000-8000-0000000000aa", join_link: null, kalender_link: null, registreret_at: "2026-10-13T08:40:00.000Z" });
-    const nu = dansk("2026-10-13T08:47:03.000Z");
+    const nu = dansk("2026-10-13T08:41:03.000Z"); // 41:03 + 10 min ≤ fristen 08:55 — et senere slot er garanteret (runde 3)
     // Motor-personen har fået begge før; «ny» får bekræftelse + en_time nu.
     const p = planlaegKoersel({ raekker: [mo, ny], afmeldte: new Set(), sendte: andreSendt([MAIL, SESSION]), nu, tiMinutterPort: KLAR });
     expect(p.sendinger.filter((s) => s.art === "ti_minutter").map((s) => s.email)).toEqual([MAIL]);
