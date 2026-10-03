@@ -397,6 +397,27 @@ referrer-låst til `app.theboardroom.dk`.
 
 ## DEL 2 · Tilstanden
 
+### 3. oktober aften — sikkerhedspakken forberedt: REVOKE fra anon (1a/1b) og WITH CHECK (gren `sec/revoke-anon-og-with-check`, IKKE KØRT, KRÆVER GRØNT LYS)
+
+Tre migrationsfiler, et værn og SECURITY_BASELINE. Intet er kørt, og intet er merget. Kortene: `g03-security-definer-anon` og `g03-with-check-15-politikker`. Planen står i `docs/vaerdiliste.md` §2 punkt 14. Rækkefølgen står i DEL 3 «Sikkerhed trin 1a/1b og WITH CHECK».
+
+**Målt i prod 3/10 (SELECT som postgres):**
+- **Funktionerne:** 69 SECURITY DEFINER-funktioner, alle ejet af postgres. 29 kan kaldes af anon, heraf 18 ikke-triggere (som i morges). 16 af de 18 har både et PUBLIC-grant og et eksplicit anon-grant (`pg_default_acl`), så en REVOKE skal nævne begge.
+- **Fordelingen af de 18:**
+  - 2 bliver hos anon: `lookup_invite_company_info` (/auth) og `hent_betalingstilbud` (/betal).
+  - 14 går i trin 1a.
+  - 2 går i trin 1b: `has_role` og `user_company_id`.
+- **Politikkerne:** 399 i alt, 146 står for PUBLIC og 0 eksplicit for anon. 243 kalder `has_role`/`user_company_id`: 180 «TO authenticated» og **63 for PUBLIC** på 19 tabeller. Dertil kommer `message_reactions` indirekte, så det er 20 tabeller.
+- **Kan anon læse noget i dag?** Ingen af de 20 tabeller har en PUBLIC-politik, der giver anon en række. Der er ingen views, og ingen anon-kaldbar INVOKER-funktion læser dem. Storage-politikkerne for anon er rene bucket-tjek.
+- **WITH CHECK:** 35 UPDATE/ALL-politikker står uden WITH CHECK: 18 rådgiver/service, 2 milestones og de 15. Der er 0 brugere i flere virksomheder. 0 rækker har en medlemsejer i en anden virksomhed i de fem tabeller. De 57 rapporter med en ejer, der ikke er medlem, ejes alle af rådgivere.
+
+**Rettelser i forhold til planen (målt, ikke antaget):**
+1. **`is_legat_user` står i 0 politikker.** Ingen kalder den, hverken klient, edge function eller funktion. Den er flyttet fra 1b til 1a. Trin 1a har også de tre læse-RPC'er bag login med (`get_siden_sidst(_virksomheder)`, `get_conversation_sender_profiles`), fordi kriteriet er «anon bruger dem bevisligt ikke».
+2. **Trin 1b ændrer anons svar på de 20 tabeller** fra 200 `[]` til 42501. Postgres tjekker EXECUTE på en funktion i en politik, når forespørgslen starter. Røgprøven i `docs/vaerdiliste.md` («samme antal rækker/samme fejl, ellers STOP») ville derfor altid sige STOP. Dommen i filens DO-blok er i stedet: FØR = 0 og EFTER = 0 eller 42501. Hvis et tal over 0 ændrer sig, er det STOP. Storage og de to anon-RPC'er skal være uændrede.
+3. **«WITH CHECK = USING» ændrer intet.** Postgres bruger allerede USING som check. Det egentlige hul er de 5 politikker, hvis USING kun dømmer ejeren, nemlig gruppe A. De er strammet med virksomheden. De 5 tilsvarende INSERT-politikker (gruppe A') er strammet på samme måde, ellers var rettelsen kosmetik. De 10 andre (gruppe B) har fået WITH CHECK = USING eksplicit uden nogen adfærdsændring.
+
+**IKKE prøvet:** DO-blokkene (tørkørsel og røgprøve) er ikke kørt, for denne session må kun køre SELECT. De forventede svar står i filhovederne. Et lokalt Postgres-forsøg blev opgivet, fordi sandkassen ikke gav adgang.
+
 ### 3. oktober kl. 20:19 — Jonas' fem svar, og hvad der er målt bagefter
 
 **Svarene** (ordret i chatten):
@@ -12147,6 +12168,53 @@ Værn: `ringMigOp.guard` dom 8 (indsend), 9 (RLS), 10 (IP-hash); `opkaldDom.test
 ## DEL 3 · Det der venter
 
 **Tracking (Meta, LinkedIn, GA4, TikTok, Stape, eWebinar, Klaviyo — hvad der sendes til hvem, principperne fra 21/9, det åbne):** `docs/tracking.md` er husets ENE dokument om det fra 21/9; recon-/rapportfilerne i `~/Downloads` er kilder.
+
+### Sikkerhed trin 1a/1b og WITH CHECK — rækkefølgen (3/10, gren `sec/revoke-anon-og-with-check`; IKKE KØRT, KRÆVER GRØNT LYS pr. fil)
+
+Ét skridt ad gangen. Hver fil har sin egen FØR-SQL, tørkørsel eller røgprøve, EFTER-SQL og tilbagerulning (GRANT eller ALTER POLICY) i filhovedet.
+
+1. **Trin 1a, `20261003200000_revoke_anon_trin1a.sql`** (14 funktioner):
+   1. Jonas' ja.
+   2. FØR-SQL.
+   3. Tørkørslen skal svare «TØRKØRSEL OK 14/14».
+   4. Kør filen.
+   5. EFTER-SQL: anon-kaldbare ikke-trigger DEFINER-funktioner går fra 18 til 4.
+   6. Cron 554 skal stadig stå «succeeded».
+   7. Røgprøven nedenfor.
+   8. Livetjek som medlem (chat-læst, klokken, login) og som rådgiver (forsiden «Siden sidst», virksomhedslisten, /ansoegninger).
+2. **Trin 1b, `20261003201000_revoke_anon_trin1b.sql`** (`has_role`, `user_company_id`). Først når 1a er kørt og målt:
+   1. Jonas' ja.
+   2. FØR-SQL (63 PUBLIC-politikker).
+   3. Røgprøve-DO-blokken skal svare «RØGPRØVE OK».
+   4. Kør filen.
+   5. EFTER-SQL: kun 2 anon-kaldbare funktioner tilbage.
+   6. Røgprøven nedenfor.
+   7. Livetjek som anonym, medlem og rådgiver.
+3. **WITH CHECK, `20261003202000_with_check_15_politikker.sql`** (gerne i samme vindue som `20261002280000_milestones_with_check`):
+   1. Jonas' ja.
+   2. FØR-SQL. «Brugere i flere virksomheder» skal være 0.
+   3. Tørkørslen skal svare «TØRKØRSEL OK | før: lykkedes 1 | efter: FEJL 42501 | lovlig: lykkedes 1».
+   4. Kør filen.
+   5. EFTER-SQL.
+   6. Livetjek som medlem: rapport, KPI-mål, chat, handout→mål. Som rådgiver: ret en rapport og et KPI-mål.
+4. Efter hver: flip første linje til «-- KØRT i prod …». Ajourfør `revokeAnon.guard` (første linje), SECURITY_BASELINE og kortene, alt i samme PR.
+
+**Røgprøven som anonym.** Anon-nøglen tages fra den udrullede bundle (`index-*.js`), og der sendes ingen session. Kør hvert kald FØR og EFTER, og sammenlign status og krop:
+
+| sti | kald | forventet før → efter |
+|---|---|---|
+| /auth?token=… | `POST /rest/v1/rpc/lookup_invite_company_info` `{"invite_token":"00000000-0000-0000-0000-000000000000"}` | uændret (mål FØR; forventet 200 `null`, ikke målt) |
+| /betal?t=… | `POST /rest/v1/rpc/hent_betalingstilbud` `{"betalingstoken":"00000000-0000-0000-0000-000000000000"}` | uændret (mål FØR) |
+| /ansoeg | `POST /functions/v1/ansoegning-gem` med en krop uden gyldig handling (skriver intet) | uændret status (service role) |
+| /aftale | `POST /functions/v1/aftale-underskrift` med et ukendt token | uændret status |
+| /delt/webinar | `POST /functions/v1/webinar-delt` `{"t":"ukendt"}` | 403 → 403 |
+| /ring-mig-op | `POST /functions/v1/ring-mig-op` med et ukendt token | 403 → 403 |
+| storage | `GET /storage/v1/object/public/company-logos/<et kendt logo>` | 200 → 200 |
+| (1a) ingen flade | `POST /rest/v1/rpc/get_all_advisor_profiles` `{}` | 200 [rådgivere] → 401/403 42501 (TILSIGTET) |
+| (1b) ingen flade | `POST /rest/v1/rpc/has_role` `{"_user_id":"00000000-0000-0000-0000-000000000000","_role":"advisor"}` | 200 (mål FØR) → 401/403 42501 (TILSIGTET) |
+| (1b) ingen flade | `GET /rest/v1/companies?select=id&limit=1` | 200 `[]` → 401/403 42501 (TILSIGTET, se DEL 2) |
+
+Kald ALDRIG de skrivende funktioner (`cleanup_stale_processing_reports`, `mark_*`, `log_user_login`) som prøve. Dem dømmer `has_function_privilege` alene. `/w/*` findes kun på `feat/webinarmotor-skive2`, og den går gennem edge functions med service role. **Fejler én flade: rul tilbage med GRANT-linjerne i filhovedet, og bogfør hvad der fejlede.**
 
 ### Pakke B skive 1 — udrulning (3/10, gren `fix/ai-skema-grupper`; kortet `m17-ai-skema-grupper`)
 

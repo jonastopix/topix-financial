@@ -1,0 +1,178 @@
+-- IKKE KØRT. KRÆVER JONAS' GRØNNE LYS (REVOKE EXECUTE fra anon, trin 1b: has_role + user_company_id — g03-security-definer-anon).
+--
+-- Første linje er med vilje IKKE «-- IKKE KØRT. DEPLOY: …» (se 20261003200000_revoke_anon_trin1a).
+-- Køres FØRST efter trin 1a er kørt og målt, OG efter røgprøven nedenfor er grøn.
+-- CLAUDE.md «FORBIDDEN uden eksplicit grønt lys»: has_role() og user_company_id() står ved navn.
+-- Ingen funktionskrop ændres, ingen politik. Kun REVOKE/GRANT EXECUTE.
+-- Værn: src/lib/__tests__/revokeAnon.guard.test.ts (dom 2).
+--
+-- HVAD ANON MISTER: at kalde has_role(uuid, app_role) og user_company_id(uuid) som RPC. I dag kan
+-- enhver med anon-nøglen spørge «er denne uuid rådgiver/admin?» og «hvilken virksomhed hører denne
+-- uuid til?» (POST /rest/v1/rpc/has_role, /rpc/user_company_id). Ingen anonym flade kalder dem
+-- (grep af src/ og supabase/functions/ på origin/main e39a9a29: has_role kun i edge functions
+-- gennem callerClient = brugerens JWT; user_company_id i src/lib/feedback.ts bag login og i
+-- send-invitation-email med service role).
+--
+-- HVORFOR DEN ER ET EGET TRIN — POLITIKKERNE (målt i prod 3/10-2026, pg_policy, alle skemaer):
+--   399 politikker i alt; 146 står for PUBLIC (polroles = {0}); 0 står for anon eksplicit.
+--   243 politikker kalder has_role/user_company_id: 180 for authenticated (anon evaluerer dem
+--   aldrig) og 63 for PUBLIC — dem evaluerer anon. De 63 ligger på 19 tabeller:
+--     agent_proposals 1 · agent_runs 1 · app_config 3 · companies 4 · company_actions 2 ·
+--     company_invitations 6 · company_members 2 · conversations 5 · financial_reports 4 ·
+--     handout_lever_milestones 1 · handouts 7 · kpi_benchmarks 5 · kpi_chart_comments 4 ·
+--     kpi_targets 5 · messages 5 · milestones 5 · profiles 1 · pulse_checkins 1 · weekly_focus 2
+--   (= 63). Plus ÉN tabel indirekte: message_reactions' PUBLIC-politik «Users can view reactions
+--   on visible messages» laver EXISTS mod messages, hvis politikker kalder has_role → 20 tabeller.
+--   Postgres tjekker EXECUTE på en funktion i et politikudtryk, når forespørgslen startes — uanset
+--   om udtrykket ville kortslutte. EFTER REVOKE får anon derfor 42501 «permission denied for
+--   function has_role» på enhver SELECT/INSERT/UPDATE/DELETE mod de 20 tabeller.
+--
+--   ER DET ET BRUD? Målt pr. tabel: INGEN af de 19 tabeller har en PUBLIC-politik, der kan give
+--   anon en række (hver PUBLIC-politik der afhænger af auth.uid() eller auth.role() = 'service_role');
+--   message_reactions giver kun rækker på synlige beskeder (0 for anon). Anon får altså i dag
+--   200 [] (eller en RLS-afvisning ved skrivning) og efter REVOKE 401/403 med 42501. Ingen anonym
+--   flade læser eller skriver de 20 tabeller (grep: /auth bruger kun RPC'en
+--   lookup_invite_company_info, /betal kun hent_betalingstilbud, /ansoeg, /aftale, /delt/webinar,
+--   /ring-mig-op og /w/* kun edge functions med service role; ingen views i public; ingen
+--   SECURITY INVOKER-funktion, anon kan kalde, læser de 20 tabeller; ingen Realtime på de anonyme
+--   flader). storage.objects: anon-politikkerne (avatars, company-logos) er rene bucket-tjek og
+--   rammes ikke; has_role/user_company_id i storage-politikker står KUN for authenticated.
+--   Den kendte kant: en browser, hvis session er udløbet og ikke kan fornyes, sender anon-nøglen
+--   — dens forespørgsler mod de 20 tabeller fejler da med 42501 i stedet for at svare tomt, indtil
+--   den er logget ud (sker alligevel ved næste auth-hændelse).
+--   ALTERNATIVET, hvis Jonas vil have anon's 200 [] bevaret: skift de 63 politikker fra PUBLIC til
+--   «TO authenticated» (ALTER POLICY … TO authenticated) — 63 ændringer i stedet for 2, overlapper
+--   a22-rls-initplan, der rører de samme politikker. Ikke valgt her.
+--
+-- RÆKKEFØLGEN (ét skridt ad gangen):
+--   1. Trin 1a kørt og målt (20261003200000).
+--   2. Jonas' grønne lys til DENNE fil.
+--   3. FØR-SQL (gem CSV).
+--   4. RØGPRØVEN (DO-blok nedenfor) — svarer ALTID med en fejl «RØGPRØVE …» og ruller tilbage.
+--      Dommen: hver af de 20 tabeller + 2 storage-buckets: FØR = et tal; EFTER = samme tal ELLER
+--      «42501» — og «42501» KUN hvor FØR = 0. En tabel med FØR > 0, der ændrer sig, = STOP.
+--      De to anon-RPC'er og storage-tallene skal være uændrede. Siger den andet end «OK»: STOP.
+--   5. KØR denne fil i Lovable → SQL editor.
+--   6. EFTER-SQL (gem CSV).
+--   7. Livetjek som anonym (privat vindue, ingen session) af /auth?token=<et rigtigt, udløbet eller
+--      ukendt token>, /betal?t=…, /ansoeg, /aftale?token=…, /delt/webinar?t=…, /ring-mig-op?t=… —
+--      samme side som før. REST-røgprøven med anon-nøglen (docs/OVERLEVERING.md DEL 3 «Sikkerhed
+--      trin 1a/1b»). Som medlem: forsiden, Dine tal, chatten. Som rådgiver: forsiden, en virksomhed.
+--      Fejler én: RUL TILBAGE (nedenfor), og bogfør hvad.
+--   8. Flip første linje til «-- KØRT i prod …», ajourfør SECURITY_BASELINE §1 og kortet.
+--
+-- FØR-SQL (ét resultatsæt — gem CSV):
+--   select p.oid::regprocedure::text as funktion,
+--          has_function_privilege('anon', p.oid, 'EXECUTE') as anon_x,
+--          has_function_privilege('authenticated', p.oid, 'EXECUTE') as auth_x,
+--          has_function_privilege('service_role', p.oid, 'EXECUTE') as sr_x,
+--          coalesce(array_to_string(p.proacl, ' '), '(null)') as acl
+--     from pg_proc p
+--    where p.oid in ('public.has_role(uuid,app_role)'::regprocedure, 'public.user_company_id(uuid)'::regprocedure)
+--   union all
+--   select 'politikker PUBLIC der kalder dem', null, null, null, count(*)::text
+--     from pg_policy where polroles = '{0}'
+--      and coalesce(pg_get_expr(polqual, polrelid), '') || coalesce(pg_get_expr(polwithcheck, polrelid), '') ~ '(has_role|user_company_id)\('
+--   order by 1;
+--   Forventet (målt 3/10): to rækker med anon_x/auth_x/sr_x = true og acl
+--   «=X/postgres postgres=X/postgres anon=X/postgres authenticated=X/postgres service_role=X/postgres
+--   sandbox_exec_loiavmastgeieqyiwyyr=X/postgres»; politikrækken = 63.
+--
+-- RØGPRØVE (Lovable → SQL editor; ændrer intet — slutter ALTID med RAISE EXCEPTION):
+--   do $$
+--   declare
+--     tabeller text[] := array[
+--       'public.agent_proposals','public.agent_runs','public.app_config','public.companies',
+--       'public.company_actions','public.company_invitations','public.company_members',
+--       'public.conversations','public.financial_reports','public.handout_lever_milestones',
+--       'public.handouts','public.kpi_benchmarks','public.kpi_chart_comments','public.kpi_targets',
+--       'public.messages','public.milestones','public.profiles','public.pulse_checkins',
+--       'public.weekly_focus','public.message_reactions'];
+--     t text; n bigint; foer jsonb := '{}'; efter jsonb := '{}'; rapport text := ''; fejl int := 0;
+--     maal text;
+--     -- én måling som anonym: antal rækker, eller «FEJL <sqlstate>»
+--     -- (en fejl i underblokken ruller dens SET LOCAL ROLE tilbage sammen med underblokken)
+--   begin
+--     perform set_config('request.jwt.claims', '{"role":"anon"}', true);
+--     perform set_config('request.jwt.claim.sub', '', true);
+--     for runde in 1..2 loop
+--       if runde = 2 then
+--         revoke execute on function public.has_role(uuid, app_role) from public, anon;
+--         revoke execute on function public.user_company_id(uuid) from public, anon;
+--       end if;
+--       foreach t in array tabeller || array['storage.objects:avatars','storage.objects:company-logos',
+--                                            'rpc:lookup_invite_company_info','rpc:hent_betalingstilbud'] loop
+--         begin
+--           set local role anon;
+--           if t like 'storage.objects:%' then
+--             execute 'select count(*) from storage.objects where bucket_id = $1' into n using split_part(t, ':', 2);
+--             maal := n::text;
+--           elsif t = 'rpc:lookup_invite_company_info' then
+--             maal := coalesce(public.lookup_invite_company_info('00000000-0000-0000-0000-000000000000')::text, 'null');
+--           elsif t = 'rpc:hent_betalingstilbud' then
+--             maal := coalesce(public.hent_betalingstilbud('00000000-0000-0000-0000-000000000000')::text, 'null');
+--           else
+--             execute format('select count(*) from %s', t) into n;
+--             maal := n::text;
+--           end if;
+--           reset role;
+--         exception when others then
+--           maal := 'FEJL ' || sqlstate;
+--         end;
+--         if runde = 1 then foer := foer || jsonb_build_object(t, maal);
+--         else efter := efter || jsonb_build_object(t, maal); end if;
+--       end loop;
+--     end loop;
+--     for t in select jsonb_object_keys(foer) loop
+--       if (foer ->> t) = (efter ->> t) then continue; end if;
+--       if (foer ->> t) = '0' and (efter ->> t) = 'FEJL 42501' and t not like '%:%' then continue; end if;
+--       fejl := fejl + 1; rapport := rapport || ' AFVIGER ' || t || ': ' || (foer ->> t) || ' → ' || (efter ->> t);
+--     end loop;
+--     if not has_function_privilege('authenticated', 'public.has_role(uuid,app_role)', 'EXECUTE')
+--        or not has_function_privilege('authenticated', 'public.user_company_id(uuid)', 'EXECUTE')
+--        or not has_function_privilege('service_role', 'public.has_role(uuid,app_role)', 'EXECUTE')
+--        or not has_function_privilege('service_role', 'public.user_company_id(uuid)', 'EXECUTE') then
+--       fejl := fejl + 1; rapport := rapport || ' authenticated/service_role MISTEDE EXECUTE';
+--     end if;
+--     raise exception 'RØGPRØVE % (afvigelser %)% | FØR=% | EFTER=%',
+--       case when fejl = 0 then 'OK' else 'STOP' end, fejl, rapport, foer, efter;
+--   end $$;
+--   Forventet: «ERROR: RØGPRØVE OK (afvigelser 0) | FØR={… alle 20 tabeller "0", storage-tallene,
+--   de to rpc-svar …} | EFTER={… de 20 tabeller "FEJL 42501", storage og rpc uændrede …}».
+--   Står en tabel i FØR med et tal > 0, er antagelsen «anon læser intet her» forkert: STOP.
+--
+-- EFTER-SQL (ét resultatsæt — gem CSV):
+--   select p.oid::regprocedure::text as funktion,
+--          has_function_privilege('anon', p.oid, 'EXECUTE') as anon_x,
+--          has_function_privilege('authenticated', p.oid, 'EXECUTE') as auth_x,
+--          has_function_privilege('service_role', p.oid, 'EXECUTE') as sr_x,
+--          coalesce(array_to_string(p.proacl, ' '), '(null)') as acl
+--     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+--    where n.nspname = 'public' and p.prosecdef and p.prorettype <> 'trigger'::regtype
+--      and has_function_privilege('anon', p.oid, 'EXECUTE')
+--   union all
+--   select 'has_role efter', has_function_privilege('anon','public.has_role(uuid,app_role)','EXECUTE'),
+--          has_function_privilege('authenticated','public.has_role(uuid,app_role)','EXECUTE'),
+--          has_function_privilege('service_role','public.has_role(uuid,app_role)','EXECUTE'), ''
+--   union all
+--   select 'user_company_id efter', has_function_privilege('anon','public.user_company_id(uuid)','EXECUTE'),
+--          has_function_privilege('authenticated','public.user_company_id(uuid)','EXECUTE'),
+--          has_function_privilege('service_role','public.user_company_id(uuid)','EXECUTE'), ''
+--   order by 1;
+--   Forventet: anon_x = true på PRÆCIS 2 (hent_betalingstilbud, lookup_invite_company_info);
+--   «has_role efter» og «user_company_id efter» = false · true · true.
+--
+-- RUL TILBAGE (gendanner FØR-acl'en præcis):
+--   GRANT EXECUTE ON FUNCTION public.has_role(uuid, app_role) TO PUBLIC, anon;
+--   GRANT EXECUTE ON FUNCTION public.user_company_id(uuid) TO PUBLIC, anon;
+--
+-- KENDT EFTERVIRKNING: som i trin 1a — pg_default_acl giver anon EXECUTE på nye funktioner, og en
+-- DROP + CREATE af has_role/user_company_id (FORBIDDEN uden grønt lys i forvejen) skal gentage
+-- REVOKE-linjerne. En NY PUBLIC-politik, der kalder en funktion uden anon-EXECUTE, giver anon 42501
+-- på den tabel — skriv nye politikker «TO authenticated».
+
+REVOKE EXECUTE ON FUNCTION public.has_role(uuid, app_role) FROM PUBLIC, anon;
+GRANT  EXECUTE ON FUNCTION public.has_role(uuid, app_role) TO authenticated, service_role;
+
+REVOKE EXECUTE ON FUNCTION public.user_company_id(uuid) FROM PUBLIC, anon;
+GRANT  EXECUTE ON FUNCTION public.user_company_id(uuid) TO authenticated, service_role;
