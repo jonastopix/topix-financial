@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { ADMIN_HENTER_TEKST, adminHentefejlTekst, adminListeTekst } from "@/lib/hjemmebane/adminListeTekst";
+import { ADMIN_HENTER_TEKST, adminHentefejlTekst, adminListeTekst, eventsSidefejl } from "@/lib/hjemmebane/adminListeTekst";
 
 // «Tavse queryFn'er» (mangellisten, resten efter #928/#1126), 30/9-2026:
 // EventsView, ContentView og HbMaterials viste den TOMME tilstand, når
@@ -61,5 +61,28 @@ describe("adminListeTekst.guard — de tre flader skelner tom fra fejlet", () =>
     expect(eventsSkelner(gammelEvents)).toBe(false);
     expect(indholdSkelner(laes(CONTENT).replace("isError: collectionsQuery.isError || itemsQuery.isError,", "isError: false,"))).toBe(false);
     expect(materialerSkelner(laes(MATERIALER).replace("{query.isError && (", "{false && ("))).toBe(false);
+  });
+});
+
+describe("eventsSidefejl — tilmeldinger og optagelser (3/10, g03-tavse-queryfn)", () => {
+  const ok = { isError: false };
+  const fejl = { isError: true };
+  it("intet fejlet → null", () => expect(eventsSidefejl(ok, ok)).toBeNull());
+  it("tilmeldingerne fejlet → siger at antallet (også ved sletning) kan være forkert", () =>
+    expect(eventsSidefejl(fejl, ok)).toMatch(/^Tilmeldingerne kunne ikke hentes .*sletning/));
+  it("optagelserne fejlet → listen kan mangle noget", () => expect(eventsSidefejl(ok, fejl)).toMatch(/^Optagelserne kunne ikke hentes/));
+  it("begge → begge nævnt", () => expect(eventsSidefejl(fejl, fejl)).toMatch(/^Tilmeldingerne og optagelserne/));
+});
+
+/** Kildeværn: EventsView viser sidefejlen fra BEGGE sidehentninger. */
+export const eventsSidefejlVises = (k: string) =>
+  k.includes("const sidefejl = eventsSidefejl(registrationsQuery, recordingsQuery);") &&
+  /\{sidefejl && \(\s*<p[^>]*>\{sidefejl\}<\/p>\s*\)\}/.test(k);
+
+describe("adminListeTekst.guard — EventsView's sidehentninger er ikke tavse", () => {
+  it("EventsView viser sidefejlen", () => expect(eventsSidefejlVises(laes(EVENTS))).toBe(true));
+  it("selvbevis: uden linjen eller med kun én hentning fælder", () => {
+    expect(eventsSidefejlVises(laes(EVENTS).replace("{sidefejl && (", "{false && ("))).toBe(false);
+    expect(eventsSidefejlVises(laes(EVENTS).replace("eventsSidefejl(registrationsQuery, recordingsQuery)", "eventsSidefejl(registrationsQuery, { isError: false })"))).toBe(false);
   });
 });

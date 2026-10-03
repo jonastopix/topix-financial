@@ -43,3 +43,24 @@ export function adminListeTekst(
       return tekster.tom;
   }
 }
+
+/**
+ * Events-fladens to SIDEHENTNINGER (3/10, kort g03-tavse-queryfn — det, der
+ * stod tilbage efter #1160): countRegistrations og listRecordingCandidates
+ * kaster (throwIfError), men fladen læste kun `data ?? {}` / `data ?? []`.
+ * En fejlet tilmeldingstælling gav «0 tilmeldte» i editoren og — værst —
+ * «0 tilmeldinger slettes med» i sletningens bekræftelse; en fejlet
+ * optagelsesliste gav en tom vælger. Linjen siger, HVAD der mangler; null =
+ * intet fejlede (henter tæller ikke som fejl).
+ */
+export function eventsSidefejl(
+  tilmeldinger: { isError: boolean },
+  optagelser: { isError: boolean },
+): string | null {
+  if (tilmeldinger.isError && optagelser.isError)
+    return "Tilmeldingerne og optagelserne kunne ikke hentes lige nu — antallet af tilmeldte og listen over optagelser kan være forkerte. Prøv igen.";
+  if (tilmeldinger.isError)
+    return "Tilmeldingerne kunne ikke hentes lige nu — antallet af tilmeldte kan være forkert (også ved sletning). Prøv igen.";
+  if (optagelser.isError) return "Optagelserne kunne ikke hentes lige nu — listen over optagelser kan mangle noget. Prøv igen.";
+  return null;
+}

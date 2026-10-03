@@ -9,7 +9,7 @@ import {
   listRecordingCandidates,
 } from "@/lib/hjemmebane/adminContentApi";
 import { isEventPast } from "@/lib/hjemmebane/eventPhase";
-import { adminListeTekst } from "@/lib/hjemmebane/adminListeTekst";
+import { adminListeTekst, eventsSidefejl } from "@/lib/hjemmebane/adminListeTekst";
 import { HbAdminSplit } from "../HbAdminShell";
 import { HbTreeList, type HbListRow } from "../HbTreeList";
 import { useAdminHotkeys } from "../useAdminHotkeys";
@@ -55,6 +55,8 @@ export const EventsView = () => {
 
   const events = useMemo(() => eventsQuery.data ?? [], [eventsQuery.data]);
   const counts = registrationsQuery.data ?? {};
+  // Tom og fejlet er to beskeder (3/10, g03-tavse-queryfn): en fejlet tælling er ikke «0 tilmeldte».
+  const sidefejl = eventsSidefejl(registrationsQuery, recordingsQuery);
   const query = search.trim().toLowerCase();
 
   const upcoming = useMemo(() => {
@@ -130,32 +132,37 @@ export const EventsView = () => {
       editorOpen={selected !== undefined}
       onCloseEditor={() => setSelectedId(null)}
       list={
-        <HbTreeList
-          rows={rows}
-          archivedRows={[]}
-          selectedId={selectedId}
-          onSelect={(row) => setSelectedId(row.id)}
-          onMoveStep={() => undefined}
-          onDropOn={() => undefined}
-          dirtyIds={dirtyIds}
-          searchValue={search}
-          onSearchChange={setSearch}
-          searchRef={searchRef}
-          headerAction={
-            <button
-              type="button"
-              onClick={() => newEventMutation.mutate()}
-              disabled={newEventMutation.isPending}
-              className="flex shrink-0 items-center gap-1 rounded-full border border-hb-line px-3 py-2 text-sm text-hb-ink-soft transition-colors hover:bg-hb-sage/30 hover:text-hb-ink"
-            >
-              <Plus className="h-3.5 w-3.5" /> Event
-            </button>
-          }
-          emptyText={adminListeTekst(eventsQuery, {
-            hvad: "events",
-            tom: "Ingen events endnu. Opret det første — Live sparring bor her.",
-          })}
-        />
+        <>
+          {sidefejl && (
+            <p className="px-4 pt-3 text-xs text-hb-rust" role="alert">{sidefejl}</p>
+          )}
+          <HbTreeList
+            rows={rows}
+            archivedRows={[]}
+            selectedId={selectedId}
+            onSelect={(row) => setSelectedId(row.id)}
+            onMoveStep={() => undefined}
+            onDropOn={() => undefined}
+            dirtyIds={dirtyIds}
+            searchValue={search}
+            onSearchChange={setSearch}
+            searchRef={searchRef}
+            headerAction={
+              <button
+                type="button"
+                onClick={() => newEventMutation.mutate()}
+                disabled={newEventMutation.isPending}
+                className="flex shrink-0 items-center gap-1 rounded-full border border-hb-line px-3 py-2 text-sm text-hb-ink-soft transition-colors hover:bg-hb-sage/30 hover:text-hb-ink"
+              >
+                <Plus className="h-3.5 w-3.5" /> Event
+              </button>
+            }
+            emptyText={adminListeTekst(eventsQuery, {
+              hvad: "events",
+              tom: "Ingen events endnu. Opret det første — Live sparring bor her.",
+            })}
+          />
+        </>
       }
       editor={
         selected ? (
