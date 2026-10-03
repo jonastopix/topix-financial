@@ -53,6 +53,7 @@ import {
 import { AREAS } from "@/lib/hjemmebane/adminContentApi";
 import { listPublishedItems } from "@/lib/hjemmebane/akademiApi";
 import {
+  AKADEMI_FREMDRIFT_KOLONNER,
   akademiFremdriftPrVirksomhed,
   akademiKatalog,
   type AkademiFremdrift,
@@ -175,7 +176,7 @@ async function hentAkademiGrundlag(): Promise<AkademiGrundlag> {
     hentAlleSider<AkademiFremdriftRaekke>((fra, til) =>
       supabase
         .from("member_progress")
-        .select("user_id, content_item_id, seen_at, acknowledged_at, skipped_at, brugbar_at, markeret_at")
+        .select(AKADEMI_FREMDRIFT_KOLONNER)
         .order("id")
         .range(fra, til)
         .then(side("member_progress")),

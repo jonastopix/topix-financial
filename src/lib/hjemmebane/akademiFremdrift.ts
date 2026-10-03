@@ -66,6 +66,14 @@ export interface AkademiOmraade {
   akademi: boolean;
 }
 
+/** Kolonnerne, hentningen (hooks/trofaeer.ts) beder om — ÉT sted, så
+    hentningen aldrig nævner et tidsstempelfelt ved navn
+    (akademiEngagement.guard dom 1, akademiF0.guard dom 7,
+    lektionBrugbar.guard dom 3). brugbar_at er med, fordi
+    medlemmetsSenesteStempel læser den som et eget stempel. */
+export const AKADEMI_FREMDRIFT_KOLONNER =
+  "user_id, content_item_id, seen_at, acknowledged_at, skipped_at, brugbar_at, markeret_at";
+
 /** Det fremdriftsdommen læser af en member_progress-række. */
 export type AkademiFremdriftRaekke = Pick<
   MemberProgress,

@@ -57,6 +57,10 @@ const MAA_NAEVNE_MARKERET_AT = [
   "src/lib/hjemmebane/akademiApi.ts",
   ADMIN_API,
   PROGRESS_VIEW,
+  // /engagement «Akademiet» (3/10-2026): RÅDGIVERENS motor, ikke en
+  // medlemsflade — den læser markeret_at for at vise markeringen FOR SIG
+  // (markeringsTilstand) og dømmer «set» gennem itemProgressState.
+  "src/lib/hjemmebane/akademiFremdrift.ts",
 ];
 
 /** Funktionskroppen for `export async function <navn>(` frem til første `}` i kolonne 0. */

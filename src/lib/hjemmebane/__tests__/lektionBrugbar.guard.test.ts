@@ -29,6 +29,10 @@ const MAA_NAEVNE_BRUGBAR_AT = [
   // progressState.ts; akademiApi.ts re-eksporterer den og nævner ikke
   // kolonnen selv længere.
   "src/lib/hjemmebane/progressState.ts",
+  // 3/10-2026, /engagement «Akademiet»: kolonnelisten til hentningen —
+  // brugbar_at læses KUN som et eget stempel (medlemmetsSenesteStempel),
+  // aldrig som svaret; ingen skrivning.
+  "src/lib/hjemmebane/akademiFremdrift.ts",
 ];
 
 /** Blokken `export type ProgressPatch = …;` — frem til det første `;`. */

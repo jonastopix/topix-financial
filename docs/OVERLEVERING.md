@@ -429,6 +429,7 @@ referrer-låst til `app.theboardroom.dk`.
 - **Værn:**
   - `akademiEngagement.guard.test.ts` (fire domme med selvbevis): fladen og hentningen læser aldrig `seen_at`/`acknowledged_at`/`skipped_at`/`markeret_at` selv, og dommen går gennem progressState.
   - `quickWinsSkjult.guard` dom 7 kender den nye kataloglæser (`trofaeer.ts` → filtret `o.akademi` i dommen; dom 1 holder, at et skjult område aldrig er et Akademi-område).
+  - `akademiF0.guard` dom 7 og `lektionBrugbar.guard` dom 3 tillader `akademiFremdrift.ts` (rådgiverens motor) at nævne `markeret_at`/`brugbar_at`. Kolonnelisten står ét sted (`AKADEMI_FREMDRIFT_KOLONNER`), så hentningen i `trofaeer.ts` ikke nævner felterne.
 
 **Tallene i prod 3/10 ca. 20:55** (SQL-genskabelse af dommen, kun aggregater):
 - 29 virksomheder i universet; 26 har medlemmer (28 medlemmer i alt).
