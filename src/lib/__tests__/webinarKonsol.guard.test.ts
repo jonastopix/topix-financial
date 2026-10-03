@@ -209,7 +209,8 @@ describe("webinarKonsol.guard 5 — migrationen", () => {
     const alle = readdirSync(resolve(ROD, "supabase/migrations")).filter((f) => f.endsWith(".sql")).sort();
     // 3/10: kun webinarmotorens egne, senere skiver må ligge efter — nævnt ved navn
     // (+ webinarchattens bagende, 20261003080000, §7.10; webinarChatBagende.guard).
-    expect(alle.slice(alle.indexOf(MIG.split("/")[2]) + 1)).toEqual(["20261003080000_webinar_chat_bagende.sql"]);
+    // (+ tilmeldingerne til Metas spor, 20261003090000, webinarTilmeldMeta.guard — efter skive 5, stakken omordnet 3/10).
+    expect(alle.slice(alle.indexOf(MIG.split("/")[2]) + 1)).toEqual(["20261003080000_webinar_chat_bagende.sql", "20261003090000_meta_haendelser_tilmelding.sql"]);
   });
   it("MUTATION: forkert første linje, SECURITY DEFINER, anon, tjenestekonto-hul og løsere trigger fanges", () => {
     const m = laes(MIG);

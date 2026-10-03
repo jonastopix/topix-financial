@@ -13,9 +13,15 @@ import { PERSONDATA_AFSNIT } from "@/lib/ansoegning/persondata";
  *      64 hex; findForbudteNoegler jager rå e-mail og rå telefon/CVR i hele objektet; Metas
  *      normaliseringsregler står ordret i filen; cronen læser de tolv kolonner i RAEKKE_FELTER
  *      og rører ALDRIG klarteksten selv (den rækker rækken til normaliserBrugerdata).
- *   3. TØRKØRSEL STANDARD + LÅSEN: dry_run !== false; `if (!r.sender_rigtigt) return`
- *      før første sendTilMeta; låsen læses af app_config fail-closed.
+ *   3. TØRKØRSEL STANDARD + LÅSEN: dry_run !== false; ansøgningsløkken går KUN over planerne,
+ *      når r.sender_rigtigt (`for (const p of r.sender_rigtigt ? planer : [])` — 3/10-2026: den
+ *      tidlige return flyttede ned under tilmeldingspasset, så tørkørslen også viser det; CTO);
+ *      ansøgningernes afslutning (skrivAlarm, r.ok, status) står i `if (r.sender_rigtigt) {` LIGE
+ *      efter løkken og FØR tilmeldingspasset — tørkørslen kalder aldrig skrivAlarm og lader ok/200
+ *      stå; låsen læses fail-closed. Dom 8 låser rækkefølgen (sidste LAV, CTO 3/10).
  *   4. STRIKS-BODY + BUCKET B: KENDTE_FELTER præcis dry_run · nu · test_event_code ·
+ *      ansoegning_id · tilmelding_id (det femte kom 3/10-2026 med webinarmotorens tilmeldinger —
+ *      beviset for ÉN tilmelding; webinarTilmeldMeta.guard; de to id'er afvises sammen) ·
  *      ansoegning_id; authenticateServiceRole før createClient; config verify_jwt = true.
  *   5. USER AGENT FOR ALLE (vendt 22/9): ansoegning-gem læser headeren gennem laesUserAgent
  *      (≤ 512) og skriver den gennem sporMedUserAgent i gemAnnoncespor, UDEN fbclid-betingelse;
@@ -176,7 +182,7 @@ export const ingenUhashetPersondata = (dom: string, cron: string): boolean => {
     // bruges som opslagsnøgle, aldrig som en værdi i payloaden.
     !/\.(navn|telefon)\b/.test(c) &&
     // AFSENDELSESLØKKEN må ikke røre klarteksten overhovedet — der går alt gennem dommen.
-    !/\.(email|navn|telefon)\b/.test(c.slice(c.indexOf("for (const p of planer) {"), c.indexOf("if (r.fejlede > 0) await skrivAlarm("))) &&
+    !/\.(email|navn|telefon)\b/.test(c.slice(c.indexOf("for (const p of r.sender_rigtigt ? planer : []) {"), c.indexOf("if (r.fejlede > 0) await skrivAlarm("))) &&
     c.includes("const hashet = await hashBrugerdata(normaliserBrugerdata(p.raekke), sha256Hex);") &&
     foer(c, "const hashet = await hashBrugerdata(", "const payload = bygPayload(") &&
     foer(c, "const forbudte = findForbudteNoegler(payload);", "await sendTilMeta(payload, a.testEventCode)") &&
@@ -188,7 +194,11 @@ export const toerkoerselOgLaas = (cron: string, dom: string): boolean => {
   const c = udenKommentarer(cron), d = udenKommentarer(dom);
   const koer = c.slice(c.indexOf("export async function koerMetaSend("), c.indexOf("Deno.serve("));
   return c.includes("const toerKoersel = raaBody?.dry_run !== false;") &&
-    foer(koer, "if (!r.sender_rigtigt) return { status: 200, resultat: r };", "await sendTilMeta(") &&
+    // ansøgningernes afsendelse står INDE i løkken, der kun går over planerne i en rigtig kørsel
+    foer(koer, "for (const p of r.sender_rigtigt ? planer : []) {", "await sendTilMeta(") &&
+    foer(koer, "await sendTilMeta(", "const tilm = await planlaegTilmeldinger(") &&
+    koer.includes("  let status = 200;\n  if (r.sender_rigtigt) {\n    if (r.fejlede > 0) await skrivAlarm(") &&
+    (c.match(/for \(const p of /g) ?? []).length === 1 &&
     (c.match(/await sendTilMeta\(/g) ?? []).length === 1 &&
     /async function hentLaas\([\s\S]*?from\("app_config"\)[\s\S]*?\.eq\("config_key", META_SEND_LAAS_NOEGLE\)[\s\S]*?return false; \}/.test(c) &&
     d.includes('export const META_SEND_LAAS_NOEGLE = "meta_send_aktiv";') &&
@@ -200,7 +210,9 @@ export const toerkoerselOgLaas = (cron: string, dom: string): boolean => {
 export const striksOgBucketB = (cron: string, config: string): boolean => {
   const c = udenKommentarer(cron);
   const blok = config.slice(config.indexOf("[functions.meta-send-cron]"));
-  return c.includes('export const KENDTE_FELTER = ["dry_run", "nu", "test_event_code", "ansoegning_id"] as const;') &&
+  return c.includes('export const KENDTE_FELTER = ["dry_run", "nu", "test_event_code", "ansoegning_id", "tilmelding_id"] as const;') &&
+    // ét bevis ad gangen: en ansøgning ELLER en tilmelding, aldrig begge
+    c.includes("if (ansoegningId !== null && tilmeldingId !== null) return json(") &&
     c.includes("ukendteFelter(raaBody, KENDTE_FELTER)") && c.includes("ukendteFelterBesked(ukendte, KENDTE_FELTER)") &&
     foer(c.slice(c.indexOf("Deno.serve(")), "authenticateServiceRole(req)", "createClient(") &&
     /^\s*\[functions\.meta-send-cron\]\s*\n\s*verify_jwt = true/m.test(blok);
@@ -237,7 +249,7 @@ export const userAgentForAlle = (gem: string, ua: string, filer: readonly { sti:
 // ── 6 ──────────────────────────────────────────────────────────────────────
 export const sporetFoerSvaret = (cron: string): boolean => {
   const c = udenKommentarer(cron);
-  const loekke = c.slice(c.indexOf("for (const p of planer) {\n    if (Date.now()"), c.indexOf("if (r.fejlede > 0) await skrivAlarm("));
+  const loekke = c.slice(c.indexOf("for (const p of r.sender_rigtigt ? planer : []) {\n    if (Date.now()"), c.indexOf("const tilm = await planlaegTilmeldinger("));
   return loekke.includes('from("meta_haendelser").upsert({') && loekke.includes('{ onConflict: "event_id" }') &&
     foer(loekke, "await sendTilMeta(", 'from("meta_haendelser").upsert({') &&
     foer(loekke, '{ onConflict: "event_id" }', 'if (svar.udfald === "sendt") r.sendt++;') &&
@@ -289,12 +301,21 @@ export const migrationerneErRigtige = (ua: string, spor: string, cron: string): 
 };
 
 // ── 8 ──────────────────────────────────────────────────────────────────────
+/** Ansøgningernes afslutning, ordret (efter udenKommentarer) — én blok, ét sted. */
+export const ANSOEGNINGER_AFSLUTTES = "  let status = 200;\n  if (r.sender_rigtigt) {\n    if (r.fejlede > 0) await skrivAlarm(admin, r.fejlede_liste, a.nu, r);\n    r.ok = r.fejl.length === 0;\n    status = r.ok ? 200 : 500;\n  }\n";
 export const alarmenErRigtig = (cron: string, dom: string): boolean => {
   const c = udenKommentarer(cron), d = udenKommentarer(dom);
   const koer = c.slice(c.indexOf("export async function koerMetaSend("), c.indexOf("Deno.serve("));
   const alarm = c.slice(c.indexOf("async function skrivAlarm("), c.indexOf("export async function koerMetaSend("));
   return koer.includes("if (r.fejlede > 0) await skrivAlarm(admin, r.fejlede_liste, a.nu, r);") &&
-    foer(koer, "if (!r.sender_rigtigt) return", "await skrivAlarm(") && (c.match(/skrivAlarm\(/g) ?? []).length === 2 &&
+    // ANSØGNINGERNES AFSLUTNING (CTO 3/10): kun i en rigtig kørsel, LIGE efter løkken, FØR
+    // tilmeldingspasset — og ok/status sættes præcis ét sted, så passet ikke kan røre dem.
+    koer.includes(ANSOEGNINGER_AFSLUTTES) &&
+    foer(koer, "await sendTilMeta(", ANSOEGNINGER_AFSLUTTES) &&
+    foer(koer, ANSOEGNINGER_AFSLUTTES, "await planlaegTilmeldinger(") &&
+    (koer.match(/r\.ok\s*=/g) ?? []).length === 1 && (koer.match(/\bstatus\s*=/g) ?? []).length === 2 &&
+    koer.includes("return { status, resultat: r };") && (koer.match(/return \{ status/g) ?? []).length === 1 &&
+    (c.match(/skrivAlarm\(/g) ?? []).length === 2 &&
     d.includes("return `${ALARM_NOEGLE_PRAEFIKS}${kbhDato(nu)}`;") &&
     foer(alarm, 'from("email_send_log")', "await sendManagedEmail({") && alarm.includes("to: driftModtager(),") &&
     alarm.includes('r.alarm = "allerede_sendt_i_dag";') && alarm.includes("idempotencyKey: noegle,") &&
@@ -585,12 +606,15 @@ describe("metaSend.guard — dommene fanger fejlen på en kopi", () => {
     expect(ingenUhashetPersondata(dom.replace("normaliserNavnedel(ord[ord.length - 1])", 'normaliserNavnedel(ord.slice(1).join(" "))'), cron)).toBe(false);
   });
   it("3. afsendelse uden låsen/testkoden, eller dry_run vendt, fælder dom 3", () => {
-    expect(toerkoerselOgLaas(cron.replace("if (!r.sender_rigtigt) return { status: 200, resultat: r };", "if (a.toerKoersel) return { status: 200, resultat: r };"), dom)).toBe(false);
+    expect(toerkoerselOgLaas(cron.replace("  let status = 200;\n  if (r.sender_rigtigt) {\n", "  let status = 200;\n  if (true) {\n"), dom)).toBe(false);
+    // løkken over ALLE planer, også i tørkørslen (3/10)
+    expect(toerkoerselOgLaas(cron.replace("for (const p of r.sender_rigtigt ? planer : []) {", "for (const p of planer) {"), dom)).toBe(false);
     expect(toerkoerselOgLaas(cron.replace("raaBody?.dry_run !== false", "raaBody?.dry_run === true"), dom)).toBe(false);
     expect(toerkoerselOgLaas(cron, dom.replace("if (a.dryRun) return false;\n  return a.laasAktiv || a.testEventCode !== null;", "return true;"))).toBe(false);
   });
   it("4. et felt mere, eller verify_jwt vendt, fælder dom 4", () => {
-    expect(striksOgBucketB(cron.replace('["dry_run", "nu", "test_event_code", "ansoegning_id"]', '["dry_run", "nu", "test_event_code", "ansoegning_id", "email"]'), laes(CONFIG))).toBe(false);
+    expect(striksOgBucketB(cron.replace('["dry_run", "nu", "test_event_code", "ansoegning_id", "tilmelding_id"]', '["dry_run", "nu", "test_event_code", "ansoegning_id", "tilmelding_id", "email"]'), laes(CONFIG))).toBe(false);
+    expect(striksOgBucketB(cron.replace("if (ansoegningId !== null && tilmeldingId !== null) return json(", "if (false) return json("), laes(CONFIG))).toBe(false);
     expect(striksOgBucketB(cron, laes(CONFIG).replace("[functions.meta-send-cron]\n    verify_jwt = true", "[functions.meta-send-cron]\n    verify_jwt = false"))).toBe(false);
   });
   it("5. fbclid-betingelsen tilbage, user agent i insert'en, en tom update-betingelse, eller en anden function, fælder dom 5", () => {
@@ -620,9 +644,18 @@ describe("metaSend.guard — dommene fanger fejlen på en kopi", () => {
     expect(kolliderer(33, cronUdtryk(MIG_DIR), "meta-send").some((s) => s.includes("33"))).toBe(true);
   });
   it("8. alarmen i tørkørslen, eller til rådgiveradressen, fælder dom 8", () => {
-    const flyttet = cron.replace("  if (r.fejlede > 0) await skrivAlarm(admin, r.fejlede_liste, a.nu, r);\n", "").replace("  if (!r.sender_rigtigt) return { status: 200, resultat: r };\n", "  if (r.fejlede > 0) await skrivAlarm(admin, r.fejlede_liste, a.nu, r);\n  if (!r.sender_rigtigt) return { status: 200, resultat: r };\n");
-    expect(flyttet).not.toBe(cron);
-    expect(alarmenErRigtig(flyttet, dom)).toBe(false);
+    // alarmen ud af porten: skrivAlarm også i tørkørslen
+    const iToer = cron.replace("  if (r.sender_rigtigt) {\n    if (r.fejlede > 0) await skrivAlarm(admin, r.fejlede_liste, a.nu, r);\n", "  if (r.fejlede > 0) await skrivAlarm(admin, r.fejlede_liste, a.nu, r);\n  if (r.sender_rigtigt) {\n");
+    expect(iToer).not.toBe(cron);
+    expect(alarmenErRigtig(iToer, dom)).toBe(false);
+    // ansøgningernes afslutning flyttet EFTER tilmeldingspasset (CTO 3/10)
+    const blok = ANSOEGNINGER_AFSLUTTES;
+    expect(cron.includes(blok)).toBe(true);
+    const efterPasset = cron.replace(blok, "").replace("  return { status, resultat: r };", blok + "  return { status, resultat: r };");
+    expect(alarmenErRigtig(efterPasset, dom)).toBe(false);
+    // passet sætter ok/status igen
+    expect(alarmenErRigtig(cron.replace("  return { status, resultat: r };", "  r.ok = r.tilmeldinger.fejl.length === 0;\n  return { status, resultat: r };"), dom)).toBe(false);
+    expect(alarmenErRigtig(cron.replace("  return { status, resultat: r };", "  return { status: r.tilmeldinger.fejl.length > 0 ? 500 : status, resultat: r };"), dom)).toBe(false);
     expect(alarmenErRigtig(cron.replace("to: driftModtager(),", "to: raadgiverModtager(nu),"), dom)).toBe(false);
   });
   it("10. en anden fil, der parser _fbp/_fbc, en cookie der normaliseres, eller «meta» væk af body'en, fælder dom 10", () => {

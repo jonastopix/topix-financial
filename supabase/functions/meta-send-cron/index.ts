@@ -64,6 +64,20 @@
 //     payload 500 for hele kørslen — én bots user agent med et snabel-a kunne dermed have
 //     standset alle afsendelser. Nu tælles den som fejlet (alarm), sporet skrives ikke, og
 //     de øvrige sendes.
+//
+// ── WEBINARMOTORENS TILMELDINGER, 3/10-2026 (udkast; docs/webinarmotor.md §7.9) ──
+//   Et ANDET pas i samme kørsel: CompleteRegistration for motorens egne tilmeldinger
+//   (kilde_system = 'platform'), event_id «<tilmelding_id>:registration». Dommen er ren i
+//   _shared/metaTilmelding.ts, læsningen og sporet i _shared/metaTilmeldingKoersel.ts —
+//   afsendelsen gives ind (sendTilMeta), så nøglen stadig læses ét sted. Passet er ISOLERET
+//   (CTO 3/10, HØJ): dets fejl står KUN i `tilmeldinger.fejl` — aldrig i r.fejl, r.fejlede,
+//   alarmen eller HTTP-status; ansøgningernes felter er de samme som uden passet. Og passet
+//   læser intet, før porten (låsens række) er «klar».
+//   LÅSEN: sender KUN med dry_run: false OG porten OG (meta_send_aktiv OG webinarmotor_meta_aktiv)
+//   — en testkode sender KUN med tilmelding_id (præcis én). Låsen åbnes først, når privatlivsteksten
+//   på topix.dk er publiceret (B4). Body'en har et femte felt, tilmelding_id; med det røres
+//   ansøgningerne ikke, og med ansoegning_id røres tilmeldingerne ikke.
+//   Svaret bærer `tilmeldinger` — kun den nye kode har feltet (beviset for udrulningen).
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateServiceRole, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
@@ -74,6 +88,8 @@ import { driftModtager } from "../_shared/driftModtager.ts";
 import { indgangsMailHtml } from "../_shared/indgangsMail.ts";
 import { skrivRaadgiverBesked } from "../_shared/raadgiverBesked.ts";
 import { sendTilMeta } from "../_shared/metaSendAfsendelse.ts";
+import { alarmerTilmeldinger, planlaegTilmeldinger, sendTilmeldinger } from "../_shared/metaTilmeldingKoersel.ts";
+import { type TilmeldingResultat, tomtTilmeldingResultat } from "../_shared/metaTilmelding.ts";
 import {
   ALARM_KLOKKE_TYPE, ALARM_MAIL_LABEL, alarmNoegle, alarmTekst, type AnsoegningTilMeta, type Art, ARTER, type BrugerdataNoegle,
   brugerdataNoegler, bygFbpFelt, bygPayload, doem, erCrmArt, erTestEventCode, eventId, type FbcKilde, fbcKilde,
@@ -86,7 +102,7 @@ const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const LOG = "[meta-send-cron]";
 
 /** De felter, body'en må have. Alt andet afvises med 400 (bodyFelter.guard: STRIKS). */
-export const KENDTE_FELTER = ["dry_run", "nu", "test_event_code", "ansoegning_id"] as const;
+export const KENDTE_FELTER = ["dry_run", "nu", "test_event_code", "ansoegning_id", "tilmelding_id"] as const;
 /** Tidsbudget under cron-timeouten (60 s); hvert Meta-kald op til 8 s. */
 export const BUDGET_MS = 45_000;
 const SIDE = 1000;
@@ -146,9 +162,11 @@ export interface MetaSendResultat {
   /** ingen · toerkoersel · sendt · allerede_sendt_i_dag · fejlet: <grund>. */
   alarm: string;
   fejl: string[];
+  /** Webinarmotorens tilmeldinger (3/10-2026) — eget pas, egen lås. Beviset for udrulningen. */
+  tilmeldinger: TilmeldingResultat;
 }
 
-function tomt(a: { toer: boolean; laas: boolean; test: string | null; id: string | null; nu: Date }): MetaSendResultat {
+function tomt(a: { toer: boolean; laas: boolean; test: string | null; id: string | null; tilmeldingId: string | null; nu: Date }): MetaSendResultat {
   return {
     ok: true, dry_run: a.toer, laas_aktiv: a.laas, sender_rigtigt: senderRigtigt({ dryRun: a.toer, laasAktiv: a.laas, testEventCode: a.test }),
     test_event_code: a.test, ansoegning_id: a.id, nu: a.nu.toISOString(), kandidater: 0, ville_sende: [],
@@ -158,6 +176,7 @@ function tomt(a: { toer: boolean; laas: boolean; test: string | null; id: string
       ingen_tidspunkt: 0, for_gammel: 0, allerede_sendt: 0, ugyldig: 0,
     },
     sendt: 0, payload_afvist: 0, fejlede: 0, fejlede_liste: [], udsat: 0, alarm: "ingen", fejl: [],
+    tilmeldinger: tomtTilmeldingResultat(a.tilmeldingId),
   };
 }
 
@@ -381,13 +400,14 @@ async function skrivAlarm(admin: SupabaseClient, fejlede: readonly FejletAfsende
 
 export async function koerMetaSend(
   admin: SupabaseClient,
-  a: { toerKoersel: boolean; nu: Date; testEventCode: string | null; ansoegningId: string | null; startMs: number },
+  a: { toerKoersel: boolean; nu: Date; testEventCode: string | null; ansoegningId: string | null; tilmeldingId: string | null; startMs: number },
 ): Promise<{ status: number; resultat: MetaSendResultat }> {
   const laas = await hentLaas(admin);
-  const r = tomt({ toer: a.toerKoersel, laas, test: a.testEventCode, id: a.ansoegningId, nu: a.nu });
+  const r = tomt({ toer: a.toerKoersel, laas, test: a.testEventCode, id: a.ansoegningId, tilmeldingId: a.tilmeldingId, nu: a.nu });
 
   // Trin 2: rækkerne først, derefter de fire opslag, der gør dem til hændelser.
-  const raa = await hentRaaKandidater(admin, a.nu, a.ansoegningId);
+  // En kørsel for ÉN tilmelding (beviset) rører ingen ansøgning.
+  const raa = a.tilmeldingId !== null ? [] : await hentRaaKandidater(admin, a.nu, a.ansoegningId);
   const ids = raa.map((k) => k.id);
   const companyIds = [...new Set(raa.map((k) => k.company_id ?? k.id))];
   const emails = [...new Set(raa.map((k) => (k.email ?? "").trim().toLowerCase()).filter((e) => e !== ""))];
@@ -432,9 +452,10 @@ export async function koerMetaSend(
   }
   r.ville_sende = planer.map((p) => p.plan);
 
-  if (!r.sender_rigtigt) return { status: 200, resultat: r };
-
-  for (const p of planer) {
+  // Ansøgningerne FØRST. Tørkørslen (sender_rigtigt false) går ikke ind i løkken — samme
+  // virkning som den tidligere tidlige return, men så tilmeldingspasset nedenfor også når
+  // tørkørslen (beviset) uden at stå FØR ansøgningerne (CTO 3/10, LAV).
+  for (const p of r.sender_rigtigt ? planer : []) {
     if (Date.now() - a.startMs > BUDGET_MS) { r.udsat++; continue; }
     // Brugerdataene normaliseres og hashes HER — klarteksten findes kun i dette udtryk og
     // forlader aldrig funktionen. Aftrykkene er det eneste, bygPayload nogensinde ser.
@@ -464,9 +485,27 @@ export async function koerMetaSend(
     else { r.fejlede++; r.fejlede_liste.push({ event_id: p.plan.event_id, udfald: svar.udfald, fejl: svar.fejl, forsoeg: p.plan.forsoeg }); }
   }
 
-  if (r.fejlede > 0) await skrivAlarm(admin, r.fejlede_liste, a.nu, r);
-  r.ok = r.fejl.length === 0;
-  return { status: r.ok ? 200 : 500, resultat: r };
+  // Ansøgningerne AFSLUTTES HER — FØR tilmeldingspasset (CTO 3/10): deres alarm, ok og status
+  // er låst, før passet kører, så passet kan ikke påvirke dem. Tørkørslen kalder aldrig
+  // skrivAlarm og lader ok/status stå (true/200) — som den tidlige return på main.
+  let status = 200;
+  if (r.sender_rigtigt) {
+    if (r.fejlede > 0) await skrivAlarm(admin, r.fejlede_liste, a.nu, r);
+    r.ok = r.fejl.length === 0;
+    status = r.ok ? 200 : 500;
+  }
+
+  // Tilmeldingspasset EFTER ansøgningsløkken — også i tørkørslen (beviset). Isoleret: det kaster
+  // aldrig, og dets fejl og alarm står kun i r.tilmeldinger; ansøgningernes felter og status
+  // røres ikke. Det sender kun, når sin egen dom siger ja (som forudsætter sender_rigtigt).
+  const tilm = await planlaegTilmeldinger(admin, {
+    nu: a.nu, dryRun: a.toerKoersel, metaLaasAktiv: laas, testEventCode: a.testEventCode, tilmeldingId: a.tilmeldingId, springOver: a.ansoegningId !== null,
+  });
+  r.tilmeldinger = tilm.resultat;
+  await sendTilmeldinger(admin, tilm.planer, r.tilmeldinger, { nu: a.nu, testEventCode: a.testEventCode, startMs: a.startMs, budgetMs: BUDGET_MS, send: sendTilMeta });
+  await alarmerTilmeldinger(admin, r.tilmeldinger, a.nu);
+
+  return { status, resultat: r };
 }
 
 Deno.serve(async (req) => {
@@ -500,16 +539,25 @@ Deno.serve(async (req) => {
     if (typeof raaBody.ansoegning_id !== "string" || !UUID.test(raaBody.ansoegning_id)) return json({ ok: false, fejl: ["«ansoegning_id» skal være en uuid"] }, 400);
     ansoegningId = raaBody.ansoegning_id;
   }
+  let tilmeldingId: string | null = null;
+  if (raaBody?.tilmelding_id !== undefined && raaBody?.tilmelding_id !== null) {
+    if (typeof raaBody.tilmelding_id !== "string" || !UUID.test(raaBody.tilmelding_id)) return json({ ok: false, fejl: ["«tilmelding_id» skal være en uuid"] }, 400);
+    tilmeldingId = raaBody.tilmelding_id;
+  }
+  if (ansoegningId !== null && tilmeldingId !== null) return json({ ok: false, fejl: ["«ansoegning_id» og «tilmelding_id» kan ikke stå sammen — ét bevis ad gangen"] }, 400);
 
   const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
   let svar: { status: number; resultat: MetaSendResultat };
   try {
-    svar = await koerMetaSend(admin, { toerKoersel, nu, testEventCode, ansoegningId, startMs });
+    svar = await koerMetaSend(admin, { toerKoersel, nu, testEventCode, ansoegningId, tilmeldingId, startMs });
   } catch (err) {
     const grund = err instanceof Error ? err.message : String(err);
     console.error(`${LOG} kørslen væltede:`, grund);
     return json({ ok: false, dry_run: toerKoersel, nu: nu.toISOString(), fejl: [grund] }, 500);
   }
-  console.log(`${LOG} Summary:`, JSON.stringify({ ...svar.resultat, ville_sende: svar.resultat.ville_sende.length, fejlede_liste: svar.resultat.fejlede_liste.length }));
+  console.log(`${LOG} Summary:`, JSON.stringify({
+    ...svar.resultat, ville_sende: svar.resultat.ville_sende.length, fejlede_liste: svar.resultat.fejlede_liste.length,
+    tilmeldinger: { ...svar.resultat.tilmeldinger, ville_sende: svar.resultat.tilmeldinger.ville_sende.length },
+  }));
   return json(svar.resultat, svar.status);
 });
