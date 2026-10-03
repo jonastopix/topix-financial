@@ -315,6 +315,13 @@ export function doemMail(i: {
    * bekræftelsen. Udeladt = false.
    */
   senereSession?: boolean;
+  /**
+   * Personens (samme mail) ANDRE sessioner, som ms (planlaegKoersel giver dem).
+   * Læses KUN af indhentningen: lå en af dem mellem artens planlagte tidspunkt og
+   * denne session, holdt KUN NÆRMESTE SESSION mailen tilbage MED VILJE, og
+   * tilmeldingstidspunktet beviser intet (se INDHENTNING). Udeladt = ingen.
+   */
+  andreSessionerMs?: readonly number[];
   nu: Date;
 }): MailDom {
   const { art } = i;
@@ -347,7 +354,8 @@ export function doemMail(i: {
   // KUN NÆRMESTE SESSION FÅR PÅMINDELSER (29/9). Er personen også tilmeldt en
   // tidligere kommende session, venter denne sessions påmindelser, til den anden
   // er begyndt — og de, hvis tidspunkt til den tid er passeret, dømmes for_sent
-  // nedenfor som enhver sen tilmelding (der er intet fejlet forsøg at indhente).
+  // nedenfor som enhver sen tilmelding (der er intet fejlet forsøg at indhente, og
+  // tilmeldingen beviser intet, når den nærmeste lå imellem — andreSessionerMs).
   if (i.senereSession === true && erPaamindelse(art)) {
     return { send: false, art, grund: "senere_session" };
   }
@@ -376,18 +384,36 @@ export function doemMail(i: {
     // være forsinket af to grunde, og de to er ikke det samme:
     //   1. PERSONEN KOM FOR SENT — tilmeldte sig fire dage før, og «om en uge ses
     //      vi» er forkert. Så sendes den aldrig: for_sent, som altid.
-    //   2. VI FEJLEDE — mailen var forfalden til tiden, men afsendelsen fik et
-    //      afslag (29/9: 211 modtagere af fjorten_dage fik Mailguns loft). Så var
-    //      personen klar, og det er vores fejl, ikke deres. Den indhentes.
-    // BEVISET for 2 er et fejlet forsøg i sporet: cronen forsøger KUN en mail,
-    // dommen har kaldt forfalden — altså fandtes personen, og tidspunktet var nået,
-    // da forsøget blev gjort. En sen tilmelding har intet fejlet forsøg.
+    //   2. VI NÅEDE DET IKKE — mailen var forfalden, mens personen var tilmeldt, men
+    //      blev ikke sendt: afslag (29/9: 211 modtagere af fjorten_dage fik Mailguns
+    //      loft), eller ALDRIG FORSØGT (29/9: de 8 alfabetisk sidste af 328 blev
+    //      sultet af budgettet bag de 211, der fejlede forrest i hver kørsel —
+    //      recon fjorten-dage 3/10). Så var personen klar, og det er vores fejl,
+    //      ikke deres. Den indhentes.
+    // BEVISET for 2 er ET af to (3/10-2026):
+    //   a. et fejlet forsøg i sporet: cronen forsøger KUN en mail, dommen har kaldt
+    //      forfalden — altså fandtes personen, og tidspunktet var nået.
+    //   b. TILMELDINGEN: registreret_at ≤ artens planlagte tidspunkt. Så var mailen
+    //      forfalden for personen til tiden, uanset om vi nåede at forsøge (loft,
+    //      pause, budget, nedetid). En SEN tilmelding er KUN én med registreret_at
+    //      EFTER det planlagte tidspunkt; et ulæseligt tidspunkt tæller som sent
+    //      (fail-closed: hellere en manglende påmindelse end en forkert).
+    //      Undtagelsen er KUN NÆRMESTE SESSION: lå en anden af personens sessioner
+    //      mellem det planlagte tidspunkt og denne, blev mailen holdt tilbage MED
+    //      VILJE (senere_session) — den indhentes ikke, når den nærmeste er begyndt
+    //      (webinarMail.guard dom 16). En sådan session, tilmeldt EFTER tidspunktet,
+    //      holder også tilbage (fail-closed: vi kender ikke dens tilmelding her).
     // GRÆNSEN er den TIDLIGSTE af to (indhentningSlut): den næste tidssatte arts
     // danske kalenderdato (ellers kom «om to uger» og «om en uge» på én dag), og
     // artens eget loft (indhentesSenestDageFoer — teksten skal stadig være sand).
-    // Så udløber den med sin egen grund, så svaret viser, at det var en fejlet mail.
+    // Så udløber den med sin egen grund (for_sent_efter_fejl — for b lige så vel
+    // som for a: det var vores mangel, ikke en sen tilmelding).
     // Teksten er uændret: en indhentet fjorten_dage siger stadig «om to uger».
-    if (!(i.fejlede?.has(noegle(mail, i.sessionTid, art)) ?? false)) {
+    const fejletFoer = i.fejlede?.has(noegle(mail, i.sessionTid, art)) ?? false;
+    const tilmeldtMs = Date.parse(i.registreretAt ?? "");
+    const tilmeldtTilTiden = Number.isFinite(tilmeldtMs) && tilmeldtMs <= tid.getTime();
+    const holdtTilbage = (i.andreSessionerMs ?? []).some((ms) => ms > tid.getTime() && ms < sessionMs);
+    if (!fejletFoer && !(tilmeldtTilTiden && !holdtTilbage)) {
       // Sen tilmelding: «om en uge ses vi» til en, der meldte sig i går, er forkert.
       return { send: false, art, grund: "for_sent" };
     }
@@ -497,7 +523,12 @@ function danskMidnatDageFoer(d: Date, dage: number): Date {
  *   syv_dage      A = 12/10 00:00 (en_dag)   B = 10/10 00:00 → 9/10 22:00Z
  *   en_dag        A = 13/10 00:00 (en_time)  B = 13/10 00:00 → 12/10 22:00Z
  * webinarMailAlarm.fristFor læser SAMME funktion — alarmen og dommen kan ikke
- * være uenige om, hvornår en ventende mail er tabt.
+ * være uenige om, hvornår en ventende mail er tabt. (Rettet 3/10: det holdt før KUN
+ * for de fejlede; en aldrig forsøgt syv_dage fik fristen 9/10 22:00Z, mens dommen
+ * dræbte den 6/10 08:00Z. Nu indhentes en rettidigt tilmeldt aldrig forsøgt mail
+ * også til indhentningSlut. Tilbage står ÉT tilfælde, hvor fristen er for sen: en
+ * tilmelding INDEN FOR nåden (efter planlagt, før planlagt + 2 t) uden fejlet
+ * række — dens frist er planlagt + nåde; se webinarMailAlarm.fristFor.)
  */
 export function indhentningSlut(sessionTid: string, art: MailArt): Date | null {
   const ms = Date.parse(sessionTid);
@@ -635,6 +666,16 @@ export function planlaegKoersel(i: {
     if (har === undefined || ms < har) naermeste.set(mail, ms);
   }
 
+  // 1c. ALLE personens sessioner pr. mail (ms), også de begyndte — indhentningen
+  //     spørger, om en af dem holdt en mail tilbage (KUN NÆRMESTE SESSION).
+  const sessionerPrMail = new Map<string, number[]>();
+  for (const r of personer.values()) {
+    const mail = (r.email ?? "").trim().toLowerCase();
+    const liste = sessionerPrMail.get(mail) ?? [];
+    liste.push(Date.parse(r.session_tid as string));
+    sessionerPrMail.set(mail, liste);
+  }
+
   // 2. Afmeldingen gælder PERSONEN, ikke registreringen — og den læses på
   //    ALLE personens rækker: en afmelding kan stå på en anden tilmelding end
   //    den kommende (samme regel som klaviyo-profil-cron).
@@ -649,6 +690,8 @@ export function planlaegKoersel(i: {
     const afmeldt = i.afmeldte.has(mail) || afmeldtIEwebinar.has(mail);
     const foersteKommende = naermeste.get(mail);
     const senereSession = foersteKommende !== undefined && Date.parse(r.session_tid as string) > foersteKommende;
+    const egenMs = Date.parse(r.session_tid as string);
+    const andreSessionerMs = (sessionerPrMail.get(mail) ?? []).filter((ms) => ms !== egenMs);
     for (const art of AKTIVE_ARTER) {
       const dom = doemMail({
         art,
@@ -660,6 +703,7 @@ export function planlaegKoersel(i: {
         fejlede: i.fejlede,
         ukendte: i.ukendte,
         senereSession,
+        andreSessionerMs,
         nu: i.nu,
       });
       // `=== false`, ikke `!dom.send`: repoets tsconfig har strict slået fra, og
@@ -688,9 +732,32 @@ export function planlaegKoersel(i: {
   // ville en ny tilmeldts bekræftelse vente to-tre timer. En bekræftelse er svaret
   // på noget, personen lige har gjort; en indhentet påmindelse kan vente en kørsel.
   // «Straks» læses af PLANEN, ikke af artens navn.
+  //
+  // ALDRIG FORSØGTE FØR DE FEJLEDE (3/10-2026, recon fjorten-dage). Efter
+  // bekræftelserne kommer alt, vi ALDRIG har forsøgt (rettidige og indhentede
+  // aldrig-forsøgte), og FØRST derefter det, der har en fejlet række i sporet.
+  // Rækkefølgen inden for hver gruppe er som før: ældste planlagte, så mail.
+  // REGNESTYKKET (hvorfor denne vej, og ikke de fejlede først):
+  //   K = forsøg, en kørsel når (budget/loft; 29/9 175–211), N = aldrig forsøgte,
+  //   F = fejlede. 29/9 havde alle fjorten_dage samme planlagt, så ordenen var
+  //   alfabetisk over N ∪ F: |F foran| = 211 ≥ K, F fejlede igen i hver kørsel, og
+  //   de 8 bagved (rang 321–328 af 328) blev aldrig nået — 11 kørsler, 0 forsøg.
+  //   De fejlede FØRST kan altså sulte de aldrig forsøgte, så længe F bliver ved
+  //   med at fejle: der er ingen øvre grænse.
+  //   De aldrig forsøgte FØRST kan ikke sulte nogen: hver kørsel forsøger
+  //   min(K, |N|) af N, og et forsøgt forlader N for altid (ok → sendt; fejl → F;
+  //   ukendt → levering_ukendt). N vokser kun med nye forfaldne mails (nye
+  //   tilmeldinger, en ny arts tidspunkt), så N er tømt efter ⌈|N| ÷ K⌉ kørsler,
+  //   så længe tilgangen pr. kørsel er < K. 6/10: |N| = 368 syv_dage, K ≈ 100–175
+  //   → 3–4 kørsler (recon §2), derefter står F forrest igen.
+  //   Tilbage står: inden for F kan en vedvarende fejlende hale med |F| > K stadig
+  //   holde resten af F tilbage (alfabetisk) — men 403/420/429 bryder kørslen og
+  //   giver pause (webinarMailLoft), og hver fejl i F har en række og en alarm.
   const erStraks = (art: MailArt) => PLANEN.find((p) => p.art === art)?.straks === true;
+  const fejletFoer = (s: Sending) => i.fejlede?.has(noegle(s.email, s.sessionTid, s.art)) ?? false;
   sendinger.sort((a, b) =>
     Number(erStraks(b.art)) - Number(erStraks(a.art)) ||
+    Number(fejletFoer(a)) - Number(fejletFoer(b)) ||
     a.planlagt.localeCompare(b.planlagt) ||
     a.email.localeCompare(b.email));
   return { sendinger, sprunget };

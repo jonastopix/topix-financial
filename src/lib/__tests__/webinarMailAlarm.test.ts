@@ -22,7 +22,7 @@ import {
   type AlarmInput,
   type WebinarAlarmTekstInput,
 } from "../../../supabase/functions/_shared/webinarMailAlarm.ts";
-import { indhentningSlut } from "../../../supabase/functions/_shared/webinarMailDom.ts";
+import { doemMail, indhentningSlut, type MailArt } from "../../../supabase/functions/_shared/webinarMailDom.ts";
 
 /**
  * Alarmen ved fejlede webinarmails — omdømt 29/9 14:04: den må kun lyde, når et
@@ -149,6 +149,26 @@ describe("webinarMailAlarm — fristen (dommens INDHENTNING) og prognosen", () =
     expect(fristFor("en_time", SESSION)?.toISOString()).toBe(SESSION.replace("Z", ".000Z"));
     expect(fristFor("bekraeftelse", SESSION)?.toISOString()).toBe(SESSION.replace("Z", ".000Z"));
     expect(fristFor("en_dag", "ikke en tid")).toBeNull();
+  });
+
+  it("fristFor mod dommen (3/10-2026): for en ALDRIG forsøgt, rettidigt tilmeldt ventende mail er fristen præcis det øjeblik, dommen holder op med at sende", () => {
+    // Recon fjorten-dage §2: før rettelsen sagde fristFor 9/10 22:00Z for en aldrig forsøgt
+    // syv_dage, mens dommen dræbte den 6/10 08:00Z (planlagt + nåde). Nu er de enige.
+    const sidsteSendt = (art: MailArt, registreretAt: string) => {
+      const d = (nu: number) => doemMail({ art, sessionTid: SESSION, email: "a@x.dk", registreretAt, afmeldt: false, alleredeSendt: false, nu: new Date(nu) });
+      const frist = fristFor(art, SESSION)!.getTime();
+      return { foer: d(frist - 60_000).send, ved: d(frist).send };
+    };
+    for (const art of ["fjorten_dage", "syv_dage", "en_dag"] as const) {
+      expect(sidsteSendt(art, "2026-09-10T08:00:00Z"), art).toEqual({ foer: true, ved: false });
+    }
+    expect(fristFor("syv_dage", SESSION)?.toISOString()).toBe("2026-10-09T22:00:00.000Z");
+    // KENDT, BOGFØRT: en tilmelding INDEN FOR nåden (efter planlagt, før planlagt + 2 t) uden
+    // fejlet række sendes kun til planlagt + nåde; Ventende bærer ikke registreret_at, så
+    // fristen her er for sen for netop dem (fjorten_dage: 29/9 08:00Z mod 5/10 22:00Z).
+    const sen = doemMail({ art: "fjorten_dage", sessionTid: SESSION, email: "a@x.dk", registreretAt: "2026-09-29T07:40:00Z", afmeldt: false, alleredeSendt: false, nu: new Date("2026-09-29T08:00:01Z") });
+    expect(sen).toMatchObject({ send: false, grund: "for_sent" });
+    expect(fristFor("fjorten_dage", SESSION)!.getTime()).toBeGreaterThan(Date.parse("2026-09-29T08:00:01Z"));
   });
 
   it("beregnPrognose: 112 ÷ 26 ≈ 4,3 t; 0 igennem → kan ikke regnes; 0 venter → færdig nu", () => {

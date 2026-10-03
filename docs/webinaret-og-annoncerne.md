@@ -422,6 +422,44 @@ Efter `mail-worstcase` §4 P1-8, besluttet af Jonas 30/9 kl. 06:06 (morgenlisten
 `syv_dage` · `en_dag` (inklusivt, danske kalenderdage), så teksten stadig er
 sand; uden loftet ville en fejlet «om en uge» løbe til dagen før `en_dag`.
 
+**Den sultede hale (rettet 3/10-2026, gren `fix/webinarmail-sultet-hale`, IKKE
+udrullet; recon `ml-gennemgang/fjorten-dage-recon.md`).** 29/9 blev **8** rettidigt
+tilmeldte — de 8 alfabetisk sidste af 328 (rang 321–328) — aldrig forsøgt for
+`fjorten_dage`: sendeordenen var «ældste planlagte, så mail», alle havde samme
+planlagt, de 211, der fik Mailguns 403, stod forrest i hver kørsel, og budgettet
+skar hver kørsel efter 175–211 forsøg (219 − 211 = 8). Efter nåden (08:00Z) blev de
+dømt `for_sent`, og indhentningen (#1113) så kun personer med en FEJLET række —
+et tavst tab. Rettelsen, i begge spejle af `webinarMailDom`:
+- **Tilmeldingen er det andet bevis for «klar til tiden»** ved siden af den
+  fejlede række: en SEN tilmelding er KUN én med `registreret_at` EFTER artens
+  planlagte tidspunkt (ulæselig = sen, fail-closed). En rettidig tilmelding, der
+  aldrig blev forsøgt (loft, pause, budget, nedetid), indhentes efter samme regler
+  som en fejlet: til `indhentningSlut`, under loftet `indhentesSenestDageFoer`,
+  aldrig på næste arts dato, teksten uændret, `levering_ukendt` stadig foran alt.
+  Udløber den, er grunden `for_sent_efter_fejl` — og alarmen «tabt» ser den (før:
+  `for_sent`, ingen alarm).
+- **KUN NÆRMESTE SESSION står ved magt:** lå en anden af personens sessioner
+  mellem det planlagte tidspunkt og denne, blev mailen holdt tilbage med vilje, og
+  tilmeldingen beviser intet (`andreSessionerMs`).
+- **Sorteringen: bekræftelser · ALDRIG forsøgte · fejlede**, hver gruppe ældste
+  planlagte og så mail. Regnestykket: de fejlede først kan sulte de aldrig
+  forsøgte uden grænse (29/9: 11 kørsler, 0 forsøg på halen); de aldrig forsøgte
+  først kan ikke sulte nogen — hvert forsøg forlader gruppen for altid, så den er
+  tømt efter ⌈N ÷ K⌉ kørsler (6/10: 368 ÷ 100–175 → 3–4 kørsler).
+- **Alarmens frist** (`webinarMailAlarm.fristFor`): recon'en målte, at en aldrig
+  forsøgt `syv_dage` fik fristen 9/10 22:00Z, mens dommen dræbte den 6/10 08:00Z.
+  Efter rettelsen indhenter dommen den til 9/10 22:00Z, så frist og dom er enige —
+  uden ændring i `fristFor`. **Kendt, tilbage:** en tilmelding INDEN FOR nåden
+  (efter planlagt, senest planlagt + 2 t) uden fejlet række sendes kun til planlagt
+  + nåde, men `fristFor` siger `indhentningSlut` — `Ventende` i cronens svar bærer
+  ikke `registreret_at`. Rettes det, er det en ændring i cronen.
+- **Dommen for prod-data 3/10** (prøvet anonymiseret, `webinarMailDom.test.ts`
+  «DEN SULTEDE HALE» (e)): `fjorten_dage` til præcis de 8 (A–G, I) med
+  `indhentning: true` frem til 5/10 22:00Z; H (afmeldt), J (29/9 07:40Z) og de 42
+  senere tilmeldte forbliver ude (`for_sent` 43). Rækkefølgen for at udrulle uden
+  at sende (lås → deploy → tørkørsel `skal_sendes 8`/`indhentet 8` → Jonas' ja →
+  lås op) står i recon'en §3. Værn: `webinarMail.guard` dom 20.
+
 ### Bekræftelsen sendes ALDRIG bagud (Jonas ~19:05)
 
 `BEKRAEFTELSE_FRA = 2026-09-22T17:03:00Z` — det øjeblik, eWebinars bekræftelse

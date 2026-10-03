@@ -86,6 +86,25 @@ describe("webinarMailDom.paritet — dommene svarer ens", () => {
       const j = { raekker: to, afmeldte: new Set<string>(), sendte: new Set<string>(), fejlede, ukendte, nu: new Date(nu) };
       expect(deno.planlaegKoersel(j), nu).toEqual(src.planlaegKoersel(j));
     }
+    // 3/10: den sultede hale — rettidig/sen tilmelding, aldrig forsøgt, fejlet, og en
+    // anden session imellem (andreSessionerMs), i begge spejle; sorteringen med.
+    const hale = ["2026-09-01T08:00:00Z", "2026-09-29T06:00:00Z", "2026-09-29T07:40:00Z", "2026-10-06T07:00:00Z", null].map((reg, n) => ({
+      ...raekker[0], ewebinar_id: `h${n}`, email: `h${n}@x.dk`, registreret_at: reg,
+    }));
+    const mellem = [{ ...raekker[0], ewebinar_id: "m1", email: "h0@x.dk", session_tid: "2026-10-01T09:00:00.000Z" }];
+    const haleFejlede = new Set([deno.noegle("h2@x.dk", SESSION, "fjorten_dage"), deno.noegle("h1@x.dk", SESSION, "syv_dage")]);
+    for (const nu of ["2026-09-29T08:05:00Z", "2026-10-02T09:30:00Z", "2026-10-05T21:59:00Z", "2026-10-05T22:01:00Z", "2026-10-06T08:01:00Z", "2026-10-09T21:59:00Z", "2026-10-13T12:00:00Z"]) {
+      for (const rk of [hale, [...hale, ...mellem]]) {
+        const j = { raekker: rk, afmeldte: new Set(["h4@x.dk"]), sendte: new Set<string>(), fejlede: haleFejlede, nu: new Date(nu) };
+        expect(deno.planlaegKoersel(j), `hale/${nu}`).toEqual(src.planlaegKoersel(j));
+      }
+      for (const art of deno.ARTER) for (const reg of [null, "2026-09-29T06:00:00Z", "2026-09-29T06:00:01Z", "2026-10-06T06:00:00Z"]) {
+        for (const andreSessionerMs of [undefined, [], [Date.parse("2026-10-01T09:00:00Z")], [Date.parse("2026-10-20T09:00:00Z")]]) {
+          const d = { art, sessionTid: SESSION, email: "a@x.dk", registreretAt: reg, afmeldt: false, alleredeSendt: false, andreSessionerMs, nu: new Date(nu) };
+          expect(deno.doemMail(d), `${art}/${reg}/${nu}`).toEqual(src.doemMail(d));
+        }
+      }
+    }
     for (const udfald of ["ok", "timeout", "fejl", "loft", "ugyldig", "noegle_afvist", "ingen_noegle"]) {
       for (const status of [null, 200, 404, 429, 500, 503]) {
         expect(deno.afsendelseUkendt({ udfald, status }), `${udfald}/${status}`).toBe(src.afsendelseUkendt({ udfald, status }));

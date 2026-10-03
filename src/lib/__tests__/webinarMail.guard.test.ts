@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import * as domSrc from "@/lib/webinar/mailDom";
+import * as domDeno from "../../../supabase/functions/_shared/webinarMailDom.ts";
 
 /**
- * Kildeværn for platformens før-webinar-mails (22/9-2026). Sytten domme, hver
+ * Kildeværn for platformens før-webinar-mails (22/9-2026). Tyve domme, hver
  * bevist på en kopi med fejlen indsat:
  *
  *   1. BUCKET B + LÅS: webinar-mail-cron kalder authenticateServiceRole FØRST,
@@ -102,6 +104,13 @@ import { resolve } from "node:path";
  *      bunnyAfspilUrl (fast vært) — ingen åben viderestilling; verify_jwt = false
  *      med begrundelse; prædikatet står i CI-værnet; klik-tabellen har ingen
  *      persondata og følger mail-rækken (cascade); konfig-migrationen er ÉN insert.
+ *  20. DEN SULTEDE HALE (3/10-2026, recon fjorten-dage): i begge spejle er
+ *      TILMELDINGEN det andet bevis for «klar til tiden» ved siden af den fejlede
+ *      række — registreret_at ≤ planlagt (ulæselig = sen, fail-closed), og KUN
+ *      NÆRMESTE SESSION står ved magt (andreSessionerMs imellem → intet bevis);
+ *      ukendt-porten står stadig foran; og sorteringen sætter de ALDRIG forsøgte
+ *      FØR de fejlede (efter bekræftelserne, før ældste planlagte). Uden det blev
+ *      de 8 alfabetisk sidste af 328 aldrig forsøgt 29/9 og dømt for_sent for altid.
  */
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -421,7 +430,8 @@ export const fejledeIndhentes = (cron: string, dom: string, spejl: string): bool
     const d = udenKommentarer(k);
     return (
       d.includes("fejlede?: ReadonlySet<string>;") &&
-      d.includes("if (!(i.fejlede?.has(noegle(mail, i.sessionTid, art)) ?? false)) {") &&
+      d.includes("const fejletFoer = i.fejlede?.has(noegle(mail, i.sessionTid, art)) ?? false;") &&
+      d.includes("if (!fejletFoer && !(tilmeldtTilTiden && !holdtTilbage)) {") &&
       d.includes("fejlede: i.fejlede,") &&
       d.includes("const erStraks = (art: MailArt) => PLANEN.find((p) => p.art === art)?.straks === true;") &&
       d.includes("Number(erStraks(b.art)) - Number(erStraks(a.art)) ||") &&
@@ -739,6 +749,76 @@ describe("webinarMail.guard — platformens før-webinar-mails", () => {
     expect(indhentningFoelgerTeksten(laes(DOM), laes(DOM_SPEJL), laes(ALARM))).toBe(true));
   it("19. Mortens hilsen: kun en_dag, fail-closed, id'et fra sporet i linket, og klikket anonymt uden åben viderestilling", () =>
     expect(videoKunEnDag(videoFiler())).toBe(true));
+  it("20. den sultede hale: en rettidig tilmelding, der aldrig blev forsøgt, indhentes; en sen aldrig; de aldrig forsøgte sorteres før de fejlede, i begge spejle", () =>
+    expect(halenIndhentes(laes(DOM), laes(DOM_SPEJL))).toBe(true));
+});
+
+// ── 20 ─────────────────────────────────────────────────────────────────────
+export const halenIndhentes = (dom: string, spejl: string): boolean => {
+  const iDommen = (k: string) => {
+    const d = udenKommentarer(k);
+    const doem = d.slice(d.indexOf("export function doemMail("), d.indexOf("export function erPaamindelse("));
+    const plan = d.slice(d.indexOf("export function planlaegKoersel("), d.indexOf("export const VARIGHED_MIN"));
+    return (
+      doem.includes("andreSessionerMs?: readonly number[];") &&
+      doem.includes('const tilmeldtMs = Date.parse(i.registreretAt ?? "");') &&
+      doem.includes("const tilmeldtTilTiden = Number.isFinite(tilmeldtMs) && tilmeldtMs <= tid.getTime();") &&
+      doem.includes("const holdtTilbage = (i.andreSessionerMs ?? []).some((ms) => ms > tid.getTime() && ms < sessionMs);") &&
+      doem.includes("if (!fejletFoer && !(tilmeldtTilTiden && !holdtTilbage)) {") &&
+      // Beviset bruges KUN efter nåden og FØR indhentningens grænse, og ukendt-porten står foran.
+      foer(doem, 'grund: "levering_ukendt"', "const tilmeldtMs = ") &&
+      foer(doem, "if (forsinkelse > SEN_TILMELDING_NAADE_MS) {", "const tilmeldtMs = ") &&
+      foer(doem, "if (!fejletFoer && !(tilmeldtTilTiden && !holdtTilbage)) {", "const slut = indhentningSlut(i.sessionTid, art);") &&
+      plan.includes("const andreSessionerMs = (sessionerPrMail.get(mail) ?? []).filter((ms) => ms !== egenMs);") &&
+      /senereSession,\n\s*andreSessionerMs,\n/.test(plan) &&
+      plan.includes("const fejletFoer = (s: Sending) => i.fejlede?.has(noegle(s.email, s.sessionTid, s.art)) ?? false;") &&
+      plan.includes("Number(fejletFoer(a)) - Number(fejletFoer(b)) ||") &&
+      foer(plan, "Number(erStraks(b.art)) - Number(erStraks(a.art)) ||", "Number(fejletFoer(a)) - Number(fejletFoer(b)) ||") &&
+      foer(plan, "Number(fejletFoer(a)) - Number(fejletFoer(b)) ||", "a.planlagt.localeCompare(b.planlagt) ||")
+    );
+  };
+  return iDommen(dom) && iDommen(spejl);
+};
+
+describe("webinarMail.guard dom 20 — fanger fejlen på en kopi", () => {
+  const dom = laes(DOM), spejl = laes(DOM_SPEJL);
+  const mut = (k: string, fra: string, til: string) => {
+    const ny = k.split(fra).join(til);
+    expect(ny, fra).not.toBe(k);
+    return ny;
+  };
+  it("originalen holder", () => expect(halenIndhentes(dom, spejl)).toBe(true));
+  it("tilmeldingen ikke som bevis (den gamle regel), i ét spejl, fælder dom 20", () => {
+    expect(halenIndhentes(dom, mut(spejl, "if (!fejletFoer && !(tilmeldtTilTiden && !holdtTilbage)) {", "if (!fejletFoer) {"))).toBe(false);
+    expect(halenIndhentes(mut(dom, "if (!fejletFoer && !(tilmeldtTilTiden && !holdtTilbage)) {", "if (!fejletFoer) {"), spejl)).toBe(false);
+  });
+  it("en SEN tilmelding som bevis (≥ i stedet for ≤, eller ulæselig = rettidig), fælder dom 20", () => {
+    expect(halenIndhentes(mut(dom, "tilmeldtMs <= tid.getTime();", "tilmeldtMs >= tid.getTime();"), spejl)).toBe(false);
+    expect(halenIndhentes(dom, mut(spejl, "Number.isFinite(tilmeldtMs) && tilmeldtMs <= tid.getTime();", "!(tilmeldtMs > tid.getTime());"))).toBe(false);
+  });
+  it("KUN NÆRMESTE SESSION sat ud af kraft, eller sessionerne ikke givet ind, fælder dom 20", () => {
+    expect(halenIndhentes(mut(dom, "!(tilmeldtTilTiden && !holdtTilbage)", "!tilmeldtTilTiden"), spejl)).toBe(false);
+    expect(halenIndhentes(dom, mut(spejl, "        andreSessionerMs,\n", ""))).toBe(false);
+  });
+  it("beviset før ukendt-porten eller inden for nåden, fælder dom 20", () => {
+    const blok = dom.slice(dom.indexOf("  if (i.ukendte?.has("), dom.indexOf("  // BEKRÆFTELSEN KUN FREMAD."));
+    const flyttet = mut(dom, "  return { send: true, art, planlagt: tid };\n}", blok + "  return { send: true, art, planlagt: tid };\n}").split(blok).join("");
+    expect(halenIndhentes(flyttet, spejl)).toBe(false);
+  });
+  it("de fejlede FØR de aldrig forsøgte (den sultende orden), eller sorteringen fjernet, fælder dom 20", () => {
+    expect(halenIndhentes(mut(dom, "Number(fejletFoer(a)) - Number(fejletFoer(b)) ||", "Number(fejletFoer(b)) - Number(fejletFoer(a)) ||"), spejl)).toBe(false);
+    expect(halenIndhentes(dom, mut(spejl, "    Number(fejletFoer(a)) - Number(fejletFoer(b)) ||\n", ""))).toBe(false);
+  });
+  it("ADFÆRDEN i begge spejle: aldrig forsøgt + rettidig tilmelding indhentes; sen aldrig; ukendt aldrig", () => {
+    for (const m of [domSrc, domDeno]) {
+      const i = { art: "fjorten_dage" as const, sessionTid: "2026-10-13T09:00:00.000Z", email: "a@x.dk", afmeldt: false, alleredeSendt: false, nu: new Date("2026-10-02T09:30:00Z") };
+      expect(m.doemMail({ ...i, registreretAt: "2026-09-10T08:00:00Z" })).toMatchObject({ send: true, indhentning: true });
+      expect(m.doemMail({ ...i, registreretAt: "2026-09-29T06:00:01Z" })).toMatchObject({ send: false, grund: "for_sent" });
+      expect(m.doemMail({ ...i, registreretAt: null })).toMatchObject({ send: false, grund: "for_sent" });
+      expect(m.doemMail({ ...i, registreretAt: "2026-09-10T08:00:00Z", ukendte: new Set([m.noegle("a@x.dk", i.sessionTid, "fjorten_dage")]) }))
+        .toMatchObject({ send: false, grund: "levering_ukendt" });
+    }
+  });
 });
 
 const videoFiler = () => ({
@@ -816,7 +896,7 @@ describe("webinarMail.guard — dommene fanger fejlen på en kopi", () => {
     expect(fejledeIndhentes(cron.split('.neq("udfald", "ok")\n      .gte("session_tid", graense)').join('.neq("udfald", "ok")\n     '), dom, spejl)).toBe(false);
     expect(fejledeIndhentes(cron.split("for_sent_efter_fejl: 0").join(""), dom, spejl)).toBe(false);
     expect(fejledeIndhentes(cron, dom.split("        fejlede: i.fejlede,\n").join(""), spejl)).toBe(false);
-    expect(fejledeIndhentes(cron, dom, spejl.split("if (!(i.fejlede?.has(noegle(mail, i.sessionTid, art)) ?? false)) {").join("if (true) {"))).toBe(false);
+    expect(fejledeIndhentes(cron, dom, spejl.split("const fejletFoer = i.fejlede?.has(noegle(mail, i.sessionTid, art)) ?? false;").join("const fejletFoer = false;"))).toBe(false);
     expect(fejledeIndhentes(cron, dom.split("    Number(erStraks(b.art)) - Number(erStraks(a.art)) ||\n").join(""), spejl)).toBe(false);
   });
 

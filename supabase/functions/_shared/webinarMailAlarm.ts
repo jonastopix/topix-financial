@@ -20,7 +20,8 @@
  *   fejl   FEJLEDE AF ANDRE GRUNDE END LOFTET (noegle_afvist, ugyldig, fejl,
  *          timeout, sporet kunne ikke skrives …) — som i dag: nøgle pr. dansk TIME.
  *   tabt   UDLØBET: mails, dommen har dømt for_sent_efter_fejl i kørslen (en mail,
- *          vi fejlede med, nåede ikke ud før den næste art) — skal mærkes af et
+ *          vi fejlede med — eller, fra 3/10, aldrig nåede at forsøge til en rettidigt
+ *          tilmeldt — nåede ikke ud før indhentningSlut) — skal mærkes af et
  *          menneske, men ÉN mail om dagen pr. art er nok (Jonas 29/9: gentagelse
  *          hver time er støjen): nøgle pr. dansk DAG. Mailen siger antallet.
  *          (sprunget.for_sent_efter_fejl tæller alle i vinduet, ikke kun nye —
@@ -168,6 +169,17 @@ export function andreFejl(fejl: readonly string[]): string[] {
  *   (loftet 4 dage før; uden det 11/10 22:00Z) · en_dag 12/10 22:00Z.
  *   Uden indhentningSlut (en tidssat art uden loft): planlagt + nåde.
  * null, når tiden ikke kan læses.
+ *
+ * MÅLT MOD DOMMEN 3/10-2026 (recon fjorten-dage §2): før rettelsen indhentede dommen
+ * KUN mails med en fejlet række, så en ALDRIG forsøgt syv_dage (over loftet, udsat
+ * af budgettet) fik her fristen 9/10 22:00Z, mens dommen dræbte den 6/10 08:00Z.
+ * Nu indhenter dommen også en aldrig forsøgt mail, når tilmeldingen lå FØR det
+ * planlagte tidspunkt — og så er max(planlagt + nåde, indhentningSlut) dommens frist
+ * for alle ventende, ÉN undtagen: en tilmelding INDEN FOR nåden (efter planlagt,
+ * senest planlagt + 2 t) uden fejlet række, hvis rigtige frist er planlagt + nåde.
+ * Ventende bærer ikke registreret_at (cronens svar), så den kan ikke skelnes her;
+ * fristen er for sen for dem — kendt, bogført, og kun et vindue på to timer pr. art
+ * (webinarMailAlarm.test.ts «fristFor mod dommen»).
  */
 export function fristFor(art: MailArt, sessionTid: string): Date | null {
   const sessionMs = Date.parse(sessionTid);
@@ -349,7 +361,7 @@ export function webinarAlarmTekst(r: WebinarAlarmTekstInput, alarm: Alarm, nu: D
     const n = alarm.tabt;
     emne = `${n} ${n === 1 ? "webinarmail er tabt" : "webinarmails er tabt"} — nåede ikke ud før næste påmindelse`;
     titel = `Webinarmails: ${n} tabt (${stemplet})`;
-    afsnit.push(`${n} ${n === 1 ? "mail, vi fejlede med, blev" : "mails, vi fejlede med, blev"} ikke indhentet før den næste påmindelses tidspunkt (dommens for_sent_efter_fejl) og sendes ikke. Personen får den næste påmindelse som planlagt — men ikke denne.`);
+    afsnit.push(`${n} ${n === 1 ? "mail, vi fejlede med eller ikke nåede at sende, blev" : "mails, vi fejlede med eller ikke nåede at sende, blev"} ikke indhentet før den næste påmindelses tidspunkt (dommens for_sent_efter_fejl) og sendes ikke. Personen får den næste påmindelse som planlagt — men ikke denne.`);
     afsnit.push(...loftAfsnit);
   } else if (alarm.art === "frist") {
     const n = alarm.iFare.length;
