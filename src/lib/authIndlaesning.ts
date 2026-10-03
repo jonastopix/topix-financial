@@ -11,7 +11,10 @@ import { computeMembershipTier } from "@/lib/membershipTier";
        joinet på company_members. `tierFraVirksomhed` og
        `skalStarteOnboardingAgent` er beregning på det allerede hentede.
     2. process-pending-invitation (PPI) kunne holde rådgiverens forside
-       tilbage i ubestemt tid. Nu kappes ventetiden af `medTimeout`.
+       tilbage i ubestemt tid. Nu kappes ventetiden af `medTimeout` — og fra
+       3/10 når en KENDT rådgiver/admin slet ikke PPI
+       (`skalKaldePendingInvitation`), så grænsen gælder kun medlemmer og
+       konti med ukendt rolle.
     3. Hver auth-hændelse med session (også SIGNED_IN ved hvert faneskift
        og TOKEN_REFRESHED) genhentede alt og loggede et nyt login. Nu afgør
        `skalHenteBrugerdata` og `skalLoggeLogin` det ud fra bruger-id'et. */
