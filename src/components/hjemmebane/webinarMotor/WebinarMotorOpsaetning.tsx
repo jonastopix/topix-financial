@@ -1,8 +1,9 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { Copy, Loader2 } from "lucide-react";
 import { HbSection } from "@/components/hjemmebane/HbSection";
 import { HbCard } from "@/components/hjemmebane/HbCard";
-import { HbButton } from "@/components/hjemmebane/HbButton";
+import { HbButton, hbButtonVariants } from "@/components/hjemmebane/HbButton";
 import { HbField, HbInput, HbSelect, HbTextarea } from "@/components/hjemmebane/admin/HbField";
 import { useAuth } from "@/hooks/useAuth";
 import { type MotorHandling, type MotorInteraktion, type MotorSession, type MotorWebinar, useMotorData, useMotorHandling } from "@/hooks/webinarMotorAdmin";
@@ -26,6 +27,7 @@ import {
 } from "@/lib/webinarMotorAdmin/opsaetning";
 import { APP_URL, tilmeldSti } from "@/lib/webinarMotor/token";
 import { sessionTekst } from "@/lib/webinarRum/links";
+import { konsolSti } from "@/lib/webinarMotorAdmin/konsol";
 
 /**
  * /webinar/motor — rådgiverens opsætning af webinarmotoren (skive 3, 30/9-2026).
@@ -248,9 +250,12 @@ function WebinarDetaljer(p: DetaljerProps) {
                       <span className="first-letter:uppercase">{sessionTekst(s.starter_at)}</span>
                       <span className="ml-2 text-xs uppercase tracking-[0.1em] text-hb-ink-soft">{s.intern ? "intern prøve" : "offentlig"} · {STATUS_ORD[s.status] ?? s.status} · {s.tilmeldte} tilmeldt{s.kapacitet !== null ? ` af ${s.kapacitet}` : ""}</span>
                     </p>
-                    {(s.status === "planlagt" || s.status === "aaben") && (
-                      <HbButton variant="secondary" disabled={p.travl} onClick={() => void p.koer({ art: "aflys_session", sessionId: s.id, fra: s.status })}>Aflys</HbButton>
-                    )}
+                    <div className="flex flex-wrap gap-2">
+                      <Link to={konsolSti(s.id)} className={hbButtonVariants({ variant: "secondary" })} data-motor-konsol-link>Konsollen</Link>
+                      {(s.status === "planlagt" || s.status === "aaben") && (
+                        <HbButton variant="secondary" disabled={p.travl} onClick={() => void p.koer({ art: "aflys_session", sessionId: s.id, fra: s.status })}>Aflys</HbButton>
+                      )}
+                    </div>
                   </div>
                   {s.intern && s.status === "planlagt" && (
                     <div className="mt-2 flex flex-wrap items-center gap-2">

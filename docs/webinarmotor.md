@@ -267,7 +267,7 @@ Bag `AdvisorRoute`, i INGEN menu (værn dom 6). Opret webinar (titel, slug, Bunn
 ### 7.5 Ikke bygget i skive 3 (bevidst)
 
 - **D2.3 — Pixel + Conversions API på tilmeldingen:** pixlen hører til topix.dk-formularen (site-repoet, spec'ens skive 8), og tilmeldingen bliver hos eWebinar til efter 13/10 (D2.2); rummet og reserveformularen er uden tracking (`webinarRum.guard` dom 3). En CAPI-hændelse fra platformen kræver en ny `art` i `meta_haendelser`' CHECK — en ikke-tilføjende migration på et spor i drift — og privatlivsteksten først (Jonas). Når den bygges: bag låsen `webinarmotor_meta_aktiv` (fraværende = false), værnet `webinarTilmeldMeta.guard` (spec §C6).
-- `ti_minutter`, `raaAdapter`, klokketyperne, konsollen og svar pr. mail (spec'ens skive 2 og 5).
+- `ti_minutter`, `raaAdapter`, klokketyperne, konsollen og svar pr. mail (spec'ens skive 2 og 5). *(3/10: `ti_minutter` bygget, §4; en minimal konsol bygget, §7.7.)*
 - ~~Et filter, der holder den interne sessions rækker ude af `/webinar`-tallene~~ — **LØST 30/9** efter rådet (§7.6, fund 5).
 - Mobil-spiken på fysiske enheder (UMÅLT) og Bunny-playerens cookies (UMÅLT, spec §C6).
 
@@ -288,6 +288,27 @@ Bag `AdvisorRoute`, i INGEN menu (værn dom 6). Opret webinar (titel, slug, Bunn
 **Målt i prod 3/10-2026 ca. 01:05 — «P-» er ikke et sikkert filter i SQL:** én eWebinar-tilmelding har et registrant-id, der begynder med «P-» (`P-JirsFNyOpp0cKQN99pf`; 1 af 845 rækker, 3 rækker i `webinar_mails`). Koden er sikker — `erMotorId` kræver hele formen «P-<uuid>» (`mail.ts:MOTOR_ID_FORM`) — men en `like 'P-%'` i en bevis-SQL tæller eWebinar-rækken med. Runbookens trin 8 og 10 bruger derfor `~ '^P-[0-9a-f]{8}-'`; brug den form (eller `kilde_system = 'platform'`) i al SQL om motorens rækker.
 
 **Værn:** `webinarMotorSkive3.test.ts` (fremmøde, mailvej, intern, formularerne) og `webinarMotorSkive3.guard.test.ts` (seks domme med mutationer: ordene, mailvejen, cronen, den interne session, migrationerne, opsætningen). Paritet: `fremmoede.ts` og `mail.ts` er spejlet ordret (elleve filer). `MOTOR_VERSION` = «boardroom-3».
+
+### 7.7 Værtskonsollen (minimal) — `/webinar/motor/session/:id` (3/10-2026, grenen `feat/webinar-vaertskonsol`, IKKE udrullet)
+
+§8.4 punkt 4. Bag `AdvisorRoute`, i INGEN menu — nås fra knappen «Konsollen» på sessionens række på `/webinar/motor`. Viser sessionens titel, tid og rum (motorens `positionDom` på **serverens ur**: `webinar_server_nu()` måles hvert minut, `urForskydning` som i seerens rum; før migrationen står «Efter dit ur»), **antal i rummet nu** og **spørgsmålskøen** hentet hvert 10. sekund (TanStack `refetchInterval`, **ingen Realtime** — spec §D3; spec'ens §B4 foreslog Realtime for rådgiverne, opgaven sagde polling) med ét svarfelt pr. ubesvaret spørgsmål. Rene domme i `src/lib/webinarMotorAdmin/konsol.ts` (sortering nyeste øverst, «ubesvaret» = status `ny`, svaret trimmet 1–1000 tegn, leveringens ord, fejlens art), I/O i `src/hooks/webinarKonsol.ts`, fladen `components/hjemmebane/webinarMotor/WebinarKonsol.tsx`.
+
+**Målt før bygningen (kodelæst i de reviewede migrationer — de er IKKE kørt i prod):**
+- `20261003010000`: `webinar_spoergsmaal` har RLS med «Service role can manage» (ALL) og «Advisors can view» (SELECT, `has_role(auth.uid(),'advisor')` — tjenestekonti er IKKE udelukket). **Ingen UPDATE for rådgivere og ingen trigger** — seerens felter var kun beskyttet af, at ingen klient havde UPDATE. `20261003030000` rører ikke tabellen.
+- **Svarvejen til seeren** (`webinar-puls` trin 3): service role læser rækker med seerens `tilmelding_id`, `status = 'besvaret'` og `leveret IS NULL`, sender `svar_tekst` i pulsens svar og sætter `leveret = 'live'`, `leveret_at`. Svaret skrives altså i `svar_tekst` + `status = 'besvaret'`. Pulsen leverer kun, mens seeren pulser (rummet ≠ `foer_lobby`/`aflyst`); svar på mail til den, der er gået, er skive 5 og IKKE bygget — konsollen lover det ikke.
+- **«I rummet»:** rådgivere har SELECT på `webinar_deltagelser` → `count` med `sidste_puls_at > serverens nu − I_RUMMET_SEK` (60 s, samme vindue som pulsens tal). Rådgiveren ser det reelle tal, også under 10.
+- **Fornavn:** rådgivere har SELECT på `webinar_tilmeldinger` (`20260919130000`), så køen indlejrer `webinar_tilmeldinger(fornavn)` — KUN fornavn (værn dom 3). Spørgsmål fra eWebinar findes ikke.
+- Tabelrettigheden (`GRANT UPDATE` til authenticated) er UMÅLT; migrationens FØR-SQL måler den (sektion 4) og siger STOP, hvis den er false.
+
+**Migration `20261003050000_webinar_vaertskonsol.sql`** (kun tilføjende, ingen SECURITY DEFINER, ingen anon, ingen DROP af andres objekter): (1) UPDATE-politikken «Advisors can answer webinar_spoergsmaal» — rådgivere MINUS tjenestekonti (husets mønster for skrivning, som `opkaldsanmodninger`); (2) BEFORE UPDATE-triggeren `webinar_spoergsmaal_vaert_kolonnevaern` (SECURITY INVOKER, form som `opkald_raadgiver_kolonnevaern`): en klient må KUN ændre `status`, `svar_tekst`, `svaret_af`, `svaret_at`; kun `ny → besvaret` (ét svar pr. spørgsmål — en rettelse kunne nå seeren som den gamle tekst, fordi pulsen læser før den markerer); kun mens `leveret IS NULL`; 1–1000 tegn efter trim; `svaret_af = auth.uid()`; `svaret_at = now()` (serverens ur); service_role og postgres passerer; (3) `webinar_server_nu()` (SECURITY INVOKER, `select now()`, EXECUTE kun authenticated).
+
+**Fail-soft:** før skive 1 (42P01/PGRST205/42703/PGRST204) står «Konsollen virker, når migrationen er kørt.» Efter skive 1, men før `050000`, læser konsollen alt, men et svar rammer 0 rækker (RLS) — hooken læser rækken igen og siger «konsollen kan først svare, når migrationen 20261003050000 er kørt» (står den stadig `ny`), ellers «en anden har svaret imens».
+
+**Rækkefølgen:** merge → `20261003010000` KØRT (forudsætning) → `20261003050000` KØRT: FØR-SQL og EFTER-SQL som ét resultatsæt hver (filhovedet; facit: tre politikker, triggeren, funktionen, `has_table_privilege` = true, anon uden EXECUTE) og prøven i én transaktion med `rollback` (filhovedet) → **Update**. Ingen edge function er ændret; intet skal udrulles.
+
+**Værn:** `webinarKonsol.guard.test.ts` (seks domme med mutationer: ruten bag AdvisorRoute og i ingen menu; ingen Realtime; kun fornavn; svaret kun i svar-kolonnerne og vagtet på `ny`; migrationen; hooks i topblokken) og `webinarKonsol.test.ts`. `webinarMotorSkive3.guard` dom 6 tillader nu `konsol.ts` som stiens eneste bygger; `webinarMotor.guard` dom 5 kender den nye migration.
+
+**Ikke bygget (bevidst):** afvis, «offentlig/FAQ», hænder oppe som egen liste, synk/afspillerfejl, «online»-status og autosvar (spec §A7/§B4), svar på mail (skive 5), klokketyper.
 
 ## 8. Vejen til første offentlige session (udkast 3/10-2026 nat — AFVENTER JONAS' BESLUTNINGER)
 
@@ -329,7 +350,7 @@ Jonas 2/10: første rigtige session på egen platform i starten af november, til
 | B2 | Hvor tilmeldingen bor | Et indlejret script, serveret fra app'en og sat ind på topix.dk som eWebinars widget — pixlen fyrer da i topix.dk's eget samtykke-/GTM-miljø, og app'en forbliver uden tracking (`webinarRum.guard` dom 3). Alternativ: `/w/:slug/tilmeld` (bygget) — så er CAPI eneste Meta-vej | Punkt 9 og 12 |
 | B3 | G3 Meta | Pixel + CAPI med dedup på `event_id` (= tilmeldings-id) | Annoncernes signal; «Fuldfør registrering» kommer i dag fra eWebinars pixel |
 | B4 | Privatlivsteksten | Spec §C6. Løftet «Selve din tilmelding deler vi ikke med Meta» SKAL ændres før første CAPI-hændelse | Åbning + CAPI |
-| B5 | Hvem afholder, svares der undervejs? | Morten i en minimal konsol, svar kun i rummet. **Der findes i dag ingen rådgiverflade til spørgsmål** | Om konsollen er på stien |
+| B5 | Hvem afholder, svares der undervejs? | Morten i en minimal konsol, svar kun i rummet. ~~Der findes i dag ingen rådgiverflade til spørgsmål~~ — bygget 3/10 (§7.7), ikke udrullet | Om konsollen er på stien |
 | B6 | Video | eWebinars video til intern prøve og P0 (P0 kræver samme video). Ny optagelse til 3/11 kun hvis færdig senest ~20/10 | 6, 7 |
 | B7 | Dato | Tirsdag 3/11 kl. 11 (samme ugedag/tid — tallene kan sammenlignes) | 10 |
 | B8 | P0 13/10 | Ja, med alias-adresser (fx `navn+ew@topix.dk` hos eWebinar) — dubletværnet dømmer «nærmeste session» pr. `lower(email)` på tværs af systemerne (§7.3). Om topix.dk-mailen tager plus-adresser: UMÅLT | Paritetsbeviset |
@@ -352,7 +373,7 @@ Jonas 2/10: første rigtige session på egen platform i starten af november, til
 1. PR'er for v2-grenene (skive 1 → 2 → 3).
 2. Denne runbook (§8).
 3. ~~`ti_minutter` — CHECK-migration efter `20261003031000` (KØRT før deploy), kun for motorens rækker (eWebinar sender selv sin 10-minutters-mail).~~ **BYGGET 3/10-2026** (gren `feat/webinar-ti-minutter`, IKKE udrullet) — se §4. Rækkefølgen: migration `20261003040000` KØRT og EFTER-SELECT'en gemt (otte arter i `webinar_mails_art_check`, og porten `webinar_ti_minutter_klar` = true) → eksplicit deploy af `webinar-mail-cron` → beviset: feltet `ti_minutter` (`port` «klar» · `ikke_motor` · `skal_sendes` · `tabt`) i en tørkørsels svar — kun den nye kode har det. **CTO-rådets fund 3/10 (dom «RET FØRST»), rettet på grenen `fix/ti-minutter-raad`:** (1, HØJ) vinduet T−15 → **T−30** … T−5 (≥ 3 slots for hvert startminut; kapaciteten MÅLES i lastprøven, trin 13), nærmeste frist først, og alarmart `ti_minutter`; (2, MELLEM) deploy-listen med `webinar-delt` og `drift-agent-cron`, og beviset `interne_fraregnet`; (3) porten; (4) påstanden om `ikke_motor` rettet; (5) svarets tal på samme grundlag; (6) migrationen i én transaktion med ét `alter table`.
-4. Minimal værtskonsol `/webinar/motor/session/:id` — FØRST måles, om RLS giver rådgivere UPDATE på `webinar_spoergsmaal`.
+4. ~~Minimal værtskonsol `/webinar/motor/session/:id` — FØRST måles, om RLS giver rådgivere UPDATE på `webinar_spoergsmaal`.~~ **BYGGET 3/10-2026** (gren `feat/webinar-vaertskonsol`, IKKE udrullet) — se §7.7. Målt: rådgivere havde KUN SELECT; migration `20261003050000` giver UPDATE (minus tjenestekonti) med kolonneværn. Rækkefølgen: `20261003050000` KØRT og EFTER-SELECT gemt → Update.
 5. Server-side CAPI bag låsen `webinarmotor_meta_aktiv` (CHECK-migration på `meta_haendelser`, ikke kørt; værn `webinarTilmeldMeta.guard`).
 6. Lastprøve (k6), P0-sammenligningens SQL og E3-tjeklisten som ét resultatsæt.
 7. `ansoegninger.webinar_tilmelding_id` (skive 4).

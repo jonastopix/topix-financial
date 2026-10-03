@@ -240,7 +240,8 @@ describe("webinarMotor.guard 5 — migrationen", () => {
     const efter = alle.slice(alle.indexOf(MIGRATION.split("/")[2]) + 1);
     expect(alle).toContain(MIGRATION.split("/")[2]);
     // 3/10: + ti_minutter (motorens 10-minutters-mail, CHECK'en på webinar_mails) — også motorens.
-    expect(efter).toEqual(["20261003030000_webinarmotor_skive3.sql", "20261003031000_webinar_motor_cron.sql", "20261003040000_webinar_mails_ti_minutter.sql"]);
+    // 3/10: + værtskonsollen (UPDATE-politik + kolonneværn på webinar_spoergsmaal) — også motorens.
+    expect(efter).toEqual(["20261003030000_webinarmotor_skive3.sql", "20261003031000_webinar_motor_cron.sql", "20261003040000_webinar_mails_ti_minutter.sql", "20261003050000_webinar_vaertskonsol.sql"]);
   });
   it("kun tilføjende", () => {
     expect(kunTilfoejende(laes(MIGRATION))).toBe(true);
