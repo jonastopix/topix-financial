@@ -4,6 +4,19 @@ Dokumentet holdes ajour af Claude ved hver afsluttet opgave; antal åbne kort st
 
 **Målt 3/10-2026** (ca. kl. 04–05 dansk) mod `origin/main` = `2b7c6bf9` (#1260). Kun recon: ingen kode ændret, intet skrevet i prod; databasen er kun læst med SELECT (Lovable `query_database`, som `postgres`). Hvad der er MÅLT i prod og hvad der er LÆST i repoet/dokumenterne er skilt ad i hver linje. «Ikke målt» betyder, at det ikke er målt her. Efter målingen: #1264 merget 3/10 (kun dokumentation; ingen migration eller function berørt). Mangellisten har nu 209 åbne kort.
 
+**Ajour 3/10 kl. ca. 19:45 dansk (efter morgenmålingen):**
+- **Merget i dag efter #1270** (merge er ikke udrulning):
+  - **#1271**, forsidens tre fejl (`src/`). Kræver Update; derefter livetjek og lukning af `g03-bank-som-i-november`, `g03-din-plan-dobbelt-overskrift` og `g03-agent-milesten-ord` (forsidedelen). Tilføjede kortet `g03-handout-maal-ubekraeftet`.
+  - **#1272**, `run-company-agent` v8 (F0, ordet «mål», `"f0":"skive-1"` i alle svar, 400 `ugyldig_krop`). Kræver eksplicit udrulning fra build-chatten med Jonas' ja. Beviset er `?meta=version` via `net.http_get` (OVERLEVERING DEL 3). #1191, #1215, #1224, #1207, #1206 og #1216 ruller med.
+  - **#1274**, hastighed skive 1 (pakke D): rådgivere kalder ikke `process-pending-invitation`, og leverandørkoden ligger i egne chunks. Kræver Update; beviset tages i en frisk fane som rådgiver (baseline 57 kald / 4.272 ms).
+- **Webinarstakken er omordnet** (værdilisten §4.4 1a): #1255 → #1256 → #1257 → #1258 → #1259 → #1261 → **#1273** → **#1262**, og #1268 står på skive 5's gren.
+  - #1263 blev ved en fejl markeret «merget» i #1262's gren, fordi begge grene blev skubbet i ét push (ingen merge-commit; intet nåede main) og er erstattet af **#1273** (samme gren `feat/webinar-chat-bagende`).
+  - #1262's migration er omdøbt til `20261003090000_meta_haendelser_tilmelding.sql`.
+  - Lærestreg: ved omordning af en stak skubbes og flyttes den nederste gren FØRST.
+- **Ny, venter på Jonas' ja:** **#1275** (kladde), hvor Dine tal m.fl. tæller `vehicle_costs`, `payroll_related` og `other_staff_costs`. De danske flader viste for lave omkostninger hos 5 virksomheder (+2 % til +36 %; 18 af 25 måneder går op til kronen med nøglerne). Fire nye kort følger med; tallene står i OVERLEVERING DEL 2.
+- **Bygget, ikke PR:** pakke B skive 1 (`fix/ai-skema-grupper`), de fem omkostningsgrupper i AI-skemaet. Rådet: RET FØRST (én linje), rettet. Merges EFTER #1275.
+- **Mangellisten:** 210 åbne kort på main; 214, når #1275 er merget.
+
 Format pr. linje: **hvad** · hvor (gren/PR/fil) · status (målt/læst) · ejer · næste skridt · siden.
 
 Metodenoter (ellers kan tallene misforstås):
@@ -104,8 +117,10 @@ Ejer for alle: Claude (oprydning); intet er rørt her. Siden: 1–3/10.
 
 | # | titel | base ← head | alder | blokerer |
 |---|---|---|---|---|
-| 1263 | Webinarmotoren skive 5: klokke ved nyt spørgsmål + svar på mail | `feat/webinar-tilmelding-capi` ← `feat/webinar-chat-bagende` | 3/10 (05:38Z) | Stablet på #1262; migration `080000` IKKE kørt; Jonas' go |
-| 1262 | Webinarmotoren: CompleteRegistration til Meta bag egen lås | `feat/webinar-ansoegning-kobling` ← `feat/webinar-tilmelding-capi` | 3/10 (timer) | Stablet på #1261; migration `070000` IKKE kørt; privatlivsteksten (B4) FØR låsen; pixlens `eventID` (B3); Jonas' go |
+| 1275 | Dine tal: tre omkostningsnøgler tælles med (kladde) | `main` ← `fix/danske-flader-tre-noegler` | 3/10 aften | Jonas' ja (medlemmerne ser andre tal); kun Update |
+| 1262 | Webinarmotoren: CompleteRegistration til Meta bag egen lås | `feat/webinar-chat-bagende` ← `feat/webinar-tilmelding-capi` | 3/10 | ØVERST i stakken siden 3/10 aften; migration nu `20261003090000`, IKKE kørt; skal bygges om til samtykke-krydset; B4 FØR låsen; Jonas' go |
+| 1273 | Webinarmotoren skive 5 (erstatter #1263) | `feat/webinar-ansoegning-kobling` ← `feat/webinar-chat-bagende` | 3/10 aften | Stablet på #1261; migration `080000` IKKE kørt; Jonas' go |
+| 1268 | docs: spec for den interaktive pakke (§9) | `feat/webinar-chat-bagende` ← `docs/webinar-interaktiv-spec` | 3/10 | Stablet på #1273; ombaseret 3/10 aften |
 | 1261 | Webinarmotoren skive 4: ansøgningen kobles + token renses i Sentry | `feat/webinar-vaertskonsol` ← `feat/webinar-ansoegning-kobling` | 3/10 | Stablet på #1259; deploy `ansoegning-gem` før Update; Jonas' go |
 | 1259 | Webinarmotoren: minimal værtskonsol | `fix/ti-minutter-raad` ← `feat/webinar-vaertskonsol` | 3/10 | Stablet på #1258; migration `050000` IKKE kørt; kræver `010000` kørt |
 | 1258 | Webinarmotoren: vejen til november (§8), intern prøve ude af tal, `ti_minutter` | `feat/webinarmotor-skive3-v2` ← `fix/ti-minutter-raad` | 3/10 | Stablet på #1257; migration `040000` IKKE kørt; deploy `webinar-mail-cron`, `webinar-delt`, `drift-agent-cron` |
@@ -115,7 +130,7 @@ Ejer for alle: Claude (oprydning); intet er rørt her. Siden: 1–3/10.
 | 1146 | Events får en lokation | `main` ← `feat/event-lokation` | 29/9 (4 dage) | Migration `20260929210000` skal køres og måles FØR merge |
 | 1043 | docs/moedelink rettelse | `main` ← `docs/moedelink-rettelse` | 20/9 (13 dage) | Ingen krop ud over to overskrifter; anden grenrod; ikke afgjort |
 
-Rækkefølgen for stakken (PR-kroppe): #1255 → #1256 → #1257 → #1258 → #1259 → #1261 → #1262 → #1263. `mergeable_state` målt: #1262 `clean`; de øvrige `unknown` (ikke målt). Antal målt 3/10 mod GitHub: 10 åbne PR'er, 7 af dem stablet på en anden PR (#1255 har `main` som base).
+Rækkefølgen for stakken (omordnet 3/10 aften): #1255 → #1256 → #1257 → #1258 → #1259 → #1261 → #1273 → #1262 (#1268 på #1273's gren). `mergeable_state` målt: #1262 `clean`; de øvrige `unknown` (ikke målt). Antal målt 3/10 mod GitHub: 10 åbne PR'er, 7 af dem stablet på en anden PR (#1255 har `main` som base).
 
 ## 3. Migrationer fra 20260915 og frem — kørt i prod?
 
