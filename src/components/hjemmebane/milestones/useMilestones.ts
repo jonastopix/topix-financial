@@ -189,7 +189,7 @@ export function useMilestones({ userId, companyId, isAdvisor }: Args) {
   const fejr = useCallback((title: string) => {
     if (conversationId && userId) {
       confetti({ particleCount: 80, spread: 60, origin: { y: 0.7 } });
-      postActivityMessage({ conversationId, senderId: userId, content: `🎯 Milestone gennemført: **${title}**`, contextType: "milestone", contextMeta: { title } });
+      postActivityMessage({ conversationId, senderId: userId, content: `🎯 Mål nået: **${title}**`, contextType: "milestone", contextMeta: { title } });
     }
     toast.success("Målet er nået 🎉", { description: "Godt gået — det er sådan en plan bliver til noget.", duration: 5000 });
     if (companyId) {

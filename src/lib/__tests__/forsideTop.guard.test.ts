@@ -80,7 +80,7 @@ export const dinMaanedPaaRapportering = (rapportering: string, kort: string, for
   const baand = rapportering.indexOf("Levering {currentYearGroup.year}");
   return kort.includes("export const DinMaaned = (") && /const Sparkline = \(/.test(kort) &&
     rapportering.includes('import { DinMaaned } from "../boardroom/DinMaaned";') &&
-    rapportering.includes("return dinMaanedDom(raekker, processing);") &&
+    rapportering.includes("return dinMaanedDom(raekker, processing, new Date());") &&
     sektion > -1 && baand > sektion &&
     /<HbSection eyebrow="Din måned" hairline linkLabel="Se dine tal" linkTo="\/kpis"[^>]*data-rapportering-din-maaned>/.test(rapportering) &&
     rapportering.includes("{companyId && !godkendelseUkendt && (") &&

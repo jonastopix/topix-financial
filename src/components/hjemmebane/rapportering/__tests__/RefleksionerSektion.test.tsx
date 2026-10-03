@@ -89,13 +89,13 @@ describe("RefleksionerSektion", () => {
     expect(within(kort[0]).getByText(/En ny kunde/)).toBeTruthy();
     expect(within(kort[0]).getByText("Hvad er din største udfordring lige nu?")).toBeTruthy();
     expect(within(kort[0]).queryByText("Hvad har du brug for hjælp til?")).toBeNull();
-    expect(within(kort[0]).getByText("Dine milestones stod på 40 % — regnet af dine aktive mål, da du sendte den.")).toBeTruthy();
+    expect(within(kort[0]).getByText("Dine aktive mål stod samlet på 40 %, da du sendte den.")).toBeTruthy();
     // Juli: tom udfordring tegnes ikke; hjælp tegnes; intet milestone-tal.
     expect(within(kort[1]).getByText("Juli 2026")).toBeTruthy();
     expect(within(kort[1]).queryByText("Hvad er din største udfordring lige nu?")).toBeNull();
     expect(within(kort[1]).getByText("Hvad har du brug for hjælp til?")).toBeTruthy();
     expect(within(kort[1]).getByText("Ansættelsen")).toBeTruthy();
-    expect(within(kort[1]).queryByText(/Dine milestones stod på/)).toBeNull();
+    expect(within(kort[1]).queryByText(/Dine aktive mål stod samlet på/)).toBeNull();
   });
 
   it("en måned sendt uden tekst siger det — og tegner ingen spørgsmål", async () => {

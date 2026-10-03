@@ -29,9 +29,9 @@ describe("ordene — rolige, medlemmets, ingen teknik", () => {
 
   it("hentefejlTekst: stort begyndelsesbogstav, «kunne ikke hentes lige nu. Prøv igen.», null uden kilder", () => {
     expect(hentefejlTekst([])).toBeNull();
-    expect(hentefejlTekst(["milestones"])).toBe("Dine milepæle kunne ikke hentes lige nu. Prøv igen.");
+    expect(hentefejlTekst(["milestones"])).toBe("Dine mål kunne ikke hentes lige nu. Prøv igen.");
     expect(hentefejlTekst(["milestones", "pulse_checkins", "handouts", "handout_lever_milestones"])).toBe(
-      "Dine milepæle, din refleksion og dine handouts kunne ikke hentes lige nu. Prøv igen.",
+      "Dine mål, din refleksion og dine handouts kunne ikke hentes lige nu. Prøv igen.",
     );
   });
 

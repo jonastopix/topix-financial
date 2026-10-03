@@ -118,7 +118,7 @@ const AppLayout = ({ children, fullscreen = false }: AppLayoutProps) => {
     { label: "Rapportering", path: "/reports", icon: "📊" },
     { label: "KPI'er", path: "/kpis", icon: "📈" },
     { label: "Budget", path: "/budget", icon: "💰" },
-    { label: "Milestones", path: "/milestones", icon: "🎯" },
+    { label: "Dine mål", path: "/milestones", icon: "🎯" },
     { label: "Handouts", path: "/handouts", icon: "📋" },
     // Akademiet udgår her indtil lancerings-GO (konvergens.md §2.8):
     // Mere-menuen renderes kun for medlemmer (mobileBottomNav gates på

@@ -521,7 +521,7 @@ export const IndstillingerView = () => {
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-hb-rust" />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-hb-ink">Forlad virksomheden</p>
-                  <p className="mt-1 text-sm leading-relaxed text-hb-ink-soft">Du mister adgang til alle rapporter, milepæle og chatten. Det kan ikke fortrydes.</p>
+                  <p className="mt-1 text-sm leading-relaxed text-hb-ink-soft">Du mister adgang til alle rapporter, mål og chatten. Det kan ikke fortrydes.</p>
                   <HbButton type="button" variant="secondary" className="mt-3 h-10 gap-2 border-hb-rust/40 px-5 text-hb-rust hover:bg-hb-rust/10" onClick={() => { setLeaveConfirmName(""); setLeaveDialogOpen(true); }} disabled={!company}>
                     <LogOut className="h-4 w-4" /> Forlad {company?.name ?? "virksomheden"}
                   </HbButton>
@@ -635,7 +635,7 @@ export const IndstillingerView = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Er du sikker?</AlertDialogTitle>
             <AlertDialogDescription>
-              Du er ved at forlade {company?.name}. Du mister adgang til alle rapporter, milestones og chat. Skriv virksomhedens navn for at bekræfte.
+              Du er ved at forlade {company?.name}. Du mister adgang til alle rapporter, mål og chat. Skriv virksomhedens navn for at bekræfte.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <input

@@ -198,7 +198,7 @@ export const RapporteringView = () => {
       };
     });
     const processing = raekker.length === 0 && dbReports.some((r) => r.status === "processed");
-    return dinMaanedDom(raekker, processing);
+    return dinMaanedDom(raekker, processing, new Date());
   }, [facts, dbReports]);
 
   // ── Deep link: ?reportId= → expand + scroll + highlight (arvet 1:1) ──────

@@ -375,10 +375,10 @@ export const HbHandoutDetail = ({ config, onBack, userId, onModuleSelect, tilbag
               <Target className="h-4 w-4 shrink-0 text-hb-evergreen mt-0.5" />
               <div>
                 <p className="mb-1 text-sm font-medium text-hb-ink">
-                  Gør dine løftestænger til aktive milestones
+                  Gør dine løftestænger til aktive mål
                 </p>
                 <p className="text-xs leading-relaxed text-hb-ink-soft">
-                  Skriv dine vigtigste handlingspunkter nedenfor og klik <strong>→ Milestone</strong> for at tilføje dem til din milestone-liste. Så kan du — og din rådgiver — følge fremgangen løbende.
+                  Skriv dine vigtigste handlingspunkter nedenfor og klik <strong>→ Mål</strong> for at tilføje dem til Dine mål. Så kan du — og din rådgiver — følge fremgangen løbende.
                 </p>
               </div>
             </div>
@@ -399,7 +399,7 @@ export const HbHandoutDetail = ({ config, onBack, userId, onModuleSelect, tilbag
               <div className="flex items-center gap-3 rounded-lg border border-hb-rust/30 bg-hb-rust/5 p-3">
                 <AlertTriangle className="h-4 w-4 shrink-0 text-hb-rust" />
                 <p className="flex-1 text-xs text-hb-ink-soft">
-                  Du har skrevet løftestænger men ikke oprettet milestones endnu. Klik <strong>→ Milestone</strong> ud for en løftestang for at begynde at tracke.
+                  Du har skrevet løftestænger, men ikke gjort dem til mål endnu. Klik <strong>→ Mål</strong> ud for en løftestang for at begynde at følge den.
                 </p>
               </div>
             )}

@@ -287,7 +287,7 @@ export default function LegatDashboard() {
           </div>
           <div className="flex-1 min-w-0">
             <h3 className="font-semibold text-foreground">Dine mål</h3>
-            <p className="text-sm text-muted-foreground">Se milestones fra dine handouts</p>
+            <p className="text-sm text-muted-foreground">Se målene fra dine handouts</p>
           </div>
           <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
         </div>

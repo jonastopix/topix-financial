@@ -34,6 +34,7 @@ import { resolve } from "node:path";
 // forsideMaalTilstand; dom 6 — «Hvad er et mål?» er foldet nederst i alle tre
 // tilstande (før: åben i den tomme). Ingen dom er slækket: selvbeviserne er
 // flyttet med.
+// TILFØJET 3/10-2026: dom 7 — én overskrift, ét begreb (g03-din-plan-dobbelt-overskrift).
 // Kildelæsning med selvbevis på kopier (dineMaal.guard-mønstret).
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -154,6 +155,27 @@ export const enKildeTreSteder = (filer: Record<string, string>): boolean => {
     dialog.includes("{trin === 1 && <p") && dialog.includes("data-guide-eksempler>{maalEksemplerHjaelp()}</p>}");
 };
 
+/** Dom 7 (3/10-2026, mangellisten g03-din-plan-dobbelt-overskrift — livetjek Floren Engros: «VENTER PÅ JERES JA»
+    stod to gange i træk i «Din plan»). Mockup v3 er kontrakten: målene beholder «Venter på jeres ja»
+    (VENTER_PAA_JA_OVERSKRIFT, tegnet ÉN gang — tilstand B's forslag); skridtgruppen under de ubekræftede mål har
+    INGEN overskrift i tilstand B og en sand, ANDEN overskrift i tilstand A; løkken tegner kun en overskrift, der
+    ikke er null. Ordene i forsidePlan.ts; forsiden skriver dem ikke som strenge. */
+export const enOverskriftEtBegreb = (dom: string, forside: string): boolean => {
+  const maal = dom.match(/export const VENTER_PAA_JA_OVERSKRIFT = "([^"]+)";/)?.[1];
+  const skridt = dom.match(/export const SKRIDT_TIL_FORESLAAEDE_MAAL_OVERSKRIFT = "([^"]+)";/)?.[1];
+  if (!maal || !skridt) return false;
+  return (
+    maal === "Venter på jeres ja" &&
+    !/venter på jeres ja/i.test(skridt) &&
+    forside.includes('["venter", maalTilstand === "forslag" ? null : SKRIDT_TIL_FORESLAAEDE_MAAL_OVERSKRIFT, plan.venterPaaJa],') &&
+    forside.includes("{overskrift !== null && <p ") &&
+    (forside.match(/\{VENTER_PAA_JA_OVERSKRIFT\}/g) ?? []).length === 1 &&
+    (forside.match(/VENTER_PAA_JA_OVERSKRIFT/g) ?? []).length === 2 &&
+    !forside.includes(`"${maal}"`) && !forside.includes(`>${maal}<`) &&
+    !forside.includes(`"${skridt}"`) && !forside.includes(`>${skridt}<`)
+  );
+};
+
 describe("forsidePlan.guard — PR 3: én sektion, skridt under mål, samme functions, invitationen, fejringen, «Hvad er et mål?»", () => {
   const forside = udenKommentarer(laes(FORSIDE));
   const dom = udenKommentarer(laes(DOM));
@@ -205,6 +227,17 @@ describe("forsidePlan.guard — PR 3: én sektion, skridt under mål, samme func
     expect(enKildeTreSteder({ ...filer, [DIALOG]: filer[DIALOG].replace("data-guide-eksempler>{maalEksemplerHjaelp()}</p>}", "data-guide-eksempler>Fx</p>}") })).toBe(false);
     // Forklaringen tilbage på forsiden fælder (forside v3).
     expect(enKildeTreSteder({ ...filer, [FORSIDE]: filer[FORSIDE] + '\n<details data-maal-forklaring-fold><HbMaalForklaring udenOverskrift /></details>' })).toBe(false);
+  });
+  it("dom 7 (3/10): målene «Venter på jeres ja» (mockup v3); skridtene til de foreslåede mål uden overskrift i tilstand B, med en anden og sand i A", () => {
+    expect(enOverskriftEtBegreb(dom, forside)).toBe(true);
+  });
+  it("selvbevis 7: overskrift i tilstand B igen, skridtgruppen med «venter på jeres ja», målenes ord ændret, en hårdkodet overskrift eller en ubetinget overskrift falder", () => {
+    expect(enOverskriftEtBegreb(dom, forside.replace('["venter", maalTilstand === "forslag" ? null : SKRIDT_TIL_FORESLAAEDE_MAAL_OVERSKRIFT, plan.venterPaaJa],', '["venter", SKRIDT_TIL_FORESLAAEDE_MAAL_OVERSKRIFT, plan.venterPaaJa],'))).toBe(false);
+    expect(enOverskriftEtBegreb(dom, forside.replace('["venter", maalTilstand === "forslag" ? null : SKRIDT_TIL_FORESLAAEDE_MAAL_OVERSKRIFT, plan.venterPaaJa],', '["venter", maalTilstand === "forslag" ? null : VENTER_PAA_JA_OVERSKRIFT, plan.venterPaaJa],'))).toBe(false);
+    expect(enOverskriftEtBegreb(dom.replace('"Skridt til de foreslåede mål"', '"Skridt, der venter på jeres ja"'), forside)).toBe(false);
+    expect(enOverskriftEtBegreb(dom.replace('VENTER_PAA_JA_OVERSKRIFT = "Venter på jeres ja"', 'VENTER_PAA_JA_OVERSKRIFT = "Mål, der venter på jeres ja"'), forside)).toBe(false);
+    expect(enOverskriftEtBegreb(dom, forside.replace("{VENTER_PAA_JA_OVERSKRIFT}", "Venter på jeres ja"))).toBe(false);
+    expect(enOverskriftEtBegreb(dom, forside.replace("{overskrift !== null && <p ", "{<p "))).toBe(false);
   });
   it("selvbevis 5: en fejring der regner procenten selv, eller uden FejringRaekke, falder", () => {
     expect(fejringenHolder(dom, forside.replace("setFejring(lavFejring(skridt, maal?.title ?? null, progress))", "setFejring(lavFejring(skridt, maal?.title ?? null, Math.round((100 * gjort) / alle)))"))).toBe(false);

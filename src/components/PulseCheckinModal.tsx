@@ -405,13 +405,13 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
             <Target className={s.iconTarget} />
           </div>
           <label className={s.label}>
-            Dine milestones
+            Dine mål
           </label>
         </div>
         {autoProgress !== null ? (
           <>
             <div className="flex items-center justify-between mb-2">
-              <span className={s.msMeta}>{milestoneData?.length} aktive milestones</span>
+              <span className={s.msMeta}>{milestoneData?.length} aktive mål</span>
               <span className={s.msValue}>{autoProgress}%</span>
             </div>
             <div className={s.msTrack}>
@@ -421,12 +421,12 @@ export default function PulseCheckinModal({ open, onOpenChange, onComplete, inli
               />
             </div>
             <p className={s.msNote}>
-              Beregnet automatisk fra dine aktive milestones. Opdatér fremgang under Milestones.
+              Beregnet automatisk fra dine aktive mål. Se dem under Dine mål.
             </p>
           </>
         ) : (
           <p className={s.msMeta}>
-            Du har ingen aktive milestones endnu.{" "}
+            Du har ingen aktive mål endnu.{" "}
             <a href="/milestones" className={s.msLink}>Opret dine første mål →</a>
           </p>
         )}

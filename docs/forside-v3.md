@@ -118,6 +118,66 @@ Alle punkter i §0–§6 er bygget som skrevet. Afvigelser og afgørelser, bogf�
 - **Kendt, ikke rettet:** linjerne under «Det vigtigste» er højst to — har medlemmet både tjekliste-linjen og et
   stille punkt, står forløbslinjen og «Måske relevant» ikke på forsiden (de står i Akademiet).
 
+## Livetjekkets tre fejl (3/10-2026, gren `fix/forside-tre-fejl` — bygget, afventer PR, merge og Update)
+
+Set live 3/10 på Floren Engros i medlemsvisning (mangellisten `g03-bank-som-i-november`, `g03-din-plan-dobbelt-overskrift`,
+`g03-agent-milesten-ord`). Frontend alene — ingen migration, ingen function. **Tjeklisten ovenfor er kontrakten og er
+IKKE ændret**: rettelserne følger den. Første udgave af grenen omdøbte forsidens «Venter på jeres ja» og skrev det ind
+i tjeklisten §4 — det var at ændre kontrakten stille; CTO'en rullede det tilbage samme dag, og det står her som fejl.
+
+**1. «BANK est. 3.517 kr. som i november».** MÅLT i prod 3/10 (`financial_report_facts`, kun periode/basis/nøgler):
+Floren har 2024-01 → 2025-12 `estimated` / `annual_report` MED `cash`, og 2026-01 → 2026-08 `measured` / `canonical_v2`
+UDEN nøglen `cash`. Den gamle dom tog pr. tal «sidste række MED tallet og rækken før den» — banken faldt tilbage på
+estimatet 2025-12 og blev sammenlignet med estimatet 2025-11 (årsregnskabet delt på 12 er ens hver måned → «som i
+november»), mens omsætning og resultat stod for august. Bredere, målt samme dag: **9 af 21** virksomheder med målte
+måneder har intet banktal i deres seneste målte måned.
+Rettelsen (`src/lib/hjemmebane/dinMaaned.ts`, filhovedet «RETTET 3/10»; `dinMaanedDom` tager nu `nu`):
+- **Banken følger Boardroom Scores regel** (`boardroomScore/soejler.ts` `likviditet`), så kortet og Score aldrig
+  modsiger hinanden: det seneste banktal i en MÅLT, AFSLUTTET måned, kun inden for friskhedsgrænsen
+  (`aeldsteFriskeMaaned(nu)`, `FRISKHED_MAANEDER` = 6 — samme funktion). Aldrig et estimat. Er bankmåneden ældre end den
+  viste: «45.000 kr. · pr. april» (årstal med, når året er et andet) og INGEN retning. Ellers en sand tekst: «Banksaldo
+  er ikke med i de månedlige rapporter» (målte måneder, intet banktal — sandt også for dem, der kun har banksaldo i
+  årsregnskabet; CTO 3/10), «Banksaldo er ikke med i de månedlige rapporter fra de seneste 6 måneder» (kun ældre end
+  grænsen — Score siger også «for gammelt»), «Banksaldo kommer med første målte måned» (ingen målte måneder).
+- **`nu` regnes ÉN gang pr. render** (`dinMaanedDom(…, new Date())` i `BoardroomView`s og `RapporteringView`s
+  `useMemo`, som kun regner igen, når dens kilder — facts og rapportlisten — ændrer sig). Randsag, bogført, ikke rettet: står siden åben hen over den
+  20. (husets frist), flytter `aeldsteFriskeMaaned` sig først ved næste genberegning — et banktal kan stå én visning
+  for længe, indtil siden genindlæses eller facts hentes igen. Score-hooken (`useBoardroomScore`) tikker `nu` hvert
+  minut, så de to kan i det vindue være uenige om friskheden. Rettes ved at give kortet hookens `nu`, hvis det viser
+  sig at betyde noget.
+- Omsætning og resultat kommer fra den viste måned; retningen sammenligner kun med den FORRIGE MÅLTE måned (samme for
+  alle tre) — et estimat sammenlignes aldrig. Det gamle «est.»-mærke pr. tal er væk; kortets mærke som helhed er uændret.
+- Gælder også `/reports` (samme dom). Tests: `dinMaaned.test.ts` — Florens form som fixture og de fire bank-tilfælde
+  (aldrig målt · kun estimat · ældre målt, frisk og for gammel · samme måned).
+- *Fejl i første udgave (rettet samme dag):* banken blev kun vist fra den viste måned («ikke opgjort for august») —
+  det modsagde Score, der regner runway på et ældre målt banktal.
+
+**2. «VENTER PÅ JERES JA» to gange i træk.** Tilstand B («kun forslag») tegnede eyebrowet over målforslagene, og
+skridtgruppen `venterPaaJa` (skridt under de ubekræftede mål) havde SAMME overskrift. Efter mockup v3 (§4): målene
+beholder «Venter på jeres ja» (samme ord som Dine mål); KUN skridtgruppen er rettet — i tilstand B uden egen overskrift
+(mockuppen viser skridtforslagene direkte under forslagene), i tilstand A «Skridt til de foreslåede mål»
+(`SKRIDT_TIL_FORESLAAEDE_MAAL_OVERSKRIFT` i `forsidePlan.ts`). Værn: `forsidePlan.guard` dom 7 (+ selvbevis 7);
+`forsideAnsigter.guard` dom 3 følger.
+
+**3. «Gør en løftestang til en milestone».** `nextStep.ts` punkt (h) siger nu «Gør en løftestang til et mål» / «… venter på
+at blive et aktivt mål, I kan følge.». Søgt i hele `src/` og rettet i medlemsflader: handout-editoren («→ Mål», tooltip,
+to hjælpetekster), Handouts' «Rejsen» («trin nået»), refleksionens linje («Dine aktive mål stod samlet på N %, da du
+sendte den.»), hentefejlen («Dine mål kunne ikke hentes …»), indstillingernes AI-beskrivelse og to «Du mister adgang …»,
+refleksions-modalen (PulseCheckinModal), chattens emnemærke og aktivitetsbeskeden («🎯 Mål nået: …»; gamle beskeder står
+ordret), V0-sidebarens etiket og den gamle skal (AppLayout/AppSidebar/LegatDashboard). Løftestangens toast siger det sande:
+«"X" er gemt som forslag — sig ja til det på Dine mål.» (målet oprettes med source «handout», ubekræftet) — at
+`loeftestangStatus` tæller alle aktive, mens triggeren kun tæller bekræftede, er nyt kort `g03-handout-maal-ubekraeftet`.
+**Ikke rørt:** rådgiver-/adminflader (HandoutDetail/HandoutLeverItem, AgentForslagPanel, CompanyChatPane-linket, admin/,
+virksomhed/, /engagement — dér er «milepæle» trofæerne) og **agentens tekst i `run-company-agent`** (kræver eksplicit
+udrulning; står på kortet). Værn: `milestoneOrd.guard` (synlig tekst = streng/JSX-tekst med mellemrum, stort M eller en
+`label`/`title`/`description`-værdi; undtagelserne er fulde stier; selvbevis).
+
+**Prøvet:** ingen lokal harness på grenen (`src/__harness__/` findes ikke) — dommen er prøvet på Florens målte FORM i
+testen. **Ses live efter Update** (Floren Engros, medlemsvisning): «Sådan har I det» viser «Bank —» med «Banksaldo er ikke
+med i rapporterne» og INTET «est.»/«november»; omsætning og resultat siger «… end i juli»; /reports viser det samme kort.
+«Din plan» viser «Venter på jeres ja» ÉN gang (over målforslagene) og skridtforslagene uden egen overskrift. «Det
+vigtigste»/stille linjer siger «Gør en løftestang til et mål», hvor punktet optræder.
+
 ## Designgennemsyn i drift (2/10-2026 nat, efter Jonas' Update)
 
 **Målt i drift:** bundlen på app.theboardroom.dk har v3 (`BoardroomView-DDOT0A2Y.js` bærer «gratis 1:1-session»,
