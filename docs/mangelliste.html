@@ -1049,16 +1049,33 @@
     ARKIVERET 13 (én linje hver i «Arkiv 16/9»): 5 irrelevante/afløste, 6
       slået sammen (indholdet lagt ind i målkortet), 2 delt (erstattet af 4
       nye kort).
-    NYE 16 («Ny 3/10»): 9 fra rådet (heraf 4 «Haster» med rød kant: 8
-      tilmeldte fik aldrig «om to uger» · to fejlende Stripe-træk · R63TqD
+    NYE 16 («Ny 3/10»): 9 fra rådet (heraf 4 med tagget «Haster — …»:
+      «om to uger» nåede ikke 8 tilmeldte · to fejlende Stripe-træk · R63TqD
       skal erstatte Xr6Pm9 før 7/10 · persondatateksten uden Meta), 4 fra
       delingerne, 3 «NYT FUND» fra livetjekket (banken «som i november»,
       dobbelt «VENTER PÅ JERES JA», agentens «milesten»).
+    RETTET EFTER RÅDETS ANDEN RUNDE (otte fund): «om to uger»-kortet deler
+      tallet (9 uden række, 1 afmeldt; 6 fik invitationen med bekræftelsen;
+      højst 3 har aldrig fået en); lukkelinjen på slettefunktionens fire
+      tabeller skelner målt (FK) fra kodelæst (cronen); «Haster» er et tag,
+      ikke klassen blocked (defineret under TAGS); g03-mailgun-levering er
+      «mangler», og lås-beslutningen (D) står kun på klik-kortet; de nye
+      live-fejl står på det spor, de rammer (1, 2, 5); «milesten» står to
+      steder (nextStep.ts → Update, run-company-agent → udrulning); bankens
+      «est. … som i november» har årsagen (dinMaaned.ts); m28-pris-to-tal's
+      tag uden «Klaviyo mail 01».
+    FASE 2 (tre recons 3/10: hastighed og setup · drift, sikkerhed og
+      datakvalitet · hvad platformen bruges til; målt i prod med SELECT og
+      kodelæst på main): 17 nye kort for de udækkede fund (ingen «Haster»)
+      og «Fase 2 3/10: …»-linjer på 11 kort, der allerede dækkede et fund
+      (bl.a. a22-rls-initplan, a22-forside-langsom, g03-advisor-dashboard-
+      skala, a02-vagt-jobnavn, a30-cron-log-bloat, g03-ydeevne-sentry).
     ID: de 69 kort uden id-attribut, der står tilbage, har fået id'et
       g03-<emne> (samme form som de nye kort).
     Før: 308 kort (203 åbne: mangler 134 · beslutning 41 · fejl 15 · ide
-      13; 105 lukkede). Efter: 311 kort (193 åbne: mangler 120 · beslutning
-      41 · fejl 20 · ide 12; 118 lukkede) — målt med samme metode som
+      13; 105 lukkede). Efter gennemgangen: 311 kort (193 åbne). Efter
+      rådets anden runde og fase 2: 328 kort (210 åbne: mangler 131 ·
+      beslutning 46 · fejl 21 · ide 12; 118 lukkede) — målt med samme metode som
       tidligere (kortenes div-tag med class card og data-status, efter
       filhovedet). Tælleren i værktøjslinjen regner selv.
   SÅDAN TILFØJER MAN ET KORT
@@ -1115,6 +1132,10 @@
        tag gold      gul («Beslutning», «Design først»).
        tag ny        mørk («Ny 4/9») — datoen kortet kom på listen.
        tag size      grå («Lille», «Mellem», «Stor»).
+       tag rust «Haster — …» (3/10): en hård frist inden for dage, med datoen
+                     i tagget. Ingen virkning på rangeringen (den læser kun
+                     data-rammer, data-status, klassen blocked og size-tagget);
+                     «Haster» er ikke det samme som blocked.
        Rammer-mærket sættes af JavaScript ud fra data-rammer.
 
     Søgningen læser hele kortets tekst. Tælleren, tallene på hver
@@ -2510,6 +2531,7 @@
       <h3><code>cron.job_run_details</code>: bloat'en er væk (målt 3/10: 119 MB database), men intet rydder tabellen, og oprydningen er ikke bogført</h3>
       <p><strong>Omskrevet 3/10:</strong> Målt 3/10: databasen er 119 MB (var 6.006 MB 30/9). <code>cron.job_run_details</code> fylder 1 MB med 5.793 rækker, den ældste fra 30/9 05:15 UTC. Rækkerne før er slettet, og pladsen er frigivet. Hvem gjorde det, og hvordan (TRUNCATE/DELETE + VACUUM, Supabase/Lovable)? Det er ikke bogført, og OVERLEVERING 11498 siger stadig «uændret». Tabellen vokser med ca. 1.900 rækker i døgnet, og intet cron-job rydder den. Tilbage: (1) bogfør hændelsen i OVERLEVERING og <code>prod-hjem.md</code> §8; (2) Jonas beslutter et opbevaringsjob (fx DELETE ældre end 7 dage, <code>docs/prod-hjem-plan.md</code>: «stabilt i 7 dage under det valgte loft»). <code>drift_agent_laes</code> læser tabellen, så loftet skal passe til agentens 25-timersvindue.</p>
       <p><em>Titel før 3/10: «STRAKS-FUND: cron.job_run_details fylder 5.856 MB af en database på 6.006 MB — beslutningen om oprydning hos Jonas (docs/prod-hjem.md)»</em></p>
+      <p><strong>Fase 2 3/10:</strong> den største tabel i basen er nu <code>net._http_response</code> (pg_net) med <strong>51 MB = 43 %</strong> af 120 MB; oprydningen <code>DELETE FROM net._http_response</code> er kørt 68.192 × 259 ms, og <code>DELETE FROM cron.job_run_details</code> 41 × 20 s (pg_stat_statements, 52 dage). <code>cron.job_run_details</code> har kun ≈ 3,5 døgns historik (ældste 30/9 05:15), og ingen cron i <code>cron.job</code> rydder den — pruningen sker uden for repoet. Afgør opbevaring for begge (<code>pg_net.ttl</code> og cron-loggen), og om 30 dages cron-historik ønskes (i dag er <code>drift_agent_koersler</code> den eneste længere kilde).</p>
       <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 0 · rådgiver 0 · forretning 1 · risiko 2 · indsats S</p>
       <div class="meta"><span class="tag">Omskrevet 3/10</span><span class="tag gold">Beslutning hos Jonas</span><span class="tag ny">Ny 30/9</span><span class="tag size">Mellem</span></div>
     </div>
@@ -2545,7 +2567,7 @@
       <p><strong>LUKKET 3/10:</strong> <code>klaviyo_medlem_aktiv</code> = true (1/10 06:06Z), 31 <code>klaviyo_profil</code>-rækker <code>tb_medlem</code>/ok, og Klaviyo-API'et viser segmentet R63TqD «Medlemmer (auto)» aktivt med 31 profiler på <code>tb_medlem = true</code> (målt 3/10). <strong>Rådets forbehold:</strong> kortet lukkes KUN sammen med det sidste skridt, som nu er sit eget kort: <a href="#g03-klaviyo-r63tqd-erstatter">g03-klaviyo-r63tqd-erstatter</a> (R63TqD skal erstatte listen Xr6Pm9 før 7/10).</p>
       <div class="meta"><span class="tag loest">Lukket 3/10 — lås + segment, målt</span><span class="tag gold">Jonas' UPDATE + segment</span><span class="tag ny">Ny 30/9</span><span class="tag size">Lille</span></div>
     </div>
-    <div class="card blocked new" id="g03-klaviyo-r63tqd-erstatter" data-status="mangler" data-spor="1" data-rammer="medlem">
+    <div class="card new" id="g03-klaviyo-r63tqd-erstatter" data-status="mangler" data-spor="1" data-rammer="medlem">
       <h3>Klaviyo: «Medlemmer (auto)» (R63TqD, 31 profiler) skal erstatte den håndfyldte liste Xr6Pm9 i flowfiltre, kampagneekskluderinger og Sunset</h3>
       <p><strong>Rådets fund 3/10</strong> — det sidste skridt fra <a href="#a30-klaviyo-laas">a30-klaviyo-laas</a> (lukket 3/10 kun sammen med dette kort). Målt i Klaviyo-API 3/10: segmentet R63TqD på <code>tb_medlem = true</code> er aktivt med 31 profiler. Listen Xr6Pm9 (25, fyldt i hånden 28/9, holdes af ingen) bruges stadig som filter i Velkomst TGxxUc, som ekskludering i kampagnerne (Morten skriver #5 7/10 og #6 15/10) og skal på Sunset XCqPKg (<code>docs/analyser-30-09/klaviyo-gennemgang.md</code> §5). Erstat Xr6Pm9 med R63TqD alle steder — find flowmails' skabeloner og filtre GENNEM FLOWET (Klaviyo-regel 5–6: læs ufiltreret) — før 7/10. Bevis: <code>get_flow</code>/<code>get_campaign</code> viser R63TqD og ikke Xr6Pm9. Indtil da kan op til 6 medlemmer, der ikke står på den gamle liste, få markedsføring.</p>
       <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 2 · rådgiver 1 · forretning 3 · risiko 3 · indsats S</p>
@@ -2710,7 +2732,7 @@
       <p><strong>Omskrevet 3/10:</strong> Platformen er gjort 28/9 (#1106: prisTekst() siger «4.167 kr./md. ved én betaling · 4.375 kr./md. i tolv rater (5 % tillæg)»). Rettet af rådet 3/10: Klaviyo «Deltog» mail 1's tekst-del (TYARdA, «4.375 kr. om måneden» uden form) er samme rettelse i samme skabelon som optagelsen og er flyttet til m28-flows-uden-optagelse. Tilbage her: (b) webinarets slides «Svarer til 4.167 kr. om måneden» skal sige begge former (ikke målt); (c) målt 3/10: aftaleskabelonen v3 er aktiv siden 18/9 (8.948 tegn) og er ikke pladsholderen (v1 var) — <code>CLAUDE.md</code> (main, l. 104) og aabne-opgaver §6 (grenen) siger det modsatte og rettes (g03-claude-md-pladsholder). Resten af modsigelseslisten (ansøgningens længde, «2-20 mio.», «konkurrentfelt»/«niche», «ingen faste møder» — står også i mail 3's tekst) i ~<code>/Downloads/recon-sitet-webinar-ansoeg.md</code> §4.</p>
       <p><em>Titel før 3/10: ««4.167 kr. om måneden» og «4.375 kr. om måneden» er BEGGE rigtige — men ingen af stederne siger, at det er to betalingsformer»</em></p>
       <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 0 · rådgiver 1 · forretning 2 · risiko 2 · indsats S</p>
-      <div class="meta"><span class="tag">Omskrevet 3/10</span><span class="tag loest">Platformen gjort 28/9 — #1106</span><span class="tag gold">Jonas 28/9: 4.375 = rater, 5 % tillæg</span><span class="tag rust">Åbent: Klaviyo mail 01, aftaleskabelonen, slides</span><span class="tag ny">Ny 28/9</span><span class="tag size">Lille</span></div>
+      <div class="meta"><span class="tag">Omskrevet 3/10</span><span class="tag loest">Platformen gjort 28/9 — #1106</span><span class="tag gold">Jonas 28/9: 4.375 = rater, 5 % tillæg</span><span class="tag rust">Åbent: slides · CLAUDE.md siger «pladsholder»</span><span class="tag ny">Ny 28/9</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new loest" id="a22-mails-naar-ikke-frem" data-status="loest" data-spor="1" data-rammer="alle">
       <h3>Platformens mails når ikke frem — næsten HALVDELEN af alle udsendelser står hverken som sendt eller fejlet</h3>
@@ -2722,9 +2744,9 @@
       <p><strong>KONSEKVENS — begrundelsen for at flytte platformens mails til Mailgun er en ANDEN, end vi troede.</strong> Den var loftet på 300/time; målingen viser, at vi aldrig har været over 26 % af det. Grunden er <strong>leveringen</strong>: at vi ikke kan se, om vores mails kommer frem, og at de skabeloner, et nyt medlem møder først, fejler oftere end de lykkes. Recon: <code>~/Downloads/maal-mailmaengde.sql</code> og <code>~/Downloads/recon-platformens-mails-mailgun.md</code>. Historik: OVERLEVERING DEL 2 «22. september (dagen)» §14.</p>
       <div class="meta"><span class="tag loest">Lukket 28/9 — ingen mails tabt, loggen talte dobbelt</span><span class="tag gold">Målt 28/9 09:13 og 09:26</span><span class="tag gold">Målt 22/9 22:24 (fejlslutning)</span><span class="tag ny">Ny 22/9</span><span class="tag size">Mellem</span></div>
     </div>
-    <div class="card decision new" id="g03-mailgun-levering" data-status="beslutning" data-spor="1" data-rammer="raadgiver">
-      <h3>Levering og afvisning af platformens webinarmails via Mailgun-webhook — uden tracking, uden beslutning A–C</h3>
-      <p><strong>Delt ud af a22-mailsporing 3/10 (rådet).</strong> Jonas 22/9: levering JA · klik JA · åbninger NEJ (Apple MPP og Gmails proxy gør åbningstal til maskintal; en sporingspixel i en servicemail er ikke i orden). Intet er bygget: ingen Mailgun-webhook-function på main, kun <code>_shared/mailgunAfsendelse.ts</code> (kodelæst 3/10). Levering/afvisning via webhook kræver hverken tracking eller omskrevne links, så måling 4 og beslutning A–C (htmlonly, sporing af afmeldingslinket, personlige links i klik-log) hører kun til klik-kortet. Byg: Bucket C-function (Mailguns signatur før parsing) → hændelser pr. <code>webinar_mails.mailgun_id</code> (mål først, om det matcher webhookens <code>message-id</code> ORDRET, og kroppens form) → én linje pr. session på /webinar: sendt · leveret · afvist · undervejs. Den eneste beslutning her er (D): skal der være en lås. 29/9 viste, at vi kun så Mailguns svar og ikke leveringen.</p>
+    <div class="card new" id="g03-mailgun-levering" data-status="mangler" data-spor="1" data-rammer="raadgiver">
+      <h3>Levering og afvisning af platformens webinarmails via Mailgun-webhook — uden tracking, uden beslutning A–D</h3>
+      <p><strong>Delt ud af a22-mailsporing 3/10 (rådet).</strong> Jonas 22/9: levering JA · klik JA · åbninger NEJ (Apple MPP og Gmails proxy gør åbningstal til maskintal; en sporingspixel i en servicemail er ikke i orden). Intet er bygget: ingen Mailgun-webhook-function på main, kun <code>_shared/mailgunAfsendelse.ts</code> (kodelæst 3/10). Levering/afvisning via webhook kræver hverken tracking eller omskrevne links, så måling 4 og beslutning A–C (htmlonly, sporing af afmeldingslinket, personlige links i klik-log) hører kun til klik-kortet. Byg: Bucket C-function (Mailguns signatur før parsing) → hændelser pr. <code>webinar_mails.mailgun_id</code> (mål først, om det matcher webhookens <code>message-id</code> ORDRET, og kroppens form) → én linje pr. session på /webinar: sendt · leveret · afvist · undervejs. Ingen beslutning udestår for dette trin (Jonas 22/9: levering JA); låsen (D) hører til klik-kortet. 29/9 viste, at vi kun så Mailguns svar og ikke leveringen.</p>
       <p><strong>Hvad det IKKE fanger (rådet):</strong> de 8 tilmeldte, der aldrig fik «om to uger» (<a href="#g03-fjorten-dage-otte-mangler">g03-fjorten-dage-otte-mangler</a>), havde ingen sendt mail at spore — det kræver en sammenligning af tilmeldte mod sporet pr. art. Recon: <code>~/Downloads/recon-mailsporing.md</code>; <code>docs/webinaret-og-annoncerne.md</code> §7e.</p>
       <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 1 · rådgiver 3 · forretning 3 · risiko 3 · indsats M</p>
       <div class="meta"><span class="tag ny">Ny 3/10</span><span class="tag size">Mellem</span></div>
@@ -2740,13 +2762,13 @@
       <p><strong>29/9:</strong> Mailgun-kontoen (EU) er i probation — 100/time, dertil 420 «recipient limit (26) exceeded» med ukendt vindue og 429 «request limit (101)». Support-ticket oprettet 29/9 (nummer: indsættes af Jonas). Kl. 10:45 var 134 af 319 ude; kl. 14:00 manglede 112; resten indhentes med ~26 i timen, forventet færdig ca. kl. 18:30; frist 5/10 23:59. Probationen ophæves kun ved business verification (<a href="#a29-mailgun-verificering">a29-mailgun-verificering</a>). Jonas: «ingen panik … men det må ikke ske igen» — derfor loftet (#1112), indhentningen (#1113), Mailgun-dommen (#1114) og alarmen (#1115, bevist i drift 11:09). <strong>Kortet lukkes, når alle 319 er ude.</strong> OVERLEVERING DEL 2 «29. september» §3.</p>
       <p><strong>RETTET 28/9 — #1102 + migration <code>20260928120000</code> kørt 10:00: arten <code>fjorten_dage</code> er i drift.</strong> 14 dage før kl. 08:00, MED invitationen, uden <code>BEKRAEFTELSE_FRA</code>-port — den lukker hullet for de ~217, der tilmeldte sig 13/10 før 22/9 19:03 og aldrig fik en invitation. Prøve til jonas@topix.dk 10:05 ok/200/hentet, prøverækken slettet 10:06. Samtidig lukket: teksten sagde «vedhæftet» i en mail uden invitationen — teksten følger nu, om filen kom med (gælder også bekræftelsen). <strong>Første hele hold er derfor 29/9 08:09–09:59 til 317; aflæses 29/9 ~10:05</strong> — START HER 29/9 punkt 1. Det, der skulle ses på inden (knappen pr. mail, ingen løfter uden dækning), gælder stadig. OVERLEVERING DEL 2 «28. september» §4.</p>
       <p><strong>I DRIFT 22/9 kl. 19:29</strong> (#1094, #1095, #1097; cron.job 573, elleve gange i timen). Første rigtige kørsel: <code>sendt 1 · med_invitation 1 · fejlede 0</code> — én bekræftelse til én ny tilmeldt. <strong>Det er ikke en prøve af mængden.</strong> Den første før-mail til et helt hold er <strong>syv_dage-mailen 6/10 kl. 08:00 til ~217 personer</strong>, og den kan ikke prøves af igen: er noget galt i teksten, knappen eller kalenderfilen, rammer det alle på én gang. <strong>Det, der skal ses på inden:</strong> at hver mail bærer sin egen knap (bagud-fyldningen 18:48 gav 216 af 216 et <code>join_link</code> og <code>kalender_link</code>, 0 uden), og at teksterne efter #1097 ikke lover noget, de ikke leverer. Historik: OVERLEVERING DEL 2 «22. september (dagen)» §8–§11; <code>docs/webinaret-og-annoncerne.md</code> §7e.</p>
-      <p><strong>LUKKET 3/10:</strong> kortets betingelse er opfyldt: 319 ok-rækker = 319 unikke mails for <code>fjorten_dage</code> til 13/10, seneste 29/9 17:24Z (målt 3/10). <strong>Rådets forbehold:</strong> 319 var den forkerte nævner — 328 unikke mails var tilmeldt før planlægningstidspunktet 29/9 06:00Z; 1 er afmeldt, og 8 blev ALDRIG forsøgt. Det er et nyt kort, der haster før <code>syv_dage</code> 6/10: <a href="#g03-fjorten-dage-otte-mangler">g03-fjorten-dage-otte-mangler</a>.</p>
+      <p><strong>LUKKET 3/10:</strong> kortets betingelse er opfyldt: 319 ok-rækker = 319 unikke mails for <code>fjorten_dage</code> til 13/10, seneste 29/9 17:24Z (målt 3/10). <strong>Rådets forbehold:</strong> 319 var den forkerte nævner — 328 unikke mails var tilmeldt før planlægningstidspunktet 29/9 06:00Z; 1 er afmeldt, og 8 blev ALDRIG forsøgt (6 af dem fik invitationen med bekræftelsen; højst 3 har aldrig fået en). Det er et nyt kort, der haster før <code>syv_dage</code> 6/10: <a href="#g03-fjorten-dage-otte-mangler">g03-fjorten-dage-otte-mangler</a>.</p>
       <div class="meta"><span class="tag loest">Lukket 3/10 — alle 319 ude — men 8 aldrig forsøgt</span><span class="tag rust">FØRSTE HOLD 29/9 08:00 — 317 på én gang, aflæses ~10:05</span><span class="tag gold">fjorten_dage i drift 28/9 10:00 (#1102)</span><span class="tag gold">I drift 22/9 19:29</span><span class="tag ny">Ny 22/9</span></div>
     </div>
-    <div class="card blocked new" id="g03-fjorten-dage-otte-mangler" data-status="fejl" data-spor="1" data-rammer="medlem">
-      <h3>Webinarmailene taber personer, der aldrig blev forsøgt: 8 tilmeldte fik aldrig «om to uger» (13/10) — og dommen kalder dem <code>for_sent</code></h3>
-      <p><strong>Rådets fund 3/10 (genmålt).</strong> 328 unikke mails var tilmeldt 13/10 før <code>fjorten_dage</code>s planlagte tid (29/9 06:00Z). 319 har en ok-række. 1 er afmeldt (korrekt). 8 (subscribed, <code>join_link</code> og <code>kalender_link</code> findes, én session hver, registreret 4/9–27/9) har INGEN <code>fjorten_dage</code>-række — heller ingen fejlet — og fik derfor aldrig invitationen (<code>fjorten_dage</code> er den, der bærer <code>invite.ics</code> til dem, der tilmeldte sig før <code>BEKRAEFTELSE_FRA</code>). Dommen (<code>_shared/webinarMailDom.ts</code>) indhenter kun, når sporet har et FEJLET forsøg. En person, der blev holdt tilbage af loftet/pausen/budgettet (<code>over_loft</code>, <code>udsat</code> og pause skriver ingen række), og som ikke var forsøgt inden nådens 2 timer, dømmes som «sen tilmelding» = <code>for_sent</code> og forsvinder tavst.</p>
-      <p><strong>Før <code>syv_dage</code> 6/10 kl. 08:00</strong> (~370 modtagere, ingen invitation, budget 40 s pr. kørsel): (1) mål årsagen for de 8 (cronens svar 29/9 i <code>net._http_response</code>: <code>over_loft</code>/<code>ventende</code>/<code>udsat</code>); (2) afgør, om et «udsat/over_loft» i en kørsel skal tælle som bevis for, at personen var klar (fx en markør i sporet ved udsættelse); (3) driftsagenten bør sammenligne tilmeldte med sporet pr. art efter nåden; (4) Jonas afgør, om de 8 skal have invitationen på anden vis (<code>syv_dage</code> bærer den ikke). Levering-sporing (<a href="#g03-mailgun-levering">g03-mailgun-levering</a>) havde ikke fanget det: der var ingen mail at spore.</p>
+    <div class="card new" id="g03-fjorten-dage-otte-mangler" data-status="fejl" data-spor="1" data-rammer="medlem">
+      <h3>«Om to uger» (13/10) nåede ikke 8 tilmeldte, som aldrig blev forsøgt — 6 fik invitationen med bekræftelsen, højst 3 har aldrig fået en invitation fra platformen; dommen kalder dem <code>for_sent</code></h3>
+      <p><strong>Rådets fund 3/10 (genmålt).</strong> 328 unikke mails var tilmeldt 13/10 før <code>fjorten_dage</code>s planlagte tid (29/9 06:00Z). 319 har en ok-række. <strong>9 mails har ingen <code>fjorten_dage</code>-række</strong> — heller ingen fejlet: 1 er afmeldt (korrekt udeladt), 8 er subscribed med <code>join_link</code> og <code>kalender_link</code>, én session hver. <strong>Rettet efter rådet 3/10:</strong> 6 af de 8 tilmeldte sig 23–27/9, EFTER <code>BEKRAEFTELSE_FRA</code> (22/9 17:03Z), og HAR fået invitationen (<code>invite.ics</code>) med bekræftelsen — de mangler kun påmindelsen. Højst 3 (tilmeldt 4/9, 6/9 og 19/9) har aldrig fået en invitation fra platformen, fordi <code>fjorten_dage</code> var den mail, der skulle bære den til dem, der tilmeldte sig før bekræftelsen gik i luften. Dommen (<code>_shared/webinarMailDom.ts</code>) indhenter kun, når sporet har et FEJLET forsøg. En person, der blev holdt tilbage af loftet/pausen/budgettet (<code>over_loft</code>, <code>udsat</code> og pause skriver ingen række), og som ikke var forsøgt inden nådens 2 timer, dømmes som «sen tilmelding» = <code>for_sent</code> og forsvinder tavst.</p>
+      <p><strong>Før <code>syv_dage</code> 6/10 kl. 08:00</strong> (~370 modtagere, ingen invitation, budget 40 s pr. kørsel): (1) mål årsagen for de 8 (cronens svar 29/9 i <code>net._http_response</code>: <code>over_loft</code>/<code>ventende</code>/<code>udsat</code>); (2) afgør, om et «udsat/over_loft» i en kørsel skal tælle som bevis for, at personen var klar (fx en markør i sporet ved udsættelse); (3) driftsagenten bør sammenligne tilmeldte med sporet pr. art efter nåden; (4) Jonas afgør, om de højst 3 uden invitation (tilmeldt 4/9, 6/9, 19/9) skal have den på anden vis (<code>syv_dage</code> bærer den ikke); de 6 har den allerede. Levering-sporing (<a href="#g03-mailgun-levering">g03-mailgun-levering</a>) havde ikke fanget det: der var ingen mail at spore.</p>
       <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 1 · rådgiver 1 · forretning 4 · risiko 4 · indsats M</p>
       <div class="meta"><span class="tag rust">Haster — før syv_dage 6/10 08:00</span><span class="tag ny">Ny 3/10</span><span class="tag size">Mellem</span></div>
     </div>
@@ -2995,7 +3017,7 @@
       <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 2 · rådgiver 1 · forretning 3 · risiko 4 · indsats S</p>
       <div class="meta"><span class="tag">Omskrevet 3/10</span><span class="tag gold">Gør det selv — ingen jurist</span><span class="tag">Tekst + én gennemlæsning</span><span class="tag ny">Ny 18/9 · omskrevet 20/9</span><span class="tag size">Lille</span></div>
     </div>
-    <div class="card blocked new" id="g03-persondata-meta" data-status="fejl" data-spor="1" data-rammer="medlem">
+    <div class="card new" id="g03-persondata-meta" data-status="fejl" data-spor="1" data-rammer="medlem">
       <h3>Persondatateksten nævner ikke Meta (og Google?), mens platformen sender ansøgerdata dertil</h3>
       <p><strong>Rådets fund 3/10</strong> (ud af a18-jurist punkt 3). Målt 3/10: <code>meta_send_aktiv</code> = true og <code>ga_send_aktiv</code> = true. <code>meta-send-cron</code> sender SHA-256 af mail/telefon/navn + fbc/user agent pr. ansøgning, og <code>ga-send-cron</code> sender <code>client_id</code> ved samtykke. Leverandørlisten i <code>src/lib/ansoegning/persondata.ts:161</code> nævner Klaviyo, men ikke Meta (kodelæst). Afstem platformens tekst og topix.dk/theboardroom.dk's tekster med <code>docs/tracking.md</code> §2 række for række: hvad der sendes, til hvem, og hvordan man beder sig fri (<code>meta_fravalg</code> findes). Ingen jurist (Jonas 20/9), men løftet skal være sandt. <code>docs/samtykke-og-opkald.md</code> siger, at topix.dk-teksten dækker ansøgere (site-PR #3) — det er ikke målt mod den udrullede tekst.</p>
       <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 1 · rådgiver 0 · forretning 2 · risiko 4 · indsats S</p>
@@ -3369,7 +3391,7 @@
       <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 1 · rådgiver 2 · forretning 3 · risiko 3 · indsats M</p>
       <div class="meta"><span class="tag gold">Chattens 10 altafgørende 16/9 (5)</span><span class="tag size">Mellem</span></div>
     </div>
-    <div class="card blocked new" id="g03-to-traek-fejler" data-status="fejl" data-spor="senere" data-rammer="medlem">
+    <div class="card new" id="g03-to-traek-fejler" data-status="fejl" data-spor="1" data-rammer="medlem">
       <h3>To træk fejler på den nye Stripe-konto lige nu — TBR-0018 forsøges igen 5/10, TBR-0014 7/10; hvad sker der, når forsøgene er brugt?</h3>
       <p><strong>Rådets fund 3/10</strong> (afløser det YKRG-kort, anmelderen af m17-ykrg-juni foreslog). Målt i <code>company_traek</code>: TBR-0014 (YKRG, <code>generic_decline</code>, forsøg 2, næste 7/10 09:01Z) og TBR-0018 (3242a137, <code>card_velocity_exceeded</code>, forsøg 1, næste 5/10 08:02Z). Begge står «fejlet», og rådgiverklokken er ringet. (1) Ring/skriv til de to medlemmer FØR næste forsøg (velocity-fejlen løses ofte af kunden selv). (2) Mål i Stripe abonnementernes indstilling for «efter sidste forsøg» (cancel/unpaid/past_due) — slås op, gættes ikke. Den afgør, om adgangen lukker, før <a href="#g03-retries-opbrugt-faktura">g03-retries-opbrugt-faktura</a> (faktura i stedet) er bygget. (3) Bogfør udfaldet. (4) Observation, ikke afgjort: <code>traek_fejlet</code>-klokken 28/9 23:01 gav 2 rækker, 2/10 01:02 gav 1, og 2/10 23:02 gav 3 (tjenestekontoen kom 30/9) — at genforsøget 2/10 01:02 kun nåede én rådgiver, tyder på dedup mod en ulæst klokke eller en ufuldstændig modtagerliste; mål hvilken. YKRG's junibetaling står for sig: <a href="#m17-ykrg-juni">m17-ykrg-juni</a>. Bogføringen af det, der faktisk betales på den nye konto: <a href="#m16-economic-doed">m16-economic-doed</a>.</p>
       <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 1 · rådgiver 3 · forretning 5 · risiko 4 · indsats S</p>
@@ -3527,6 +3549,7 @@
       <h3>Hvor mange nuværende betalende bruger Dine tal? Mål 8/10 på grundmængden — og tag samtalen om de, der aldrig har uploadet</h3>
       <p><strong>Omskrevet 3/10:</strong> 8/9-tallet «19 af 27 faldet ud» er trukket tilbage (regel 22/9: nuværende betalende, holdt op mod medlemsstart). Grov måling 3/10 (28 kunder, ikke husets dom): 10 har aldrig en målt måned, 11 har en målt periode inden for 3 måneder. Mål 8/10 med erIGrundmaengden (26 målt 22/9) og <code>period_key</code> — ikke <code>committed_at</code>, som genkørslen 17/9 nulstillede. Spørgsmålet til Jonas og Morten er ikke teknisk: produkt, onboarding eller forventning — og hvad var aftalen med dem, der aldrig har uploadet? Historik: OVERLEVERING DEL 2 «8. september», «22. september (nat)».</p>
       <p><em>Titel før 3/10: «19 af 27 kunder er faldet ud (målt 8/9) — to bruger platformen som tænkt; samtale mellem Jonas og Morten, næste måling 8/10»</em></p>
+      <p><strong>Fase 2 3/10:</strong> (universet 28 virksomheder / 26 personer, målt 3/10): 11 virksomheder uploadede seneste 30 d (mod 8 i de 30 d før), 11 fik en måned godkendt første gang (mod 6); <strong>10 af 28 har aldrig fået en måned godkendt</strong>; friskhed: ≤35 d 11 · 36–70 d 1 · >70 d 6 · aldrig 10. Alle 29 uploads seneste 30 d er lavet af medlemmerne selv.</p>
       <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 4 · rådgiver 3 · forretning 5 · risiko 4 · indsats S</p>
       <div class="meta"><span class="tag">Omskrevet 3/10</span><span class="tag gold">Samtale, ikke kode</span><span class="tag">Næste måling 8/10</span><span class="tag size">Stor</span></div>
     </div>
@@ -3586,9 +3609,9 @@
       <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 5 · rådgiver 3 · forretning 5 · risiko 2 · indsats L</p>
       <div class="meta"><span class="tag">Omskrevet 3/10</span><span class="tag gold">Jonas 22/9: senere</span><span class="tag gold">Game changer 1/5 — tallene kommer af sig selv</span><span class="tag size">Stor (pilot: en uge)</span></div>
     </div>
-    <div class="card new" id="g03-bank-som-i-november" data-status="fejl" data-spor="senere" data-rammer="medlem">
+    <div class="card new" id="g03-bank-som-i-november" data-status="fejl" data-spor="2" data-rammer="medlem">
       <h3>Forsidens «Sådan har I det»: «BANK est. 3.517 kr. som i november» — sammenligningen med november og «est.» er uforståelige for et medlem</h3>
-      <p><strong>Livetjek 3/10 (NYT FUND)</strong> — Floren Engros (kunde) set som rådgiver i virksomhedsvisning, mobil (~400 px), ~09:00: «Senest godkendt: august 2026», omsætning 532.702 kr., resultat 51.769 kr., <strong>«BANK est. 3.517 kr. som i november»</strong>. Banken sammenlignes med november — ikke med juli eller samme måned sidste år — og «est.» står uden forklaring. Find i forside v3 (<code>docs/forside-v3.md</code>; «Sådan har I det»/«Din måned»), hvorfor banken er et estimat, og hvorfor sammenligningsmåneden er november; ret ordene, så et medlem forstår dem (eller udelad sammenligningen, når den ikke er samme slags måned). Ikke målt: andre virksomheder.</p>
+      <p><strong>Livetjek 3/10 (NYT FUND)</strong> — Floren Engros (kunde) set som rådgiver i virksomhedsvisning, mobil (~400 px), ~09:00: «Senest godkendt: august 2026», omsætning 532.702 kr., resultat 51.769 kr., <strong>«BANK est. 3.517 kr. som i november»</strong>. Banken sammenlignes med november — ikke med juli eller samme måned sidste år — og «est.» står uden forklaring. <strong>Årsagen (kodelæst, <code>src/lib/hjemmebane/dinMaaned.ts</code>):</strong> «est.» betyder estimat — rækken bag banktallet har <code>data_basis = 'estimated'</code> (fx årsregnskabet delt på 12). <code>sidsteOgForrige</code> tager for hvert tal den SIDSTE række, der HAR tallet, og rækken før den; har de målte måneder (her til og med august) intet banktal, falder banken tilbage på det seneste estimat, og «forrige» bliver måneden før det estimat. <code>retningTekst</code> siger «som i {måned}», når tallet er lige — og et estimat delt ud over måneder er lige. Derfor «est. … som i november». Ret: bank (og retningen) kun af målte rækker, eller sig «estimat fra årsregnskabet» og drop retningen for estimater; samme regel som <code>sparkline</code>, der allerede udelader estimater. Hvilke rækker Floren har, er ikke målt; andre virksomheder er ikke set.</p>
       <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 2 · rådgiver 0 · forretning 1 · risiko 2 · indsats S</p>
       <div class="meta"><span class="tag ny">Ny 3/10</span><span class="tag size">Lille</span></div>
     </div>
@@ -3740,6 +3763,7 @@
     <div class="card decision new" id="g03-session-uden-spor" data-status="beslutning" data-spor="6" data-rammer="medlem">
       <h3>En afholdt session efterlader intet spor — ingen note, intet «afholdt», intet «Dine sessioner»; sessionsreferat er chattens idé (7)</h3>
       <p>Fra en <code>session_bookings</code>-række kan man komme til intet (ingen FK mod den, ingen fritekst). Husets mønster hvis der bygges: hændelsen har et id, udfaldet peger på det (som <code>report_comments</code> → rapport). <strong>Beslutning (Jonas/Morten):</strong> hvad skriver I ned efter et møde i dag, og hvor? Reconens SQL (Rallysupport, ANLA) er ikke kørt. Historik: OVERLEVERING DEL 2 «13. september» §21; <code>recon-efter-sessionen.md</code>.</p>
+      <p><strong>Fase 2 3/10:</strong> om en session er AFHOLDT, er umålt: <code>session_bookings.slut_tid</code> er ikke sat for nogen passeret booking (2 bookinger seneste 30 d, 11 i alt). <code>advisor_session_notes</code> har 0 rækker.</p>
       <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 2 · rådgiver 3 · forretning 2 · risiko 1 · indsats M</p>
       <div class="meta"><span class="tag gold">Jonas 22/9: senere</span><span class="tag gold">Beslutning</span><span class="tag">Chattens 10 idéer 16/9 (7)</span><span class="tag size">Mellem</span></div>
     </div>
@@ -3749,6 +3773,12 @@
       <p><em>Titel før 3/10: «Jonas-sessionen: 11 af 38 virksomheder står med begge rettigheder åbne — skal de lukkes, og hvilke?»</em></p>
       <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 2 · rådgiver 2 · forretning 1 · risiko 2 · indsats S</p>
       <div class="meta"><span class="tag">Omskrevet 3/10</span><span class="tag gold">Beslutning: de 11</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card decision new" id="g03-svartid-19-timer" data-status="beslutning" data-spor="6" data-rammer="medlem">
+      <h3>Svartiden i chatten: median 19,4 timer (30 d, kalendertimer), p90 121 t — 24 af 43 besvaret inden for et døgn</h3>
+      <p><strong>Fase 2 3/10 (målt i prod / kodelæst, recon).</strong> Ventetider i kundesamtaler i universet (første medlemsbesked efter sidste rådgiversvar → næste rådgiverbesked; samme regel som <code>src/lib/svartid.ts</code>, men i KALENDERTIMER, ikke husets hverdagstimer 07–17): seneste 30 d n 43 · median 19,4 t · p90 121 t · 14 inden for 4 t · 24 inden for 24 t. Seneste 7 d: median 17,6 t (13 af 16 besvaret); 31–60 d: median 28,9 t. 0 samtaler venter lige nu. Rådgiverne er 2 aktive personer (72 beskeder seneste 30 d). Beslutning: hvad er husets løfte om svartid (fx «samme hverdag»), skal det stå for medlemmet, og skal driftsagenten/forsiden råbe, når en ventetid nærmer sig det? Mål i hverdagstimer med husets egen dom, før et tal skrives op.</p>
+      <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 3 · rådgiver 3 · forretning 3 · risiko 1 · indsats S</p>
+      <div class="meta"><span class="tag ny">Ny 3/10</span><span class="tag size">Lille</span></div>
     </div>
   </div>
   </section>
@@ -3769,8 +3799,21 @@
     <div class="card new decision" id="a02-milestones-with-check" data-status="beslutning" data-spor="5" data-rammer="medlem">
       <h3>RLS-stramningen <code>20261002280000_milestones_with_check</code> (WITH CHECK på <code>milestones</code>) er skrevet, men IKKE KØRT</h3>
       <p>Forberedt 1/10 aften (det tekniske råds fund 9 på Dine mål-motoren; SECURITY_BASELINE fund 6). Den ændrer eksisterende RLS-politikker og køres ikke uden Jonas' udtrykkelige ja. Filen er omdøbt 2/10 fra <code>20261002090000</code>, så en ukørt migration ikke sorterer før en kørt (regelsættet (ll)); indholdet er uændret. Den tørkøres i prod i en DO-blok med <code>RAISE EXCEPTION</code>, før den køres (regelsættet (kk)). OVERLEVERING DEL 2 «2. oktober nat — samlet» pkt. 6 og 8.</p>
+      <p><strong>Fase 2 3/10:</strong> samme hul findes på 15 andre medlemspolitikker — <a href="#g03-with-check-15-politikker">g03-with-check-15-politikker</a>. Forudsætningen (ingen bruger i flere virksomheder) er målt: 0.</p>
       <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 0 · rådgiver 0 · forretning 0 · risiko 3 · indsats S</p>
       <div class="meta"><span class="tag gold">Grønt lys — Jonas (RLS)</span><span class="tag ny">Ny 2/10</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card decision new" id="g03-with-check-15-politikker" data-status="beslutning" data-spor="3" data-rammer="ingen">
+      <h3>WITH CHECK mangler på 15 andre medlemspolitikker end milestones — et medlem kan flytte egen række til en fremmed virksomhed (kræver grønt lys)</h3>
+      <p><strong>Fase 2 3/10 (målt i prod / kodelæst, recon).</strong> Prod har 17 UPDATE-policies uden WITH CHECK (Postgres bruger da USING som check); 2 er milestones (<a href="#a02-milestones-with-check">a02-milestones-with-check</a>). De øvrige 15: <code>financial_reports</code> 2, <code>kpi_targets</code> 2, <code>kpi_benchmarks</code> 2, <code>conversations</code> 2, <code>company_invitations</code> 1, <code>handout_lever_milestones</code> 1, <code>budget_targets</code> 1, <code>kpi_chart_comments</code> 1, <code>profiles</code> 1, <code>conversation_last_seen</code> 1 (+ <code>companies</code> 1, der har kolonneværnet). Dertil INSERT-politikkerne «Users can insert own …» på <code>financial_reports</code>, <code>kpi_targets</code>, <code>kpi_benchmarks</code>, der kun tjekker <code>user_id</code> (SECURITY_BASELINE fund 6: «IKKE omfattet»). Ikke udnyttet — kun policy-læst; beviset er en negativ test som medlem. Forudsætningen for en rettelse uden <code>company_members</code>-opslag (ingen bruger i flere virksomheder) er målt: 0. Én migration i samme form som <code>20261002280000</code>; ajourfør SECURITY_BASELINE i samme PR.</p>
+      <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 1 · rådgiver 0 · forretning 2 · risiko 4 · indsats M</p>
+      <div class="meta"><span class="tag ny">Ny 3/10</span><span class="tag size">Mellem</span></div>
+    </div>
+    <div class="card decision new" id="g03-security-definer-anon" data-status="beslutning" data-spor="3" data-rammer="ingen">
+      <h3>18 SECURITY DEFINER-funktioner kan kaldes af anon — <code>cleanup_stale_processing_reports()</code> skriver uden auth, <code>get_all_advisor_profiles()</code> giver navne til hvem som helst (kræver grønt lys)</h3>
+      <p><strong>Fase 2 3/10 (målt i prod / kodelæst, recon).</strong> 60 af 69 SECURITY DEFINER-funktioner har EXECUTE for <code>anon</code>/PUBLIC (default-grant); 18 er ikke triggerfunktioner, bl.a. <code>has_role</code>, <code>user_company_id</code>, <code>get_users_last_login</code>, <code>get_all_advisor_profiles</code>, <code>cleanup_stale_processing_reports</code>, <code>mark_messages_read</code>, <code>mark_notification(s)_*</code>, <code>log_user_login</code>, <code>get_siden_sidst(_virksomheder)</code>, <code>get_conversation_sender_profiles</code>, <code>lookup_invite_company(_info)</code>, <code>hent_betalingstilbud</code>, <code>legat_*</code>, <code>is_legat_user</code>. To har ingen <code>auth.uid()</code>/<code>has_role</code> i kroppen: <strong><code>cleanup_stale_processing_reports()</code> SKRIVER</strong> (sætter <code>processing</code> &gt; 10 min til <code>error</code> for alle virksomheder) og <strong><code>get_all_advisor_profiles()</code></strong> giver navne + avatar for alle rådgivere. De nyere (<code>drift_agent_laes</code>, <code>har_aktivt_medlemskab</code>, <code>kan_laese_community</code>, <code>get_member_directory</code> m.fl.) er korrekt REVOKE'd. Rettelsen er REVOKE fra PUBLIC/anon + GRANT til authenticated/service_role; ingen SECURITY DEFINER-krop ændres, men FORBIDDEN-listen gælder — kræver Jonas' grønne lys. Alle 69 har <code>search_path</code>.</p>
+      <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 0 · rådgiver 0 · forretning 1 · risiko 3 · indsats S</p>
+      <div class="meta"><span class="tag ny">Ny 3/10</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new decision loest" id="m16e-en-plan" data-status="loest" data-spor="5" data-rammer="medlem">
       <h3>EPIC: «Én plan pr. virksomhed» — bygget helt 16/9 22:46–17/9 00:14 (fase 0a–5, #935–#942); fase 2 og 4 bevist på skærm, fase 0/1/3/5 i drift med egne kort</h3>
@@ -3802,18 +3845,26 @@
       <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 1 · rådgiver 2 · forretning 1 · risiko 1 · indsats S</p>
       <div class="meta"><span class="tag">Omskrevet 3/10</span><span class="tag gold">Jonas 22/9: gør det</span><span class="tag gold">Rådgiverarbejde, ingen kode</span><span class="tag ny">Ny 17/9</span><span class="tag size">Mellem (8 samtaler)</span></div>
     </div>
-    <div class="card new" id="g03-agent-milesten-ord" data-status="fejl" data-spor="senere" data-rammer="medlem">
-      <h3>Agentens skridtforslag siger «milesten» — huset siger «mål»</h3>
-      <p><strong>Livetjek 3/10 (NYT FUND)</strong> — Floren Engros: et skridtforslag fra agenten bruger ordet «milesten» («likviditetsreserve-milesten»). Siden «Én plan» og Dine mål hedder det «mål» alle steder i fladen. Ret prompten/ordlisten i <code>run-company-agent</code> (kræver eksplicit udrulning — tages med i den samlede udrulning, <a href="#a01-agent-bevis">a01-agent-bevis</a>), og overvej et værn, der fælder «milepæl/milesten» i agentens tekster. Den stille linje «Gør en løftestang til en milestone» på samme forside har samme ord.</p>
+    <div class="card new" id="g03-agent-milesten-ord" data-status="fejl" data-spor="5" data-rammer="medlem">
+      <h3>«Milesten»/«milestone» står to steder, hvor huset siger «mål»: agentens skridtforslag og forsidens stille linje</h3>
+      <p><strong>Livetjek 3/10 (NYT FUND)</strong> — Floren Engros: et skridtforslag fra agenten bruger ordet «milesten» («likviditetsreserve-milesten»). Siden «Én plan» og Dine mål hedder det «mål» alle steder i fladen. Ordet står to steder, med hver sin udrulningsvej: (1) <strong>forsidens stille linje</strong> «Gør en løftestang til en milestone» og beskrivelsen «… venter på at blive en aktiv milestone» i <code>src/components/hjemmebane/boardroom/nextStep.ts:630</code> (kodelæst) — frontend, ruller med <strong>Update</strong>; (2) <strong>agentens skridtforslag</strong> fra <code>run-company-agent</code> (prompten og værktøjsbeskrivelserne siger «milestone»; ordet «milesten» i forslaget er modellens) — kræver <strong>eksplicit udrulning</strong>, tages med i den samlede udrulning (<a href="#a01-agent-bevis">a01-agent-bevis</a>). Overvej et værn, der fælder «milesten/milestone» i medlemsrettet tekst.</p>
       <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 1 · rådgiver 0 · forretning 0 · risiko 1 · indsats S</p>
       <div class="meta"><span class="tag ny">Ny 3/10</span><span class="tag size">Lille</span></div>
     </div>
-    <div class="card new" id="g03-din-plan-dobbelt-overskrift" data-status="fejl" data-spor="senere" data-rammer="medlem">
+    <div class="card new" id="g03-din-plan-dobbelt-overskrift" data-status="fejl" data-spor="5" data-rammer="medlem">
       <h3>Forsidens «Din plan»: overskriften «VENTER PÅ JERES JA» står to gange i træk (mål-forslag og skridt-forslag)</h3>
       <p><strong>Livetjek 3/10 (NYT FUND)</strong> — Floren Engros som rådgiver i virksomhedsvisning, mobil: «Din plan» viser «VENTER PÅ JERES JA» over mål-forslaget og igen over skridt-forslagene («FORSLAG TIL DIG»). Saml dem under én overskrift, eller giv dem hver sit ord (fx «Mål, der venter på jeres ja» / «Skridt foreslået af os»). Værn: <code>forsidePlan.guard</code>.</p>
       <p>Tag samtidig skærmbeviset for Dine mål-fladen, som m17-en-plan-fase3 (arkiveret 3/10) bad om: «Markér som nået» og målvælgeren («Uden mål») på den nye flade — 0 mål er nået efter 17/9.</p>
       <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 1 · rådgiver 0 · forretning 0 · risiko 1 · indsats S</p>
       <div class="meta"><span class="tag ny">Ny 3/10</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card decision new" id="g03-dine-maal-bruges-ikke" data-status="beslutning" data-spor="5" data-rammer="medlem">
+      <h3>Dine mål bruges næsten ikke: 3 af 28 virksomheder har et bekræftet mål, 165 skridt er udløbet mod 18 gjort, kvartalstjek 0 — hvad gør vi?</h3>
+      <p><strong>Fase 2 3/10 (målt i prod / kodelæst, recon).</strong> Universet 28 virksomheder / 26 personer, målt 3/10: bekræftet aktivt mål 3 · kun ubekræftede aktive mål 12 (30 mål: 15 <code>agent</code>, 10 <code>handout</code>, 5 <code>ai</code>; ingen <code>advisor</code>) · kun parkeret/nået 2 · intet mål 11. Mål skrevet af en rådgiver (<code>source = 'advisor'</code>): 0 nogensinde. Kvartalstjek: 0 rækker. Skridt i alt: <code>expired</code> 165 · <code>done</code> 18 · <code>dismissed</code> 15 · <code>proposed</code> 6 · <code>active</code> 4; seneste 30 d udløb 102 skridt på 15 virksomheder, og 8 blev gjort på 3 (7 af dem seneste 7 d). 2 virksomheder oprettede selv et mål seneste 30 d.</p>
+      <p><strong>Til målingen fremover:</strong> brug <code>closed_at</code> + status <code>done</code> — <code>completed_at</code> er sidst sat 12/8, og <code>dismissed_at</code> skrives aldrig (de 15 afviste har kun <code>closed_at</code>).</p>
+      <p><strong>Beslutning (Jonas/Morten):</strong> skal rådgiverne sætte målene SAMMEN med medlemmet (i dag 0), skal de 30 ubekræftede forslag tages op én gang (Behold/Slip), og skal skridtmotoren foreslå færre — 102 udløbne på 30 dage er støj, der lærer medlemmet at ignorere forslagene. Hører sammen med <a href="#g03-din-plan-dobbelt-overskrift">g03-din-plan-dobbelt-overskrift</a>.</p>
+      <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 4 · rådgiver 2 · forretning 3 · risiko 2 · indsats M</p>
+      <div class="meta"><span class="tag ny">Ny 3/10</span><span class="tag size">Mellem</span></div>
     </div>
   </div>
   </section>
@@ -3947,6 +3998,7 @@
     <div class="card new" id="g03-affiliate" data-status="ide" data-spor="7" data-rammer="medlem">
       <h3>Affiliate: et medlem der henviser et nyt MEDLEM får 10.000 kr. (Jonas 14/9) — attribution, udbetaling og flade er ikke undersøgt; efter 22/9</h3>
       <p>Modelleret vej: «henvist af» på ansøgningen → <code>companies.henvist_af</code>; ved første betaling sættes henviserens <code>fornyelsespris_oere</code> ned og rådgiverne får besked — kredit, ikke kontant (kontant kræver revisor og samtale). Attributionen skal overleve Monday. Delingen (bygget) er kanalen; dette er belønningen. Game changer 4/5. Historik: OVERLEVERING DEL 2 «14. september» §33; <code>docs/RAEKKEFOELGE.md:125-137</code>.</p>
+      <p><strong>Fase 2 3/10:</strong> <code>ansoegninger.kilde = 'anbefaling'</code> = 0 rækker nogensinde, og «Anbefal» har ingen brugssporing — se <a href="#g03-brug-umaalt">g03-brug-umaalt</a>.</p>
       <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 2 · rådgiver 1 · forretning 4 · risiko 1 · indsats L</p>
       <div class="meta"><span class="tag gold">Efter 22/9</span><span class="tag">Game changer 4/5</span><span class="tag size">Stor — ikke undersøgt</span></div>
     </div>
@@ -3955,6 +4007,18 @@
       <p>To forskellige produkter: (a) en kanal fra huset kan bygges på Bunny og rådgiver-gaten som de er; (b) medlemsvideo kræver moderering af video, en opbevaringspolitik og en Bunny-pris for en anden volumen. Intet kan bygges før (a)/(b) er valgt. Efter Circle-exit. Historik: <code>recon-community-medier.md</code>.</p>
       <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 2 · rådgiver 1 · forretning 1 · risiko 0 · indsats L</p>
       <div class="meta"><span class="tag gold">Beslutning: hvem må optage?</span><span class="tag">Efter Circle-exit</span><span class="tag size">Stor</span></div>
+    </div>
+    <div class="card decision new" id="g03-akademiet-falder" data-status="beslutning" data-spor="7" data-rammer="medlem">
+      <h3>Akademiet falder: egne «set» 13 → 6 personer og «gennemført» 12 → 5 (30 d mod 30 d før)</h3>
+      <p><strong>Fase 2 3/10 (målt i prod / kodelæst, recon).</strong> Egne stempler (ikke rådgiverens <code>markeret_at</code>): lektion set 6 personer seneste 30 d mod 13 i de 30 d før; gennemført 5 mod 12. 77 publicerede lektioner; 15 personer har nogensinde et eget stempel. Øvelser (handouts) rørt af 2 personer seneste 30 d; certifikat hentet 0 i universet; «Kunne du bruge den?» 3 personer. Samtidig voksede logins (24 personer mod 14) — faldet er ikke færre besøgende. Mulige forklaringer, ikke målt: forsidens «Fra os til dig»/«Denne uges video» forlod forsiden 2/10 (seks steder), og «Måske relevant»/forløbslinjen skubbes ud (<a href="#m16-maaske-relevant">m16-maaske-relevant</a>, <a href="#m16-fortsaet-forloeb">m16-fortsaet-forloeb</a>). Beslutning: hvad skal føre medlemmet ind i Akademiet nu, og mål igen om 30 dage.</p>
+      <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 3 · rådgiver 1 · forretning 2 · risiko 1 · indsats S</p>
+      <div class="meta"><span class="tag ny">Ny 3/10</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card decision new" id="g03-netvaerket-laeses-ikke-skrives" data-status="beslutning" data-spor="7" data-rammer="medlem">
+      <h3>Netværket bruges til at læse og tilmelde sig events — ikke til at skrive: 3 tråde og 2 svar fra medlemmer på 30 dage</h3>
+      <p><strong>Fase 2 3/10 (målt i prod / kodelæst, recon).</strong> Seneste 30 d: event-tilmeldinger 53 / 16 personer / 15 virksomheder (mod 9 / 8 / 8); Community-læsning 17 personer (mod 4); likes 6 personer. Men medlemsskabt indhold: 3 tråde (3 personer) og 2 svar (2 personer) — rådgiverne skrev 6 tråde og 10 svar. Kun 4 medlemmer har en netværksprofil. Event-fremmøde er umålt (kun tilmelding). Beslutning: hvad skal få medlemmer til at skrive (rådgivernes «Spørgsmål» øverst kører fra 2/10 — mål effekten om 30 dage), og hører «Hvem kan hjælpe med …» og profilerne sammen? Se <a href="#g03-medlem-til-medlem">g03-medlem-til-medlem</a>.</p>
+      <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 3 · rådgiver 1 · forretning 2 · risiko 0 · indsats S</p>
+      <div class="meta"><span class="tag ny">Ny 3/10</span><span class="tag size">Lille</span></div>
     </div>
   </div>
   </section>
@@ -4101,6 +4165,18 @@
       <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 2 · rådgiver 3 · forretning 2 · risiko 2 · indsats S</p>
       <div class="meta"><span class="tag ny">Ny 3/10</span><span class="tag size">Lille</span></div>
     </div>
+    <div class="card new" id="g03-brug-umaalt" data-status="mangler" data-spor="senere" data-rammer="ingen">
+      <h3>Brugen af Fordele, Anbefal, Medlemmerne og sidevisninger kan ikke måles — der er ingen sporing</h3>
+      <p><strong>Fase 2 3/10 (målt i prod / kodelæst, recon).</strong> Ingen tabel viser brugen af Fordele (7 udgivne partnere), Anbefal (<code>kilde = 'anbefaling'</code> = 0 nogensinde), Medlemmerne-oversigten eller sidevisninger i det hele taget; event-fremmøde og afholdte sessioner er heller ikke målbare (kun tilmelding/booking). Gennemgangen 3/10 kunne derfor ikke sige, om de steder bruges. Afgør formen: en anonym visningstabel pr. (sted, dag, bruger) uden indhold — som <code>community_visninger</code>/<code>ansoegning_visninger</code> — eller Sentrys sidevisninger (<a href="#g03-ydeevne-sentry">g03-ydeevne-sentry</a>). Ingen persondata ud af huset; tjenestekonti og rådgivere tælles fra.</p>
+      <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 0 · rådgiver 2 · forretning 2 · risiko 1 · indsats M</p>
+      <div class="meta"><span class="tag ny">Ny 3/10</span><span class="tag size">Mellem</span></div>
+    </div>
+    <div class="card new" id="g03-forside-sidst-set-medlemmer" data-status="mangler" data-spor="senere" data-rammer="ingen">
+      <h3><code>forside_sidst_set</code> har 0 medlemmer — kun de 3 rådgivere har en række</h3>
+      <p><strong>Fase 2 3/10 (målt i prod / kodelæst, recon).</strong> Tabellen har 3 rækker i alt, alle rådgivere. Kodelæst: den skrives kun af rådgiverforsiden eller er ikke koblet på medlemsforsiden — ikke undersøgt hvilket. Afgør, om medlemsforsiden skal skrive den (fx til «siden sidst»-linjer), eller om tabellen er rådgivernes alene; skriv det i filhovedet på den, der læser den. Tjenestekontoen skriver den ikke (<code>laeseMarkeringTilladt</code>).</p>
+      <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 0 · rådgiver 1 · forretning 0 · risiko 1 · indsats S</p>
+      <div class="meta"><span class="tag ny">Ny 3/10</span><span class="tag size">Lille</span></div>
+    </div>
   </div>
   </section>
 
@@ -4167,6 +4243,18 @@
       <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 0 · rådgiver 2 · forretning 0 · risiko 1 · indsats M</p>
       <div class="meta"><span class="tag gold">Hybrid af to temaer</span><span class="tag size">Mellem</span></div>
     </div>
+    <div class="card new" id="g03-skallen-layout-route" data-status="mangler" data-spor="senere" data-rammer="medlem">
+      <h3>Skallen monteres forfra på hver side (42 filer) — én layout-route, og skallens tre små hentefejl</h3>
+      <p><strong>Fase 2 3/10 (målt i prod / kodelæst, recon).</strong> <code>&lt;HbMemberShell</code> står i 42 filer; der er ingen layout-route/<code>&lt;Outlet&gt;</code>, så hver navigation giver ca. 3 kald + 2 kanal-joins igen (skøn 0,3–0,6 s pr. sidenavigation). <code>useNotifications.ts</code> bruger <code>useState</code>/<code>useEffect</code>, ikke TanStack Query. Samme sted: <code>AppLayout.tsx:47-63</code> tæller ulæste med en løkke pr. samtale (op til 10 kald pr. 60 s, mobil medlem); <code>listAllUpcomingEvents</code> (<code>akademiApi.ts:179-187</code>) henter <code>select("*")</code> på alle publicerede events uden datofilter fra skallen; <code>useAdvisorNotifications.ts:40</code> lytter på INSERT i <code>advisor_notifications</code> uden filter. Byg: layout-route med <code>&lt;Outlet&gt;</code>, notifikationerne i TanStack Query med <code>staleTime</code>, og ret de tre kald. Bevis: antal kald ved en sidenavigation i frisk fane før/efter.</p>
+      <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 2 · rådgiver 2 · forretning 0 · risiko 1 · indsats M</p>
+      <div class="meta"><span class="tag ny">Ny 3/10</span><span class="tag size">Mellem</span></div>
+    </div>
+    <div class="card new" id="g03-billeder-store" data-status="mangler" data-spor="senere" data-rammer="medlem">
+      <h3>To portrætter på 222 kB og 131 kB på sider, medlemmer ser — og 2 af 88 billeder har <code>loading=</code></h3>
+      <p><strong>Fase 2 3/10 (målt i prod / kodelæst, recon).</strong> <code>public/morten-larsen.jpg</code> 222.274 B og <code>public/jonas-herlev.png</code> 130.904 B bruges i <code>MembershipExpiredGate.tsx:248,256</code>, <code>AnsoegIntro.tsx:23</code> og <code>HbRaadgiverPortraetter</code>. Kun 2 af 88 <code>&lt;img&gt;</code> har <code>loading=</code>. Sidebar-logoet er allerede skåret ned (5 kB). Greb: webp i visningsstørrelse og <code>loading="lazy"</code> under folden. Skøn 0,1–0,3 s på mobil.</p>
+      <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 1 · rådgiver 0 · forretning 0 · risiko 0 · indsats S</p>
+      <div class="meta"><span class="tag ny">Ny 3/10</span><span class="tag size">Lille</span></div>
+    </div>
   </div>
   </section>
 
@@ -4180,8 +4268,15 @@
       <h3>Ikke-200-svar mellem driftsagentens kørsler tabes, og tilskrivningen er efter tid</h3>
       <p><strong>Omskrevet 3/10:</strong> Driftsagenten gemmer sine fund med jobnavn i <code>drift_agent_koersler</code> (30 dage) og fangede timeouten 1/10 17:00 (ansoegning-rykker-cron, «tvetydigt tilskrevet», gul) — så en tilskrivning afhænger ikke længere af, at nogen kigger inden for 6 timer. Tilbage: (1) agenten dømmer kun hvert jobs SENESTE svar; en timeout i et job, der kører oftere end hvert 15. min og bagefter svarer 200, forsvinder med <code>pg_net</code>'s ~6 timer. (2) Tilskrivningen er efter tid. Løsning: <code>kald_edge</code> skriver (<code>request_id</code>, jobnavn) i en lille tabel, og agenten/vagten gemmer ALLE ikke-200 siden forrige kørsel med jobnavn og status. Målt 3/10.</p>
       <p><em>Titel før 3/10: «En timeout kan ikke tilskrives et job efter ~6 timer: vagten gemmer ikke jobnavnet, og pg_net glemmer svaret»</em></p>
+      <p><strong>Fase 2 3/10:</strong> også VAGTEN taber jobnavnet: <code>cron_vagt_log.tal</code> har koderne og <code>jobs_ikke_200</code>, men ikke hvilke jobs. 2/10 gav to røde vagtrækker (04:07 <code>{401:1, 410:1}</code>, 12:07 <code>{400:1, 403:1}</code>); 410 har ingen kendt kilde (ingen cron kalder <code>monday-webhook</code>), og <code>net._http_response</code> er tømt efter ≈ 6 t, så årsagen kan ikke længere måles. Gem jobnavnet i <code>tal</code>.</p>
       <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 0 · rådgiver 2 · forretning 1 · risiko 3 · indsats S</p>
       <div class="meta"><span class="tag">Omskrevet 3/10</span><span class="tag">Drift — overvågning</span><span class="tag ny">Ny 2/10</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="g03-vagt-roed-gentages" data-status="fejl" data-spor="senere" data-rammer="raadgiver">
+      <h3>Driftsagentens gule «vagt_roed» gentages fire gange i timen — morgenopsamlingen tæller én hændelse otte gange</h3>
+      <p><strong>Fase 2 3/10 (målt i prod / kodelæst, recon).</strong> Af de 9 gule kørsler 7 d er 8 det samme vagtfund (de to røde vagtrækker 2/10), gentaget hver kvarter, så længe vagtens række er under 75 min gammel. De mailes aldrig som alarm, men opsamlingen kl. 07 tæller dem som 8 fund i stedet for 2. Ret: dedup på <code>aftryk</code> i opsamlingen, eller tæl pr. vagtrække (<code>_shared/driftDom.ts</code>, værn <code>driftDom.guard</code>).</p>
+      <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 0 · rådgiver 1 · forretning 0 · risiko 1 · indsats S</p>
+      <div class="meta"><span class="tag ny">Ny 3/10</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new loest" id="a30-companies-kolonnevaern" data-status="loest" data-spor="6" data-rammer="ingen">
       <h3>LUKKET 30/9 — et medlem kan kun rette hvidlistede felter på egen virksomhed (#1157, kolonneværn på <code>companies</code>)</h3>
@@ -4208,6 +4303,7 @@
       <h3>Rådgiverens forside: 57 kald og 4,3 s til det sidste i en frisk fane (målt 3/10) — spring process-pending-invitation over for rådgivere, og saml portefølje-hentningen</h3>
       <p><strong>Omskrevet 3/10:</strong> Livetjek 3/10 ~08:45 (claude@, frisk fane): 57 API-kald; DOMContentLoaded 481 ms; sidste kald færdigt 4.272 ms efter navigation. process-pending-invitation KALDES STADIG for rådgiveren (start 1.035 ms, varighed 1.490 ms) og svarer næsten altid <code>no_pending_invitation</code>. De langsomste REST-kald (parallelle) tager 1,35–1,50 s hver: messages, <code>company_actions</code>, <code>financial_report_facts</code>, <code>financial_reports</code> (limit 5000) og <code>session_bookings</code>. 29/9 (#1159) fjernede getUser-rundturen og kappede PPI-ventetiden (<code>PPI_TIMEOUT_RAADGIVER_MS</code>). Tilbage: (a) spring PPI over, når brugeren har rollen advisor og ingen <code>invite_token</code> i metadata — en rådgiver-invitation håndteres af <code>handle_new_user</code>, ikke PPI (optaget fra kortet uden id «process-pending-invitation kaldes ved hvert load …», rådets dublet); (b) hentAdvisorDashboard: 18 kald i ét Promise.all med seks sideløkker (<code>budget_targets</code>), og <code>financial_reports</code> hentes med limit 5000 — se g03-advisor-dashboard-skala (én RPC); (c) forsiden skriver ikke sin indlæsningstid, så før/efter måles i frisk fane som her.</p>
       <p><em>Titel før 3/10: «Rådgiverens forside står længe med skeletter, før indholdet kommer»</em></p>
+      <p><strong>Fase 2 3/10:</strong> hvorfor PPI stadig kaldes (kodelæst <code>useAuth.tsx</code>): rådgiveren har ingen <code>company_members</code>-række, så koden går i grenen «No company membership — check for pending invitation» med betingelsen <code>if (userEmail)</code>; <code>isAdv</code> vælger kun timeout (<code>PPI_TIMEOUT_RAADGIVER_MS = 4_000</code>, <code>authIndlaesning.ts:92</code>) og fail-soft — springer ikke kaldet over. Målt 1,49 s. Før rettelsen: afgør (SELECT), om en rådgiver kan have en afventende <code>company_invitation</code>.</p>
       <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 0 · rådgiver 3 · forretning 1 · risiko 1 · indsats M</p>
       <div class="meta"><span class="tag">Omskrevet 3/10</span><span class="tag gold">Jonas 22/9: på hylden</span><span class="tag rust">Live fejl</span><span class="tag ny">Ny 22/9</span></div>
     </div>
@@ -4221,6 +4317,7 @@
       <h3>RLS-hjælperne kaldes pr. række — pak <code>user_company_id</code>(auth.uid()) og <code>has_role</code>(auth.uid(), …) i (select …)</h3>
       <p><strong>Omskrevet 3/10:</strong> Målt 3/10: 40 policies kalder <code>user_company_id</code>( og 165 kalder <code>has_role</code>( — kun 1 er pakket i (select …). <code>user_roles</code> er seq-scannet 10,7 mio. gange, <code>company_members</code> 4,5 mio. (begge små tabeller). Supabases anbefaling: (select …) giver en initplan, der køres én gang pr. forespørgsel. Udskudt 22/9 (Jonas): basen er ikke forsidens flaskehals (32 forespørgsler = 785 ms). Recon: ~<code>/Downloads/recon-rls-initplan.md</code>. Mål <code>pg_stat</code> før/efter.</p>
       <p><em>Titel før 3/10: «Adgangsreglerne kalder user_company_id(auth.uid()) og has_role(auth.uid(), …) pr. række — user_roles er scannet 5.556.824 gange, company_members 2.625.120»</em></p>
+      <p><strong>Fase 2 3/10:</strong> genmålt: 395 policies; <strong>256 af 257</strong>, der kalder <code>has_role</code>/<code>user_company_id</code>/<code>is_membership_active</code>/<code>har_aktivt_medlemskab</code>/<code>kan_laese_community</code>, er uden <code>(select …)</code>; <strong>325 af 329</strong> med <code>auth.uid()</code> er uindpakket (regex-optælling, kan overtælle). <code>user_roles</code> 10,8 M + <code>company_members</code> 4,5 M seq_scans = <strong>15,3 M</strong> på 52 dage. Planlægning 30–62 ms pr. forespørgsel på små tabeller; RLS-funktionerne står som direkte <code>Filter:</code> (ingen InitPlan), ca. 3,5 bufferhits pr. række. Skøn: 0,2–0,5 s på forsiden. Start med de ~12 mest brugte tabeller; ajourfør SECURITY_BASELINE.md; test som rådgiver, medlem og anon.</p>
       <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 1 · rådgiver 1 · forretning 0 · risiko 2 · indsats M</p>
       <div class="meta"><span class="tag">Omskrevet 3/10</span><span class="tag gold">Jonas 22/9: senere — basen er ikke flaskehalsen (785 ms, målt 04:52)</span><span class="tag ny">Ny 22/9</span><span class="tag size">Mellem</span></div>
     </div>
@@ -4473,12 +4570,26 @@
       <h3>hentAdvisorDashboard henter hele porteføljen i JavaScript og holder til ~60 kunder. Målt 3/10: 43 i universet, 28 med gældende kontrakt</h3>
       <p><strong>Omskrevet 3/10:</strong> Rådgiverforsiden og virksomhedslisten deler hentAdvisorDashboard (<code>AdvisorDashboard.tsx</code>), som henter og dømmer alt i browseren. Vejen frem er ikke én motor, men én RPC (<code>get_advisor_forside</code>()) bag en rådgiver-gate, der returnerer køerne færdigtalt i SQL; formerne bliver. Webinartragten øger tilgangen, så mål forsidens indlæsningstid (Sentry p95, g03-ydeevne-sentry), før grænsen nås. Hører til «to rådgivere til hundrede virksomheder». Chattens 10 altafgørende 16/9 (10).</p>
       <p><em>Titel før 3/10: «hentAdvisorDashboard henter hele porteføljen i JavaScript — holder til ~60 kunder, ikke 100; i dag 29 (målt 16/9)»</em></p>
+      <p><strong>Fase 2 3/10:</strong> målt som rådgiver (EXPLAIN ANALYZE, tilbagerullet): <code>financial_reports</code> limit 5000 (218 rækker) 61,8 ms planlægning + 137,4 ms udførelse; <code>messages</code> limit 500 113,5 ms (Seq Scan); facts 49 ms; <code>budget_targets</code> (nu filtreret i DB, 132 rækker) 22 ms. Stadig ét <code>Promise.all</code> med 18 kald (<code>AdvisorDashboard.tsx:196</code>) og ingen RPC. Skøn: én SECURITY DEFINER-RPC sparer 1–2 s på forsiden — kræver grønt lys (FORBIDDEN-listen) og paritet med <code>forsidensDom.ts</code>.</p>
       <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 0 · rådgiver 3 · forretning 2 · risiko 2 · indsats L</p>
       <div class="meta"><span class="tag">Omskrevet 3/10</span><span class="tag gold">Chattens 10 altafgørende 16/9 (10)</span><span class="tag">Blokerer ved ~60 kunder</span><span class="tag size">Stor</span></div>
+    </div>
+    <div class="card new" id="g03-financial-reports-jsonb-kald" data-status="mangler" data-spor="senere" data-rammer="ingen">
+      <h3>Et ukendt kald henter <code>financial_reports</code> med hele <code>extracted_data</code> + <code>normalized_data</code>: 2,6 s i gennemsnit, 7,8 s max</h3>
+      <p><strong>Fase 2 3/10 (målt i prod / kodelæst, recon).</strong> pg_stat_statements (52 dage): PostgREST-forespørgslen på <code>financial_reports</code> med <code>extracted_data</code> og <code>normalized_data</code>, <code>deleted_at IS NULL AND status = $1</code>, LIMIT/OFFSET — 68 kald, gennemsnit 2.618 ms, max 7.822 ms (≈ 7,5 + 9,0 kB jsonb pr. række). Kalderen er IKKE fundet i <code>src/</code> eller <code>supabase/functions/</code> på main (<code>useCompanyFacts.ts:84</code> og <code>RapporteringView.tsx:450</code> har andre kolonnelister) — kan være en admin-/genkørselsflade, en gammel bundle eller et eksternt værktøj. Find kalderen (PostgREST-loggen pr. tidspunkt, eller grep på kolonne-kombinationen), og begræns kolonnerne.</p>
+      <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 0 · rådgiver 1 · forretning 1 · risiko 2 · indsats S</p>
+      <div class="meta"><span class="tag ny">Ny 3/10</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="g03-region-compute-rundtur" data-status="mangler" data-spor="senere" data-rammer="ingen">
+      <h3>Region og compute er umålt — genmål rundturen fra Danmark, før noget flyttes eller opgraderes</h3>
+      <p><strong>Fase 2 3/10 (målt i prod / kodelæst, recon).</strong> Databasen ligger hos AWS (IPv6 <code>2a05:d018:…</code>), men regionen kunne ikke bekræftes (API-gatewayen er bag Cloudflare). Konfigurationen matcher Supabase Micro (60 forbindelser, <code>shared_buffers</code> 224 MB, <code>work_mem</code> 2 MB) — udledt, ikke bekræftet. <code>temp_files</code>: 66.988 filer / 217,9 GB skrevet (sorteringer &gt; 2 MB spilder). Cache-hit 98,55 %; gennemsnitsbelastningen er lav (top-15 &lt; 1 % af én kerne), spidsbelastningen ved 57 samtidige kald er umålt. Jonas målte 22/9 REST ≈ 0,37 s og edge ≈ 0,22 s pr. rundtur — højt for Danmark. Mål: Network → Timing → «Waiting for server response» på et trivielt REST-kald (fx <code>HEAD user_roles?limit=0</code>) fra Silkeborg, to gange; bekræft instanstype og region i Lovable Cloud. Over 150 ms uden kold start → undersøg region (en ny projekt-ref er en stor migration). Opgradér først, hvis CPU &gt; 70 % under en forsideindlæsning.</p>
+      <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 1 · rådgiver 2 · forretning 1 · risiko 2 · indsats S</p>
+      <div class="meta"><span class="tag ny">Ny 3/10</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card" id="g03-ydeevne-sentry" data-status="mangler" data-spor="senere" data-rammer="ingen">
       <h3>Ydeevne: Sentry måler allerede 10 % af sidevisningerne, ingen læser det; bundlen er aldrig målt — første greb er nul kode</h3>
       <p>Sentry → Performance → sortér efter p95, skriv de fem tungeste i OVERLEVERING; ét <code>bun run build</code>, skriv de fem største chunks. Så er der noget at optimere på. Historik: OVERLEVERING DEL 2 «10. september».</p>
+      <p><strong>Fase 2 3/10:</strong> <code>vite.config.ts</code> har ingen <code>build</code>-sektion og ingen <code>manualChunks</code> (kodelæst) — hvert Update skifter hash på al vendor-kode. Forsiderne og de offentlige sider er nu <code>lazy</code> (#1159), men den udrullede hoved-chunk er UMÅLT (1.317 kB / 400 kB gzip var en lokal build af 29/9, før lazy). Greb: <code>manualChunks</code> for react/supabase/sentry/tanstack, og mål chunk-størrelsen i drift bagefter. Skøn 0,2–0,6 s ved genbesøg efter en udrulning.</p>
       <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 2 · rådgiver 2 · forretning 1 · risiko 1 · indsats S</p>
       <div class="meta"><span class="tag gold">Nul kode først</span><span class="tag size">Lille</span></div>
     </div>
@@ -4505,8 +4616,21 @@
       <p><strong>Omskrevet 3/10:</strong> CI-værnet kræver, at hver function med false validerer selv før service-role. Bucket B (cron) står på true, fordi cron sender en legacy <code>service_role-JWT</code>, men Supabase fjerner legacy-nøglerne «Late 2026, TBC». Arbejdet er fase 3a i <code>docs/prod-hjem-plan.md</code>: trin 1 (domServiceRole, apikey fra vault) er bygget, ikke udrullet, og migration 20261002290000 er ikke kørt; trin 2 (false + kun nøgle) er ikke bygget. Tallet skrives op, når det flytter sig.</p>
       <p><em>Titel før 3/10: «verify_jwt = false på 37 ældre functions (31 true, målt 10/9) — migreres én ad gangen; CI-værnet kræver at hver false-function validerer selv»</em></p>
       <p><strong>Rådet 3/10:</strong> genmålt <code>config.toml</code> 61 true / 45 false. Beslutningskortet for fase 3a er <a href="#a01-legacy-noegler">a01-legacy-noegler</a> (D1); dette kort er tælleren, så fase 3a ikke står som to opgaver.</p>
+      <p><strong>Fase 2 3/10:</strong> 14 functions har slet ingen <code>[functions.&lt;navn&gt;]</code>-blok — <a href="#g03-functions-uden-config-blok">g03-functions-uden-config-blok</a>.</p>
       <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 1 · rådgiver 1 · forretning 2 · risiko 4 · indsats L</p>
       <div class="meta"><span class="tag">Omskrevet 3/10</span><span class="tag gold">37 false / 31 true (10/9)</span><span class="tag size">Mellem</span></div>
+    </div>
+    <div class="card new" id="g03-functions-uden-config-blok" data-status="mangler" data-spor="3" data-rammer="ingen">
+      <h3>14 edge functions har ingen blok i <code>config.toml</code> — hvad gatewayen gør med <code>verify_jwt</code> for dem, er umålt</h3>
+      <p><strong>Fase 2 3/10 (målt i prod / kodelæst, recon).</strong> <code>advisor-broadcast</code>, <code>ai-data-chat</code>, <code>cancel-event</code>, <code>create-subscription-checkout</code>, <code>detect-financial-alerts</code>, <code>extract-annual-report</code>, <code>get-advisor-alerts</code>, <code>handle-email-events</code>, <code>notify-chat-reply</code>, <code>notify-kpi-comment</code>, <code>save-annual-baseline</code>, <code>send-pulse-reminder</code>, <code>send-welcome-message</code>, <code>update-annual-report-revenue</code> har ingen <code>[functions.&lt;navn&gt;]</code>. CI-værnet er PASS (103 af 103 med prædikat), så de validerer selv — men prod-værdien af <code>verify_jwt</code> er ukendt. Mål: ét kald uden JWT mod én af dem, eller Lovables oversigt; skriv derefter en blok med begrundelse for hver (som husets andre). Nogle er formentlig døde (<code>send-pulse-reminder</code>, <code>send-welcome-message</code> — <a href="#g03-doede-mailveje">g03-doede-mailveje</a>).</p>
+      <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 0 · rådgiver 0 · forretning 1 · risiko 2 · indsats S</p>
+      <div class="meta"><span class="tag ny">Ny 3/10</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="g03-buckets-uden-graense" data-status="mangler" data-spor="3" data-rammer="ingen">
+      <h3>Fem storage-buckets har hverken størrelses- eller mimegrænse — <code>avatars</code> er offentlig</h3>
+      <p><strong>Fase 2 3/10 (målt i prod / kodelæst, recon).</strong> <code>avatars</code> og <code>company-logos</code> (public, bevidst) samt <code>financial-documents</code>, <code>content-assets</code> og <code>chat-attachments</code> (private) har <code>file_size_limit = null</code> og ingen <code>allowed_mime_types</code>; de fem nyere buckets har begge. Klienten begrænser, databasen gør ikke: ethvert indlogget medlem kan lægge vilkårlige filer i egen <code>avatars</code>-mappe, som serveres offentligt. Sæt grænser pr. bucket ud fra, hvad fladerne faktisk tager imod (billedtyper til avatars/logos; PDF/XLSX/CSV til regnskaber), og prøv uploaden bagefter.</p>
+      <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 0 · rådgiver 0 · forretning 0 · risiko 2 · indsats S</p>
+      <div class="meta"><span class="tag ny">Ny 3/10</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card new" id="g03-kr-kopier" data-status="mangler" data-spor="senere" data-rammer="ingen">
       <h3>Tre identiske kr(øre)-kopier i pengevejen (MembershipExpiredGate, Betal, fornyelsesbaand) og tre andre formattere med samme navn. Saml før den næste</h3>
@@ -4525,8 +4649,8 @@
     <div class="card new loest" id="g03-slettefunktion-fire-tabeller" data-status="loest" data-spor="senere" data-rammer="ingen">
       <h3>Slettefunktionens liste nævner ikke community_reaktioner, community_visninger, forside_sidst_set og raadgiver_opgaver — om kaskaden fra auth.users tager dem, kan kun prod sige</h3>
       <p><code>slet-medlemsdata-cron</code> er en håndskrevet liste i FK-orden; ingen test opregner bruger-nøglede tabeller. SQL: <code>pg_constraint</code> med <code>confdeltype</code> mod <code>auth.users</code>. Rammer sweepet, ikke dommen. Historik: <code>recon-b2-indholdslaget.md</code> kort 62 §2.</p>
-      <p><strong>LUKKET 3/10:</strong> alle fire tabeller har FK til <code>auth.users</code> med ON DELETE CASCADE (<code>confdeltype = 'c'</code>; <code>raadgiver_opgaver</code> begge FK'er), og <code>slet-medlemsdata-cron</code> sletter auth-brugeren — kaskaden tager dem (målt 3/10).</p>
-      <div class="meta"><span class="tag loest">Lukket 3/10 — kaskaden tager dem, målt</span><span class="tag gold">Prod-måling</span><span class="tag size">Lille</span></div>
+      <p><strong>LUKKET 3/10:</strong> alle fire tabeller har FK til <code>auth.users</code> med ON DELETE CASCADE (<code>confdeltype = 'c'</code>; <code>raadgiver_opgaver</code> begge FK'er) — FK målt 3/10; at <code>slet-medlemsdata-cron</code> sletter auth-brugeren (<code>index.ts:393</code>), så kaskaden tager dem, er kodelæst.</p>
+      <div class="meta"><span class="tag loest">Lukket 3/10 — FK målt, sletningen kodelæst</span><span class="tag gold">Prod-måling</span><span class="tag size">Lille</span></div>
     </div>
     <div class="card" id="g03-doede-db-kolonner" data-status="mangler" data-spor="senere" data-rammer="ingen">
       <h3>Døde DB-kolonner: find de unavngivne fase 0-kolonner med <code>information_schema</code> mod grep. <code>profiles.company_name</code> læses stadig af chatpanelerne</h3>
@@ -4592,6 +4716,18 @@
       <h3>CLAUDE.md kalder aftaleskabelonen en PLADSHOLDER, skønt v3 er aktiv — og aabne-opgaver gentager det; de kørte migrationers «IKKE KØRT» er rettet i #1260</h3>
       <p><strong>Rådets fund 3/10, målt mod main samme dag.</strong> Rådet fandt, at CLAUDE.md og aabne-opgaver sagde «IKKE KØRT» om fire migrationer, der er kørt (<code>20261002241000</code>, <code>20261002260000</code>/<code>261000</code>, <code>20261002243000</code>, <code>20261002270000</code>). På main (<code>2b7c6bf9</code>, #1260 «rettet mod prod 3/10») er de linjer gennemstreget og rettet til KØRT. <strong>Tilbage:</strong> (1) CLAUDE.md l. 104: «Aftaleteksten i <code>aftale_skabelon</code> er en PLADSHOLDER, som <code>send-til-underskrift</code> nægter at sende» — målt 3/10: v3 er aktiv siden 18/9 (8.948 tegn), og én aftale er underskrevet på den 29/9; (2) <code>docs/aabne-opgaver.md</code> (grenen <code>docs/aabne-opgaver</code>) l. 196 siger det samme; (3) bekræft og bogfør for <code>20261002243000</code>, at Jonas' grønne lys faktisk blev givet — eller at kørslen skete uden; det sidste er en sag for sig. Ret (1)–(2) i én docs-PR med målingen som bevis.</p>
       <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 0 · rådgiver 2 · forretning 1 · risiko 3 · indsats S</p>
+      <div class="meta"><span class="tag ny">Ny 3/10</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="g03-baseline-tekst-koert" data-status="mangler" data-spor="senere" data-rammer="ingen">
+      <h3>SECURITY_BASELINE siger «ikke kørt» om messages-DELETE (15 min) og feedback-bucketens mappetjek — begge er kørt</h3>
+      <p><strong>Fase 2 3/10 (målt i prod / kodelæst, recon).</strong> Målt 3/10: <code>messages</code> har de 2 DELETE-policies (15-minutters-reglen), og feedback-bucketens INSERT har mappetjekket (migrationerne fra 10/9). Baseline-teksten siger stadig «not yet run». Ret i samme docs-PR som <a href="#g03-claude-md-pladsholder">g03-claude-md-pladsholder</a>, med målingen som bevis.</p>
+      <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 0 · rådgiver 1 · forretning 0 · risiko 1 · indsats S</p>
+      <div class="meta"><span class="tag ny">Ny 3/10</span><span class="tag size">Lille</span></div>
+    </div>
+    <div class="card new" id="g03-rester-og-app-config" data-status="mangler" data-spor="senere" data-rammer="ingen">
+      <h3>Rester og brede læsninger: to backfill-logtabeller i <code>public</code>, <code>app_config</code> læsbar for alle indloggede, 3 auth-brugere uden profil</h3>
+      <p><strong>Fase 2 3/10 (målt i prod / kodelæst, recon).</strong> (a) <code>backfill_log_kanoniske_noegler_20260918</code> (217 rækker, RLS til, ingen policy) og <code>_facts_backfill_log</code> (22 rækker) ligger tilbage fra engangsbackfills — flyt dem ud af <code>public</code> eller slet dem efter bogføring. (b) <code>app_config</code> kan læses af alle indloggede («Anyone authenticated can read config»): alle låse, <code>velkomstvideo_guid</code>, <code>ansoegning_cvr_dagsloft</code> og rollout-objekter — ingen hemmeligheder fundet, men medlemmer kan se driftsstatus; afgør, om læsningen skal snævres ind til de nøgler, klienten bruger. (c) 3 af 37 <code>auth.users</code> har ingen profilrække (ikke medlemmer, ikke i <code>profiles_orphan</code>); hvem de er, er ikke målt.</p>
+      <p style="font-size:12px;color:var(--soft);margin-top:6px">Værdi 3/10: medlem 0 · rådgiver 0 · forretning 0 · risiko 1 · indsats S</p>
       <div class="meta"><span class="tag ny">Ny 3/10</span><span class="tag size">Lille</span></div>
     </div>
   </div>
