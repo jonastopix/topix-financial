@@ -13,8 +13,10 @@ import { PERSONDATA_AFSNIT } from "@/lib/ansoegning/persondata";
  *      64 hex; findForbudteNoegler jager rå e-mail og rå telefon/CVR i hele objektet; Metas
  *      normaliseringsregler står ordret i filen; cronen læser de tolv kolonner i RAEKKE_FELTER
  *      og rører ALDRIG klarteksten selv (den rækker rækken til normaliserBrugerdata).
- *   3. TØRKØRSEL STANDARD + LÅSEN: dry_run !== false; `if (!r.sender_rigtigt) return`
- *      før første sendTilMeta; låsen læses af app_config fail-closed.
+ *   3. TØRKØRSEL STANDARD + LÅSEN: dry_run !== false; ansøgningsløkken går KUN over planerne,
+ *      når r.sender_rigtigt (`for (const p of r.sender_rigtigt ? planer : [])` — 3/10-2026: den
+ *      tidlige return flyttede ned under tilmeldingspasset, så tørkørslen også viser det; CTO);
+ *      `if (!r.sender_rigtigt) return` står stadig før alarmen; låsen læses fail-closed.
  *   4. STRIKS-BODY + BUCKET B: KENDTE_FELTER præcis dry_run · nu · test_event_code ·
  *      ansoegning_id · tilmelding_id (det femte kom 3/10-2026 med webinarmotorens tilmeldinger —
  *      beviset for ÉN tilmelding; webinarTilmeldMeta.guard; de to id'er afvises sammen) ·
@@ -178,7 +180,7 @@ export const ingenUhashetPersondata = (dom: string, cron: string): boolean => {
     // bruges som opslagsnøgle, aldrig som en værdi i payloaden.
     !/\.(navn|telefon)\b/.test(c) &&
     // AFSENDELSESLØKKEN må ikke røre klarteksten overhovedet — der går alt gennem dommen.
-    !/\.(email|navn|telefon)\b/.test(c.slice(c.indexOf("for (const p of planer) {"), c.indexOf("if (r.fejlede > 0) await skrivAlarm("))) &&
+    !/\.(email|navn|telefon)\b/.test(c.slice(c.indexOf("for (const p of r.sender_rigtigt ? planer : []) {"), c.indexOf("if (r.fejlede > 0) await skrivAlarm("))) &&
     c.includes("const hashet = await hashBrugerdata(normaliserBrugerdata(p.raekke), sha256Hex);") &&
     foer(c, "const hashet = await hashBrugerdata(", "const payload = bygPayload(") &&
     foer(c, "const forbudte = findForbudteNoegler(payload);", "await sendTilMeta(payload, a.testEventCode)") &&
@@ -190,7 +192,11 @@ export const toerkoerselOgLaas = (cron: string, dom: string): boolean => {
   const c = udenKommentarer(cron), d = udenKommentarer(dom);
   const koer = c.slice(c.indexOf("export async function koerMetaSend("), c.indexOf("Deno.serve("));
   return c.includes("const toerKoersel = raaBody?.dry_run !== false;") &&
-    foer(koer, "if (!r.sender_rigtigt) return { status: 200, resultat: r };", "await sendTilMeta(") &&
+    // ansøgningernes afsendelse står INDE i løkken, der kun går over planerne i en rigtig kørsel
+    foer(koer, "for (const p of r.sender_rigtigt ? planer : []) {", "await sendTilMeta(") &&
+    foer(koer, "await sendTilMeta(", "const tilm = await planlaegTilmeldinger(") &&
+    koer.includes("if (!r.sender_rigtigt) return { status: 200, resultat: r };") &&
+    (c.match(/for \(const p of /g) ?? []).length === 1 &&
     (c.match(/await sendTilMeta\(/g) ?? []).length === 1 &&
     /async function hentLaas\([\s\S]*?from\("app_config"\)[\s\S]*?\.eq\("config_key", META_SEND_LAAS_NOEGLE\)[\s\S]*?return false; \}/.test(c) &&
     d.includes('export const META_SEND_LAAS_NOEGLE = "meta_send_aktiv";') &&
@@ -241,7 +247,7 @@ export const userAgentForAlle = (gem: string, ua: string, filer: readonly { sti:
 // ── 6 ──────────────────────────────────────────────────────────────────────
 export const sporetFoerSvaret = (cron: string): boolean => {
   const c = udenKommentarer(cron);
-  const loekke = c.slice(c.indexOf("for (const p of planer) {\n    if (Date.now()"), c.indexOf("if (r.fejlede > 0) await skrivAlarm("));
+  const loekke = c.slice(c.indexOf("for (const p of r.sender_rigtigt ? planer : []) {\n    if (Date.now()"), c.indexOf("const tilm = await planlaegTilmeldinger("));
   return loekke.includes('from("meta_haendelser").upsert({') && loekke.includes('{ onConflict: "event_id" }') &&
     foer(loekke, "await sendTilMeta(", 'from("meta_haendelser").upsert({') &&
     foer(loekke, '{ onConflict: "event_id" }', 'if (svar.udfald === "sendt") r.sendt++;') &&
@@ -590,6 +596,8 @@ describe("metaSend.guard — dommene fanger fejlen på en kopi", () => {
   });
   it("3. afsendelse uden låsen/testkoden, eller dry_run vendt, fælder dom 3", () => {
     expect(toerkoerselOgLaas(cron.replace("if (!r.sender_rigtigt) return { status: 200, resultat: r };", "if (a.toerKoersel) return { status: 200, resultat: r };"), dom)).toBe(false);
+    // løkken over ALLE planer, også i tørkørslen (3/10)
+    expect(toerkoerselOgLaas(cron.replace("for (const p of r.sender_rigtigt ? planer : []) {", "for (const p of planer) {"), dom)).toBe(false);
     expect(toerkoerselOgLaas(cron.replace("raaBody?.dry_run !== false", "raaBody?.dry_run === true"), dom)).toBe(false);
     expect(toerkoerselOgLaas(cron, dom.replace("if (a.dryRun) return false;\n  return a.laasAktiv || a.testEventCode !== null;", "return true;"))).toBe(false);
   });

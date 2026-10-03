@@ -56,6 +56,7 @@
  *                                                    «are not dropped», så en testkørsel uden id ville
  *                                                    sende hele vinduet.
  */
+import { kbhDato } from "./hverdage.ts";
 import {
   bygFbc, erIVindue, FBC_FORM, type HashetBrugerdata, laasErAktiv, type MetaPayload, normaliserEmail, normaliserNavn,
   bygFbpFelt, USER_AGENT_MAKS,
@@ -283,6 +284,8 @@ export interface TilmeldingResultat {
   udsat: number;
   /** Passets EGNE fejl (planlægning, værn, spor, Metas afslag) — står KUN her, aldrig i kørslens fejl/status. */
   fejl: string[];
+  /** Passets EGEN alarm: ingen · sendt · allerede_sendt_i_dag · fejlet: <grund>. Aldrig kørslens `alarm`. */
+  alarm: string;
 }
 
 export function tomtTilmeldingResultat(tilmeldingId: string | null): TilmeldingResultat {
@@ -292,6 +295,41 @@ export function tomtTilmeldingResultat(tilmeldingId: string | null): TilmeldingR
       ikke_platform: 0, intern: 0, afmeldt: 0, fravalgt: 0, gen_tilmelding: 0,
       ingen_user_agent: 0, ingen_landing: 0, ingen_tidspunkt: 0, for_gammel: 0, allerede_sendt: 0, ugyldig: 0,
     },
-    sendt: 0, payload_afvist: 0, fejlede: 0, udsat: 0, fejl: [],
+    sendt: 0, payload_afvist: 0, fejlede: 0, udsat: 0, fejl: [], alarm: "ingen",
   };
+}
+
+// ── Passets EGEN alarm (CTO 3/10, LAV) ──────────────────────────────────────
+/**
+ * Én mail pr. dansk kalenderdag til driftModtager(), nøgle «meta-tilmelding:<dato>» — opslået i
+ * email_send_log FØR afsendelsen, som ansøgningernes «meta-send-alarm:<dato>». Den deler IKKE
+ * ansøgningernes alarm (skrivAlarm ændrer kørslens r.alarm/r.fejl). Ingen drift-klokke: en
+ * klokke kræver reference_type på SELVMAILENDE_REFERENCER (klokkeMail.ts), og mailen er nok.
+ */
+export const TILMELDING_ALARM_PRAEFIKS = "meta-tilmelding:";
+export const TILMELDING_ALARM_LABEL = "meta-tilmelding-alarm";
+export function tilmeldingAlarmNoegle(nu: Date): string {
+  return `${TILMELDING_ALARM_PRAEFIKS}${kbhDato(nu)}`;
+}
+
+/**
+ * Skal passet alarmere? KUN i en rigtig kørsel (sender_rigtigt — aldrig i tørkørslen, aldrig
+ * med lukket lås) OG når passet har fejl ELLER fejlede hændelser.
+ */
+export function skalTilmeldingAlarmere(r: Pick<TilmeldingResultat, "sender_rigtigt" | "fejl" | "fejlede">): boolean {
+  return r.sender_rigtigt && (r.fejl.length > 0 || r.fejlede > 0);
+}
+
+/** Alarmens tekst — tal og passets egne fejltekster (event-id'er, aldrig en mail eller et navn). */
+export function tilmeldingAlarmTekst(r: Pick<TilmeldingResultat, "fejl" | "fejlede" | "sendt" | "payload_afvist">, nu: Date): { emne: string; afsnit: string[]; blokke: { overskrift: string; tekst: string }[]; tekst: string } {
+  const emne = `Meta: webinartilmeldingerne kunne ikke sendes rent (${kbhDato(nu)})`;
+  const afsnit = [
+    `meta-send-cron's tilmeldingspas (CompleteRegistration) havde ${r.fejlede} fejlede hændelser og ${r.fejl.length} fejl i en rigtig kørsel; ${r.sendt} blev sendt. Ansøgningernes afsendelse er urørt.`,
+    r.payload_afvist > 0
+      ? `${r.payload_afvist} payload(s) blev afvist af værnet (findForbudteNoegler) — sporet er IKKE skrevet for dem; payloaden skal rettes.`
+      : "Fejlede hændelser prøves igen ved hver kørsel, så længe de er under 7 dage gamle; «ugyldig» prøves ikke igen.",
+  ];
+  const blokke = r.fejl.slice(0, 5).map((f, i) => ({ overskrift: `Fejl ${i + 1}`, tekst: f }));
+  const tekst = [emne, ...afsnit, "", ...blokke.map((b) => `${b.overskrift}: ${b.tekst}`), "", "Sporet: meta_haendelser (art registration). Tørkørsel: SELECT public.kald_edge('meta-send-cron');"].join("\n");
+  return { emne, afsnit, blokke, tekst };
 }

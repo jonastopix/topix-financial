@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { sha256Hex } from "../../../supabase/functions/_shared/aftryk.ts";
 import { AFTRYK_FORM, findForbudteNoegler, META_VINDUE_DAGE } from "../../../supabase/functions/_shared/metaSend.ts";
 import {
-  bygTilmeldingPayload, doemTilmelding, hashTilmeldingBrugerdata, landingUdenQuery, laesWebinarLaas, normaliserTilmeldingBrugerdata,
+  bygTilmeldingPayload, doemTilmelding, skalTilmeldingAlarmere, TILMELDING_ALARM_PRAEFIKS, tilmeldingAlarmNoegle, tilmeldingAlarmTekst, hashTilmeldingBrugerdata, landingUdenQuery, laesWebinarLaas, normaliserTilmeldingBrugerdata,
   TILMELDING_ART, TILMELDING_CONTENT_NAME, TILMELDING_EVENT_NAME, TILMELDING_GRUNDE, tilmeldingBrugerdataNoegler,
   tilmeldingEventId, tilmeldingFbc, tilmeldingFbcKilde, tilmeldingSenderRigtigt, type TilmeldingTilMeta,
   tomtTilmeldingResultat, WEBINAR_META_LAAS_NOEGLE,
@@ -164,4 +164,29 @@ describe("metaTilmelding — låsen og porten", () => {
     expect(laesWebinarLaas({ fejl: false, raekke: { config_value: "ja" } })).toEqual({ port: "klar", aaben: false });
     expect(laesWebinarLaas({ fejl: false, raekke: { config_value: null } })).toEqual({ port: "klar", aaben: false });
   });
+});
+
+describe("metaTilmelding — passets egen alarm", () => {
+  const R0 = () => ({ ...tomtTilmeldingResultat(null), sender_rigtigt: true });
+  it("nøglen er «meta-tilmelding:<dansk dato>» — én pr. dansk kalenderdag", () => {
+    expect(TILMELDING_ALARM_PRAEFIKS).toBe("meta-tilmelding:");
+    // 22:30 UTC 3/11 er 23:30 dansk samme dag; 23:30 UTC er 00:30 dansk 4/11
+    expect(tilmeldingAlarmNoegle(new Date("2026-11-03T22:30:00Z"))).toBe("meta-tilmelding:2026-11-03");
+    expect(tilmeldingAlarmNoegle(new Date("2026-11-03T23:30:00Z"))).toBe("meta-tilmelding:2026-11-04");
+  });
+  it("kun i en rigtig kørsel og kun med fejl eller fejlede", () => {
+    expect(skalTilmeldingAlarmere(R0())).toBe(false);
+    expect(skalTilmeldingAlarmere({ ...R0(), fejl: ["spor x: 23514"] })).toBe(true);
+    expect(skalTilmeldingAlarmere({ ...R0(), fejlede: 1 })).toBe(true);
+    // tørkørsel / lukket lås: aldrig
+    expect(skalTilmeldingAlarmere({ ...R0(), sender_rigtigt: false, fejl: ["planlægning: x"], fejlede: 2 })).toBe(false);
+  });
+  it("teksten bærer tal og passets egne fejl — ingen mail eller navn", () => {
+    const t = tilmeldingAlarmTekst({ fejl: ["7a1b:registration: ugyldig — (kode 100)"], fejlede: 1, sendt: 3, payload_afvist: 0 }, NU);
+    expect(t.emne).toContain("2026-11-03");
+    expect(t.tekst).toContain("1 fejlede");
+    expect(t.tekst).not.toMatch(/@/);
+    expect(t.blokke).toHaveLength(1);
+  });
+  it("et tomt resultat har alarmen «ingen»", () => expect(tomtTilmeldingResultat(null).alarm).toBe("ingen"));
 });

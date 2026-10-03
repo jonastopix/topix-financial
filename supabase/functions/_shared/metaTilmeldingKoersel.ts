@@ -16,13 +16,16 @@
  */
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { sha256Hex } from "./aftryk.ts";
+import { sendManagedEmail } from "./managedEmail.ts";
+import { driftModtager } from "./driftModtager.ts";
+import { indgangsMailHtml } from "./indgangsMail.ts";
 import {
   bygFbpFelt, findForbudteNoegler, maaForsoeges, type MetaPayload, META_VINDUE_DAGE, type SporRaekke, type SporUdfald,
 } from "./metaSend.ts";
 import {
   bygTilmeldingPayload, doemTilmelding, hashTilmeldingBrugerdata, normaliserTilmeldingBrugerdata, TILMELDING_ART,
   tilmeldingBrugerdataNoegler, tilmeldingEventId, tilmeldingFbcKilde, type TilmeldingPlan, type TilmeldingResultat,
-  laesWebinarLaas, tilmeldingSenderRigtigt, type TilmeldingPort, type TilmeldingTilMeta, tomtTilmeldingResultat, WEBINAR_META_LAAS_NOEGLE,
+  laesWebinarLaas, skalTilmeldingAlarmere, TILMELDING_ALARM_LABEL, tilmeldingAlarmNoegle, tilmeldingAlarmTekst, tilmeldingSenderRigtigt, type TilmeldingPort, type TilmeldingTilMeta, tomtTilmeldingResultat, WEBINAR_META_LAAS_NOEGLE,
 } from "./metaTilmelding.ts";
 
 const LOG = "[meta-send-cron/tilmeldinger]";
@@ -166,7 +169,7 @@ export async function planlaegTilmeldinger(
   } catch (err) {
     const grund = err instanceof Error ? err.message : String(err);
     r.fejl.push(`planlægning: ${grund}`);
-    r.sender_rigtigt = false;
+    // sender_rigtigt BEVARES: den siger, om kørslen er rigtig (alarmen), og planer = [] sender intet.
     console.error(`${LOG} passet kunne ikke planlægges — ansøgningerne er urørte:`, grund);
     return { resultat: r, planer: [] };
   }
@@ -180,9 +183,9 @@ export async function planlaegTilmeldinger(
  * ALT HER BLIVER I `tilmeldinger` (CTO 3/10, HØJ): fejl og fejlede tælles i r — ALDRIG i
  * kørslens fejl, fejlede, alarmliste eller HTTP-status. VALGET: tilmeldingerne deler IKKE
  * ansøgningernes alarmmail (skrivAlarm ændrer r.alarm/r.fejl og ville gøre ansøgningernes
- * svar anderledes). Overvågningen er sporet: en hændelse, Meta afviser, står i meta_haendelser
- * med sit udfald, og driftsagenten (driftDom.ts SPOR, «meta_haendelser») dømmer fejlraten.
- * Et værn-afslag og en sporskrivning, der fejler, står i tilmeldinger.fejl og i functionens log.
+ * svar anderledes) — det har sin egen (alarmerTilmeldinger). Dertil dømmer driftsagenten
+ * fejlraten på sporet (driftDom.ts SPOR, «meta_haendelser»).
+ * Passet har sin EGEN alarm (alarmerTilmeldinger, nedenfor).
  * KASTER ALDRIG.
  */
 export async function sendTilmeldinger(
@@ -219,5 +222,36 @@ export async function sendTilmeldinger(
     const grund = err instanceof Error ? err.message : String(err);
     r.fejl.push(`afsendelse: ${grund}`);
     console.error(`${LOG} afsendelsen kastede — ansøgningerne er urørte:`, grund);
+  }
+}
+
+/**
+ * Passets EGEN alarm (CTO 3/10, LAV): én mail pr. dansk dag til driftModtager() gennem
+ * sendManagedEmail, nøglen «meta-tilmelding:<dato>» slået op i email_send_log FØR afsendelsen.
+ * KUN i en rigtig kørsel med fejl eller fejlede (skalTilmeldingAlarmere). Skriver KUN r.alarm
+ * (passets eget felt) — aldrig kørslens alarm, fejl eller status. Ingen drift-klokke (se
+ * metaTilmelding.ts). KASTER ALDRIG.
+ */
+export async function alarmerTilmeldinger(admin: SupabaseClient, r: TilmeldingResultat, nu: Date): Promise<void> {
+  if (!skalTilmeldingAlarmere(r)) return;
+  const noegle = tilmeldingAlarmNoegle(nu);
+  try {
+    const { data: fandtes, error: opslagFejl } = await admin.from("email_send_log").select("message_id").eq("message_id", noegle).limit(1);
+    if (opslagFejl) throw new Error(`email_send_log: ${opslagFejl.message}`);
+    if ((fandtes ?? []).length > 0) { r.alarm = "allerede_sendt_i_dag"; return; }
+    const tekst = tilmeldingAlarmTekst(r, nu);
+    const html = indgangsMailHtml({ eyebrow: "Drift · Meta · webinar", overskrift: tekst.emne, afsnit: tekst.afsnit, blokke: tekst.blokke, hilsen: "The Boardroom" });
+    const res = await sendManagedEmail({
+      adminClient: admin,
+      to: driftModtager(),
+      subject: tekst.emne, html, text: tekst.tekst, label: TILMELDING_ALARM_LABEL, idempotencyKey: noegle,
+      metadata: { fejlede: r.fejlede, fejl: r.fejl.length, nu: nu.toISOString() },
+    });
+    r.alarm = res.sent ? "sendt" : `fejlet: ${res.reason}`;
+    if (res.sent === false) console.error(`${LOG} alarmmailen blev ikke sendt: ${res.reason}`);
+  } catch (err) {
+    const grund = err instanceof Error ? err.message : String(err);
+    r.alarm = `fejlet: ${grund}`;
+    console.error(`${LOG} alarmmailen kastede:`, grund);
   }
 }

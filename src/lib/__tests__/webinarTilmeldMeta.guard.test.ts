@@ -33,6 +33,13 @@ import { TILMELDING_ART } from "../../../supabase/functions/_shared/metaTilmeldi
  *      læsning i planen (intet hentRaa/opslag, før porten er «klar»); passet kaster aldrig (try
  *      om planlægning og afsendelse); dets fejl står i tilmeldingernes egen liste og ALDRIG i
  *      kørslens r.fejl, r.fejlede, r.fejlede_liste, r.ok eller HTTP-status.
+ *   9. RÆKKEFØLGEN I KØRSLEN (CTO 3/10, LAV): ansøgningsløkken → planlaegTilmeldinger →
+ *      sendTilmeldinger → alarmerTilmeldinger → `if (!r.sender_rigtigt) return` → ansøgningernes
+ *      alarm. Tørkørslen viser altså `tilmeldinger`, men passet står aldrig før ansøgningerne.
+ *  10. PASSETS EGEN ALARM (CTO 3/10, LAV): kun når sender_rigtigt OG (fejl ELLER fejlede);
+ *      nøglen «meta-tilmelding:<kbhDato>»; email_send_log slås op FØR sendManagedEmail; til
+ *      driftModtager(); skriver kun r.alarm (passets); ingen klokke (ingen reference_type på
+ *      SELVMAILENDE_REFERENCER); aldrig cronens skrivAlarm.
  *   7. TEKSTEN FØLGER KODEN (spec §C6, B4): tracking.md bærer rækken med låsen og betingelsen
  *      «sendes ikke, før privatlivsteksten er publiceret», og det gamle løfte står citeret som
  *      det, der skal ændres; webinarmotor.md siger «bygget bag lås»; CLAUDE.md har linjen.
@@ -76,8 +83,8 @@ export const laasenErEgenOgLukket = (dom: string, koersel: string, cron: string)
     // kørslen: låsen læst med sin egen nøgle, gennem dommen
     /\.eq\("config_key", WEBINAR_META_LAAS_NOEGLE\)\.maybeSingle\(\)/.test(k) &&
     k.includes("return laesWebinarLaas({ fejl: !!error, raekke:") &&
-    // afsendelsen: kun efter cronens port, og med sin egen port først
-    foer(koer, "if (!r.sender_rigtigt) return { status: 200, resultat: r };", "await sendTilmeldinger(") &&
+    // afsendelsen: begynder med sin egen port (dommen forudsætter cronens sender_rigtigt)
+
     foer(send, "if (!r.sender_rigtigt) return;", "await a.send(payload, a.testEventCode)") &&
     (k.match(/await a\.send\(/g) ?? []).length === 1;
 };
@@ -199,6 +206,38 @@ export const isoleretOgPortFoerst = (koersel: string, cron: string): boolean => 
     koer.includes("r.tilmeldinger = tilm.resultat;");
 };
 
+// ── 9 ──────────────────────────────────────────────────────────────────────
+export const raekkefoelgen = (cron: string): boolean => {
+  const c = udenKommentarer(cron);
+  const koer = c.slice(c.indexOf("export async function koerMetaSend("), c.indexOf("Deno.serve("));
+  const trin = [
+    "for (const p of r.sender_rigtigt ? planer : []) {", "await sendTilMeta(", "await planlaegTilmeldinger(",
+    "r.tilmeldinger = tilm.resultat;", "await sendTilmeldinger(", "await alarmerTilmeldinger(admin, r.tilmeldinger, a.nu);",
+    "if (!r.sender_rigtigt) return { status: 200, resultat: r };", "if (r.fejlede > 0) await skrivAlarm(",
+  ];
+  return trin.every((t, i) => i === 0 || foer(koer, trin[i - 1], t)) &&
+    trin.every((t) => koer.split(t).length === 2);
+};
+
+// ── 10 ─────────────────────────────────────────────────────────────────────
+export const egenAlarm = (dom: string, koersel: string, cron: string): boolean => {
+  const d = udenKommentarer(dom), k = udenKommentarer(koersel), c = udenKommentarer(cron);
+  const alarm = k.slice(k.indexOf("export async function alarmerTilmeldinger("));
+  return d.includes('export const TILMELDING_ALARM_PRAEFIKS = "meta-tilmelding:";') &&
+    d.includes("return `${TILMELDING_ALARM_PRAEFIKS}${kbhDato(nu)}`;") &&
+    d.includes("return r.sender_rigtigt && (r.fejl.length > 0 || r.fejlede > 0);") &&
+    alarm.startsWith("export async function alarmerTilmeldinger(") &&
+    foer(alarm, "if (!skalTilmeldingAlarmere(r)) return;", 'from("email_send_log")') &&
+    /from\("email_send_log"\)\.select\("message_id"\)\.eq\("message_id", noegle\)/.test(alarm) &&
+    foer(alarm, 'from("email_send_log")', "await sendManagedEmail({") &&
+    alarm.includes('r.alarm = "allerede_sendt_i_dag"; return;') &&
+    alarm.includes("to: driftModtager(),") && alarm.includes("idempotencyKey: noegle,") &&
+    // kun passets eget felt; ingen klokke; aldrig kørslens alarm
+    !/skrivRaadgiverBesked|advisor_notifications|reference_type/.test(k) &&
+    !/r\.fejl\.push/.test(alarm) && !/skrivAlarm/.test(k) &&
+    c.includes('import { alarmerTilmeldinger, planlaegTilmeldinger, sendTilmeldinger } from "../_shared/metaTilmeldingKoersel.ts";');
+};
+
 // ── 7 ──────────────────────────────────────────────────────────────────────
 export const GAMMELT_LOEFTE = "Selve din tilmelding deler vi ikke med Meta.";
 export const teksterneFoelgerKoden = (tracking: string, motor: string, claude: string): boolean => {
@@ -224,6 +263,10 @@ describe("webinarTilmeldMeta.guard — tilmeldingerne til Metas Conversions API"
   });
   it("8. isoleret og porten først: intet læses før porten; passets fejl aldrig i r.fejl/ok/status", () =>
     expect(isoleretOgPortFoerst(laes(KOERSEL), laes(CRON))).toBe(true));
+  it("9. rækkefølgen: ansøgningsløkken → tilmeldingspasset (plan, send, egen alarm) → tørkørslens return → ansøgningernes alarm", () =>
+    expect(raekkefoelgen(laes(CRON))).toBe(true));
+  it("10. passets egen alarm: kun rigtig kørsel med fejl; én pr. dansk dag; loggen først; driftModtager; ingen klokke", () =>
+    expect(egenAlarm(laes(DOM), laes(KOERSEL), laes(CRON))).toBe(true));
   it("7. teksterne følger koden: tracking.md (låsen, B4-betingelsen, det gamle løfte), webinarmotor.md, CLAUDE.md", () =>
     expect(teksterneFoelgerKoden(laes(TRACKING), laes(MOTOR_DOC), laes(CLAUDE_MD))).toBe(true));
 });
@@ -241,9 +284,6 @@ describe("webinarTilmeldMeta.guard — dommene fanger fejlen på en kopi", () =>
     expect(laasenErEgenOgLukket(skift(dom, "return a.metaLaasAktiv && a.webinarLaasAktiv;", "return a.webinarLaasAktiv;"), koersel, cron)).toBe(false);
     expect(laasenErEgenOgLukket(skift(dom, 'if (svar.fejl) return { port: "laesefejl", aaben: false };', 'if (svar.fejl) return { port: "klar", aaben: true };'), koersel, cron)).toBe(false);
     expect(laasenErEgenOgLukket(dom, skift(koersel, "  if (!r.sender_rigtigt) return;\n", ""), cron)).toBe(false);
-    const flyttet = skift(cron, "  if (!r.sender_rigtigt) return { status: 200, resultat: r };\n", "")
-      .replace("  if (r.fejlede > 0) await skrivAlarm(", "  if (!r.sender_rigtigt) return { status: 200, resultat: r };\n  if (r.fejlede > 0) await skrivAlarm(");
-    expect(laasenErEgenOgLukket(dom, koersel, flyttet)).toBe(false);
   });
   it("2. rå mail i payloaden, ln/ph tilføjet, ip_dagshash læst, værnet efter afsendelsen, eller hashning sprunget over, fælder dom 2", () => {
     expect(ingenKlartekst(skift(dom, "      ...hashet,\n", "      ...hashet,\n      email: r.email,\n"), koersel)).toBe(false);
@@ -317,6 +357,25 @@ describe("webinarTilmeldMeta.guard — dommene fanger fejlen på en kopi", () =>
     expect(isoleretOgPortFoerst(koersel, skift(cron, "send: sendTilMeta });", "send: sendTilMeta }, r);"))).toBe(false);
     // fejlen ikke længere fanget
     expect(isoleretOgPortFoerst(skift(koersel, "r.fejl.push(`afsendelse: ${grund}`);", "throw err;"), cron)).toBe(false);
+  });
+  it("9. tilmeldingspasset før ansøgningsløkken, eller dets alarm efter tørkørslens return, fælder dom 9", () => {
+    const blok = cron.slice(cron.indexOf("  // Tilmeldingspasset EFTER ansøgningsløkken"), cron.indexOf("  await alarmerTilmeldinger(admin, r.tilmeldinger, a.nu);\n") + "  await alarmerTilmeldinger(admin, r.tilmeldinger, a.nu);\n".length);
+    expect(blok.length).toBeGreaterThan(100);
+    const foerLoekken = skift(cron, blok, "").replace("  for (const p of r.sender_rigtigt ? planer : []) {", blok + "  for (const p of r.sender_rigtigt ? planer : []) {");
+    expect(raekkefoelgen(foerLoekken)).toBe(false);
+    const alarmSent = skift(cron, "  await alarmerTilmeldinger(admin, r.tilmeldinger, a.nu);\n", "")
+      .replace("  if (r.fejlede > 0) await skrivAlarm(", "  await alarmerTilmeldinger(admin, r.tilmeldinger, a.nu);\n  if (r.fejlede > 0) await skrivAlarm(");
+    expect(raekkefoelgen(alarmSent)).toBe(false);
+    // den gamle tidlige return tilbage over løkken
+    expect(raekkefoelgen(skift(cron, "  for (const p of r.sender_rigtigt ? planer : []) {", "  if (!r.sender_rigtigt) return { status: 200, resultat: r };\n  for (const p of r.sender_rigtigt ? planer : []) {"))).toBe(false);
+  });
+  it("10. alarm i tørkørslen, uden fejl, uden logopslag, til en anden modtager, med klokke eller via kørslens skrivAlarm, fælder dom 10", () => {
+    expect(egenAlarm(skift(dom, "return r.sender_rigtigt && (r.fejl.length > 0 || r.fejlede > 0);", "return r.fejl.length > 0 || r.fejlede > 0;"), koersel, cron)).toBe(false);
+    expect(egenAlarm(skift(dom, '"meta-tilmelding:"', '"meta-send-alarm:"'), koersel, cron)).toBe(false);
+    expect(egenAlarm(dom, skift(koersel, "    if ((fandtes ?? []).length > 0) { r.alarm = \"allerede_sendt_i_dag\"; return; }\n", ""), cron)).toBe(false);
+    expect(egenAlarm(dom, skift(koersel, "to: driftModtager(),", 'to: "kontakt@topix.dk",'), cron)).toBe(false);
+    expect(egenAlarm(dom, koersel + '\nawait skrivRaadgiverBesked(admin, { type: "drift", reference_type: "meta_haendelser" });\n', cron)).toBe(false);
+    expect(egenAlarm(dom, skift(koersel, "  if (!skalTilmeldingAlarmere(r)) return;\n", ""), cron)).toBe(false);
   });
   it("7. tracking.md uden B4-betingelsen eller låsen, webinarmotor.md med D2.3 «IKKE bygget», eller CLAUDE.md uden linjen, fælder dom 7", () => {
     const t = laes(TRACKING), m = laes(MOTOR_DOC), c = laes(CLAUDE_MD);

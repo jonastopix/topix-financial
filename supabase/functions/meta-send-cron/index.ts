@@ -88,7 +88,7 @@ import { driftModtager } from "../_shared/driftModtager.ts";
 import { indgangsMailHtml } from "../_shared/indgangsMail.ts";
 import { skrivRaadgiverBesked } from "../_shared/raadgiverBesked.ts";
 import { sendTilMeta } from "../_shared/metaSendAfsendelse.ts";
-import { planlaegTilmeldinger, sendTilmeldinger } from "../_shared/metaTilmeldingKoersel.ts";
+import { alarmerTilmeldinger, planlaegTilmeldinger, sendTilmeldinger } from "../_shared/metaTilmeldingKoersel.ts";
 import { type TilmeldingResultat, tomtTilmeldingResultat } from "../_shared/metaTilmelding.ts";
 import {
   ALARM_KLOKKE_TYPE, ALARM_MAIL_LABEL, alarmNoegle, alarmTekst, type AnsoegningTilMeta, type Art, ARTER, type BrugerdataNoegle,
@@ -452,16 +452,10 @@ export async function koerMetaSend(
   }
   r.ville_sende = planer.map((p) => p.plan);
 
-  // Tilmeldingspasset planlægges OGSÅ i tørkørslen (beviset). Isoleret: det kaster aldrig, og
-  // dets fejl står kun i r.tilmeldinger — ansøgningernes felter og status røres ikke.
-  const tilm = await planlaegTilmeldinger(admin, {
-    nu: a.nu, dryRun: a.toerKoersel, metaLaasAktiv: laas, testEventCode: a.testEventCode, tilmeldingId: a.tilmeldingId, springOver: a.ansoegningId !== null,
-  });
-  r.tilmeldinger = tilm.resultat;
-
-  if (!r.sender_rigtigt) return { status: 200, resultat: r };
-
-  for (const p of planer) {
+  // Ansøgningerne FØRST. Tørkørslen (sender_rigtigt false) går ikke ind i løkken — samme
+  // virkning som den tidligere tidlige return, men så tilmeldingspasset nedenfor også når
+  // tørkørslen (beviset) uden at stå FØR ansøgningerne (CTO 3/10, LAV).
+  for (const p of r.sender_rigtigt ? planer : []) {
     if (Date.now() - a.startMs > BUDGET_MS) { r.udsat++; continue; }
     // Brugerdataene normaliseres og hashes HER — klarteksten findes kun i dette udtryk og
     // forlader aldrig funktionen. Aftrykkene er det eneste, bygPayload nogensinde ser.
@@ -491,8 +485,17 @@ export async function koerMetaSend(
     else { r.fejlede++; r.fejlede_liste.push({ event_id: p.plan.event_id, udfald: svar.udfald, fejl: svar.fejl, forsoeg: p.plan.forsoeg }); }
   }
 
+  // Tilmeldingspasset EFTER ansøgningsløkken — også i tørkørslen (beviset). Isoleret: det kaster
+  // aldrig, og dets fejl og alarm står kun i r.tilmeldinger; ansøgningernes felter og status
+  // røres ikke. Det sender kun, når sin egen dom siger ja (som forudsætter sender_rigtigt).
+  const tilm = await planlaegTilmeldinger(admin, {
+    nu: a.nu, dryRun: a.toerKoersel, metaLaasAktiv: laas, testEventCode: a.testEventCode, tilmeldingId: a.tilmeldingId, springOver: a.ansoegningId !== null,
+  });
+  r.tilmeldinger = tilm.resultat;
   await sendTilmeldinger(admin, tilm.planer, r.tilmeldinger, { nu: a.nu, testEventCode: a.testEventCode, startMs: a.startMs, budgetMs: BUDGET_MS, send: sendTilMeta });
+  await alarmerTilmeldinger(admin, r.tilmeldinger, a.nu);
 
+  if (!r.sender_rigtigt) return { status: 200, resultat: r };
   if (r.fejlede > 0) await skrivAlarm(admin, r.fejlede_liste, a.nu, r);
   r.ok = r.fejl.length === 0;
   return { status: r.ok ? 200 : 500, resultat: r };
