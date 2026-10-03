@@ -485,12 +485,16 @@ medlemmet». Kontrollen (§4, F0): §6-forespørgslen senere — 0 nye batch-gru
 - `run-company-agent` (edge function) læser stadig `acknowledged_at` som «gennemført» til agentens
   kontekst — den ser batch-rækker som medlemmets. Ikke rørt (kræver udrulning); ændringen er at læse
   `markeret_at` med og dømme som `progressState`.
+  **Bygget 3/10 (run-company-agent v8, gren `fix/agent-v8`), afventer udrulning:** dommen spejlet
+  ordret som `supabase/functions/_shared/progressState.ts` (paritetstest), agentens række i
+  `_shared/agentIndholdsFremdrift.ts` (`state` = egen, `gennemgaaet_med_raadgiver` for sig).
+  Udrulningen: `docs/OVERLEVERING.md` DEL 3 «run-company-agent v8».
 - De ~131 «egne» rækker er et LOFT (§7): enkelt-rækkes rådgiverkvitteringer fra før 2/10 kan ikke
   skelnes og står som medlemmets. Fremover findes den klasse ikke.
 - `markeret_af` er null på de backfillede rækker — hvem der trykkede 5/8 og 12/8 er umålt.
 - (Præciseret efter rådets fund 2/10) `run-company-agent/index.ts:454` (`get_member_progress`) dømmer
   `state` af det rå `acknowledged_at` og henter ikke `markeret_at`. Rettes med samme regel som
-  `progressState` ved functionens næste eksplicitte udrulning — IKKE i dag.
+  `progressState` ved functionens næste eksplicitte udrulning — IKKE i dag. (Bygget i v8 3/10 — se punktet ovenfor.)
 
 **Bevidste valg efter rådets fund 2/10:**
 - Enhver rådgiver kan fortryde en anden rådgivers markering: `fortrydMarkering` læser ikke

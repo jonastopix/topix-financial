@@ -1,18 +1,15 @@
 /**
- * src/lib/hjemmebane/progressState.ts — medlemmets fremdriftsrække og dommen
- * over dens tilstand, som REN fil (16/9-2026). Flyttet ORDRET fra
- * akademiApi.ts, som importerer Supabase-klienten på modulniveau: den
- * rigtige klient starter en auto-refresh-timer der fejler i jsdom og
- * vælter suiten som «Unhandled Rejection … storage.getItem is not a
- * function» (målt 16/9: maaskeRelevant.test.ts, exit-kode 1 trods 4055
- * grønne tests). De rene motorer (maaskeRelevant, forloeb, lektionBrugbar)
- * importerer herfra; akademiApi re-eksporterer, så ingen anden kalder
- * ændres. Ingen imports i denne fil — det er formen kildeværnet låser.
+ * supabase/functions/_shared/progressState.ts — F0-dommen for edge-laget
+ * (3/10-2026, run-company-agent v8; docs/akademi-grundlag.md §8 «Åbne punkter
+ * efter F0»): agentens get_member_content_progress dømte «gennemført» af det
+ * rå acknowledged_at og så derfor de 199 backfillede rådgiverkvitteringer som
+ * medlemmets egne. Nu dømmer den gennem itemProgressState/erRaadgiverensStempel
+ * — et tidsstempel LIG markeret_at er rådgiverens.
  *
- * SPEJL (3/10-2026, run-company-agent v8): supabase/functions/_shared/progressState.ts.
- * Kroppen efter dette filhoved er ORDRET ens (paritetsprøven
- * src/lib/__tests__/progressState.paritet.test.ts sammenligner tegn for tegn
- * OG svarene på samme input) — agenten dømmer F0 med samme regel som fladen.
+ * SPEJL: src/lib/hjemmebane/progressState.ts. Kroppen efter dette filhoved er
+ * ORDRET ens (paritetsprøven src/lib/__tests__/progressState.paritet.test.ts
+ * sammenligner tegn for tegn OG svarene på samme input). Deno-fri, nul imports.
+ * Ret ALDRIG kun det ene spejl.
  */
 
 /** Medlemmets fremdriftsrække. De fire tilstandsfelter er NULLABLE

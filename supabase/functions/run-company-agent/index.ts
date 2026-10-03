@@ -19,8 +19,14 @@ import { klokkeRaekker } from "../_shared/agentKlokke.ts";
 import { doemSkrivning, SKRIVE_SELECT_KOLONNER, skriveFilter } from "../_shared/skridtForslag.ts";
 // Fase 5 («Én plan»): et skridt hører til et aktivt mål — motoren vælger det.
 import { maaForeslaaMod, vaelgMaalForForslag, type MaalTilValg } from "../_shared/maal.ts";
+// v8 (3/10-2026, F0): Akademi-fremdriften dømmes af husets itemProgressState —
+// rådgiverens markering (markeret_at) er ikke medlemmets «gennemført».
+import { agentProgressRaekke, F0_MARKOER } from "../_shared/agentIndholdsFremdrift.ts";
 
-const DEPLOY_STAMP = "run-company-agent v7 tjenestekonti (2026-09-30)";
+// v8 (3/10-2026): F0-dommen i get_member_content_progress, ordet «mål» i
+// prompt og værktøjsbeskrivelser, og markøren `f0` i svaret (beviset for
+// udrulningen — kun v8 svarer med den). docs/OVERLEVERING.md DEL 3 «run-company-agent v8».
+const DEPLOY_STAMP = "run-company-agent v8 f0 og ordet mål (2026-10-03)";
 const MODEL = "google/gemini-2.5-flash";
 
 // ARBEJDSGANGS-MINIMUMMET I PROMPTEN — hvorfor det findes: målt mod prod
@@ -66,8 +72,8 @@ DIN ARBEJDSGANG (i rækkefølge — sådan arbejder en grundig rådgiver):
    get_handout_levers og get_application_context er en fast del af billedet, ikke et tilvalg: de bærer hvad founder selv har fortalt og hvor de er i forløbet — det kan ikke udledes af tallene, og uden det bliver din sparring generisk. Kald gerne flere værktøjer parallelt.
 3. Analysér: hvad er det vigtigste signal i denne måneds tal? Sammenlign med forrige måned, med mål — og med hvad founder selv har sagt.
 4. Opdatér weekly focus-kortet på dashboardet med en kort overskrift og opsummering — det er dit primære output og skal bære dit vigtigste nøglefund. Fokusér på ét nøglefund, ikke fem.
-5. Opret én konkret handlingsopgave med write_company_action hvis der er et klart næste skridt founder skal tage inden for de næste 7 dage — et skridt hører til ét af virksomhedens AKTIVE mål (get_milestones): angiv milestone_id. Har virksomheden ingen aktive mål, foreslår du intet skridt (målene sætter rådgiveren sammen med medlemmet)
-6. Foreslå aldrig mål (milestones) — dem sætter rådgiveren sammen med medlemmet; du foreslår højst ét konkret skridt
+5. Opret én konkret handlingsopgave med write_company_action hvis der er et klart næste skridt founder skal tage inden for de næste 7 dage — et skridt hører til ét af virksomhedens AKTIVE mål (get_milestones): angiv målets id i feltet milestone_id. Har virksomheden ingen aktive mål, foreslår du intet skridt (målene sætter rådgiveren sammen med medlemmet)
+6. Foreslå aldrig mål — dem sætter rådgiveren sammen med medlemmet; du foreslår højst ét konkret skridt
 7. Du skubber ALDRIG til advisoren med notify_advisor
 8. Kald finish
 
@@ -76,8 +82,12 @@ INDHOLDSKOBLING (Akademiet):
 Nederst i denne prompt står hele Akademiets indholdsbibliotek: samlinger, titler og beskrivelser.
 
 - Når du peger på en udfordring i tallene, og biblioteket har et element der svarer direkte på den, SKAL du nævne det med titel som en del af dit forslag — fx stigende lønomkostninger → "Outsource klogt", bureau-udgifter der stikker af → videoen om at styre sit bureau.
-- Tjek FØRST get_member_content_progress. Har founder allerede set eller gennemført elementet, er det en anden samtale: følg op på om det er omsat til handling ("har set 'Outsource klogt' — er bogføringen lagt ud?") i stedet for at anbefale det som nyt. Har de IKKE set det, så anbefal det konkret.
+- Tjek FØRST get_member_content_progress. Feltet state er founders EGEN aktivitet. gennemgaaet_med_raadgiver betyder, at rådgiveren har gennemgået elementet med founder — det er IKKE det samme som at founder selv har set eller gennemført det; skriv aldrig «du har set» eller «du har gennemført» om et element, hvis state er urørt. Har founder allerede set eller gennemført elementet, er det en anden samtale: følg op på om det er omsat til handling ("har set 'Outsource klogt' — er bogføringen lagt ud?") i stedet for at anbefale det som nyt. Har de IKKE set det, så anbefal det konkret.
 - Koblingen skal være reel: elementet skal svare på udfordringen, ikke bare dele emneord. Findes der intet relevant element, så nævn ingen — opfind aldrig indhold.
+
+ORDET «MÅL» (vigtigt):
+
+- Til founder hedder det altid «mål» — aldrig «milestone», «milepæl» eller «milesten». Det gælder chatbeskeder, weekly focus, skridtets titel og kontekst. Værktøjs- og feltnavne (get_milestones, milestone_id) er tekniske navne og skrives aldrig til founder.
 
 HVAD DU IKKE GØR:
 
@@ -150,7 +160,7 @@ const tools = [
     function: {
       name: "get_pulse_checkins",
       description:
-        "Henter de seneste pulse check-ins fra founder. Viser hvad der gik godt, største udfordring og milestone-fremgang.",
+        "Henter de seneste pulse check-ins fra founder. Viser hvad der gik godt, største udfordring og fremgang mod målene.",
       parameters: {
         type: "object",
         properties: {
@@ -165,7 +175,7 @@ const tools = [
     type: "function",
     function: {
       name: "get_milestones",
-      description: "Henter aktive milestones for virksomheden med fremgang og deadline.",
+      description: "Henter virksomhedens aktive mål med fremgang og frist.",
       parameters: {
         type: "object",
         properties: { company_id: { type: "string" } },
@@ -191,7 +201,7 @@ const tools = [
     function: {
       name: "get_member_content_progress",
       description:
-        "Henter hvad founder har set i Akademiet: hvilke elementer fra indholdsbiblioteket (i systemprompten) der er åbnet, kvitteret som gennemført eller sprunget over — og hvor langt de nåede i en video (last_position_seconds mod duration_seconds). Kald dette FØR du peger på et element fra biblioteket: er det allerede set, følger du op på om det er omsat til handling i stedet for at anbefale det som nyt.",
+        "Henter hvad founder har set i Akademiet: hvilke elementer fra indholdsbiblioteket (i systemprompten) founder SELV har åbnet, kvitteret som gennemført eller sprunget over (state) — og hvor langt de nåede i en video (last_position_seconds mod duration_seconds). gennemgaaet_med_raadgiver=true betyder kun, at rådgiveren har gennemgået elementet med founder; det tæller ikke som founders egen aktivitet. Kald dette FØR du peger på et element fra biblioteket: er det allerede set, følger du op på om det er omsat til handling i stedet for at anbefale det som nyt.",
       parameters: {
         type: "object",
         properties: { company_id: { type: "string" } },
@@ -439,30 +449,17 @@ async function executeTool(name: string, args: any, adminClient: any, trigger: s
       const { data, error } = await adminClient
         .from("member_progress")
         .select(
-          "content_item_id, seen_at, acknowledged_at, skipped_at, last_position_seconds, content_items(title, area, duration_seconds)",
+          "content_item_id, seen_at, acknowledged_at, skipped_at, markeret_at, last_position_seconds, content_items(title, area, duration_seconds)",
         )
         .eq("user_id", member.user_id)
         .order("updated_at", { ascending: false });
       if (error) throw new Error(error.message);
 
-      // Tilstandsdommen spejler medlemsfladens itemProgressState
-      // (src/lib/hjemmebane/akademiApi.ts): gennemført > sprunget over > set.
-      return (data ?? []).map((r: any) => ({
-        content_item_id: r.content_item_id,
-        title: r.content_items?.title ?? null,
-        area: r.content_items?.area ?? null,
-        state: r.acknowledged_at
-          ? "gennemført"
-          : r.skipped_at
-            ? "sprunget_over"
-            : r.seen_at
-              ? "set_men_ikke_gennemført"
-              : "urørt",
-        seen_at: r.seen_at,
-        acknowledged_at: r.acknowledged_at,
-        last_position_seconds: r.last_position_seconds,
-        duration_seconds: r.content_items?.duration_seconds ?? null,
-      }));
+      // v8 (F0, 3/10-2026): tilstanden dømmes af husets itemProgressState
+      // (_shared/progressState.ts, ordret spejl af src/lib/hjemmebane/progressState.ts):
+      // et tidsstempel LIG markeret_at er rådgiverens, ikke medlemmets. markeret_at
+      // findes i prod (målt 3/10, CLAUDE.md «Akademiet F0»).
+      return (data ?? []).map(agentProgressRaekke);
     }
 
     case "get_kpi_targets": {
@@ -961,7 +958,7 @@ Deno.serve(async (req) => {
 
   if (new URL(req.url).searchParams.get("meta") === "version") {
     return new Response(
-      JSON.stringify({ stamp: DEPLOY_STAMP, now: new Date().toISOString() }),
+      JSON.stringify({ stamp: DEPLOY_STAMP, f0: F0_MARKOER, now: new Date().toISOString() }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
@@ -1263,7 +1260,7 @@ ${trigger === "pulse_submitted"
   : trigger === "onboarding"
   ? `Founder ${founderFirstName} logger ind i The Boardroom for første gang.\n\nDette er en onboarding-kørsel. Du skriver IKKE i founderens chat — velkomsten er rådgiverens egen opgave. Gør følgende i rækkefølge:\n1. Hent ansøgningskontekst med get_application_context\n2. Hent virksomhedens brancheinfo\n3. Læs eventuelle mål med get_milestones — målene sættes af rådgiveren sammen med medlemmet, du opretter ingen\n4. Sæt weekly focus med en velkomst-headline — det er kørslens eneste forslag (en opgave som «upload første rapport» står allerede i medlemmets næste skridt og onboarding-tjekliste)\n5. Kald finish`
   : trigger === "company_review"
-  ? `Rådgiveren har bedt om en samlet gennemgang af virksomheden — et blik på virksomheden som helhed, ikke på et enkelt dokument.\n\n${rapportStatusBlok}\n\nFølg din arbejdsgang: get_previous_agent_messages først, dernæst minimum get_company_facts, get_handout_levers, get_application_context og get_member_content_progress — plus pulse, milestones og KPI-mål.\n\nHvis rapporteringsstatussen ovenfor viser at virksomheden mangler at rapportere, eller har uploadet uden at godkende, SKAL du adressere det som et af dine punkter: at rapportere og forholde sig til sine egne tal ER rådgivning, og et hul i rapporteringen er en observation på linje med et hul i tallene. Findes der ingen godkendte tal overhovedet, er DET dit vigtigste punkt — analysér ikke videre på estimater som om de var friske tal.\n\nVIGTIGT: weekly focus-kortet er FOUNDER-SYNLIGT. Opdatér det kun hvis gennemgangen giver et medlemsrettet fokus at sætte — det må ALDRIG bære rådgiver-intern gennemgang. Rådgiver-forberedelses-sporet findes ikke længere; har kørslen intet medlemsrettet at skrive, så kald finish uden yderligere output. Du må IKKE skrive i founderens chat.`
+  ? `Rådgiveren har bedt om en samlet gennemgang af virksomheden — et blik på virksomheden som helhed, ikke på et enkelt dokument.\n\n${rapportStatusBlok}\n\nFølg din arbejdsgang: get_previous_agent_messages først, dernæst minimum get_company_facts, get_handout_levers, get_application_context og get_member_content_progress — plus pulse, mål og KPI-mål.\n\nHvis rapporteringsstatussen ovenfor viser at virksomheden mangler at rapportere, eller har uploadet uden at godkende, SKAL du adressere det som et af dine punkter: at rapportere og forholde sig til sine egne tal ER rådgivning, og et hul i rapporteringen er en observation på linje med et hul i tallene. Findes der ingen godkendte tal overhovedet, er DET dit vigtigste punkt — analysér ikke videre på estimater som om de var friske tal.\n\nVIGTIGT: weekly focus-kortet er FOUNDER-SYNLIGT. Opdatér det kun hvis gennemgangen giver et medlemsrettet fokus at sætte — det må ALDRIG bære rådgiver-intern gennemgang. Rådgiver-forberedelses-sporet findes ikke længere; har kørslen intet medlemsrettet at skrive, så kald finish uden yderligere output. Du må IKKE skrive i founderens chat.`
   : `Ny rapport committed: ${period_label} (${period_key})\n\nFølg din arbejdsgang: get_previous_agent_messages først, og dernæst — gerne parallelt — get_company_facts, get_handout_levers, get_application_context, get_member_content_progress, get_milestones, get_kpi_targets og get_budget_vs_actual, så du har det fulde billede før du skriver. Hvis der er budget-afvigelser over 20%, prioritér disse.\n\nOpdatér weekly focus med dit vigtigste nøglefund. Du må IKKE skrive i founderens chat.\n\nBemærk: Hvis dette er virksomhedens første rapport, er der automatisk oprettet et udkast-budget og en årsbaseline baseret på de committede tal (annualiseret x12 med jævn fordeling). Tag dette med i din vurdering, fx at budgetmåneder der afviger fra gennemsnittet kan skulle justeres. Hvis der findes historiske årsrapport-facts (data_quality='estimat_fra_årsrapport_divideret_med_12') for tidligere år, så sammenlign årets udvikling med det historiske niveau.`
 }`,
       },
@@ -1468,6 +1465,7 @@ ${trigger === "pulse_submitted"
           iterations,
           proposals: proposals.length,
           annoncerede_vaerktoejer: annoncerede, // beviset for udrulningen (30/9, design §9)
+          f0: F0_MARKOER, // v8-beviset (3/10): kun v8 svarer med feltet
           error: `run_log_failed: ${runLogError} — tør-kørslens forslag er IKKE gemt (er agent_runs-migrationen kørt i Lovable?)`,
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -1502,6 +1500,7 @@ ${trigger === "pulse_submitted"
             iterations,
             proposals: proposals.length,
             annoncerede_vaerktoejer: annoncerede, // beviset for udrulningen (30/9, design §9)
+            f0: F0_MARKOER, // v8-beviset (3/10): kun v8 svarer med feltet
             error: `proposals_log_failed: ${propErr.message} — kørslen er logget (agent_runs), men forslagene er IKKE oprettet som beslutningsrækker (er agent_proposals-migrationen kørt i Lovable?)`,
           }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -1523,6 +1522,7 @@ ${trigger === "pulse_submitted"
           run_id: runId,
           proposals: proposals.length,
           annoncerede_vaerktoejer: annoncerede, // beviset for udrulningen (30/9, design §9)
+          f0: F0_MARKOER, // v8-beviset (3/10): kun v8 svarer med feltet
           error: lastError || "Agent fuldførte uden at producere output (weekly focus, handlingsopgave eller chat-besked)",
           diagnostics: { stop_reason: stopReasonFinal, produced_output: false },
         }),
@@ -1549,6 +1549,7 @@ ${trigger === "pulse_submitted"
         run_id: runId,
         proposals: proposals.length,
         annoncerede_vaerktoejer: annoncerede, // beviset for udrulningen (30/9, design §9)
+        f0: F0_MARKOER, // v8-beviset (3/10): kun v8 svarer med feltet
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
