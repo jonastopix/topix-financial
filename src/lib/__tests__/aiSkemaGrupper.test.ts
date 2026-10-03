@@ -175,7 +175,22 @@ describe("AI-skemaets fem grupper → metrics → omkostningsnoegler", () => {
     expect(sig(12_121)).toEqual([]); // lige over
     expect(sig(-12_000)).toEqual([]); // manglende omkostninger er IKKE en dobbelttælling
     expect(sig(5_000)).toEqual(["other_staff_costs"]); // tolerance max(50, 50) = 50
+    // CTO runde 2 fund 2: overgruppen «Personaleomkostninger i alt» i loenninger OG begge underposter i egne felter
+    // → udækket = 12.000 + 5.000 = 17.000; ingen enkelt nøgle rammer, summen gør (tolerance max(170, 50) = 170).
+    expect(sig(17_000)).toEqual(["payroll_related+other_staff_costs"]);
+    expect(sig(17_171)).toEqual([]); // lige over summens tolerance
     const lille = { ...m, payroll_related: DOBBELT_MIN_BELOEB - 1 };
     expect(aiDriftsSignaler(lille, [], DOBBELT_MIN_BELOEB - 1).mulig_dobbelttaelling).toBeUndefined(); // under gulvet
+  });
+});
+
+// CTO runde 2 fund 1 (3/10): feltbeskrivelsen skal være BETINGET som prompten — «Fremmed arbejde» under
+// dækningsbidraget følger dokumentets gruppe; ellers bliver ebitdaRegnet X for høj, uden at kontrolsummen ser det.
+import { readFileSync as laesFil } from "node:fs";
+describe("oevrige_omkostninger-beskrivelsen er betinget", () => {
+  it("nævner fremmed arbejde kun med betingelsen om dækningsbidraget", () => {
+    const kilde = laesFil("supabase/functions/_shared/aiSkema.ts", "utf8");
+    expect(kilde).not.toMatch(/Underleverandører» hører IKKE her/);
+    expect(kilde).toMatch(/hører i direkte_omkostninger, når de står over dækningsbidraget/);
   });
 });

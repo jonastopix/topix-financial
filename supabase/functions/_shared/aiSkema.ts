@@ -80,7 +80,7 @@ export const AI_KEY_FIGURES_EGENSKABER: Readonly<Record<string, Egenskab>> = {
   oevrige_omkostninger: {
     type: "number",
     description:
-      "Andre eksterne omkostninger / øvrige driftsomkostninger i alt — positivt tal. Linjer som «Andre eksterne omkostninger i alt», «Øvrige omkostninger i alt», «Øvrige driftsomkostninger», «Leasing» (ikke biler), «Manglende bilag». «Fremmed arbejde» og «Underleverandører» hører IKKE her, men i direkte_omkostninger. Læg ALDRIG overgruppens total («Andre eksterne omkostninger i alt») her, når dens underposter (salg, lokaler, administration, auto) også lægges i deres egne felter. Brug KUN dette felt for en GRUPPE, dokumentet selv viser ud over salg, lokaler, administration, personale og auto — flyt aldrig poster ud af de andre grupper. Udelad feltet, hvis gruppen ikke findes.",
+      "Andre eksterne omkostninger / øvrige driftsomkostninger i alt — positivt tal. Linjer som «Andre eksterne omkostninger i alt», «Øvrige omkostninger i alt», «Øvrige driftsomkostninger», «Leasing» (ikke biler), «Manglende bilag». «Fremmed arbejde» og «Underleverandører» hører i direkte_omkostninger, når de står over dækningsbidraget (i vareforbruget); står de under dækningsbidraget, følges dokumentets egen gruppe. Læg ALDRIG overgruppens total («Andre eksterne omkostninger i alt») her, når dens underposter (salg, lokaler, administration, auto) også lægges i deres egne felter. Brug KUN dette felt for en GRUPPE, dokumentet selv viser ud over salg, lokaler, administration, personale og auto — flyt aldrig poster ud af de andre grupper. Udelad feltet, hvis gruppen ikke findes.",
   },
   ekstraordinaere_poster: {
     type: "number",

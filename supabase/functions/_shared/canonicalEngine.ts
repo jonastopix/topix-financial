@@ -1634,6 +1634,11 @@ export const DOBBELT_TOLERANCE_MIN_KR = 50;
 export const DOBBELT_MIN_BELOEB = 500;
 /** De kanoniske nøgler skive 1 gav AI-skemaet felter for — dem en dobbelttælling kan ramme. */
 export const DOBBELT_NOEGLER = ["payroll_related", "other_staff_costs", "vehicle_costs", "other_costs"] as const;
+/** Summer af nøgler, der dobbelttælles SAMMEN, når en overgruppe («Personaleomkostninger i alt») lægges i
+ *  ét felt OG dens underposter i deres egne (CTO runde 2, 3/10): udækket = summen, ikke en enkelt nøgle.
+ *  Eksempel: pension 12.000 + øvrige personale 5.000 → udækket +17.000 → signal med noegle
+ *  «payroll_related+other_staff_costs». Kun summer, hvor BEGGE led har et tal. */
+export const DOBBELT_SUMMER = [["payroll_related", "other_staff_costs"]] as const;
 
 export interface AiDriftsSignaler {
   negativ_driftsgruppe?: Array<{ felt: string; noegle: string; oprindeligt: number; gemt: number }>;
@@ -1661,6 +1666,14 @@ export function aiDriftsSignaler(
       if (x < DOBBELT_MIN_BELOEB) continue;
       const tolerance = Math.max(DOBBELT_TOLERANCE_PCT * x, DOBBELT_TOLERANCE_MIN_KR);
       if (Math.abs(udaekket - x) <= tolerance) mulige.push({ noegle, beloeb: x, udaekket, tolerance });
+    }
+    for (const led of DOBBELT_SUMMER) {
+      const vaerdier = led.map((n) => metrics[n]);
+      if (!vaerdier.every((v) => typeof v === "number" && Number.isFinite(v))) continue;
+      const x = (vaerdier as number[]).reduce((sum, v) => sum + Math.abs(v), 0);
+      if (x < DOBBELT_MIN_BELOEB) continue;
+      const tolerance = Math.max(DOBBELT_TOLERANCE_PCT * x, DOBBELT_TOLERANCE_MIN_KR);
+      if (Math.abs(udaekket - x) <= tolerance) mulige.push({ noegle: led.join("+"), beloeb: x, udaekket, tolerance });
     }
     if (mulige.length > 0) ud.mulig_dobbelttaelling = mulige;
   }
