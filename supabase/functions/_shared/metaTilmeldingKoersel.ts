@@ -2,8 +2,8 @@
  * metaTilmeldingKoersel — tilmeldingspasset i meta-send-cron (udkast 3/10-2026, docs/webinarmotor.md
  * §7.9). Dommen er REN i metaTilmelding.ts; her bor læsningen, sporet og løkken.
  *
- * ISOLERET: en læsefejl her (fx 42703, hvis skive 1's kolonner mangler) står i
- * `tilmeldinger.fejl` og i kørslens fejl (alarm) — ansøgningernes pas kører uanset.
+ * ISOLERET (CTO 3/10, HØJ): en fejl her står KUN i `tilmeldinger.fejl` — aldrig i kørslens
+ * fejl, alarm eller HTTP-status. Ansøgningernes svar er de samme som uden passet.
  *
  * AFSENDELSEN GIVES IND (`send`): denne fil importerer IKKE metaSendAfsendelse.ts og læser
  * ingen secret. META_SEND_TOKEN læses stadig ét sted (metaTokenAdskillelse.guard dom 6;
@@ -12,11 +12,12 @@
  * LÆSER KUN: webinar_tilmeldinger (de kolonner, TILMELDING_FELTER nævner), webinar_afmeldinger
  * (email), ansoegninger (email, KUN rækker med meta_fravalg = true), meta_haendelser og
  * app_config. SKRIVER KUN: meta_haendelser — og kun når tilmeldingSenderRigtigt siger ja.
+ * PORTEN FØRST: intet andet end låsens række læses, før porten er «klar» (CTO 3/10).
  */
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { sha256Hex } from "./aftryk.ts";
 import {
-  bygFbpFelt, findForbudteNoegler, type FejletAfsendelse, maaForsoeges, type MetaPayload, META_VINDUE_DAGE, type SporRaekke, type SporUdfald,
+  bygFbpFelt, findForbudteNoegler, maaForsoeges, type MetaPayload, META_VINDUE_DAGE, type SporRaekke, type SporUdfald,
 } from "./metaSend.ts";
 import {
   bygTilmeldingPayload, doemTilmelding, hashTilmeldingBrugerdata, normaliserTilmeldingBrugerdata, TILMELDING_ART,
@@ -90,11 +91,18 @@ async function hentAfmeldte(admin: SupabaseClient, emails: readonly string[]): P
   return ud;
 }
 
-/** Fravalget: mails på ansøgninger med meta_fravalg = true (få rækker; sammenlignet lower i koden). */
-async function hentFravalgte(admin: SupabaseClient): Promise<Set<string>> {
-  const { data, error } = await admin.from("ansoegninger").select("email").eq("meta_fravalg", true).limit(10_000);
-  if (error) throw new Error(`ansoegninger (meta_fravalg): ${error.message}`);
-  return new Set(((data ?? []) as { email: string | null }[]).map((x) => lav(x.email)).filter((e) => e !== ""));
+/**
+ * Fravalget: KUN kandidaternes mails (CTO 3/10, LAV) — ansoegninger har CHECK
+ * (email = lower(email)) (20260918200000), og kandidaternes mails er lower'et, så .in er eksakt.
+ */
+async function hentFravalgte(admin: SupabaseClient, emails: readonly string[]): Promise<Set<string>> {
+  const ud = new Set<string>();
+  for (const b of bundter(emails)) {
+    const { data, error } = await admin.from("ansoegninger").select("email").eq("meta_fravalg", true).in("email", b);
+    if (error) throw new Error(`ansoegninger (meta_fravalg): ${error.message}`);
+    for (const x of (data ?? []) as { email: string | null }[]) ud.add(lav(x.email));
+  }
+  return ud;
 }
 
 async function hentSpor(admin: SupabaseClient, eventIds: readonly string[]): Promise<Map<string, SporRaekke>> {
@@ -108,26 +116,33 @@ async function hentSpor(admin: SupabaseClient, eventIds: readonly string[]): Pro
 }
 
 /**
- * Planen — kører OGSÅ i tørkørslen (beviset). springOver: kørslen gælder én ANSØGNING
- * (ansoegning_id), og så røres tilmeldingerne ikke.
+ * Planen — kører OGSÅ i tørkørslen (beviset).
+ *
+ * PORTEN FØRST (CTO 3/10, HØJ): passet læser INTET andet end låsens række, før porten er
+ * «klar». Er migrationen ikke kørt (eller app_config ulæselig), slås ingen tilmelding, intet
+ * spor og ingen afmelding op. springOver (kørslen gælder én ANSØGNING) læser slet intet.
+ *
+ * KASTER ALDRIG: en fejl står i r.fejl (tilmeldingernes egen liste) — aldrig i kørslens
+ * fejl, aldrig i dens HTTP-status. Ansøgningernes svar og status er de samme som uden passet.
  */
 export async function planlaegTilmeldinger(
   admin: SupabaseClient,
   a: { nu: Date; dryRun: boolean; metaLaasAktiv: boolean; testEventCode: string | null; tilmeldingId: string | null; springOver: boolean },
 ): Promise<{ resultat: TilmeldingResultat; planer: TilmeldingPlanRaekke[] }> {
   const r = tomtTilmeldingResultat(a.tilmeldingId);
-  const laas = await hentWebinarLaas(admin);
-  r.port = laas.port;
-  r.laas_aktiv = laas.aaben;
-  r.sender_rigtigt = tilmeldingSenderRigtigt({
-    dryRun: a.dryRun, port: r.port, metaLaasAktiv: a.metaLaasAktiv, webinarLaasAktiv: r.laas_aktiv, testEventCode: a.testEventCode, tilmeldingId: a.tilmeldingId,
-  });
   const planer: TilmeldingPlanRaekke[] = [];
-  if (a.springOver) { r.sender_rigtigt = false; return { resultat: r, planer }; }
+  if (a.springOver) { r.port = "sprunget_over"; return { resultat: r, planer }; }
   try {
+    const laas = await hentWebinarLaas(admin);
+    r.port = laas.port;
+    r.laas_aktiv = laas.aaben;
+    r.sender_rigtigt = tilmeldingSenderRigtigt({
+      dryRun: a.dryRun, port: r.port, metaLaasAktiv: a.metaLaasAktiv, webinarLaasAktiv: r.laas_aktiv, testEventCode: a.testEventCode, tilmeldingId: a.tilmeldingId,
+    });
+    if (r.port !== "klar") return { resultat: r, planer };
     const raa = await hentRaa(admin, a.nu, a.tilmeldingId);
     const emails = [...new Set(raa.map((t) => lav(t.email)).filter((e) => e !== ""))];
-    const [afmeldte, fravalgte] = await Promise.all([hentAfmeldte(admin, emails), hentFravalgte(admin)]);
+    const [afmeldte, fravalgte] = await Promise.all([hentAfmeldte(admin, emails), hentFravalgte(admin, emails)]);
     const kandidater: TilmeldingTilMeta[] = raa.map((t) => ({ ...t, afmeldt: afmeldte.has(lav(t.email)), fravalgt: fravalgte.has(lav(t.email)) }));
     r.kandidater = kandidater.length;
     const spor = await hentSpor(admin, kandidater.map((t) => tilmeldingEventId(t.id)));
@@ -149,9 +164,10 @@ export async function planlaegTilmeldinger(
     }
     r.ville_sende = planer.map((p) => p.plan);
   } catch (err) {
-    r.fejl = err instanceof Error ? err.message : String(err);
+    const grund = err instanceof Error ? err.message : String(err);
+    r.fejl.push(`planlægning: ${grund}`);
     r.sender_rigtigt = false;
-    console.error(`${LOG} passet kunne ikke planlægges — ansøgningerne kører videre:`, r.fejl);
+    console.error(`${LOG} passet kunne ikke planlægges — ansøgningerne er urørte:`, grund);
     return { resultat: r, planer: [] };
   }
   return { resultat: r, planer };
@@ -159,40 +175,49 @@ export async function planlaegTilmeldinger(
 
 /**
  * Afsendelsen — KUN når r.sender_rigtigt. Én hændelse pr. kald; værnet på det FAKTISKE objekt
- * før kaldet; sporet (upsert på event_id) efter kaldet, før tællingen. Fejlede lægges i
- * kørslens fælles liste, så alarmen dækker begge pas.
+ * før kaldet; sporet (upsert på event_id) efter kaldet, før tællingen.
+ *
+ * ALT HER BLIVER I `tilmeldinger` (CTO 3/10, HØJ): fejl og fejlede tælles i r — ALDRIG i
+ * kørslens fejl, fejlede, alarmliste eller HTTP-status. VALGET: tilmeldingerne deler IKKE
+ * ansøgningernes alarmmail (skrivAlarm ændrer r.alarm/r.fejl og ville gøre ansøgningernes
+ * svar anderledes). Overvågningen er sporet: en hændelse, Meta afviser, står i meta_haendelser
+ * med sit udfald, og driftsagenten (driftDom.ts SPOR, «meta_haendelser») dømmer fejlraten.
+ * Et værn-afslag og en sporskrivning, der fejler, står i tilmeldinger.fejl og i functionens log.
+ * KASTER ALDRIG.
  */
 export async function sendTilmeldinger(
   admin: SupabaseClient,
   planer: readonly TilmeldingPlanRaekke[],
   r: TilmeldingResultat,
   a: { nu: Date; testEventCode: string | null; startMs: number; budgetMs: number; send: Sender },
-  faelles: { fejlede_liste: FejletAfsendelse[]; fejl: string[] },
-): Promise<{ sendt: number; fejlede: number }> {
-  let sendt = 0, fejlede = 0;
-  if (!r.sender_rigtigt) return { sendt, fejlede };
-  for (const p of planer) {
-    if (Date.now() - a.startMs > a.budgetMs) { r.udsat++; continue; }
-    // Klarteksten findes kun i dette udtryk; bygTilmeldingPayload ser kun aftryk.
-    const hashet = await hashTilmeldingBrugerdata(normaliserTilmeldingBrugerdata(p.raekke), sha256Hex);
-    const payload = bygTilmeldingPayload(p.raekke, p.tid, await sha256Hex(p.raekke.id), hashet);
-    const forbudte = findForbudteNoegler(payload);
-    if (forbudte.length > 0) {
-      console.error(`${LOG} PAYLOAD AFVIST — ${p.plan.event_id}:`, forbudte.join(", "));
-      r.payload_afvist++; r.fejlede++; fejlede++;
-      faelles.fejl.push(`payload_afvist ${p.plan.event_id}: ${forbudte.join(", ")}`);
-      faelles.fejlede_liste.push({ event_id: p.plan.event_id, udfald: "ugyldig", fejl: `værnet afviste payloaden: ${forbudte.join(", ")}`, forsoeg: p.plan.forsoeg });
-      continue;
+): Promise<void> {
+  if (!r.sender_rigtigt) return;
+  try {
+    for (const p of planer) {
+      if (Date.now() - a.startMs > a.budgetMs) { r.udsat++; continue; }
+      // Klarteksten findes kun i dette udtryk; bygTilmeldingPayload ser kun aftryk.
+      const hashet = await hashTilmeldingBrugerdata(normaliserTilmeldingBrugerdata(p.raekke), sha256Hex);
+      const payload = bygTilmeldingPayload(p.raekke, p.tid, await sha256Hex(p.raekke.id), hashet);
+      const forbudte = findForbudteNoegler(payload);
+      if (forbudte.length > 0) {
+        console.error(`${LOG} PAYLOAD AFVIST — ${p.plan.event_id}:`, forbudte.join(", "));
+        r.payload_afvist++; r.fejlede++;
+        r.fejl.push(`payload_afvist ${p.plan.event_id}: ${forbudte.join(", ")}`);
+        continue;
+      }
+      const svar = await a.send(payload, a.testEventCode);
+      const { error } = await admin.from("meta_haendelser").upsert({
+        event_id: p.plan.event_id, ansoegning_id: null, tilmelding_id: p.plan.tilmelding_id, art: TILMELDING_ART, event_time: p.plan.event_time,
+        udfald: svar.udfald, forsoeg: p.plan.forsoeg, sidste_forsoeg_at: a.nu.toISOString(), sendt_at: svar.udfald === "sendt" ? a.nu.toISOString() : null,
+        status: svar.status, events_received: svar.events_received, svar: svar.svar, fejl: svar.fejl, test_event_code: a.testEventCode, varighed_ms: svar.varighed_ms,
+      }, { onConflict: "event_id" });
+      if (error) { r.fejl.push(`spor ${p.plan.event_id}: ${error.message}`); console.error(`${LOG} SPOR IKKE SKREVET for ${p.plan.event_id}:`, error.message); }
+      if (svar.udfald === "sendt") r.sendt++;
+      else { r.fejlede++; r.fejl.push(`${p.plan.event_id}: ${svar.udfald}${svar.fejl ? ` — ${svar.fejl}` : ""}`); }
     }
-    const svar = await a.send(payload, a.testEventCode);
-    const { error } = await admin.from("meta_haendelser").upsert({
-      event_id: p.plan.event_id, ansoegning_id: null, tilmelding_id: p.plan.tilmelding_id, art: TILMELDING_ART, event_time: p.plan.event_time,
-      udfald: svar.udfald, forsoeg: p.plan.forsoeg, sidste_forsoeg_at: a.nu.toISOString(), sendt_at: svar.udfald === "sendt" ? a.nu.toISOString() : null,
-      status: svar.status, events_received: svar.events_received, svar: svar.svar, fejl: svar.fejl, test_event_code: a.testEventCode, varighed_ms: svar.varighed_ms,
-    }, { onConflict: "event_id" });
-    if (error) { faelles.fejl.push(`spor ${p.plan.event_id}: ${error.message}`); console.error(`${LOG} SPOR IKKE SKREVET for ${p.plan.event_id}:`, error.message); }
-    if (svar.udfald === "sendt") { r.sendt++; sendt++; }
-    else { r.fejlede++; fejlede++; faelles.fejlede_liste.push({ event_id: p.plan.event_id, udfald: svar.udfald, fejl: svar.fejl, forsoeg: p.plan.forsoeg }); }
+  } catch (err) {
+    const grund = err instanceof Error ? err.message : String(err);
+    r.fejl.push(`afsendelse: ${grund}`);
+    console.error(`${LOG} afsendelsen kastede — ansøgningerne er urørte:`, grund);
   }
-  return { sendt, fejlede };
 }

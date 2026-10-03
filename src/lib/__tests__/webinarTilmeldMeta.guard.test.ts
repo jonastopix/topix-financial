@@ -11,7 +11,8 @@ import { TILMELDING_ART } from "../../../supabase/functions/_shared/metaTilmeldi
  * lukket, til de er. Hver dom bevist på en kopi med fejlen indsat:
  *   1. LÅSEN ER EGEN OG FAIL-CLOSED: nøglen «webinarmotor_meta_aktiv» (≠ meta_send_aktiv); en
  *      læsefejl og en manglende række (porten) lukker; der sendes kun med porten «klar» OG
- *      (begge låse ELLER testkode + ét tilmeldings-id); afsendelsen står efter cronens
+ *      (begge låse uden testkode ELLER testkode + ét tilmeldings-id — en testkode uden id sender
+ *      ALDRIG, heller ikke med låsene åbne; CTO 3/10); afsendelsen står efter cronens
  *      `if (!r.sender_rigtigt) return` og begynder selv med sin egen `if (!r.sender_rigtigt)`.
  *   2. INGEN KLARTEKST OG INGEN IP: user_data bygges af `...hashet` + external_id + user agent
  *      (+ fbc/fbp kun når de findes); bygTilmeldingPayload rører aldrig r.email/r.fornavn;
@@ -28,6 +29,10 @@ import { TILMELDING_ART } from "../../../supabase/functions/_shared/metaTilmeldi
  *      den rækkefølge; filhovedet starter med «-- IKKE KØRT. DEPLOY:»; én transaktion; porten
  *      (raise, hvis skive 1 mangler); låsen false med ON CONFLICT DO NOTHING; ejerreglerne; og
  *      filen sorterer efter enhver KØRT migration (ventepladser-reglen).
+ *   8. ISOLATION OG PORTEN FØRST (CTO 3/10, HØJ): springOver og porten står FØR enhver anden
+ *      læsning i planen (intet hentRaa/opslag, før porten er «klar»); passet kaster aldrig (try
+ *      om planlægning og afsendelse); dets fejl står i tilmeldingernes egen liste og ALDRIG i
+ *      kørslens r.fejl, r.fejlede, r.fejlede_liste, r.ok eller HTTP-status.
  *   7. TEKSTEN FØLGER KODEN (spec §C6, B4): tracking.md bærer rækken med låsen og betingelsen
  *      «sendes ikke, før privatlivsteksten er publiceret», og det gamle løfte står citeret som
  *      det, der skal ændres; webinarmotor.md siger «bygget bag lås»; CLAUDE.md har linjen.
@@ -61,7 +66,7 @@ export const laasenErEgenOgLukket = (dom: string, koersel: string, cron: string)
     // dommen: tørkørsel → port → (testkode + id) → begge låse
     sender.includes("if (a.dryRun) return false;") &&
     sender.includes('if (a.port !== "klar") return false;') &&
-    sender.includes("if (a.testEventCode !== null && a.tilmeldingId !== null) return true;") &&
+    sender.includes("if (a.testEventCode !== null) return a.tilmeldingId !== null;") &&
     sender.includes("return a.metaLaasAktiv && a.webinarLaasAktiv;") &&
     foer(sender, 'if (a.port !== "klar") return false;', "if (a.testEventCode !== null") &&
     // læsningen: fejl og fravær lukker
@@ -73,7 +78,7 @@ export const laasenErEgenOgLukket = (dom: string, koersel: string, cron: string)
     k.includes("return laesWebinarLaas({ fejl: !!error, raekke:") &&
     // afsendelsen: kun efter cronens port, og med sin egen port først
     foer(koer, "if (!r.sender_rigtigt) return { status: 200, resultat: r };", "await sendTilmeldinger(") &&
-    foer(send, "if (!r.sender_rigtigt) return { sendt, fejlede };", "await a.send(payload, a.testEventCode)") &&
+    foer(send, "if (!r.sender_rigtigt) return;", "await a.send(payload, a.testEventCode)") &&
     (k.match(/await a\.send\(/g) ?? []).length === 1;
 };
 
@@ -86,6 +91,9 @@ export const ingenKlartekst = (dom: string, koersel: string): boolean => {
   return /user_data: \{\s*\n\s*\.\.\.hashet,\s*\n\s*external_id: \[externalIdAftryk\],\s*\n\s*client_user_agent: ua,\s*\n\s*\.\.\.\(fbc !== null \? \{ fbc \} : \{\}\),\s*\n\s*\.\.\.\(fbp !== null \? \{ fbp \} : \{\}\),\s*\n\s*\},/.test(byg) &&
     !/\br\.(email|fornavn|navn)\b/.test(byg) &&
     !/client_ip_address|ip_dagshash/.test(byg) &&
+    // event_source_url uden query og fragment (CTO 3/10, LAV)
+    byg.includes('event_source_url: landingUdenQuery(r.origin) ?? "",') && !/r\.origin \?\? ""/.test(byg) &&
+    d.includes("ud = `${u.origin}${u.pathname}`;") && d.includes("ud = h.split(/[?#]/)[0].trim();") &&
     // em + fn — aldrig ln/ph/country for en tilmelding
     d.includes('export const TILMELDING_BRUGERDATA_NOEGLER = ["em", "fn"] as const;') &&
     d.includes("return { em: normaliserEmail(r.email), fn: normaliserNavn(r.fornavn).fn };") &&
@@ -95,7 +103,7 @@ export const ingenKlartekst = (dom: string, koersel: string): boolean => {
     foer(loekke, "const hashet = await hashTilmeldingBrugerdata(", "const payload = bygTilmeldingPayload(") &&
     foer(loekke, "const forbudte = findForbudteNoegler(payload);", "await a.send(payload, a.testEventCode)") &&
     /if \(forbudte\.length > 0\) \{[\s\S]*?continue;\n\s*\}/.test(loekke) &&
-    !/\.(email|fornavn)\b/.test(loekke.slice(0, loekke.indexOf("return { sendt, fejlede };", loekke.indexOf("await a.send("))));
+    !/\.(email|fornavn)\b/.test(loekke.slice(0, loekke.indexOf("} catch (err) {")));
 };
 
 // ── 3 ──────────────────────────────────────────────────────────────────────
@@ -111,7 +119,9 @@ export const internAfmeldtAldrig = (dom: string, koersel: string): boolean => {
     d.includes('export const erInternRaekke = (r: Pick<TilmeldingTilMeta, "intern">): boolean => r.intern === true || r.intern === "true";') &&
     /from\("webinar_tilmeldinger"\)\.select\(TILMELDING_FELTER\)\s*\n\s*\.eq\("kilde_system", "platform"\)/.test(k) &&
     /from\("webinar_afmeldinger"\)\.select\("email"\)\.in\("email", b\)/.test(k) &&
-    /from\("ansoegninger"\)\.select\("email"\)\.eq\("meta_fravalg", true\)/.test(k) &&
+    // fravalget slås KUN op for kandidaternes mails (CTO 3/10, LAV)
+    /from\("ansoegninger"\)\.select\("email"\)\.eq\("meta_fravalg", true\)\.in\("email", b\)/.test(k) &&
+    k.includes("hentFravalgte(admin, emails)") &&
     k.includes("afmeldt: afmeldte.has(lav(t.email)), fravalgt: fravalgte.has(lav(t.email))");
 };
 
@@ -165,6 +175,30 @@ export const migrationenErRigtig = (mig: string, kodeArter: readonly string[], k
     koert.every((k) => k < fil);
 };
 
+// ── 8 ──────────────────────────────────────────────────────────────────────
+export const isoleretOgPortFoerst = (koersel: string, cron: string): boolean => {
+  const k = udenKommentarer(koersel), c = udenKommentarer(cron);
+  const plan = k.slice(k.indexOf("export async function planlaegTilmeldinger("), k.indexOf("export async function sendTilmeldinger("));
+  const send = k.slice(k.indexOf("export async function sendTilmeldinger("));
+  const koer = c.slice(c.indexOf("export async function koerMetaSend("), c.indexOf("Deno.serve("));
+  const port = 'if (r.port !== "klar") return { resultat: r, planer };';
+  // Enhver læsning i planen — ud over låsens — skal stå EFTER porten.
+  const laesninger = ["hentRaa(", "hentAfmeldte(", "hentFravalgte(", "hentSpor(", "admin.from("];
+  return foer(plan, 'if (a.springOver) { r.port = "sprunget_over"; return { resultat: r, planer }; }', "hentWebinarLaas(admin)") &&
+    foer(plan, "hentWebinarLaas(admin)", port) &&
+    laesninger.every((l) => !plan.includes(l) || foer(plan, port, l)) &&
+    // kaster aldrig: try om begge, og fejlen lægges i passets egen liste
+    foer(plan, "try {", "hentWebinarLaas(admin)") && plan.includes("r.fejl.push(`planlægning: ${grund}`);") &&
+    foer(send, "try {", "for (const p of planer)") && send.includes("r.fejl.push(`afsendelse: ${grund}`);") &&
+    // ingen fælles lister i passet
+    !/faelles|fejlede_liste/.test(k) &&
+    // cronen: passets fejl rører aldrig r.fejl, r.ok, r.fejlede eller r.sendt
+    !/r\.fejl\.push\([^)]*tilmeld/i.test(koer) && !/r\.ok = false/.test(koer) &&
+    !/r\.(sendt|fejlede) \+= /.test(koer) &&
+    /await sendTilmeldinger\(admin, tilm\.planer, r\.tilmeldinger, \{[^}]*\}\);/.test(koer) &&
+    koer.includes("r.tilmeldinger = tilm.resultat;");
+};
+
 // ── 7 ──────────────────────────────────────────────────────────────────────
 export const GAMMELT_LOEFTE = "Selve din tilmelding deler vi ikke med Meta.";
 export const teksterneFoelgerKoden = (tracking: string, motor: string, claude: string): boolean => {
@@ -188,6 +222,8 @@ describe("webinarTilmeldMeta.guard — tilmeldingerne til Metas Conversions API"
     expect(artListenIMigrationen(laes(MIG))).toEqual([...ARTER, TILMELDING_ART]);
     expect(migrationenErRigtig(laes(MIG), [...ARTER, TILMELDING_ART], koert, "20261003070000_meta_haendelser_tilmelding.sql")).toBe(true);
   });
+  it("8. isoleret og porten først: intet læses før porten; passets fejl aldrig i r.fejl/ok/status", () =>
+    expect(isoleretOgPortFoerst(laes(KOERSEL), laes(CRON))).toBe(true));
   it("7. teksterne følger koden: tracking.md (låsen, B4-betingelsen, det gamle løfte), webinarmotor.md, CLAUDE.md", () =>
     expect(teksterneFoelgerKoden(laes(TRACKING), laes(MOTOR_DOC), laes(CLAUDE_MD))).toBe(true));
 });
@@ -199,10 +235,12 @@ describe("webinarTilmeldMeta.guard — dommene fanger fejlen på en kopi", () =>
   it("1. låsen delt med meta_send_aktiv, porten væk, testkoden alene nok, en læsefejl der åbner, eller afsendelse før cronens port, fælder dom 1", () => {
     expect(laasenErEgenOgLukket(skift(dom, '"webinarmotor_meta_aktiv"', '"meta_send_aktiv"'), koersel, cron)).toBe(false);
     expect(laasenErEgenOgLukket(skift(dom, '  if (a.port !== "klar") return false;\n', ""), koersel, cron)).toBe(false);
-    expect(laasenErEgenOgLukket(skift(dom, "if (a.testEventCode !== null && a.tilmeldingId !== null) return true;", "if (a.testEventCode !== null) return true;"), koersel, cron)).toBe(false);
+    expect(laasenErEgenOgLukket(skift(dom, "if (a.testEventCode !== null) return a.tilmeldingId !== null;", "if (a.testEventCode !== null) return true;"), koersel, cron)).toBe(false);
+    // testkoden må ikke falde igennem til låsene (CTO 3/10: testkode uden id + åbne låse = intet)
+    expect(laasenErEgenOgLukket(skift(dom, "if (a.testEventCode !== null) return a.tilmeldingId !== null;", "if (a.testEventCode !== null && a.tilmeldingId !== null) return true;"), koersel, cron)).toBe(false);
     expect(laasenErEgenOgLukket(skift(dom, "return a.metaLaasAktiv && a.webinarLaasAktiv;", "return a.webinarLaasAktiv;"), koersel, cron)).toBe(false);
     expect(laasenErEgenOgLukket(skift(dom, 'if (svar.fejl) return { port: "laesefejl", aaben: false };', 'if (svar.fejl) return { port: "klar", aaben: true };'), koersel, cron)).toBe(false);
-    expect(laasenErEgenOgLukket(dom, skift(koersel, "  if (!r.sender_rigtigt) return { sendt, fejlede };\n", ""), cron)).toBe(false);
+    expect(laasenErEgenOgLukket(dom, skift(koersel, "  if (!r.sender_rigtigt) return;\n", ""), cron)).toBe(false);
     const flyttet = skift(cron, "  if (!r.sender_rigtigt) return { status: 200, resultat: r };\n", "")
       .replace("  if (r.fejlede > 0) await skrivAlarm(", "  if (!r.sender_rigtigt) return { status: 200, resultat: r };\n  if (r.fejlede > 0) await skrivAlarm(");
     expect(laasenErEgenOgLukket(dom, koersel, flyttet)).toBe(false);
@@ -210,6 +248,9 @@ describe("webinarTilmeldMeta.guard — dommene fanger fejlen på en kopi", () =>
   it("2. rå mail i payloaden, ln/ph tilføjet, ip_dagshash læst, værnet efter afsendelsen, eller hashning sprunget over, fælder dom 2", () => {
     expect(ingenKlartekst(skift(dom, "      ...hashet,\n", "      ...hashet,\n      email: r.email,\n"), koersel)).toBe(false);
     expect(ingenKlartekst(skift(dom, '["em", "fn"] as const;', '["em", "fn", "ln"] as const;'), koersel)).toBe(false);
+    // event_source_url med query (CTO 3/10)
+    expect(ingenKlartekst(skift(dom, 'event_source_url: landingUdenQuery(r.origin) ?? "",', 'event_source_url: (r.origin ?? "").trim(),'), koersel)).toBe(false);
+    expect(ingenKlartekst(skift(dom, "ud = `${u.origin}${u.pathname}`;", "ud = u.toString();"), koersel)).toBe(false);
     expect(ingenKlartekst(dom, skift(koersel, '"id, kilde_system,', '"id, ip_dagshash, kilde_system,'), )).toBe(false);
     expect(ingenKlartekst(dom, skift(koersel, '"id, kilde_system,', '"id, navn, kilde_system,'))).toBe(false);
     const sentVaern = skift(koersel, "    const forbudte = findForbudteNoegler(payload);\n", "")
@@ -226,6 +267,8 @@ describe("webinarTilmeldMeta.guard — dommene fanger fejlen på en kopi", () =>
     expect(internAfmeldtAldrig(skift(dom, 'r.intern === true || r.intern === "true"', "r.intern === true"), koersel)).toBe(false);
     expect(internAfmeldtAldrig(dom, skift(koersel, '.eq("kilde_system", "platform")', ""))).toBe(false);
     expect(internAfmeldtAldrig(dom, skift(koersel, "afmeldt: afmeldte.has(lav(t.email))", "afmeldt: false"))).toBe(false);
+    // fravalget for HELE tabellen igen (CTO 3/10)
+    expect(internAfmeldtAldrig(dom, skift(koersel, '.eq("meta_fravalg", true).in("email", b)', '.eq("meta_fravalg", true)'))).toBe(false);
   });
   it("4. event_id uden art (spec'ens gamle «eventID = tilmelding_id») eller CHECK'en på ansoegning_id alene, fælder dom 4", () => {
     expect(eventIdFormen(skift(dom, "return `${tilmeldingId}:${TILMELDING_ART}`;", "return tilmeldingId;"), mig)).toBe(false);
@@ -252,6 +295,28 @@ describe("webinarTilmeldMeta.guard — dommene fanger fejlen på en kopi", () =>
     expect(migrationenErRigtig(skift(mig, "on conflict (config_key) do nothing;", "on conflict (config_key) do update set config_value = excluded.config_value;"), arter, koert, F)).toBe(false);
     expect(migrationenErRigtig(skift(mig, "alter column ansoegning_id drop not null,", ""), arter, koert, F)).toBe(false);
     expect(migrationenErRigtig(mig, arter, [...koert, "20261003080000_kort_efter.sql"], F)).toBe(false);
+  });
+  it("8. en læsning før porten, springOver efter låsen, en tilmeldingsfejl i r.fejl, ok/status rørt, eller try fjernet, fælder dom 8", () => {
+    const port = '    if (r.port !== "klar") return { resultat: r, planer };\n';
+    // hentRaa flyttet op før porten
+    const tidlig = skift(koersel, port, "").replace("    const raa = await hentRaa(admin, a.nu, a.tilmeldingId);\n", "    const raa = await hentRaa(admin, a.nu, a.tilmeldingId);\n" + port);
+    expect(isoleretOgPortFoerst(tidlig, cron)).toBe(false);
+    // porten væk helt
+    expect(isoleretOgPortFoerst(skift(koersel, port, ""), cron)).toBe(false);
+    // springOver efter låselæsningen
+    const sent = skift(koersel, '  if (a.springOver) { r.port = "sprunget_over"; return { resultat: r, planer }; }\n', "")
+      .replace("    r.port = laas.port;\n", '    r.port = laas.port;\n    if (a.springOver) { r.port = "sprunget_over"; return { resultat: r, planer }; }\n');
+    expect(isoleretOgPortFoerst(sent, cron)).toBe(false);
+    // tilmeldingsfejl i kørslens fejl / ok / status
+    const iFejl = skift(cron, "  r.tilmeldinger = tilm.resultat;\n", "  r.tilmeldinger = tilm.resultat;\n  if (tilm.resultat.fejl.length > 0) { r.fejl.push(`tilmeldinger: ${tilm.resultat.fejl.join()}`); }\n");
+    expect(isoleretOgPortFoerst(koersel, iFejl)).toBe(false);
+    expect(isoleretOgPortFoerst(koersel, skift(cron, "  r.tilmeldinger = tilm.resultat;\n", "  r.tilmeldinger = tilm.resultat;\n  if (tilm.resultat.fejl.length > 0) r.ok = false;\n"))).toBe(false);
+    expect(isoleretOgPortFoerst(koersel, skift(cron, "  r.tilmeldinger = tilm.resultat;\n", "  r.tilmeldinger = tilm.resultat;\n  r.fejlede += tilm.resultat.fejlede;\n"))).toBe(false);
+    // afsendelsen igen koblet på kørslens lister
+    expect(isoleretOgPortFoerst(koersel + "\nconst faelles = { fejlede_liste: [] };\n", cron)).toBe(false);
+    expect(isoleretOgPortFoerst(koersel, skift(cron, "send: sendTilMeta });", "send: sendTilMeta }, r);"))).toBe(false);
+    // fejlen ikke længere fanget
+    expect(isoleretOgPortFoerst(skift(koersel, "r.fejl.push(`afsendelse: ${grund}`);", "throw err;"), cron)).toBe(false);
   });
   it("7. tracking.md uden B4-betingelsen eller låsen, webinarmotor.md med D2.3 «IKKE bygget», eller CLAUDE.md uden linjen, fælder dom 7", () => {
     const t = laes(TRACKING), m = laes(MOTOR_DOC), c = laes(CLAUDE_MD);

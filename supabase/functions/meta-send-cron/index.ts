@@ -69,10 +69,12 @@
 //   Et ANDET pas i samme kørsel: CompleteRegistration for motorens egne tilmeldinger
 //   (kilde_system = 'platform'), event_id «<tilmelding_id>:registration». Dommen er ren i
 //   _shared/metaTilmelding.ts, læsningen og sporet i _shared/metaTilmeldingKoersel.ts —
-//   afsendelsen gives ind (sendTilMeta), så nøglen stadig læses ét sted. Passet er ISOLERET:
-//   en læsefejl står i `tilmeldinger.fejl` (og gør svaret ok: false), ansøgningerne kører.
-//   LÅSEN: sender KUN med dry_run: false OG (meta_send_aktiv OG webinarmotor_meta_aktiv) —
-//   eller test_event_code + tilmelding_id (præcis én). Låsen åbnes først, når privatlivsteksten
+//   afsendelsen gives ind (sendTilMeta), så nøglen stadig læses ét sted. Passet er ISOLERET
+//   (CTO 3/10, HØJ): dets fejl står KUN i `tilmeldinger.fejl` — aldrig i r.fejl, r.fejlede,
+//   alarmen eller HTTP-status; ansøgningernes felter er de samme som uden passet. Og passet
+//   læser intet, før porten (låsens række) er «klar».
+//   LÅSEN: sender KUN med dry_run: false OG porten OG (meta_send_aktiv OG webinarmotor_meta_aktiv)
+//   — en testkode sender KUN med tilmelding_id (præcis én). Låsen åbnes først, når privatlivsteksten
 //   på topix.dk er publiceret (B4). Body'en har et femte felt, tilmelding_id; med det røres
 //   ansøgningerne ikke, og med ansoegning_id røres tilmeldingerne ikke.
 //   Svaret bærer `tilmeldinger` — kun den nye kode har feltet (beviset for udrulningen).
@@ -450,13 +452,12 @@ export async function koerMetaSend(
   }
   r.ville_sende = planer.map((p) => p.plan);
 
-  // Tilmeldingspasset planlægges OGSÅ i tørkørslen (beviset) — isoleret: en læsefejl gør
-  // svaret ok: false, men ansøgningerne nedenfor sendes uanset.
+  // Tilmeldingspasset planlægges OGSÅ i tørkørslen (beviset). Isoleret: det kaster aldrig, og
+  // dets fejl står kun i r.tilmeldinger — ansøgningernes felter og status røres ikke.
   const tilm = await planlaegTilmeldinger(admin, {
     nu: a.nu, dryRun: a.toerKoersel, metaLaasAktiv: laas, testEventCode: a.testEventCode, tilmeldingId: a.tilmeldingId, springOver: a.ansoegningId !== null,
   });
   r.tilmeldinger = tilm.resultat;
-  if (tilm.resultat.fejl !== null) { r.fejl.push(`tilmeldinger: ${tilm.resultat.fejl}`); r.ok = false; }
 
   if (!r.sender_rigtigt) return { status: 200, resultat: r };
 
@@ -490,8 +491,7 @@ export async function koerMetaSend(
     else { r.fejlede++; r.fejlede_liste.push({ event_id: p.plan.event_id, udfald: svar.udfald, fejl: svar.fejl, forsoeg: p.plan.forsoeg }); }
   }
 
-  const t = await sendTilmeldinger(admin, tilm.planer, r.tilmeldinger, { nu: a.nu, testEventCode: a.testEventCode, startMs: a.startMs, budgetMs: BUDGET_MS, send: sendTilMeta }, r);
-  r.sendt += t.sendt; r.fejlede += t.fejlede;
+  await sendTilmeldinger(admin, tilm.planer, r.tilmeldinger, { nu: a.nu, testEventCode: a.testEventCode, startMs: a.startMs, budgetMs: BUDGET_MS, send: sendTilMeta });
 
   if (r.fejlede > 0) await skrivAlarm(admin, r.fejlede_liste, a.nu, r);
   r.ok = r.fejl.length === 0;

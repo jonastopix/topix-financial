@@ -40,7 +40,7 @@
  *
  * PAYLOADEN — som ansøgningernes website-form, med færre felter:
  *   event_name «CompleteRegistration» (Metas standardhændelse), content_name «webinar_registration»,
- *   action_source «website», event_source_url = origin, event_time = registreret_at,
+ *   action_source «website», event_source_url = origin UDEN query og fragment, event_time = registreret_at,
  *   user_data: em (SHA-256 af den normaliserede mail), fn (SHA-256 af FØRSTE ord i fornavnet),
  *   external_id (SHA-256 af tilmeldings-id), client_user_agent, fbc (URL'ens fbclid med
  *   registreret_at som tidspunkt — ellers _fbc-cookien ordret), fbp (ordret). ALDRIG ln, ph,
@@ -51,9 +51,10 @@
  *   (meta_send_aktiv OG webinarmotor_meta_aktiv)   — begge: den gamle er hovedafbryderen, den nye er
  *                                                    tilmeldingernes egen;
  *   ELLER (test_event_code OG tilmelding_id)        — beviset, for PRÆCIS én tilmelding. En testkode
- *                                                    alene sender ingen tilmeldinger: Metas ord er,
- *                                                    at testhændelser «are not dropped», så en
- *                                                    testkørsel uden id ville sende hele vinduet.
+ *                                                    UDEN id sender ingen tilmeldinger — heller ikke med
+ *                                                    begge låse åbne: Metas ord er, at testhændelser
+ *                                                    «are not dropped», så en testkørsel uden id ville
+ *                                                    sende hele vinduet.
  */
 import {
   bygFbc, erIVindue, FBC_FORM, type HashetBrugerdata, laasErAktiv, type MetaPayload, normaliserEmail, normaliserNavn,
@@ -119,7 +120,7 @@ export function doemTilmelding(r: TilmeldingTilMeta, nu: Date): TilmeldingDom {
   if (r.fravalgt) return { ok: false, grund: "fravalgt" };
   if (r.via === GEN_TILMELD_VIA) return { ok: false, grund: "gen_tilmelding" };
   if (!r.user_agent || r.user_agent.trim() === "") return { ok: false, grund: "ingen_user_agent" };
-  if (!r.origin || r.origin.trim() === "") return { ok: false, grund: "ingen_landing" };
+  if (landingUdenQuery(r.origin) === null) return { ok: false, grund: "ingen_landing" };
   const t = typeof r.registreret_at === "string" ? Date.parse(r.registreret_at) : Number.NaN;
   if (!Number.isFinite(t)) return { ok: false, grund: "ingen_tidspunkt" };
   const tid = new Date(t);
@@ -147,6 +148,26 @@ export async function hashTilmeldingBrugerdata(raa: TilmeldingBrugerdataRaa, has
   const ud: HashetBrugerdata = {};
   for (const n of tilmeldingBrugerdataNoegler(raa)) ud[n] = [await hash(raa[n] as string)];
   return ud;
+}
+
+/**
+ * event_source_url = formularens landing UDEN query og fragment (CTO 3/10, LAV) — som
+ * landingUdenToken (ansoegningSkema.ts) skræller tokenet af, skræller vi her ALT efter stien:
+ * en query kan bære en mail, et navn, et token eller et fremmed klik-id, og Meta har kun brug
+ * for siden. utm/fbclid er allerede gemt i deres egne kolonner. Kan den ikke læses som URL,
+ * skæres der ved første «?» eller «#». Tom → null (dommen: «ingen_landing»).
+ */
+export function landingUdenQuery(origin: string | null | undefined): string | null {
+  const h = (origin ?? "").trim();
+  if (!h) return null;
+  let ud: string;
+  try {
+    const u = new URL(h);
+    ud = `${u.origin}${u.pathname}`;
+  } catch {
+    ud = h.split(/[?#]/)[0].trim();
+  }
+  return ud === "" ? null : ud;
 }
 
 /**
@@ -184,7 +205,7 @@ export function bygTilmeldingPayload(
     event_time: Math.floor(tid.getTime() / 1000),
     event_id: tilmeldingEventId(r.id),
     action_source: "website",
-    event_source_url: (r.origin ?? "").trim(),
+    event_source_url: landingUdenQuery(r.origin) ?? "",
     user_data: {
       ...hashet,
       external_id: [externalIdAftryk],
@@ -204,20 +225,23 @@ export function bygTilmeldingPayload(
  *   klar               rækken findes (værdien er låsens sag)
  *   migration_mangler  rækken findes ikke
  *   laesefejl          app_config kunne ikke læses — fail-closed
+ *   sprunget_over      kørslen gælder én ansøgning (ansoegning_id) — passet læser intet
  */
-export type TilmeldingPort = "klar" | "migration_mangler" | "laesefejl";
+export type TilmeldingPort = "klar" | "migration_mangler" | "laesefejl" | "sprunget_over";
 
 /**
  * Sender kørslen tilmeldinger for alvor? dry_run: false OG porten «klar» OG
- *   (begge låse — meta_send_aktiv OG webinarmotor_meta_aktiv)
- *   ELLER (testkode OG præcis én tilmelding).
+ *   MED testkode: KUN med præcis én tilmelding (tilmelding_id) — også når begge låse er åbne
+ *     (CTO 3/10, MELLEM: en testkørsel uden id ville sende hele vinduet som testhændelser, og
+ *     de tæller hos Meta);
+ *   UDEN testkode: begge låse — meta_send_aktiv OG webinarmotor_meta_aktiv.
  */
 export function tilmeldingSenderRigtigt(a: {
   dryRun: boolean; port: TilmeldingPort; metaLaasAktiv: boolean; webinarLaasAktiv: boolean; testEventCode: string | null; tilmeldingId: string | null;
 }): boolean {
   if (a.dryRun) return false;
   if (a.port !== "klar") return false;
-  if (a.testEventCode !== null && a.tilmeldingId !== null) return true;
+  if (a.testEventCode !== null) return a.tilmeldingId !== null;
   return a.metaLaasAktiv && a.webinarLaasAktiv;
 }
 
@@ -257,8 +281,8 @@ export interface TilmeldingResultat {
   payload_afvist: number;
   fejlede: number;
   udsat: number;
-  /** Læsefejl i tilmeldingspasset (fx 42703 før skive 1) — passet er isoleret; ansøgningerne kører. */
-  fejl: string | null;
+  /** Passets EGNE fejl (planlægning, værn, spor, Metas afslag) — står KUN her, aldrig i kørslens fejl/status. */
+  fejl: string[];
 }
 
 export function tomtTilmeldingResultat(tilmeldingId: string | null): TilmeldingResultat {
@@ -268,6 +292,6 @@ export function tomtTilmeldingResultat(tilmeldingId: string | null): TilmeldingR
       ikke_platform: 0, intern: 0, afmeldt: 0, fravalgt: 0, gen_tilmelding: 0,
       ingen_user_agent: 0, ingen_landing: 0, ingen_tidspunkt: 0, for_gammel: 0, allerede_sendt: 0, ugyldig: 0,
     },
-    sendt: 0, payload_afvist: 0, fejlede: 0, udsat: 0, fejl: null,
+    sendt: 0, payload_afvist: 0, fejlede: 0, udsat: 0, fejl: [],
   };
 }

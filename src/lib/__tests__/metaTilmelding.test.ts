@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { sha256Hex } from "../../../supabase/functions/_shared/aftryk.ts";
 import { AFTRYK_FORM, findForbudteNoegler, META_VINDUE_DAGE } from "../../../supabase/functions/_shared/metaSend.ts";
 import {
-  bygTilmeldingPayload, doemTilmelding, hashTilmeldingBrugerdata, laesWebinarLaas, normaliserTilmeldingBrugerdata,
+  bygTilmeldingPayload, doemTilmelding, hashTilmeldingBrugerdata, landingUdenQuery, laesWebinarLaas, normaliserTilmeldingBrugerdata,
   TILMELDING_ART, TILMELDING_CONTENT_NAME, TILMELDING_EVENT_NAME, TILMELDING_GRUNDE, tilmeldingBrugerdataNoegler,
   tilmeldingEventId, tilmeldingFbc, tilmeldingFbcKilde, tilmeldingSenderRigtigt, type TilmeldingTilMeta,
   tomtTilmeldingResultat, WEBINAR_META_LAAS_NOEGLE,
@@ -58,6 +58,7 @@ describe("metaTilmelding — dommen", () => {
     for (const g of TILMELDING_GRUNDE) expect(r.sprunget[g]).toBe(0);
     expect(r.sprunget.allerede_sendt).toBe(0);
     expect(r.port).toBe("laesefejl");
+    expect(r.fejl).toEqual([]);
     expect(r.sender_rigtigt).toBe(false);
   });
 });
@@ -81,7 +82,8 @@ describe("metaTilmelding — payloaden", () => {
     expect(p.event_name).toBe(TILMELDING_EVENT_NAME);
     expect(p.event_name).toBe("CompleteRegistration");
     expect(p.action_source).toBe("website");
-    expect(p.event_source_url).toBe("https://topix.dk/webinar?utm_source=fb");
+    // uden query og fragment (CTO 3/10): utm står i sine egne kolonner, Meta får kun siden
+    expect(p.event_source_url).toBe("https://topix.dk/webinar");
     expect(p.event_time).toBe(Math.floor(tid.getTime() / 1000));
     expect(p.event_id).toBe(`${ID}:registration`);
     expect(p.custom_data).toEqual({ content_name: TILMELDING_CONTENT_NAME });
@@ -112,10 +114,21 @@ describe("metaTilmelding — payloaden", () => {
     expect("fbc" in p.user_data).toBe(false);
     expect("fbp" in p.user_data).toBe(false);
   });
-  it("en rå e-mail i landing fanges af værnet", async () => {
-    const r = T({ origin: "https://topix.dk/webinar?email=bente@eksempel.dk" });
+  it("en mail i landingens query når aldrig Meta — query og fragment skrælles af", async () => {
+    const r = T({ origin: "https://topix.dk/webinar/tilmeld?email=bente@eksempel.dk&navn=Bente#wt=hemmeligt" });
     const p = bygTilmeldingPayload(r, new Date(r.registreret_at as string), await sha256Hex(r.id), {});
-    expect(findForbudteNoegler(p).join(" ")).toContain("rå e-mail");
+    expect(p.event_source_url).toBe("https://topix.dk/webinar/tilmeld");
+    expect(findForbudteNoegler(p)).toEqual([]);
+    expect(JSON.stringify(p)).not.toMatch(/eksempel\.dk|hemmeligt|Bente/);
+  });
+  it("landingUdenQuery: URL → oprindelse + sti; ikke-URL skæres ved ? eller #; tomt → null (ingen_landing)", () => {
+    expect(landingUdenQuery("https://topix.dk/webinar?utm_source=fb&fbclid=IwAR1#x")).toBe("https://topix.dk/webinar");
+    expect(landingUdenQuery("  https://app.theboardroom.dk/w/slug/tilmeld?t=abc ")).toBe("https://app.theboardroom.dk/w/slug/tilmeld");
+    expect(landingUdenQuery("topix.dk/webinar?email=a@b.dk")).toBe("topix.dk/webinar");
+    expect(landingUdenQuery("?email=a@b.dk")).toBeNull();
+    expect(landingUdenQuery("")).toBeNull();
+    expect(landingUdenQuery(null)).toBeNull();
+    expect(doemTilmelding(T({ origin: "#bare-et-fragment" }), NU)).toEqual({ ok: false, grund: "ingen_landing" });
   });
 });
 
@@ -127,7 +140,9 @@ describe("metaTilmelding — låsen og porten", () => {
     expect(tilmeldingSenderRigtigt({ ...S, webinarLaasAktiv: false })).toBe(false));
   it("hovedafbryderen meta_send_aktiv lukket → intet, selv med den nye lås åben", () =>
     expect(tilmeldingSenderRigtigt({ ...S, metaLaasAktiv: false })).toBe(false));
-  it("testkode ALENE sender ingen tilmeldinger — kun testkode + præcis én tilmelding", () => {
+  it("testkode sender KUN med præcis én tilmelding — også når begge låse er åbne", () => {
+    expect(tilmeldingSenderRigtigt({ ...S, testEventCode: "TEST123" })).toBe(false);
+    expect(tilmeldingSenderRigtigt({ ...S, testEventCode: "TEST123", tilmeldingId: ID })).toBe(true);
     const luk = { ...S, metaLaasAktiv: false, webinarLaasAktiv: false };
     expect(tilmeldingSenderRigtigt({ ...luk, testEventCode: "TEST123" })).toBe(false);
     expect(tilmeldingSenderRigtigt({ ...luk, testEventCode: "TEST123", tilmeldingId: ID })).toBe(true);
