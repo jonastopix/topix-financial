@@ -12026,6 +12026,11 @@ Værn: `ringMigOp.guard` dom 8 (indsend), 9 (RLS), 10 (IP-hash); `opkaldDom.test
 
 **Åbent:** spørgsmålet i platformens eget webinarrum (Jonas 08:17 «senere») · profilegenskaben målt på en rigtig profil · «Deltog»-flowet kræver Hovedlisten OG samtykke — en deltager uden for får linket på profilen, men ingen mail · persondatateksten («opkald på anmodning», 90 dage — Jonas godkender) · «Træk tilbage» er en mail til kontakt@ + sletning i SQL editor (ingen klientknap) · typegenereringen (`types.ts`) efter migrationen — `api.ts` bruger `as any` som nyhederApi.
 
+
+### 3. oktober — SMS: recon, intet bygget (gren `docs/sms-recon`)
+
+Jonas 3/10: «Der skal også opsættes SMS system på platformen. Det kan bruges til både medlemmer og webinardeltagere.» — en **omstødelse** af «SMS: ikke nu» (30/9, D2.6) og af forbeholdet 1/10 (`docs/mailplan-14-dage-og-sms.md`, `docs/samtykke-og-opkald.md`). Reconen (udbydere, jura, repoets mønstre, anbefaling GatewayAPI, syv beslutninger hos Jonas) står i **`docs/sms.md`** — læs den FØR nogen SMS-kode. Intet bygget, ingen migration, ingen udbyder-konto.
+
 ---
 
 ## DEL 3 · Det der venter
