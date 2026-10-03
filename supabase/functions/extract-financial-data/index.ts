@@ -6,6 +6,7 @@ import { detectSourceSystem, isAiAllowed, type SourceFingerprint } from "../_sha
 import { validatePdfStructuralPayload, computeSha256Deno } from "../_shared/pdfStructuralValidator.ts";
 import type { PdfStructuralPayload } from "../_shared/pdfStructuralTypes.ts";
 import { aiGatewayFetch } from "../_shared/aiGatewayFetch.ts";
+import { AI_KEY_FIGURES_EGENSKABER, AI_SKEMA_FELT, AI_SKEMA_MARKOER } from "../_shared/aiSkema.ts";
 import { afgoerPeriodeSpaend, findPeriodeITekst, spaendAfvisningTekst, spaendKendtKildeTekst } from "../_shared/periodeSpaend.ts";
 
 const corsHeaders = {
@@ -1015,13 +1016,34 @@ A) OMSÆTNING/INDTÆGTER:
    - I saldobalancer: typisk NEGATIVE tal (kreditside)
    - → RETURNÉR ALTID SOM POSITIVT TAL (brug absolutværdi)
 
-B) OMKOSTNINGER (løn, varekøb, marketing, lokaler, admin, afskrivninger, finansielle omkostninger):
+B) OMKOSTNINGER (løn, pension og sociale, øvrige personale, varekøb, marketing, lokaler, admin, autodrift, andre eksterne, afskrivninger, finansielle omkostninger):
    - → RETURNÉR ALTID SOM POSITIVT TAL (brug absolutværdi)
 
    FINANSIELLE POSTER:
    - "Renteudgifter i alt" / "Finansielle omkostninger i alt" → finansielle_omkostninger (positivt tal)
    - "Renteindtægter i alt" / "Finansielle indtægter i alt" → finansielle_indtaegter (positivt tal)
    - Findes kun en nettolinje "Finansielle poster i alt": læg den i finansielle_omkostninger hvis den er en udgift, ellers i finansielle_indtaegter
+
+   PERSONALE (tre felter — hver post i ÉT felt):
+   - "Lønninger i alt" / "Løn, gager og honorarer" → loenninger (KUN lønnen)
+   - "Pensioner & sociale omkostninger i alt" / pension, ATP, AER/AUB, sociale bidrag → pensioner_sociale
+   - "Øvrige personaleudgifter i alt" / personalegoder, kurser, personalearrangementer, arbejdstøj → oevrige_personale
+   - Har dokumentet KUN én samlet personalegruppe uden underopdeling: læg hele gruppen i loenninger og udelad de to andre
+   - Er pensionen allerede med i den lønsum du bruger, så udelad pensioner_sociale (aldrig to gange)
+
+   AUTODRIFT (autodrift):
+   - "Autodrift i alt" / "Bilomkostninger i alt" / "Transportomkostninger": brændstof, billeasing, vægtafgift, parkering, kørselsgodtgørelse, reparation af biler
+
+   ANDRE EKSTERNE OMKOSTNINGER (oevrige_omkostninger):
+   - "Andre eksterne omkostninger i alt" / "Øvrige omkostninger i alt" / "Øvrige driftsomkostninger": fremmed arbejde, underleverandører, leasing (ikke biler)
+   - KUN for en gruppe dokumentet selv viser ud over salg, lokaler, administration, personale og auto — flyt ALDRIG poster ud af de andre grupper
+
+   EKSTRAORDINÆRE POSTER (ekstraordinaere_poster):
+   - "Ekstraordinære poster i alt" / "Ekstraordinære omkostninger": POSITIVT tal når det er en omkostning, NEGATIVT når det er en nettoindtægt
+   - ALDRIG linjen "Resultat før ekstraordinære poster"
+
+   GRUPPER DER IKKE FINDES: udelad feltet (pensioner_sociale, oevrige_personale, autodrift, oevrige_omkostninger, ekstraordinaere_poster).
+   TJEK: dækningsbidrag minus ALLE omkostningsfelter (+ finansielle indtægter − finansielle omkostninger − ekstraordinære poster) skal give resultat før skat. Mangler der et beløb, har du overset en gruppe.
 
    LOKALER (lokaler):
    - Inkludér ALT under "Lokaleomkostninger": husleje, el, vand, varme, rengøring
@@ -1175,31 +1197,9 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
                     cvr_number: { type: "string" },
                     key_figures: {
                       type: "object",
-                      properties: {
-                        omsaetning: { type: "number" },
-                        omsaetning_aar: { type: "number" },
-                        direkte_omkostninger: { type: "number" },
-                        daekningsbidrag: { type: "number" },
-                        daekningsbidrag_aar: { type: "number" },
-                        loenninger: { type: "number" },
-                        marketing: { type: "number", description: "Salgs- og marketingomkostninger samlet" },
-                        lokaler: { type: "number", description: "Lokaleomkostninger i alt — summér ALLE poster under gruppen (husleje, el, vand, varme, rengøring). Returnér 0 hvis gruppen er tom, ALDRIG null." },
-                        admin: { type: "number", description: "Administrative omkostninger samlet (kontor, telefon, forsikring, revisor, etc.)" },
-                        afskrivninger: { type: "number", description: "Af- og nedskrivninger" },
-                        tech_software: { type: "number", description: "IT, software, hosting" },
-                        finansielle_omkostninger: { type: "number", description: "Renteudgifter / finansielle omkostninger i alt — positivt tal" },
-                        finansielle_indtaegter: { type: "number", description: "Renteindtægter / finansielle indtægter i alt — positivt tal" },
-                        resultat_foer_skat: { type: "number" },
-                        resultat_foer_skat_aar: { type: "number" },
-                        resultat_efter_skat: { type: "number" },
-                        resultat_efter_skat_aar: { type: "number" },
-                        aktiver_i_alt: { type: "number" },
-                        passiver_i_alt: { type: "number" },
-                        egenkapital: { type: "number" },
-                        bank_balance: { type: "number" },
-                        debitorer: { type: "number" },
-                        kreditorer: { type: "number" },
-                      },
+                      // Pakke B skive 1 (3/10-2026): egenskaberne bor i _shared/aiSkema.ts — værnet
+                      // aiSkemaGrupper.guard fælder, hvis en kanonisk omkostningsnøgle mangler et felt.
+                      properties: AI_KEY_FIGURES_EGENSKABER,
                     },
                     line_items: {
                       type: "array",
@@ -1339,6 +1339,10 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
       // Capture raw AI output BEFORE any post-processing (for audit trail)
       rawAiOutput = JSON.parse(JSON.stringify(extractedData));
       rawAiOutput.routing_trace = routingTrace;
+      // Beviset for udrulningen (pakke B skive 1, 3/10-2026): KUN den nye kode sætter feltet — i svaret og
+      // extracted_data (extractedData), i raw_extracted_data (rawAiOutput) og i quality_signals.
+      extractedData[AI_SKEMA_FELT] = AI_SKEMA_MARKOER;
+      rawAiOutput[AI_SKEMA_FELT] = AI_SKEMA_MARKOER;
 
       // Override company name if provided by caller (prevents AI hallucination)
       if (knownCompanyName) {
@@ -1403,6 +1407,9 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
           revenue: "omsaetning", cogs: "direkte_omkostninger", gross_profit: "daekningsbidrag",
           payroll: "loenninger", sales_costs: "marketing", facility_costs: "lokaler",
           admin_costs: "admin", other_costs: "oevrige_omkostninger", other_operating_income: "andre_driftsindtaegter",
+          // Pakke B skive 1 (3/10-2026): de fire andre grupper fra AI-skemaet, samme kilde-id'er som KF_TO_CANONICAL.
+          payroll_related: "pensioner_sociale", other_staff_costs: "oevrige_personale", vehicle_costs: "autodrift",
+          extraordinary_items: "ekstraordinaere_poster",
           depreciation: "afskrivninger", ebt: "resultat_foer_skat",
           net_result: "resultat_efter_skat", assets_total: "aktiver_i_alt",
           liabilities_total: "passiver_i_alt", equity_total: "egenkapital",
@@ -1757,6 +1764,8 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
           has_period: !!(dbReportPeriod && dbReportPeriod.length > 0),
           extraction_method: extractionMethod,
           routing_branch: routingTrace.branch,
+          // Pakke B skive 1: kun AI-vejen bærer markøren (sat ved parsningen af tool-kaldet ovenfor).
+          ...(extractedData?.[AI_SKEMA_FELT] === AI_SKEMA_MARKOER ? { [AI_SKEMA_FELT]: AI_SKEMA_MARKOER } : {}),
           ...(periodRejectedReason ? {
             period_rejected_reason: periodRejectedReason,
             suspected_period: suspectedPeriod,

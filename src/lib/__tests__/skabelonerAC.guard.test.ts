@@ -121,7 +121,9 @@ describe("skabelonerAC.guard — A, A2 og C: admin og renter i PDF'erne, ebt afl
   const s = udenKommentarer(laes(SALDO));
   const e = udenKommentarer(laes(ENGINE));
   const t = udenKommentarer(laes(TYPES));
-  const i = laes(INDEX); // prompten er en template-streng — læses RÅ
+  // prompten er en template-streng — læses RÅ. Skemaet flyttede 3/10-2026 (pakke B skive 1) til _shared/aiSkema.ts
+  // (tool-definitionen bruger AI_KEY_FIGURES_EGENSKABER) — derfor læses de to filer sammen.
+  const i = laes(INDEX) + "\n" + laes("supabase/functions/_shared/aiSkema.ts");
   const rd = udenKommentarer(laes(RIM_DENO));
   const rs = udenKommentarer(laes(RIM_SRC));
   const od = udenKommentarer(laes(OMK_DENO));

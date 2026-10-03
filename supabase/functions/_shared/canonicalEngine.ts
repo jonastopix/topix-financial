@@ -23,6 +23,7 @@ import type {
 } from "./canonicalTypes.ts";
 import { rimelighedstjek } from "./rimelighed.ts";
 import { CANONICAL as OMK, ebitdaRegnet, kontrolsum } from "./omkostningsnoegler.ts";
+import { AI_POSITIVE_DRIFTSFELTER } from "./aiSkema.ts";
 
 import type {
   SemanticExtractionResult,
@@ -40,7 +41,8 @@ import {
 const TOLERANCE = 2;
 
 // ── Danish key_figures → English canonical metrics mapping ──
-const KF_TO_CANONICAL: Record<string, keyof CanonicalMetrics> = {
+// Eksporteret (3/10-2026, pakke B skive 1) så værnet aiSkemaGrupper.guard kan dømme AI-skemaet mod den ENE mapning.
+export const KF_TO_CANONICAL: Record<string, keyof CanonicalMetrics> = {
   omsaetning: "revenue",
   direkte_omkostninger: "cogs",
   daekningsbidrag: "gross_profit",
@@ -220,7 +222,11 @@ export function aiResultatFortegnsdom(kf: Record<string, unknown>, lineItems: un
   const opexUdenTech =
     (abs("loenninger") ?? 0) + (abs("marketing") ?? abs("salgsomkostninger") ?? 0) +
     (abs("lokaler") ?? abs("lokaleomkostninger") ?? 0) + (abs("admin") ?? abs("administrationsomkostninger") ?? 0) +
-    (abs("afskrivninger") ?? 0);
+    (abs("afskrivninger") ?? 0) +
+    // Pakke B skive 1 (3/10-2026): de fire driftsgrupper AI-skemaet fik — uden dem ville en rapport med pension,
+    // personale, auto eller andre eksterne aldrig ramme «samme tal, modsat fortegn». Ekstraordinære poster er
+    // bevidst UDE, som i ebtRegnet (omkostningsnoegler.ts; regnestykket i _shared/aiSkema.ts).
+    AI_POSITIVE_DRIFTSFELTER.reduce((sum, f) => sum + (abs(f) ?? 0), 0);
   const tech = abs("tech_software") ?? 0;
   const finKf = (abs("finansielle_omkostninger") ?? 0) - (abs("finansielle_indtaegter") ?? 0);
   let finLinjer = 0;
@@ -284,7 +290,9 @@ export function normalizeToCanonical(extractedData: any, extractionMethod?: stri
 
   // Map key_figures → canonical, applying sign rules
   const revenueFields = ["omsaetning", "omsaetning_aar"];
-  const alwaysPositiveExpenseFields = ["loenninger", "marketing", "lokaler", "admin", "tech_software", "afskrivninger", "finansielle_omkostninger"];
+  // Pakke B skive 1 (3/10-2026): + de fire driftsgrupper fra AI-skemaet (pension, øvrige personale, autodrift,
+  // andre eksterne) — omkostninger er POSITIVE (7/9). Ekstraordinære poster bærer fortegn og står ikke her.
+  const alwaysPositiveExpenseFields = ["loenninger", "marketing", "lokaler", "admin", "tech_software", "afskrivninger", "finansielle_omkostninger", ...AI_POSITIVE_DRIFTSFELTER];
   // A2/C (18/9-2026): AI-skemaet fik finansielle_omkostninger og finansielle_indtaegter (begge positive tal).
   const alwaysPositiveIncomeFields = ["finansielle_indtaegter"];
   const profitFields = ["daekningsbidrag", "daekningsbidrag_aar"];
@@ -370,7 +378,9 @@ export function normalizeToCanonical(extractedData: any, extractionMethod?: stri
       const opexTotal = Math.abs(kf.loenninger || 0) + Math.abs(kf.marketing || kf.salgsomkostninger || 0) +
         Math.abs(kf.lokaler || kf.lokaleomkostninger || 0) +
         Math.abs(kf.admin || kf.administrationsomkostninger || 0) +
-        Math.abs(kf.tech_software || 0) + Math.abs(kf.afskrivninger || 0);
+        Math.abs(kf.tech_software || 0) + Math.abs(kf.afskrivninger || 0) +
+        // Pakke B skive 1 (3/10-2026): de fire nye driftsgrupper tæller med i krydstjekket.
+        AI_POSITIVE_DRIFTSFELTER.reduce((sum, f) => sum + Math.abs(kf[f] || 0), 0);
 
       if (absGP > 0) {
         const expectedResult = absGP - opexTotal;
@@ -453,10 +463,11 @@ export function normalizeToCanonical(extractedData: any, extractionMethod?: stri
       const statedResult = metrics.ebt;
       const canReconcile = gp != null && statedResult != null;
 
-      const opexWithoutTech =
-        (metrics.payroll || 0) + (metrics.sales_costs || 0) +
-        (metrics.facility_costs || 0) + (metrics.admin_costs || 0) +
-        (metrics.vehicle_costs || 0);
+      // Pakke B skive 1 (3/10-2026): ALLE driftsposter gennem omkostningsnoegler (OMK.drift) — før kun fem.
+      // Med pension/personale/andre eksterne i metrics ville de fem gøre begge grene skæve med samme beløb X, og
+      // |a − X| mod |a − X − tech| kan vælge forkert gren. Regnestykket: forventet = gp − Σ|drift| − depr (± tech).
+      const opexWithoutTech = OMK.drift.reduce(
+        (sum, k) => sum + Math.abs(((metrics as unknown as Record<string, number | null>)[k]) || 0), 0);
       const depreciation = metrics.depreciation || 0;
 
       let deltaWithout: number | null = null;
