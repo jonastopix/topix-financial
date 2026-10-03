@@ -113,6 +113,20 @@
 // Sporets `invitation` = «hentet» for motorens .ics betyder «filen var i hånden»
 // (CHECK'en webinar_mails_invitation_check er urørt); rækken kendes på «P-».
 //
+// «TI_MINUTTER» (3/10-2026, docs/webinarmotor.md §4 og §7.1): «Vi begynder
+// kl. 11.00 — her er dit link» (klokkeslættet, aldrig et antal minutter:
+// mailen går 5–30 min før) — KUN motorens rækker (dommens Plan.kunMotor; eWebinar sender selv
+// sin 10-minutters-mail til sine). Dommen afgør det FØR alt andet («ikke_motor»),
+// og mailVejDom kræver bagefter kilde_system = 'platform'. Vinduet er T−30 … T−5
+// min (udvidet 3/10 efter CTO-rådets fund 1 — regnestykket og slot-tabellen ved
+// PLANEN: mindst 3 slots for hvert startminut) — aldrig efter starten. Ingen
+// kalenderfil. PORTEN (fund 3): TI_MINUTTER_PORT_NOEGLE læses fail-closed FØR
+// dommen; uden «klar» er arten ikke med i kørslen. Migrationen 20261003040000
+// (CHECK'en + porten) SKAL være kørt, FØR den her udrulles — porten fanger det,
+// hvis rækkefølgen brydes. ALARMEN (webinarMailAlarm, art «ti_minutter»): en
+// udsat/over loftet med frist ≤ 10 min, eller en tabt (for_sent). Beviset i
+// svaret: `ti_minutter` (port · ikke_motor · skal_sendes · tabt).
+//
 // BODY (STRIKS, bodyFelter.guard): dry_run · email · art · nu.
 //
 // KASTER ALDRIG mod én mail: fejler én, tælles den, og de andre sendes.
@@ -120,7 +134,7 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { authenticateServiceRole, corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { ukendteFelter, ukendteFelterBesked } from "../_shared/kendteFelter.ts";
-import { afsendelseUkendt, AKTIVE_ARTER, baererInvitation, type MailArt, noegle, planlaegKoersel, type Sending, type Springgrund, type Tilmeldt } from "../_shared/webinarMailDom.ts";
+import { afsendelseUkendt, AKTIVE_ARTER, baererInvitation, kunMotor, type MailArt, noegle, planlaegKoersel, type Sending, type Springgrund, type Tilmeldt, type TiMinutterPort } from "../_shared/webinarMailDom.ts";
 import { AFSENDER, bygWebinarMail, SVAR_TIL } from "../_shared/webinarMailTekster.ts";
 import { MAILGUN_DOMAENE, MAILGUN_SECRET, PAUSE_MS, sendMailgun, sendMailgunMime } from "../_shared/mailgunAfsendelse.ts";
 import { beregnKoerselsLoft, erStopStatus, LOFT_VINDUE_MS, type LoftRaekke, MAILGUN_LOFT_PR_TIME } from "../_shared/webinarMailLoft.ts";
@@ -134,7 +148,7 @@ import { driftModtager } from "../_shared/driftModtager.ts";
 import { indgangsMailHtml } from "../_shared/indgangsMail.ts";
 import { type KonfigDom, laesVideoKonfig, mailVideo, VIDEO_ART, VIDEO_KONFIG_NOEGLE, type VideoKonfig, type VideoStatus, videoIKoerslen } from "../_shared/webinarVideo.ts";
 import { joinSecret } from "../_shared/webinarDeltagerAuth.ts";
-import { erMotorId, type MailVej, mailVejDom, type MotorMailTal, type MotorOpslag, tomtMotorMailTal } from "../_shared/webinarMotor/mail.ts";
+import { erMotorId, type MailVej, mailVejDom, type MotorMailTal, type MotorOpslag, taelTabteUdenAflyste, tomtMotorMailTal } from "../_shared/webinarMotor/mail.ts";
 import { hentMotorOpslag, motorMailDele } from "../_shared/webinarMotorMail.ts";
 
 const LOG = "[webinar-mail-cron]";
@@ -146,6 +160,14 @@ export const KENDTE_FELTER = ["dry_run", "email", "art", "nu"] as const;
 
 /** Låsen. Standard false — som meta_send_aktiv og ga_send_aktiv. */
 export const LAAS_NOEGLE = "webinar_mail_aktiv";
+
+/**
+ * PORTEN for «ti_minutter» (3/10-2026, CTO-rådets fund 3): migration
+ * 20261003040000 lægger nøglen = true i SAMME kørsel som art-CHECK'en. Findes
+ * den, er CHECK'en der; findes den ikke, ville en ti_minutter-række afvises
+ * (23514), og næste slot sende mailen IGEN. Læst FØR dommen, fail-closed.
+ */
+export const TI_MINUTTER_PORT_NOEGLE = "webinar_ti_minutter_klar";
 
 // TIDSBUDGETTET (30/9-2026) bor i _shared/webinarMailBudget.ts med hele
 // regnestykket: et forsøg startes kun, hvis dets VÆRSTE forløb (ics 8 s +
@@ -182,6 +204,33 @@ export interface MailResultat {
   sprunget_senere_session: number;
   /** = sprunget.levering_ukendt: mails, der IKKE gensendes, fordi et tidligere forsøg har ukendt udfald. */
   ukendt_ikke_indhentet: number;
+  /**
+   * «ti_minutter» (3/10-2026) — KUN motorens rækker. Feltet findes kun i den nye
+   * kode — beviset for udrulningen.
+   *   port         porten (TI_MINUTTER_PORT_NOEGLE): klar · migration_mangler ·
+   *                laesefejl. Uden «klar» er arten ikke med i kørslen, og de tre
+   *                tal er 0.
+   *   ikke_motor   eWebinar-personer, dommen nægtede arten (sprunget.ikke_motor)
+   *   skal_sendes  motorens ti_minutter-mails, der skal sendes nu
+   *   tabt         dømt for_sent uden ok-række for en, der var tilmeldt senest
+   *                frist − største hul (dommens kortNaadeTabte), FRARÅDET de
+   *                aflyste sessioner (taelTabteUdenAflyste) — alarmens grundlag
+   *   (sprunget.samme_koersel: ti_minutter holdt tilbage, fordi samme person
+   *    fik bekræftelsen eller «om en time» i samme kørsel — runde 2, fund 4)
+   * SAMME GRUNDLAG (rådets fund 5): alle tre er talt EFTER prøvens filter —
+   * med `email` er tilmeldingerne allerede læst for den ene adresse; med en
+   * anden `art` end ti_minutter er alle tre 0. Den ene forskel, der står
+   * tilbage, er bevidst: ikke_motor og tabt er dommens tal FØR mailVejDom,
+   * skal_sendes er EFTER (en motor-række uden link tages ud og står i
+   * motor_mail.uden_link — den forsøges ikke).
+   */
+  ti_minutter: { port: TiMinutterPort; ikke_motor: number; skal_sendes: number; tabt: number };
+  /**
+   * Mails, budgettet udsatte i denne kørsel (art og session — aldrig en mail).
+   * Alarmen læser dem KUN for arter med egen nåde («ti_minutter»): de har ingen
+   * indhentning, så en udsat tæt på fristen er tabt (webinarMailAlarm.tiMinutterIFare).
+   */
+  udsatte: { art: MailArt; session_tid: string }[];
   /** Af skal_sendes: mails, der indhentes efter et fejlet forsøg (dommens `indhentning`). */
   indhentet: number;
   sendt: number;
@@ -253,6 +302,23 @@ async function alleSider<T>(byg: (fra: number, til: number) => PromiseLike<{ dat
   }
 }
 
+/**
+ * Porten for «ti_minutter» — ÉN læsning pr. kørsel, FØR dommen. FAIL-CLOSED:
+ * en læsefejl er «laesefejl», en manglende (eller ikke-true) nøgle er
+ * «migration_mangler», og kun true er «klar».
+ */
+async function laesTiMinutterPort(admin: SupabaseClient): Promise<TiMinutterPort> {
+  try {
+    const { data, error } = await admin.from("app_config").select("config_value").eq("config_key", TI_MINUTTER_PORT_NOEGLE).maybeSingle();
+    if (error) throw new Error(error.message);
+    const v = (data as { config_value?: unknown } | null)?.config_value;
+    return v === true || v === "true" ? "klar" : "migration_mangler";
+  } catch (e) {
+    console.error(`${LOG} kunne ikke læse ${TI_MINUTTER_PORT_NOEGLE} — fail-closed, ingen ti_minutter:`, e);
+    return "laesefejl";
+  }
+}
+
 async function laasErAktiv(admin: SupabaseClient): Promise<boolean> {
   try {
     const { data } = await admin.from("app_config").select("config_value").eq("config_key", LAAS_NOEGLE).maybeSingle();
@@ -268,7 +334,8 @@ const tomt = (a: { toer: boolean; laas: boolean; email: string | null; art: stri
   ok: true, dry_run: a.toer, laas_aktiv: a.laas, sender_rigtigt: a.senderRigtigt,
   nu: a.nu.toISOString(), email: a.email, art: a.art,
   tilmeldinger_laest: 0, afmeldte_laest: 0, sendte_foer: 0, fejlede_foer: 0, ukendte_foer: 0, skal_sendes: 0,
-  sprunget: { afmeldt: 0, ingen_session: 0, ingen_mail: 0, for_sent: 0, endnu_ikke: 0, sessionen_begyndt: 0, allerede_sendt: 0, for_tidlig_tilmelding: 0, for_sent_efter_fejl: 0, senere_session: 0, levering_ukendt: 0 },
+  sprunget: { afmeldt: 0, ingen_session: 0, ingen_mail: 0, for_sent: 0, endnu_ikke: 0, sessionen_begyndt: 0, allerede_sendt: 0, for_tidlig_tilmelding: 0, for_sent_efter_fejl: 0, senere_session: 0, levering_ukendt: 0, ikke_motor: 0, samme_koersel: 0 },
+  ti_minutter: { port: "migration_mangler", ikke_motor: 0, skal_sendes: 0, tabt: 0 }, udsatte: [],
   sprunget_senere_session: 0, ukendt_ikke_indhentet: 0,
   indhentet: 0, sendt: 0, fejlede: 0, udsat: 0, budget: tomtBudgetBevis(), dublet: 0, med_invitation: 0, uden_invitation: 0,
   loft: { forsoeg_60_min: 0, ok_60_min: 0, maks: MAILGUN_LOFT_PR_TIME, pause: null, stoppet_ved: null }, over_loft: 0, ventende: [],
@@ -321,8 +388,10 @@ async function koer(a: { admin: SupabaseClient; toerKoersel: boolean; laas: bool
   r.fejlede_foer = fejlede.size;
   r.ukendte_foer = ukendte.size;
 
-  // 4. Dommen.
-  const plan = planlaegKoersel({ raekker, afmeldte, sendte, fejlede, ukendte, nu: a.nu });
+  // 4. Dommen. Porten for «ti_minutter» læses FØR (fail-closed, fund 3).
+  const tiMinutterPort = await laesTiMinutterPort(a.admin);
+  r.ti_minutter.port = tiMinutterPort;
+  const plan = planlaegKoersel({ raekker, afmeldte, sendte, fejlede, ukendte, nu: a.nu, tiMinutterPort });
   r.sprunget = plan.sprunget;
   r.sprunget_senere_session = plan.sprunget.senere_session;
   r.ukendt_ikke_indhentet = plan.sprunget.levering_ukendt;
@@ -332,7 +401,11 @@ async function koer(a: { admin: SupabaseClient; toerKoersel: boolean; laas: bool
   //     ingen forespørgsel, og eWebinars rækker får vejen «ewebinar» (uændret).
   //     En motor-række uden link tages ud HER, før loft og budget: den forsøges
   //     ikke, koster intet forsøg og står ikke som over_loft.
-  const motorIds = planlagte.map((s) => s.ewebinarId).filter(erMotorId);
+  // De TABTE «ti_minutter» slås op med (runde 2, fund 2): en aflyst session
+  // fraregnes i tabt-tallet, og det kræver opslagets status.
+  const proevenTagerTi = a.art === null || kunMotor(a.art);
+  const tabte = proevenTagerTi ? plan.kortNaadeTabte : [];
+  const motorIds = [...new Set([...planlagte.map((s) => s.ewebinarId), ...tabte])].filter(erMotorId);
   const motorOpslag = motorIds.length > 0 ? await hentMotorOpslag(a.admin, motorIds, r.fejl) : new Map<string, MotorOpslag>();
   const motorSecret = motorIds.length > 0 ? joinSecret() : null;
   const veje = new Map<Sending, MailVej>();
@@ -345,6 +418,14 @@ async function koer(a: { admin: SupabaseClient; toerKoersel: boolean; laas: bool
     sendinger.push(s);
   }
   r.skal_sendes = sendinger.length;
+  // Samme grundlag som skal_sendes (fund 5): en prøve på en ANDEN art tæller 0.
+  r.ti_minutter = {
+    port: tiMinutterPort,
+    ikke_motor: proevenTagerTi ? plan.sprunget.ikke_motor : 0,
+    skal_sendes: sendinger.filter((s) => kunMotor(s.art)).length,
+    // Tabte uden de aflyste (runde 2, fund 2) — den rene taelTabteUdenAflyste.
+    tabt: taelTabteUdenAflyste(tabte, (id) => mailVejDom(id, motorOpslag.get(id), motorSecret !== null)),
+  };
   r.indhentet = sendinger.filter((s) => s.indhentning === true).length;
   for (const s of sendinger.slice(0, EKSEMPLER_MAKS)) {
     r.eksempler.push({ email: s.email, art: s.art, session_tid: s.sessionTid, ...(s.indhentning === true ? { indhentning: true as const } : {}) });
@@ -415,7 +496,7 @@ async function koer(a: { admin: SupabaseClient; toerKoersel: boolean; laas: bool
         r.budget.forloebet_ved_stop_ms = forloebetMs;
       }
     }
-    if (r.budget.stoppet_af_budget) { r.udsat++; continue; }
+    if (r.budget.stoppet_af_budget) { r.udsat++; r.udsatte.push({ art: s.art, session_tid: s.sessionTid }); continue; }
     const token = await byggAfmeldToken(afmeldSecret, s.email);
     const link = afmeldUrl(a.basis, token);
     // BEKRÆFTELSEN OG «OM TO UGER» BÆRER INVITATIONEN (dommens MED_INVITATION)

@@ -80,6 +80,16 @@ export function webinarTekst(d: Date): string {
   return `${p.weekday.toLocaleLowerCase("da-DK")} ${p.day}. ${p.month.toLocaleLowerCase("da-DK")} kl. ${time}.${p.minute}`;
 }
 
+/**
+ * KUN klokkeslættet, i dansk tid: «kl. 11.00» / «kl. 9.00» (3/10-2026, til
+ * «ti_minutter»). Samme format og samme dele som webinarTekst — det er dens hale.
+ */
+export function webinarKlokke(d: Date): string {
+  if (Number.isNaN(d.getTime())) throw new Error("webinarKlokke: ugyldig dato");
+  const p = dele(TEKST_FORMAT, d);
+  return `kl. ${String(Number(p.hour) % 24)}.${p.minute}`;
+}
+
 /** Er strengen Klaviyos datoform med tid? Bruges fail-closed, før noget sendes. */
 export function erKlaviyoDato(s: unknown): s is string {
   return typeof s === "string" && KLAVIYO_DATO_FORM.test(s) && !/[TZ]/.test(s);

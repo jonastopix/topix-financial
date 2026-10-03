@@ -365,3 +365,45 @@ describe("kildeværn — målstregerne", () => {
     expect(d).not.toMatch(/1\.96/);
   });
 });
+
+describe("den interne prøvesession tæller aldrig i målstregerne (docs/webinarmotor.md §7.6 fund 5)", () => {
+  // Seks rigtige: p0–p2 så færdigt, p3–p5 mødte ikke op. p0 ansøgte og blev medlem.
+  const rigtige: Tilmelding[] = Array.from({ length: 6 }, (_, n) =>
+    R(`p${n}@x.dk`, S1, n < 3 ? {} : { state: "Missed", attended: null, set_procent: null }));
+  // Fem interne — alle så færdigt, alle ansøgte og blev medlemmer. Uden filtret ville de
+  // løfte fremmødet til 8/11, ansøgerne til 6/8 og give fem ansøgere og medlemmer mere i prisen.
+  const interne: Tilmelding[] = Array.from({ length: 5 }, (_, n) =>
+    R(`intern${n}@topix.dk`, S1, { ewebinar_id: `P-${n}`, intern: n % 2 === 0 ? "true" : true }));
+  const ansoegninger = [
+    A("p0@x.dk", "2026-09-23T10:00:00.000Z", { trin: "underskrevet", virksomhed_slutdato: "2027-09-23" }),
+    ...interne.map((r) => A(r.email, "2026-09-23T10:00:00.000Z", { trin: "underskrevet", virksomhed_slutdato: "2027-09-23" })),
+  ];
+  const forbrug: MaalForbrug = {
+    dage: [{ ad_id: "120212345678901234", campaign_id: "k1", dato: "2026-09-10", valuta: "DKK", forbrug_oere: 1_000_000 }],
+    annoncer: [], tilstand: "har", hentetTil: "2026-09-30",
+  };
+  const med = { tilmeldinger: [...rigtige, ...interne], ansoegninger, forbrug };
+  const uden = { tilmeldinger: rigtige, ansoegninger, forbrug };
+
+  it("fremmøde: interne står hverken i tæller eller nævner", () => {
+    expect(maalstreger(med, NU).linjer[0]).toMatchObject({ taeller: 3, naevner: 6 });
+  });
+  it("ansøgere blandt så-færdigt: interne står hverken i tæller eller nævner", () => {
+    expect(maalstreger(med, NU).linjer[1]).toMatchObject({ taeller: 1, naevner: 3 });
+  });
+  it("pristællerne: interne ansøgere og medlemmer tæller ikke (1, ikke 6)", () => {
+    const m = maalstreger(med, NU);
+    expect(m.linjer[2]).toMatchObject({ vaerdi: "for_faa", naevner: 1 });
+    expect(m.linjer[3]).toMatchObject({ vaerdi: "for_faa", naevner: 1 });
+  });
+  it("dommen med interne rækker = dommen uden dem — i begge spejle", () => {
+    expect(maalstreger(med, NU)).toEqual(maalstreger(uden, NU));
+    expect(deno.maalstreger(med, NU)).toEqual(maalstreger(uden, NU));
+  });
+  it("kontrast: uden mærket tæller de samme rækker (filtret er det, der virker)", () => {
+    const umaerkede = interne.map((r) => ({ ...r, intern: null }));
+    const m = maalstreger({ tilmeldinger: [...rigtige, ...umaerkede], ansoegninger, forbrug }, NU);
+    expect(m.linjer[0]).toMatchObject({ taeller: 8, naevner: 11 });
+    expect(m.linjer[2]).toMatchObject({ vaerdi: "maalt", naevner: 6 });
+  });
+});

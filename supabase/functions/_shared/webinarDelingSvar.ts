@@ -12,7 +12,7 @@
  * STRENGVÆRDI ligner en mail. Prøven på det faktiske svar-objekt står i
  * src/lib/__tests__/webinarDeling.test.ts.
  */
-import { type AnsoegerMail, type Tilmelding, udenRaekker, type WebinarDashboardSvar, webinarDashboard } from "./webinarDashboard.ts";
+import { antalInterneTilmeldinger, type AnsoegerMail, type Tilmelding, udenRaekker, type WebinarDashboardSvar, webinarDashboard } from "./webinarDashboard.ts";
 import { type Annoncenavn, annoncepriser, type Annoncepriser, type Forbrugsdag, type Forbrugstilstand, type HentningStatus, type VindueValg } from "./annoncepriser.ts";
 import { maalstreger, type Maalstreger } from "./webinarMaalstreger.ts";
 
@@ -62,6 +62,17 @@ export interface DeltSvar {
    * bevises af fjerde linjes `maalOrd` «under 7.500 kr.» og et svar UDEN `kilde`.
    */
   maalstreger: Maalstreger;
+  /**
+   * DEN INTERNE PRØVESESSION (3/10-2026, CTO-rådets fund 2): antallet af
+   * tilmeldinger med prøvemærket (`raa.intern = true`), som dashboardet,
+   * målstregerne og annoncepriserne har regnet FRA — ET TAL, aldrig en mail
+   * eller et navn (findForbudteNoegler og findMailVaerdier går stadig svaret
+   * igennem). Regnet af den spejlede dom `antalInterneTilmeldinger`
+   * (webinarDashboard.ts ⇄ src/lib/webinar/dashboard.ts). Feltet er BEVISET for
+   * udrulningen af webinar-delt med filtret i _shared/annoncepriser.ts og
+   * _shared/webinarMaalstreger.ts: kun den nye kode svarer med det.
+   */
+  interne_fraregnet: number;
 }
 
 /** Ansøgningerne, der bærer en bekræftet kobling (en ikke-tom `webinar_email`) — kun antallet. */
@@ -80,7 +91,10 @@ export function bygDeltSvar(ind: DeltInput, nu: Date): DeltSvar {
     { tilmeldinger: ind.tilmeldinger, ansoegninger: ind.ansoegninger, forbrug: { dage: ind.dage, annoncer: ind.annoncer, tilstand: ind.tilstand, hentetTil: ind.hentning?.hentet_til ?? null } },
     nu,
   );
-  return { dashboard, priser, hentning: ind.hentning, valg: ind.valg, koblinger_talt: koblingerTalt(ind.ansoegninger), maalstreger: maal };
+  return {
+    dashboard, priser, hentning: ind.hentning, valg: ind.valg, koblinger_talt: koblingerTalt(ind.ansoegninger), maalstreger: maal,
+    interne_fraregnet: antalInterneTilmeldinger(ind.tilmeldinger),
+  };
 }
 
 /** Stierne (a.b[0].c) til enhver forbudt nøgle i objektet — tom liste = rent. Går hele træet, også arrays. */

@@ -75,6 +75,21 @@ export function mailVejDom(ewebinarId: string, opslag: MotorOpslag | undefined, 
   return { vej: "motor", opslag };
 }
 
+/**
+ * DE TABTE «ti_minutter» UDEN DE AFLYSTE (CTO-rådet runde 2, fund 2): planen
+ * giver de tabte nøgler (ewebinar_id, webinarMailDom.kortNaadeTabte), og
+ * `vejFor` er mailVejDom på cronens opslag. En aflyst session får ingen
+ * påmindelse — det er ikke et tab, og alarmen må ikke lyde. Alle andre grunde
+ * (ikke_fundet, ikke_platform, ingen_session, ingen_secret) og en bygbar vej
+ * tæller fortsat: dér skulle mailen være gået.
+ */
+export function taelTabteUdenAflyste(tabte: readonly string[], vejFor: (ewebinarId: string) => MailVej): number {
+  return tabte.filter((id) => {
+    const v = vejFor(id);
+    return !(v.vej === "motor_uden_link" && v.grund === "aflyst");
+  }).length;
+}
+
 /** Tællingen i cronens svar — beviset for, at den nye kode kører, og hvad den gjorde. */
 export interface MotorMailTal {
   /** Sendinger på motorens vej (link + .ics bygget). */

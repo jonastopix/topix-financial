@@ -9,7 +9,7 @@
  * src/lib/__tests__/webinarDashboard.paritet.test.ts. Definitionerne og
  * begrundelserne står i src-udgavens filhoved.
  */
-import { SPOR_FORHOLD_FRA, ansoegerTider, dagKey, datoKort, medlemsTider, medWebinarKobling, taelDeltagelse, type AnsoegerMail, type Tilmelding } from "./webinarDashboard.ts";
+import { SPOR_FORHOLD_FRA, ansoegerTider, dagKey, datoKort, erInternTilmelding, medlemsTider, medWebinarKobling, taelDeltagelse, type AnsoegerMail, type Tilmelding } from "./webinarDashboard.ts";
 import { annoncepriser, iVindue, periodeOrd, TROVAERDIG_FRA, type Annoncenavn, type Annoncepriser, type Forbrugsdag, type Forbrugstilstand, type Vindue } from "./annoncepriser.ts";
 import { doemSetGrad } from "./webinarDom.ts";
 import { intervalOrd, wilson } from "./marketingStatistik.ts";
@@ -370,16 +370,19 @@ function prisHarData(p: Annoncepriser | null): boolean {
 
 /** Ét kald, ét svar — fire linjer i fast rækkefølge. Fladen regner intet. */
 export function maalstreger(ind: MaalstregerInput, nu: Date): Maalstreger {
-  const t = maalTaelling(ind.tilmeldinger, ind.ansoegninger, nu);
+  // Den interne prøvesession tæller aldrig — filtreret FØR hver del af dommen
+  // (samme filter som webinarDashboard; docs/webinarmotor.md §7.6 fund 5).
+  const tilmeldinger = ind.tilmeldinger.filter((r) => !erInternTilmelding(r));
+  const t = maalTaelling(tilmeldinger, ind.ansoegninger, nu);
   // VINDUET STÅR FAST: «Hele perioden» — se filhovedet. Annoncepriserne giver
   // vinduet, forbruget og valutaen; tællerne er målstregernes egne (R1).
   const priser = ind.forbrug === null
     ? null
-    : annoncepriser({ tilmeldinger: ind.tilmeldinger, ansoegninger: ind.ansoegninger, dage: ind.forbrug.dage, annoncer: ind.forbrug.annoncer, tilstand: ind.forbrug.tilstand, valg: "daekning", hentetTil: ind.forbrug.hentetTil }, nu);
+    : annoncepriser({ tilmeldinger, ansoegninger: ind.ansoegninger, dage: ind.forbrug.dage, annoncer: ind.forbrug.annoncer, tilstand: ind.forbrug.tilstand, valg: "daekning", hentetTil: ind.forbrug.hentetTil }, nu);
   const harData = prisHarData(priser);
   const vindue = priser === null ? null : priser.vindue;
   const vindueOrd = periodeOrd(vindue);
-  const p = prisTaelling(ind.tilmeldinger, ind.ansoegninger, vindue);
+  const p = prisTaelling(tilmeldinger, ind.ansoegninger, vindue);
   const forbrug = priser?.samlet.forbrugOere ?? 0;
   const iVinduet = vindueOrd === null ? "uden et vindue med forbrug" : `over ${vindueOrd}`;
   const sessioner = sessionGrundlag(t);

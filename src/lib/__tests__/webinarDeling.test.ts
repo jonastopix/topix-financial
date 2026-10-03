@@ -5,7 +5,8 @@ import {
   afvisningAf, delingsOversigt, delingsTilstand, delingsUrl, erDageGyldige, erTokenForm, erVindueValg, forlaengetUdloeb,
   MAKS_DAGE, rensNavn, SPOR_HAENDELSER, STANDARD_DAGE, tilBase64Url, TOKEN_BYTES, TOKEN_FORM, udloebEfter,
 } from "@/lib/webinar/deling";
-import { udenRaekker, webinarDashboard } from "@/lib/webinar/dashboard";
+import { antalInterneTilmeldinger as srcAntalInterne, udenRaekker, webinarDashboard } from "@/lib/webinar/dashboard";
+import { antalInterneTilmeldinger as denoAntalInterne } from "../../../supabase/functions/_shared/webinarDashboard.ts";
 import { bygDeltSvar, findForbudteNoegler, findMailVaerdier, FORBUDTE_NOEGLER, MAIL_MOENSTER } from "../../../supabase/functions/_shared/webinarDelingSvar.ts";
 import { FIXTURE } from "./webinarDashboard.paritet.test";
 
@@ -188,5 +189,42 @@ describe("webinarDeling — svaret til den eksterne bærer ingen persondata", ()
     expect(kode.indexOf("findForbudteNoegler(svar)")).toBeGreaterThan(0);
     expect(i).toBeGreaterThan(kode.indexOf("findForbudteNoegler(svar)"));
     expect(i).toBeLessThan(kode.indexOf("return json({ ok: true"));
+  });
+});
+
+describe("webinarDeling — `interne_fraregnet`: beviset for filtret i webinar-delt (3/10-2026, CTO-rådets fund 2)", () => {
+  const ind = { ...FIXTURE, sporKolonnerFindes: true, tilstand: "har" as const, hentning: { sidste_koersel: "2026-09-21T03:33:00Z", sidste_udfald: "ok", sidste_fejl: null, hentet_til: "2026-09-20" }, valg: "daekning" as const };
+  const NU_FIX = new Date("2026-09-19T08:00:00.000Z");
+  // Tre interne kopier af fixturens første række — husets adresser, prøvemærket i begge former.
+  const interne = [0, 1, 2].map((n) => ({
+    ...FIXTURE.tilmeldinger[0], ewebinar_id: `P-0000000${n}-0000-4000-8000-000000000000`, email: `intern${n}@topix.dk`, navn: `Intern ${n}`,
+    intern: n % 2 === 0 ? "true" : true,
+  }));
+  const med = bygDeltSvar({ ...ind, tilmeldinger: [...FIXTURE.tilmeldinger, ...interne] }, NU_FIX);
+  const uden = bygDeltSvar(ind, NU_FIX);
+
+  it("svaret bærer TALLET: 3 med de interne, 0 uden", () => {
+    expect(med.interne_fraregnet).toBe(3);
+    expect(uden.interne_fraregnet).toBe(0);
+  });
+  it("og ellers er svaret ORDRET det samme — de interne tæller ingen steder", () => {
+    const { interne_fraregnet: _a, ...restMed } = med;
+    const { interne_fraregnet: _b, ...restUden } = uden;
+    expect(restMed).toEqual(restUden);
+  });
+  it("ingen mail, intet navn og ingen forbudt nøgle — begge værn består på svaret MED de interne", () => {
+    expect(findForbudteNoegler(med)).toEqual([]);
+    expect(findMailVaerdier(med)).toEqual([]);
+    const json = JSON.stringify(med);
+    for (const r of interne) {
+      expect(json.includes(r.email), r.email).toBe(false);
+      expect(json.includes(r.navn as string), r.navn as string).toBe(false);
+      expect(json.includes(r.ewebinar_id), r.ewebinar_id).toBe(false);
+    }
+  });
+  it("regnet af den SPEJLEDE dom — samme svar i begge spejle", () => {
+    const raekker = [...FIXTURE.tilmeldinger, ...interne, { ...FIXTURE.tilmeldinger[1], intern: "false" }, { ...FIXTURE.tilmeldinger[1], intern: null }];
+    expect(denoAntalInterne(raekker)).toBe(3);
+    expect(srcAntalInterne(raekker)).toBe(3);
   });
 });

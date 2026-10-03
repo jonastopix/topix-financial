@@ -151,6 +151,12 @@ describe("webinarMailAlarm — fristen (dommens INDHENTNING) og prognosen", () =
     expect(fristFor("en_dag", "ikke en tid")).toBeNull();
   });
 
+  it("fristFor «ti_minutter» (3/10) = planlagt + dens EGEN nåde (5 min) = T − 5 min — ikke starten og ikke 2 t", () => {
+    // Session 09:00Z: planlagt 08:50Z + 5 min = 08:55Z. Dommen sender den aldrig senere.
+    const ms = Date.parse(SESSION);
+    expect(fristFor("ti_minutter", SESSION)?.getTime()).toBe(ms - 5 * 60_000);
+  });
+
   it("beregnPrognose: 112 ÷ 26 ≈ 4,3 t; 0 igennem → kan ikke regnes; 0 venter → færdig nu", () => {
     const p = beregnPrognose(112, 26, NU);
     expect(p.timer).toBeCloseTo(4.3077, 3);
@@ -235,7 +241,11 @@ describe("webinarMailAlarm — kildeværn: nøglen for loft-grenen er pr. dag, o
       k.includes('export const ARTER_PR_DAG: readonly AlarmArt[] = ["loft", "tabt", "frist"];') &&
       k.includes("const hale = ARTER_PR_DAG.includes(art) ? webinarAlarmDato(nu) : webinarAlarmDatoOgTime(nu);") &&
       k.includes("return `${WEBINAR_ALARM_NOEGLE_PRAEFIKS}${art}:${hale}`;") &&
-      /fejl\.length > 0 \? "fejl"\s*: tabt > 0 \? "tabt"\s*: iFare\.length > 0 \? "frist"\s*: loftStop \? "loft"\s*: null;/.test(k) &&
+      /fejl\.length > 0 \? "fejl"\s*: tiMinutter\.iFare\.length > 0 \|\| tiMinutter\.tabt > 0 \? "ti_minutter"\s*: tabt > 0 \? "tabt"\s*: iFare\.length > 0 \? "frist"\s*: loftStop \? "loft"\s*: null;/.test(k) &&
+      // «ti_minutter» (3/10): pr. dansk TIME (står ikke i ARTER_PR_DAG), og 10 min er grænsen.
+      k.includes("export const TI_MINUTTER_ALARM_MS = 10 * 60_000;") &&
+      k.includes("if (frist !== null && frist.getTime() - nu.getTime() <= TI_MINUTTER_ALARM_MS)") &&
+      k.includes("for (const v of [...r.ventende, ...(r.udsatte ?? [])]) {") &&
       k.includes("if (!r.sender_rigtigt) return null;") &&
       k.includes("return l === null || l.udfald !== LOFT_UDFALD;") &&
       k.includes("if (okPrTime <= 0) return { ventende, okPrTime, timer: null, faerdig: null };") &&
@@ -255,5 +265,87 @@ describe("webinarMailAlarm — kildeværn: nøglen for loft-grenen er pr. dag, o
     expect(dommenErRigtig(loftFoerst)).toBe(false);
     expect(dommenErRigtig(k.replace("if (okPrTime <= 0) return { ventende, okPrTime, timer: null, faerdig: null };", "if (okPrTime <= 0) okPrTime = 1;"))).toBe(false);
     expect(dommenErRigtig(k.replace("if (!r.sender_rigtigt) return null;", ""))).toBe(false);
+    // «ti_minutter» (3/10): pr. dag, uden de udsatte, eller grænsen flyttet, fælder.
+    expect(dommenErRigtig(k.replace('["loft", "tabt", "frist"]', '["loft", "tabt", "frist", "ti_minutter"]'))).toBe(false);
+    expect(dommenErRigtig(k.replace("for (const v of [...r.ventende, ...(r.udsatte ?? [])]) {", "for (const v of r.ventende) {"))).toBe(false);
+    expect(dommenErRigtig(k.replace("export const TI_MINUTTER_ALARM_MS = 10 * 60_000;", "export const TI_MINUTTER_ALARM_MS = 0;"))).toBe(false);
+    expect(dommenErRigtig(k.replace(' : tiMinutter.iFare.length > 0 || tiMinutter.tabt > 0 ? "ti_minutter"', ""))).toBe(false);
+  });
+});
+
+describe("webinarMailAlarm — «ti_minutter» lige før start (3/10-2026, CTO-rådets fund 1)", () => {
+  // Session 13/10 kl. 11:00 dansk = 09:00Z; fristen (fristFor) = T − 5 min = 08:55Z.
+  const TI = (n: number) => Array.from({ length: n }, () => ({ art: "ti_minutter" as const, session_tid: SESSION }));
+  const ved = (iso: string) => new Date(iso);
+
+  it("en UDSAT ti_minutter med frist ≤ 10 min → art «ti_minutter», nøgle pr. dansk TIME", () => {
+    const a = doemAlarm({ ...ROLIG, udsatte: TI(3) }, ved("2026-10-13T08:47:40Z")); // frist 7 min 20 s ude
+    expect(a?.art).toBe("ti_minutter");
+    expect(a?.noegle).toBe("webinar-mail-alarm:ti_minutter:2026-10-13T10");
+    expect(a?.tiMinutter.iFare).toHaveLength(3);
+    expect(a?.tiMinutter.iFare[0].frist.toISOString()).toBe("2026-10-13T08:55:00.000Z");
+  });
+
+  it("OVER LOFTET (ventende) tæller som udsat — og grænsen er præcis 10 min", () => {
+    expect(doemAlarm({ ...ROLIG, over_loft: 2, ventende: TI(2) }, ved("2026-10-13T08:45:00Z"))?.art).toBe("ti_minutter");
+    // 10 min 1 s ude: næste slot kan nå den — kun loft-alarmen.
+    expect(doemAlarm({ ...ROLIG, over_loft: 2, ventende: TI(2) }, ved("2026-10-13T08:44:59Z"))?.art).toBe("loft");
+    expect(doemAlarm({ ...ROLIG, udsatte: TI(2) }, ved("2026-10-13T08:44:59Z"))).toBeNull();
+    // Fristen passeret: stadig i fare (tabt i denne kørsel).
+    expect(doemAlarm({ ...ROLIG, udsatte: TI(1) }, ved("2026-10-13T08:58:00Z"))?.art).toBe("ti_minutter");
+  });
+
+  it("TABT (dommens kortNaadeTabt) → art «ti_minutter», også uden noget udsat", () => {
+    const a = doemAlarm({ ...ROLIG, ti_minutter: { tabt: 4 } }, ved("2026-10-13T08:57:03Z"));
+    expect(a?.art).toBe("ti_minutter");
+    expect(a?.tiMinutter.tabt).toBe(4);
+    expect(doemAlarm({ ...ROLIG, ti_minutter: { tabt: 0 } }, ved("2026-10-13T08:57:03Z"))).toBeNull();
+  });
+
+  it("de andre arters udsatte alarmerer IKKE (de tages af næste slot, som før)", () => {
+    const andre = [{ art: "en_time" as const, session_tid: SESSION }, { art: "en_dag" as const, session_tid: SESSION }, { art: "bekraeftelse" as const, session_tid: SESSION }];
+    expect(doemAlarm({ ...ROLIG, udsatte: andre }, ved("2026-10-13T08:57:03Z"))).toBeNull();
+  });
+
+  it("én pr. dansk TIME: samme time → samme nøgle; næste time → en ny", () => {
+    const r = { ...ROLIG, udsatte: TI(1) };
+    expect(doemAlarm(r, ved("2026-10-13T08:47:00Z"))!.noegle).toBe(doemAlarm(r, ved("2026-10-13T08:59:00Z"))!.noegle);
+    const S2 = "2026-10-13T10:00:00Z";
+    expect(doemAlarm({ ...ROLIG, udsatte: [{ art: "ti_minutter", session_tid: S2 }] }, ved("2026-10-13T09:47:00Z"))!.noegle).toBe("webinar-mail-alarm:ti_minutter:2026-10-13T11");
+  });
+
+  it("alvorsorden: «fejl» vinder over «ti_minutter»; «ti_minutter» over tabt, frist og loft", () => {
+    const nu = ved("2026-10-13T08:50:00Z");
+    expect(doemAlarm({ ...ROLIG, udsatte: TI(1), fejl: ["en_dag: ugyldig — Mailgun svarede 400"], fejlede: 1 }, nu)?.art).toBe("fejl");
+    expect(doemAlarm({ ...LOFT_STOP, udsatte: TI(1), sprunget: { for_sent_efter_fejl: 3 } }, nu)?.art).toBe("ti_minutter");
+  });
+
+  it("RUNDE 2, fund 3: vinder «fejl», bærer fejl-mailen STADIG ti_minutter-afsnittet (som loftAfsnit)", () => {
+    const nu = ved("2026-10-13T08:57:03Z");
+    const r: WebinarAlarmTekstInput = { ...ROLIG, fejl: ["en_dag: ugyldig — Mailgun svarede 400"], fejlede: 1, udsatte: TI(2), ti_minutter: { tabt: 3 }, sendt: 1, skal_sendes: 4 };
+    const a = doemAlarm(r, nu)!;
+    expect(a.art).toBe("fejl");
+    const t = webinarAlarmTekst(r, a, nu);
+    expect(t.tekst).toContain("3 mails «lige før start»");
+    expect(t.tekst).toContain("2 mails «lige før start» står udsat");
+    // Uden ti_minutter i kørslen: ingen sådan linje i fejl-mailen.
+    const ren: WebinarAlarmTekstInput = { ...r, udsatte: [], ti_minutter: { tabt: 0 } };
+    expect(webinarAlarmTekst(ren, doemAlarm(ren, nu)!, nu).tekst).not.toContain("lige før start");
+  });
+
+  it("aldrig i en tørkørsel", () => {
+    expect(doemAlarm({ ...ROLIG, sender_rigtigt: false, udsatte: TI(5), ti_minutter: { tabt: 5 } }, ved("2026-10-13T08:50:00Z"))).toBeNull();
+  });
+
+  it("teksten siger tallene, ingen mail, og klokkens titel bærer dato + time", () => {
+    const nu = ved("2026-10-13T08:57:03Z");
+    const r: WebinarAlarmTekstInput = { ...ROLIG, udsatte: TI(2), ti_minutter: { tabt: 3 }, sendt: 100, skal_sendes: 102 };
+    const a = doemAlarm(r, nu)!;
+    const t = webinarAlarmTekst(r, a, nu);
+    expect(t.emne).toContain("3 tabt");
+    expect(t.emne).toContain("2 i fare");
+    expect(t.titel).toContain("2026-10-13 kl. 10");
+    expect(t.tekst).toContain("T−30 … T−5");
+    expect(t.tekst).not.toMatch(/@/);
   });
 });

@@ -14,7 +14,7 @@ import {
   type AnsoegerMail,
   type Tilmelding,
 } from "./webinarDashboard.ts";
-import { ansoegerMails, medlemsMails, medWebinarKobling } from "./webinarDashboard.ts";
+import { ansoegerMails, erInternTilmelding, medlemsMails, medWebinarKobling } from "./webinarDashboard.ts";
 
 // ── Det vi læser ───────────────────────────────────────────────────────────
 
@@ -490,7 +490,10 @@ export interface AnnoncepriserInput {
 
 /** Ét kald, ét svar. Fladen regner intet. */
 export function annoncepriser(ind: AnnoncepriserInput, nu: Date): Annoncepriser {
-  const { tilmeldinger, ansoegninger, dage: alleDage, annoncer, tilstand, valg = "daekning" } = ind;
+  const { ansoegninger, dage: alleDage, annoncer, tilstand, valg = "daekning" } = ind;
+  // Den interne prøvesession tæller aldrig — filtreret FØR hver del af dommen
+  // (samme filter som webinarDashboard; docs/webinarmotor.md §7.6 fund 5).
+  const tilmeldinger = ind.tilmeldinger.filter((r) => !erInternTilmelding(r));
   // Webinarkoblingen (1/10): en rådgiverbekræftet kobling tæller som et mail-match — som dashboardet.
   const ansoegte = ansoegerMails(medWebinarKobling(ansoegninger));
   const medlemmer = medlemsMails(medWebinarKobling(ansoegninger));

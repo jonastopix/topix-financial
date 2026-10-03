@@ -21,6 +21,10 @@ import { SET_PROCENT_KILDE_MOTOR } from "@/lib/webinarMotor/fremmoede";
  *      læses fail-closed; migrationen lægger nøglen = false med ON CONFLICT DO NOTHING.
  *   5. DASHBOARDET: webinarDashboard filtrerer erInternTilmelding FØR alt andet
  *      i begge spejle, og begge hentninger beder om `intern:raa->>intern`.
+ *   5b. MÅLSTREGERNE OG ANNONCEPRISERNE (2/10-2026): samme filter i hver doms
+ *      indgang i begge spejle — de får de RÅ rækker fra hooken og webinar-delt.
+ *   5c. BEVISET (3/10-2026, CTO-rådets fund 2): webinar-delts svar bærer
+ *      `interne_fraregnet` — et tal, regnet af den spejlede antalInterneTilmeldinger.
  *   8. SET_PROCENT_KILDE: SQL'en og cronen skriver det samme navn.
  */
 
@@ -206,6 +210,122 @@ describe("webinarMotorRaad.guard 5 — /webinar og delingen uden den interne pr�
     const dl2 = dl.replace(", intern:raa->>intern\"", "\"");
     expect(dl2).not.toBe(dl);
     expect(dashboardUdenInterne(s, d, h, dl2)).toBe(false);
+  });
+});
+
+// ── 5b — målstregerne og annoncepriserne (lukket 2/10-2026) ──────────────────
+const MAAL_SRC = "src/lib/webinar/maalstreger.ts";
+const MAAL_DENO = "supabase/functions/_shared/webinarMaalstreger.ts";
+const PRIS_SRC = "src/lib/webinar/annoncepriser.ts";
+const PRIS_DENO = "supabase/functions/_shared/annoncepriser.ts";
+const INTERN_FILTER = "const tilmeldinger = ind.tilmeldinger.filter((r) => !erInternTilmelding(r));";
+/** Dommens krop: fra `export function <navn>(` til næste top-level `export function` (eller filens slutning). */
+const dommensKrop = (k: string, navn: string) => {
+  const fra = k.indexOf(`export function ${navn}(`);
+  if (fra < 0) return "";
+  const til = k.indexOf("\nexport function ", fra + 1);
+  return k.slice(fra, til < 0 ? undefined : til);
+};
+/**
+ * Filtret står i dommens indgang, FØR første brug, og intet i dommen læser
+ * `ind.tilmeldinger` bagefter. `erInternTilmelding` er importeret fra dashboard-filen
+ * (spejlet) — ingen lokal kopi af reglen.
+ */
+export function maalOgPriserUdenInterne(maalSrc: string, maalDeno: string, prisSrc: string, prisDeno: string): boolean {
+  for (const k of [maalSrc, maalDeno].map(udenKommentarer)) {
+    if (!/import \{[^}]*\berInternTilmelding\b[^}]*\} from "(@\/lib\/webinar\/dashboard|\.\/webinarDashboard\.ts)";/.test(k)) return false;
+    const krop = dommensKrop(k, "maalstreger");
+    if (!krop.includes(INTERN_FILTER)) return false;
+    if (!foer(krop, INTERN_FILTER, "maalTaelling(tilmeldinger,")) return false;
+    if (!krop.includes("prisTaelling(tilmeldinger,") || !krop.includes("annoncepriser({ tilmeldinger,")) return false;
+    if ((krop.match(/ind\.tilmeldinger/g) ?? []).length !== 1) return false;
+  }
+  for (const k of [prisSrc, prisDeno].map(udenKommentarer)) {
+    if (!/import \{[^}]*\berInternTilmelding\b[^}]*\} from "(@\/lib\/webinar\/dashboard|\.\/webinarDashboard\.ts)";/.test(k)) return false;
+    const krop = dommensKrop(k, "annoncepriser");
+    if (!krop.includes(INTERN_FILTER)) return false;
+    if (!foer(krop, INTERN_FILTER, "foersteTilmeldingPrPerson(tilmeldinger)")) return false;
+    if ((krop.match(/ind\.tilmeldinger/g) ?? []).length !== 1) return false;
+    // Ingen destrukturering af de rå rækker ved siden af filtret.
+    if (/const \{[^}]*\btilmeldinger\b[^}]*\} = ind;/.test(krop)) return false;
+  }
+  return true;
+}
+
+describe("webinarMotorRaad.guard 5b — målstregerne og annoncepriserne uden den interne prøve", () => {
+  const alt = () => [laes(MAAL_SRC), laes(MAAL_DENO), laes(PRIS_SRC), laes(PRIS_DENO)] as const;
+  it("begge domme i begge spejle filtrerer i indgangen", () => expect(maalOgPriserUdenInterne(...alt())).toBe(true));
+  it("MUTATION: filtret fjernet i målstregernes delings-spejl fanges", () => {
+    const [ms, md, ps, pd] = alt();
+    const md2 = md.replace(INTERN_FILTER, "const tilmeldinger = ind.tilmeldinger;");
+    expect(md2).not.toBe(md);
+    expect(maalOgPriserUdenInterne(ms, md2, ps, pd)).toBe(false);
+  });
+  it("MUTATION: pristællingen på de RÅ rækker i målstregerne fanges", () => {
+    const [ms, md, ps, pd] = alt();
+    const ms2 = ms.replace("const p = prisTaelling(tilmeldinger, ind.ansoegninger, vindue);", "const p = prisTaelling(ind.tilmeldinger, ind.ansoegninger, vindue);");
+    expect(ms2).not.toBe(ms);
+    expect(maalOgPriserUdenInterne(ms2, md, ps, pd)).toBe(false);
+  });
+  it("MUTATION: filtret fjernet i annoncepriserne (rådgiverens flade) fanges", () => {
+    const [ms, md, ps, pd] = alt();
+    const ps2 = ps.replace(INTERN_FILTER, "const tilmeldinger = ind.tilmeldinger;");
+    expect(ps2).not.toBe(ps);
+    expect(maalOgPriserUdenInterne(ms, md, ps2, pd)).toBe(false);
+  });
+  it("MUTATION: de rå rækker destruktureret tilbage i annoncepriserne fanges", () => {
+    const [ms, md, ps, pd] = alt();
+    const pd2 = pd
+      .replace("const { ansoegninger, dage: alleDage,", "const { tilmeldinger, ansoegninger, dage: alleDage,")
+      .replace(INTERN_FILTER, "");
+    expect(pd2).not.toBe(pd);
+    expect(maalOgPriserUdenInterne(ms, md, ps, pd2)).toBe(false);
+  });
+});
+
+// ── 5c — beviset `interne_fraregnet` i webinar-delt (3/10-2026, CTO-rådets fund 2) ──
+const DELING_SVAR = "supabase/functions/_shared/webinarDelingSvar.ts";
+const ANTAL_FN = "export function antalInterneTilmeldinger(raekker: readonly InternFelter[]): number {\n  return raekker.filter(erInternTilmelding).length;\n}";
+/**
+ * webinar-delts svar bærer et TAL for de fraregnede interne — regnet af den
+ * spejlede dom (ordret i begge dashboard-spejle, på de RÅ rækker, før filtrene),
+ * og typen siger `number` (aldrig en liste, der kunne bære mails).
+ */
+export function interneFraregnetBevis(svar: string, dashSrc: string, dashDeno: string): boolean {
+  const s = udenKommentarer(svar);
+  if (!/import \{[^}]*\bantalInterneTilmeldinger\b[^}]*\} from "\.\/webinarDashboard\.ts";/.test(s)) return false;
+  if (!s.includes("  interne_fraregnet: number;")) return false;
+  if (!s.includes("interne_fraregnet: antalInterneTilmeldinger(ind.tilmeldinger),")) return false;
+  if ((s.match(/interne_fraregnet:/g) ?? []).length !== 2) return false;
+  return dashSrc.includes(ANTAL_FN) && dashDeno.includes(ANTAL_FN);
+}
+
+describe("webinarMotorRaad.guard 5c — webinar-delt beviser filtret med et tal", () => {
+  const alt = () => [laes(DELING_SVAR), laes(DASH_SRC), laes(DASH_DENO)] as const;
+  it("feltet findes, regnes af den spejlede dom på de rå rækker, og er et tal", () => expect(interneFraregnetBevis(...alt())).toBe(true));
+  it("MUTATION: feltet fjernet fra svaret fanges", () => {
+    const [s, a, b] = alt();
+    const s2 = s.replace("    interne_fraregnet: antalInterneTilmeldinger(ind.tilmeldinger),\n", "");
+    expect(s2).not.toBe(s);
+    expect(interneFraregnetBevis(s2, a, b)).toBe(false);
+  });
+  it("MUTATION: en konstant i stedet for dommen fanges", () => {
+    const [s, a, b] = alt();
+    const s2 = s.replace("interne_fraregnet: antalInterneTilmeldinger(ind.tilmeldinger),", "interne_fraregnet: 0,");
+    expect(s2).not.toBe(s);
+    expect(interneFraregnetBevis(s2, a, b)).toBe(false);
+  });
+  it("MUTATION: typen gjort til en liste (som kunne bære mails) fanges", () => {
+    const [s, a, b] = alt();
+    const s2 = s.replace("  interne_fraregnet: number;", "  interne_fraregnet: string[];");
+    expect(s2).not.toBe(s);
+    expect(interneFraregnetBevis(s2, a, b)).toBe(false);
+  });
+  it("MUTATION: dommen afviger i det ene spejl fanges", () => {
+    const [s, a, b] = alt();
+    const b2 = b.replace("  return raekker.filter(erInternTilmelding).length;", "  return 0;");
+    expect(b2).not.toBe(b);
+    expect(interneFraregnetBevis(s, a, b2)).toBe(false);
   });
 });
 
