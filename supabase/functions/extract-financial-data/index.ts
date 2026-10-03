@@ -1,12 +1,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
-import { buildCanonicalOutput, buildCanonicalFromSemantic } from "../_shared/canonicalEngine.ts";
+import { aiDriftsSignaler, buildCanonicalOutput, buildCanonicalFromSemantic } from "../_shared/canonicalEngine.ts";
 import { tryDeterministicExtraction, tryDeterministicPdfExtraction, tryDeterministicCsvExtraction, tryDeterministicPdfStructuralExtraction, trySemanticExcelExtraction, trySemanticCsvExtraction, type DeterministicExtractionResult } from "../_shared/templateRegistry.ts";
 import { detectSourceSystem, isAiAllowed, type SourceFingerprint } from "../_shared/sourceFingerprint.ts";
 import { validatePdfStructuralPayload, computeSha256Deno } from "../_shared/pdfStructuralValidator.ts";
 import type { PdfStructuralPayload } from "../_shared/pdfStructuralTypes.ts";
 import { aiGatewayFetch } from "../_shared/aiGatewayFetch.ts";
-import { AI_KEY_FIGURES_EGENSKABER, AI_SKEMA_FELT, AI_SKEMA_MARKOER } from "../_shared/aiSkema.ts";
+import { AI_KEY_FIGURES_EGENSKABER, AI_SKEMA_FELT, AI_SKEMA_MARKOER, medAiSkema } from "../_shared/aiSkema.ts";
 import { afgoerPeriodeSpaend, findPeriodeITekst, spaendAfvisningTekst, spaendKendtKildeTekst } from "../_shared/periodeSpaend.ts";
 
 const corsHeaders = {
@@ -14,6 +14,20 @@ const corsHeaders = {
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+
+/**
+ * ÉN svar-hjælper (pakke B skive 1, CTO-fund 10, 3/10-2026): ALLE svar fra functionen går herigennem og bærer
+ * `"ai_skema": "skive-1"` (medAiSkema) — også fejl, dublet, spænd, ikke afsluttet, catch og den deterministiske vej,
+ * så ÉT vilkårligt kald beviser udrulningen. Værnet aiSkemaGrupper.guard dom 6 fælder, hvis en anden linje i filen
+ * konstruerer en Response. `null` er preflight (OPTIONS) — ingen krop.
+ */
+function svar(krop: Record<string, unknown> | null, status = 200): Response {
+  if (krop === null) return new Response(null, { headers: corsHeaders });
+  return new Response(JSON.stringify(medAiSkema(krop)), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
 
 // ── Server-side metadata extraction (override AI hallucinations) ─────────────
 const DANISH_MONTHS: Record<string, string> = {
@@ -276,7 +290,7 @@ function isReadableFinancialDoc(
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return svar(null);
   }
 
   // Rapportens id løftet ud af try-blokken, så den YDERSTE catch kan markere rapporten til manuel
@@ -292,9 +306,7 @@ serve(async (req) => {
     // Validate auth
     const authHeader = req.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      return svar({ error: 'Unauthorized' }, 401);
     }
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const authClient = createClient(supabaseUrl, anonKey, {
@@ -303,9 +315,7 @@ serve(async (req) => {
     const token = authHeader.replace('Bearer ', '');
     const { data: claimsData, error: claimsError } = await authClient.auth.getClaims(token);
     if (claimsError || !claimsData?.claims) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      return svar({ error: 'Unauthorized' }, 401);
     }
 
     // ── Parse request body ──
@@ -313,9 +323,7 @@ serve(async (req) => {
     try {
       body = await req.json();
     } catch {
-      return new Response(JSON.stringify({ error: 'Bad request: malformed JSON body' }), {
-        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      return svar({ error: 'Bad request: malformed JSON body' }, 400);
     }
     const { reportId, fileContent, pageImages, fileName, overwrite, knownCompanyName, excelBase64, pdfStructural } = body;
     rapportId = typeof reportId === "string" && reportId ? reportId : null;
@@ -327,9 +335,7 @@ serve(async (req) => {
     if (reportId !== undefined && reportId !== null) {
       // Validate reportId format
       if (typeof reportId !== 'string' || !uuidPattern.test(reportId)) {
-        return new Response(JSON.stringify({ error: 'Bad request: invalid reportId' }), {
-          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
+        return svar({ error: 'Bad request: invalid reportId' }, 400);
       }
 
       // RLS-scoped access check — uses caller's JWT, not service role
@@ -341,22 +347,16 @@ serve(async (req) => {
 
       if (accessError) {
         console.error(`[extract-financial-data] Access check query error for report ${reportId} by user ${callerId}:`, accessError.message);
-        return new Response(JSON.stringify({ error: 'Internal error during access check' }), {
-          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
+        return svar({ error: 'Internal error during access check' }, 500);
       }
 
       if (!accessCheck) {
         console.warn(`[extract-financial-data] Access denied: report=${reportId} caller=${callerId}`);
-        return new Response(JSON.stringify({ error: 'Forbidden: no access to this report' }), {
-          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
+        return svar({ error: 'Forbidden: no access to this report' }, 403);
       }
     } else if (overwrite) {
       // No reportId but overwrite requested — this requires persistence, which needs a reportId
-      return new Response(JSON.stringify({ error: 'Bad request: overwrite requires a valid reportId' }), {
-        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      return svar({ error: 'Bad request: overwrite requires a valid reportId' }, 400);
     }
 
     // Debug logging for incoming content
@@ -566,15 +566,12 @@ serve(async (req) => {
                 .eq("id", reportId);
             }
 
-            return new Response(
-              JSON.stringify({
+            return svar({
                 error: "Structural payload validation failed",
                 status: "structural_parse_fail",
                 source_system: sourceFingerprint!.source_system,
                 details: validationResult.errors,
-              }),
-              { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
+              });
           }
           // Unknown source: log warning, allow text fallback below
         } else {
@@ -647,15 +644,12 @@ serve(async (req) => {
                 .eq("id", reportId);
             }
 
-            return new Response(
-              JSON.stringify({
+            return svar({
                 error: "Structural payload hash verification failed",
                 status: "structural_parse_fail",
                 source_system: sourceFingerprint!.source_system,
                 details: hashError,
-              }),
-              { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
+              });
           }
         }
       }
@@ -728,15 +722,12 @@ serve(async (req) => {
                   .eq("id", reportId);
               }
 
-              return new Response(
-                JSON.stringify({
+              return svar({
                   error: "Structural semantic extraction failed",
                   template_id: structResult.template_id,
                   details: structResult.error,
                   status: "error",
-                }),
-                { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-              );
+                });
             }
             // Unknown source: fall through to legacy text path below
             break;
@@ -767,15 +758,12 @@ serve(async (req) => {
               .eq("id", reportId);
           }
 
-          return new Response(
-            JSON.stringify({
+          return svar({
               error: "Known PDF source requires structural payload",
               status: "structural_payload_missing",
               source_system: sourceFingerprint!.source_system,
               details: "Client-side PDF structural extraction failed or was not included in the request",
-            }),
-            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+            });
         }
 
         // Non-structural-required family or unknown source — legacy text path allowed
@@ -859,15 +847,12 @@ serve(async (req) => {
               .eq("id", reportId);
           }
 
-          return new Response(
-            JSON.stringify({
+          return svar({
               error: "Deterministic parsing failed",
               template_id: detResult.template_id,
               details: detResult.error,
               status: "error",
-            }),
-            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+            });
 
         case "no_match":
           routingTrace.deterministic_result = "no_match";
@@ -908,8 +893,7 @@ serve(async (req) => {
                 .eq("id", reportId);
             }
 
-            return new Response(
-              JSON.stringify({
+            return svar({
                 ok: true,
                 needs_manual_entry: true,
                 reason: "unsupported_variant",
@@ -917,9 +901,7 @@ serve(async (req) => {
                 source_system: sourceFingerprint.source_system,
                 document_type: sourceFingerprint.document_type,
                 status: "processed",
-              }),
-              { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
+              });
           }
 
           routingTrace.branch = "ai_fallback_no_match";
@@ -938,10 +920,7 @@ serve(async (req) => {
       // Final AI gate check
       if (sourceFingerprint && !isAiAllowed(sourceFingerprint)) {
         console.error(`[Routing] AI gate violation: source=${sourceFingerprint.source_system} should never reach AI path`);
-        return new Response(
-          JSON.stringify({ error: "Internal routing error: known source reached AI path", status: "error" }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return svar({ error: "Internal routing error: known source reached AI path", status: "error" }, 500);
       }
 
       console.log("[Routing] Using AI extraction path");
@@ -1024,18 +1003,25 @@ B) OMKOSTNINGER (løn, pension og sociale, øvrige personale, varekøb, marketin
    - "Renteindtægter i alt" / "Finansielle indtægter i alt" → finansielle_indtaegter (positivt tal)
    - Findes kun en nettolinje "Finansielle poster i alt": læg den i finansielle_omkostninger hvis den er en udgift, ellers i finansielle_indtaegter
 
-   PERSONALE (tre felter — hver post i ÉT felt):
-   - "Lønninger i alt" / "Løn, gager og honorarer" → loenninger (KUN lønnen)
-   - "Pensioner & sociale omkostninger i alt" / pension, ATP, AER/AUB, sociale bidrag → pensioner_sociale
-   - "Øvrige personaleudgifter i alt" / personalegoder, kurser, personalearrangementer, arbejdstøj → oevrige_personale
-   - Har dokumentet KUN én samlet personalegruppe uden underopdeling: læg hele gruppen i loenninger og udelad de to andre
-   - Er pensionen allerede med i den lønsum du bruger, så udelad pensioner_sociale (aldrig to gange)
+   HVER POST I ÉT FELT — OVERGRUPPENS TOTAL ALDRIG OVENI:
+   - Læg ALDRIG en overgruppes total ("Personaleomkostninger i alt", "Andre eksterne omkostninger i alt") i et felt, når du også lægger dens underposter i deres egne felter. Enten totalen ét sted, eller underposterne — aldrig begge.
+
+   PERSONALE:
+   - "Pensioner & sociale omkostninger i alt" / pension, ATP, AER/AUB, sociale bidrag → pensioner_sociale — KUN når dokumentet viser dem som egen gruppe med egen i alt-linje UDEN FOR lønsummen
+   - "Øvrige personaleudgifter i alt" / personalegoder, kurser, personalearrangementer, arbejdstøj → oevrige_personale — KUN som egen gruppe uden for lønsummen
+   - Er pension eller øvrige personale allerede med i den lønsum, du lægger i loenninger, så udelad feltet (aldrig to gange)
+   - Rejseudgifter hører i marketing, når de står i "Salgs- og rejseomkostninger"
 
    AUTODRIFT (autodrift):
-   - "Autodrift i alt" / "Bilomkostninger i alt" / "Transportomkostninger": brændstof, billeasing, vægtafgift, parkering, kørselsgodtgørelse, reparation af biler
+   - "Autodrift i alt" / "Bilomkostninger i alt" / "Transportomkostninger i alt" (e-conomics navn for bilgruppen): brændstof, billeasing, vægtafgift, parkering, kørsels-/kilometergodtgørelse, reparation af biler
+   - ALDRIG fragt ("Fragt", "Fragtomkostninger", "Transport af varer") — fragt hører i direkte_omkostninger
+
+   VAREFORBRUG (direkte_omkostninger):
+   - "Vareforbrug og fremmed arbejde", "Fremmed arbejde", "Underleverandører" og fragt på varekøb hører i vareforbruget (over dækningsbidraget)
+   - Står de i dokumentet UNDER dækningsbidraget i en anden gruppe, så følg dokumentets gruppe — dækningsbidraget skal stadig stemme
 
    ANDRE EKSTERNE OMKOSTNINGER (oevrige_omkostninger):
-   - "Andre eksterne omkostninger i alt" / "Øvrige omkostninger i alt" / "Øvrige driftsomkostninger": fremmed arbejde, underleverandører, leasing (ikke biler)
+   - "Andre eksterne omkostninger i alt" / "Øvrige omkostninger i alt" / "Øvrige driftsomkostninger": leasing (ikke biler), manglende bilag — ALDRIG fremmed arbejde eller underleverandører
    - KUN for en gruppe dokumentet selv viser ud over salg, lokaler, administration, personale og auto — flyt ALDRIG poster ud af de andre grupper
 
    EKSTRAORDINÆRE POSTER (ekstraordinaere_poster):
@@ -1282,14 +1268,10 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
       console.error("AI gateway error:", response.status, errText);
 
       if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "For mange forespørgsler. Prøv igen om lidt." }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return svar({ error: "For mange forespørgsler. Prøv igen om lidt." }, 429);
       }
       if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "AI-kreditter opbrugt. Tilføj flere i indstillinger." }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return svar({ error: "AI-kreditter opbrugt. Tilføj flere i indstillinger." }, 402);
       }
       throw new Error(`AI error: ${response.status}`);
     }
@@ -1324,14 +1306,11 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
             })
             .eq("id", reportId);
         }
-        return new Response(
-          JSON.stringify({
+        return svar({
             error: "AI returned no tool call",
             status: "processed",
             needs_manual_entry: true,
-          }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+          });
       }
 
       extractedData = JSON.parse(toolCall.function.arguments);
@@ -1465,14 +1444,11 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
 
         if (existing && existing.length > 0 && !overwrite) {
           await supabase.from("financial_reports").delete().eq("id", reportId);
-          return new Response(
-            JSON.stringify({
+          return svar({
               duplicate: true,
               existing_period: extractedData.report_period,
               existing_report_id: existing[0].id,
-            }),
-            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+            });
         }
 
         if (existing && existing.length > 0 && overwrite) {
@@ -1655,17 +1631,14 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
           })
           .eq("id", reportId);
 
-        return new Response(
-          JSON.stringify({
+        return svar({
             error: spaendTekst,
             status: "period_span_rejected",
             period_start: canonical.period_start ?? null,
             period_end: canonical.period_end ?? null,
             period_span_months: periodeSpaend.maaneder,
             report_period: dbReportPeriod,
-          }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+          });
       }
 
       // ── Periode-gate: afvis igangværende/fremtidig måned FØR rapporten markeres processed ──
@@ -1704,14 +1677,11 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
               })
               .eq("id", reportId);
 
-            return new Response(
-              JSON.stringify({
+            return svar({
                 error: `${dbReportPeriod} er ikke afsluttet endnu. Upload rapporten når måneden er slut.`,
                 status: "period_not_completed",
                 report_period: dbReportPeriod,
-              }),
-              { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
+              });
           }
 
           // ── Års-guard (periode-fix PR 1a): udledt år må ikke ligge mere end
@@ -1766,6 +1736,10 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
           routing_branch: routingTrace.branch,
           // Pakke B skive 1: kun AI-vejen bærer markøren (sat ved parsningen af tool-kaldet ovenfor).
           ...(extractedData?.[AI_SKEMA_FELT] === AI_SKEMA_MARKOER ? { [AI_SKEMA_FELT]: AI_SKEMA_MARKOER } : {}),
+          // CTO-fund 2 og 3 (3/10): negativ_driftsgruppe og mulig_dobbelttaelling — fail-soft, kun AI-vejen, kun når de findes.
+          ...(extractionMethod === "ai_extraction" && !isSemanticCanonical
+            ? aiDriftsSignaler(canonical.metrics, canonical.correction_log ?? [], canonical.kontrolsum?.udaekket)
+            : {}),
           ...(periodRejectedReason ? {
             period_rejected_reason: periodRejectedReason,
             suspected_period: suspectedPeriod,
@@ -1875,9 +1849,7 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
       extractedData.canonical = canonical;
     }
 
-    return new Response(JSON.stringify(extractedData), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return svar(extractedData);
   } catch (error) {
     console.error("extract-financial-data error:", error);
     // Best-effort: try to mark report as needs_manual_entry instead of leaving it in limbo
@@ -1913,13 +1885,10 @@ Hvis du er i tvivl om et tal eller en kolonne → sæt validation.status = "UNSU
     } catch (fallbackErr) {
       console.error("Fallback DB update also failed:", fallbackErr);
     }
-    return new Response(
-      JSON.stringify({
+    return svar({
         error: error instanceof Error ? error.message : "Unknown error",
         status: "processed",
         needs_manual_entry: true,
-      }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+      });
   }
 });

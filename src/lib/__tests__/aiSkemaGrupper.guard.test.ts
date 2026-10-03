@@ -19,6 +19,7 @@ import {
   AI_SKEMA_MARKOER,
   AI_SKIVE1_GRUPPER,
   manglendeOmkostningsfelter,
+  medAiSkema,
 } from "../../../supabase/functions/_shared/aiSkema.ts";
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -76,5 +77,32 @@ describe("aiSkemaGrupper.guard — AI-skemaet dækker hver kanonisk omkostningsn
     // Selvudløbende: kommer nøglen ind i CANONICAL, er kommentaren i _shared/aiSkema.ts og OVERLEVERINGs åbne punkt forkerte.
     expect(OMK_NOEGLER).not.toContain("extraordinary_items");
     expect(laes("supabase/functions/_shared/aiSkema.ts")).toContain("udaekket = −E");
+  });
+
+  // ── CTO-fund 10 (3/10): markøren i ALLE svar — kun svar-hjælperen konstruerer en Response ──
+  /** Dommen: alle «new Response(» i filen står inde i funktionen svar, og der er præcis to (preflight + JSON). */
+  const kunHjaelperen = (k: string): boolean => {
+    const start = k.indexOf("function svar(");
+    if (start < 0) return false;
+    const slut = k.indexOf("\n}\n", start);
+    const krop = k.slice(start, slut);
+    const iAlt = k.split("new Response(").length - 1;
+    const iHjaelperen = krop.split("new Response(").length - 1;
+    return iAlt === 2 && iHjaelperen === 2 && krop.includes("JSON.stringify(medAiSkema(krop))");
+  };
+
+  it("dom 6: kun svar-hjælperen konstruerer en Response, og den lægger markøren på (med selvbevis)", () => {
+    const k = laes("supabase/functions/extract-financial-data/index.ts");
+    expect(kunHjaelperen(k)).toBe(true);
+    // SELVBEVIS: et svar uden om hjælperen fælder; en hjælper uden markøren fælder.
+    expect(kunHjaelperen(k + "\nconst x = new Response(JSON.stringify({ ok: true }), { status: 200 });\n")).toBe(false);
+    expect(kunHjaelperen(k.replace("JSON.stringify(medAiSkema(krop))", "JSON.stringify(krop)"))).toBe(false);
+    // Alle 23 svar-steder fra før (fejl, 429/402, dublet, spænd, ikke afsluttet, catch, deterministisk, succes) + hjælperen.
+    expect((k.match(/\bsvar\(/g) ?? []).length).toBeGreaterThanOrEqual(24);
+  });
+
+  it("dom 7: medAiSkema lægger markøren sidst — en krop kan ikke overskrive den", () => {
+    expect(medAiSkema({ error: "x" })).toEqual({ error: "x", ai_skema: "skive-1" });
+    expect(medAiSkema({ ai_skema: "gammel" }).ai_skema).toBe("skive-1");
   });
 });

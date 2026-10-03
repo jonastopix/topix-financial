@@ -1610,6 +1610,63 @@ export function buildAiEligiblePayload(canonical: CanonicalOutput): AiEligiblePa
   };
 }
 
+// ── AI-vejens driftssignaler (pakke B skive 1, CTO-fund 2 og 3, 3/10-2026) ──
+//
+// FAIL-SOFT: signalerne afviser intet og ændrer intet tal — de lægges i quality_signals, så sporet efter en
+// vending eller en mulig dobbelttælling ikke forsvinder.
+//
+// negativ_driftsgruppe (fund 2): motoren vender en negativ driftsgruppe positiv (expense_must_be_positive — husets
+// regel for AI-vejen, 7/9). Et negativt NETTO kan dog være en ægte indtægt i gruppen; derfor bæres feltet og det
+// OPRINDELIGE beløb med, aflæst af correction_log.
+//
+// mulig_dobbelttaelling (fund 3): står pension, øvrige personale, autodrift eller andre eksterne BÅDE i en
+// overgruppe (fx lønsummen) og i sit eget felt, er omkostningerne talt X for meget. Kontrolsummen ser det:
+//   regnet   = basis + indtægter − Σ|omkostninger|          (Σ er X for stor)
+//   udaekket = resultat − regnet                            (= +X, når resten stemmer)
+// POSITIVT udækket = «der mangler indtægter» = for mange omkostninger. (CTO-fundet skrev «≈ −payroll_related»;
+// fortegnet er +: en dobbelttælling gør regnet MINDRE, så resultat − regnet bliver STØRRE. Rettet højt 3/10.)
+// Dommen: |udaekket − X| ≤ max(DOBBELT_TOLERANCE_PCT × X, DOBBELT_TOLERANCE_MIN_KR), og X ≥ DOBBELT_MIN_BELOEB.
+//   Eksempel: X = 12.000 → tolerance max(120, 50) = 120 kr.; udækket 11.950 … 12.050 giver signalet.
+//   Kontrolsummen er i hele kroner (Math.round), så en ren dobbelttælling rammer inden for 1 kr.; 1 % tager
+//   små afrundinger i dokumentets egne i-alt-linjer. Gulvet på 500 kr. holder et tilfældigt lille udækket ude.
+export const DOBBELT_TOLERANCE_PCT = 0.01;
+export const DOBBELT_TOLERANCE_MIN_KR = 50;
+export const DOBBELT_MIN_BELOEB = 500;
+/** De kanoniske nøgler skive 1 gav AI-skemaet felter for — dem en dobbelttælling kan ramme. */
+export const DOBBELT_NOEGLER = ["payroll_related", "other_staff_costs", "vehicle_costs", "other_costs"] as const;
+
+export interface AiDriftsSignaler {
+  negativ_driftsgruppe?: Array<{ felt: string; noegle: string; oprindeligt: number; gemt: number }>;
+  mulig_dobbelttaelling?: Array<{ noegle: string; beloeb: number; udaekket: number; tolerance: number }>;
+}
+
+export function aiDriftsSignaler(
+  metrics: CanonicalMetrics,
+  correction_log: readonly CorrectionLogEntry[],
+  udaekket: number | null | undefined,
+): AiDriftsSignaler {
+  const ud: AiDriftsSignaler = {};
+  const drift = new Set<string>(OMK.drift);
+  const negative = correction_log
+    .filter((c) => c.rule === "expense_must_be_positive" && typeof c.raw_value === "number" && c.raw_value < 0)
+    .map((c) => ({ felt: c.field, noegle: KF_TO_CANONICAL[c.field] as string, oprindeligt: c.raw_value as number, gemt: c.normalized_value as number }))
+    .filter((n) => drift.has(n.noegle));
+  if (negative.length > 0) ud.negativ_driftsgruppe = negative;
+  if (typeof udaekket === "number" && Number.isFinite(udaekket) && udaekket > 0) {
+    const mulige = [];
+    for (const noegle of DOBBELT_NOEGLER) {
+      const v = metrics[noegle];
+      if (typeof v !== "number" || !Number.isFinite(v)) continue;
+      const x = Math.abs(v);
+      if (x < DOBBELT_MIN_BELOEB) continue;
+      const tolerance = Math.max(DOBBELT_TOLERANCE_PCT * x, DOBBELT_TOLERANCE_MIN_KR);
+      if (Math.abs(udaekket - x) <= tolerance) mulige.push({ noegle, beloeb: x, udaekket, tolerance });
+    }
+    if (mulige.length > 0) ud.mulig_dobbelttaelling = mulige;
+  }
+  return ud;
+}
+
 // ── Main: Build full canonical output ──
 export function buildCanonicalOutput(
   extractedData: any,

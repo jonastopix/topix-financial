@@ -44,14 +44,17 @@ type Egenskab = { type: "number"; description?: string };
 export const AI_KEY_FIGURES_EGENSKABER: Readonly<Record<string, Egenskab>> = {
   omsaetning: { type: "number" },
   omsaetning_aar: { type: "number" },
-  direkte_omkostninger: { type: "number" },
-  daekningsbidrag: { type: "number" },
-  daekningsbidrag_aar: { type: "number" },
-  loenninger: {
+  direkte_omkostninger: {
     type: "number",
     description:
-      "Lønninger og gager (fx «Lønninger i alt», «Løn, gager og honorarer») — positivt tal. KUN lønnen: pension og sociale bidrag hører i pensioner_sociale, øvrige personaleomkostninger i oevrige_personale. Har dokumentet KUN én samlet personalegruppe uden underopdeling, læg hele gruppen her og udelad de to andre.",
+      "Vareforbrug / direkte omkostninger i alt — positivt tal. Hertil «Vareforbrug og fremmed arbejde», «Fremmed arbejde», «Underleverandører» og fragt på varekøb, når de står i vareforbruget (som husets e-conomic- og Dinero-skabeloner).",
   },
+  daekningsbidrag: { type: "number" },
+  daekningsbidrag_aar: { type: "number" },
+  // loenninger står UÆNDRET fra før skive 1 (CTO-fund 7, 3/10): de danske flader (factsAdapter.CANONICAL_TO_DANISH,
+  // financialUtils, DANSK) kender ikke payroll_related/other_staff_costs — en snævrere lønbeskrivelse ville flytte
+  // beløb ud af «omkostninger i alt» på Dine tal. Se OVERLEVERING DEL 3 «Pakke B skive 1».
+  loenninger: { type: "number" },
   pensioner_sociale: {
     type: "number",
     description:
@@ -60,7 +63,7 @@ export const AI_KEY_FIGURES_EGENSKABER: Readonly<Record<string, Egenskab>> = {
   oevrige_personale: {
     type: "number",
     description:
-      "Øvrige personaleomkostninger i alt — positivt tal. Linjer som «Øvrige personaleudgifter i alt», «Personaleomkostninger øvrige», «Personalegoder», «Kurser og uddannelse», «Personalearrangementer», «Arbejdstøj», «Rejseudgifter personale». Udelad feltet, hvis gruppen ikke findes.",
+      "Øvrige personaleomkostninger i alt — positivt tal. Linjer som «Øvrige personaleudgifter i alt», «Personaleomkostninger øvrige», «Personalegoder», «Kurser og uddannelse», «Personalearrangementer», «Arbejdstøj». Rejseudgifter hører IKKE her (de står i «Salgs- og rejseomkostninger» → marketing). Udelad feltet, hvis gruppen ikke findes. Læg ALDRIG overgruppens total («Personaleomkostninger i alt») i et felt, når underposterne også lægges ind.",
   },
   marketing: { type: "number", description: "Salgs- og marketingomkostninger samlet" },
   lokaler: {
@@ -72,12 +75,12 @@ export const AI_KEY_FIGURES_EGENSKABER: Readonly<Record<string, Egenskab>> = {
   autodrift: {
     type: "number",
     description:
-      "Autodrift / bilomkostninger i alt — positivt tal. Linjer som «Autodrift i alt», «Bilomkostninger», «Brændstof», «Leasing af biler», «Kørselsgodtgørelse», «Transportomkostninger», «Vægtafgift», «Parkering», «Reparation og vedligeholdelse af biler». Udelad feltet, hvis gruppen ikke findes.",
+      "Autodrift / bilomkostninger i alt — positivt tal. Linjer som «Autodrift i alt», «Bilomkostninger i alt», «Transportomkostninger i alt» (e-conomics navn for bilgruppen — som husets skabeloner), «Brændstof», «Leasing af biler», «Kørselsgodtgørelse»/«Kilometergodtgørelse», «Vægtafgift», «Parkering», «Reparation og vedligeholdelse af biler». ALDRIG fragt («Fragt», «Fragtomkostninger», «Transport af varer») — fragt hører i vareforbruget. Udelad feltet, hvis gruppen ikke findes.",
   },
   oevrige_omkostninger: {
     type: "number",
     description:
-      "Andre eksterne omkostninger / øvrige driftsomkostninger i alt — positivt tal. Linjer som «Andre eksterne omkostninger i alt», «Øvrige omkostninger i alt», «Øvrige driftsomkostninger», «Fremmed arbejde», «Underleverandører», «Leasing» (ikke biler), «Manglende bilag». Brug KUN dette felt for en GRUPPE, dokumentet selv viser ud over salg, lokaler, administration, personale og auto — flyt aldrig poster ud af de andre grupper. Udelad feltet, hvis gruppen ikke findes.",
+      "Andre eksterne omkostninger / øvrige driftsomkostninger i alt — positivt tal. Linjer som «Andre eksterne omkostninger i alt», «Øvrige omkostninger i alt», «Øvrige driftsomkostninger», «Leasing» (ikke biler), «Manglende bilag». «Fremmed arbejde» og «Underleverandører» hører IKKE her, men i direkte_omkostninger. Læg ALDRIG overgruppens total («Andre eksterne omkostninger i alt») her, når dens underposter (salg, lokaler, administration, auto) også lægges i deres egne felter. Brug KUN dette felt for en GRUPPE, dokumentet selv viser ud over salg, lokaler, administration, personale og auto — flyt aldrig poster ud af de andre grupper. Udelad feltet, hvis gruppen ikke findes.",
   },
   ekstraordinaere_poster: {
     type: "number",
@@ -124,4 +127,10 @@ export function manglendeOmkostningsfelter(
 ): string[] {
   const naaede = new Set(Object.keys(egenskaber).map((f) => mapning[f]).filter((n): n is string => typeof n === "string"));
   return omkostningsnoegler.filter((n) => !naaede.has(n));
+}
+
+/** Svar-kroppen med markøren (CTO-fund 10, 3/10-2026) — extract-financial-datas svar-hjælper bruger den for ALLE svar.
+    Markøren lægges SIDST, så en krop aldrig kan overskrive den. */
+export function medAiSkema<T extends Record<string, unknown>>(krop: T): T & { [AI_SKEMA_FELT]: typeof AI_SKEMA_MARKOER } {
+  return { ...krop, [AI_SKEMA_FELT]: AI_SKEMA_MARKOER };
 }
