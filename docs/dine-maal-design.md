@@ -542,7 +542,7 @@ herunder) **og efter rådets runde 2** (2/10 morgen, fund 1–10 — bogført so
   `BEKRAEFT_ORD.pladsOptaget`, forsidens «Venter på jeres ja» over målforslagene — skridtene under dem står fra
   3/10 UDEN egen overskrift i tilstand B og under «Skridt til de foreslåede mål» i tilstand A, så ordet ikke står to
   gange i træk (`docs/forside-v3.md` «Livetjekkets tre fejl») — forslagsoverskriften for `manual`, og fra 3/10
-  løftestangens toast «"X" er gemt som forslag — sig ja til det på Dine mål» (`maalFejl.loeftestangToast`: et
+  løftestangens toast «"X" er gemt som forslag — sig ja til det på Dine mål.» (`maalFejl.loeftestangToast`: et
   handout-mål oprettes ubekræftet; før stod der «er nu en aktiv milestone»));
   «forslagene» er ude, fordi det gamle kort hedder «Er det stadig jeres mål?». Hovedlinjen siger
   **«Ingen bekræftede mål endnu»** (ikke «Ingen mål endnu»), når der er ubekræftede — «Ingen mål endnu»

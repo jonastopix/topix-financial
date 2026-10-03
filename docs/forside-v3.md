@@ -136,9 +136,15 @@ Rettelsen (`src/lib/hjemmebane/dinMaaned.ts`, filhovedet «RETTET 3/10»; `dinMa
   modsiger hinanden: det seneste banktal i en MÅLT, AFSLUTTET måned, kun inden for friskhedsgrænsen
   (`aeldsteFriskeMaaned(nu)`, `FRISKHED_MAANEDER` = 6 — samme funktion). Aldrig et estimat. Er bankmåneden ældre end den
   viste: «45.000 kr. · pr. april» (årstal med, når året er et andet) og INGEN retning. Ellers en sand tekst: «Banksaldo
-  er ikke med i rapporterne» (målte måneder, intet banktal), «Banksaldo er ikke med i rapporterne fra de seneste 6
-  måneder» (kun ældre end grænsen — Score siger også «for gammelt»), «Banksaldo kommer med første målte måned» (ingen
-  målte måneder).
+  er ikke med i de månedlige rapporter» (målte måneder, intet banktal — sandt også for dem, der kun har banksaldo i
+  årsregnskabet; CTO 3/10), «Banksaldo er ikke med i de månedlige rapporter fra de seneste 6 måneder» (kun ældre end
+  grænsen — Score siger også «for gammelt»), «Banksaldo kommer med første målte måned» (ingen målte måneder).
+- **`nu` regnes ÉN gang pr. render** (`dinMaanedDom(…, new Date())` i `BoardroomView`s og `RapporteringView`s
+  `useMemo`, som kun regner igen, når dens kilder — facts og rapportlisten — ændrer sig). Randsag, bogført, ikke rettet: står siden åben hen over den
+  20. (husets frist), flytter `aeldsteFriskeMaaned` sig først ved næste genberegning — et banktal kan stå én visning
+  for længe, indtil siden genindlæses eller facts hentes igen. Score-hooken (`useBoardroomScore`) tikker `nu` hvert
+  minut, så de to kan i det vindue være uenige om friskheden. Rettes ved at give kortet hookens `nu`, hvis det viser
+  sig at betyde noget.
 - Omsætning og resultat kommer fra den viste måned; retningen sammenligner kun med den FORRIGE MÅLTE måned (samme for
   alle tre) — et estimat sammenlignes aldrig. Det gamle «est.»-mærke pr. tal er væk; kortets mærke som helhed er uændret.
 - Gælder også `/reports` (samme dom). Tests: `dinMaaned.test.ts` — Florens form som fixture og de fire bank-tilfælde
@@ -159,7 +165,7 @@ to hjælpetekster), Handouts' «Rejsen» («trin nået»), refleksionens linje (
 sendte den.»), hentefejlen («Dine mål kunne ikke hentes …»), indstillingernes AI-beskrivelse og to «Du mister adgang …»,
 refleksions-modalen (PulseCheckinModal), chattens emnemærke og aktivitetsbeskeden («🎯 Mål nået: …»; gamle beskeder står
 ordret), V0-sidebarens etiket og den gamle skal (AppLayout/AppSidebar/LegatDashboard). Løftestangens toast siger det sande:
-«"X" er gemt som forslag — sig ja til det på Dine mål» (målet oprettes med source «handout», ubekræftet) — at
+«"X" er gemt som forslag — sig ja til det på Dine mål.» (målet oprettes med source «handout», ubekræftet) — at
 `loeftestangStatus` tæller alle aktive, mens triggeren kun tæller bekræftede, er nyt kort `g03-handout-maal-ubekraeftet`.
 **Ikke rørt:** rådgiver-/adminflader (HandoutDetail/HandoutLeverItem, AgentForslagPanel, CompanyChatPane-linket, admin/,
 virksomhed/, /engagement — dér er «milepæle» trofæerne) og **agentens tekst i `run-company-agent`** (kræver eksplicit

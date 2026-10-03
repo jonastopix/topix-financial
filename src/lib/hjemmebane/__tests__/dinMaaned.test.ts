@@ -147,12 +147,12 @@ describe("g03-bank-som-i-november (3/10) — Florens RIGTIGE form, målt i prod 
     ...Array.from({ length: 8 }, (_, i) => r(`2026-0${i + 1}`, { omsaetning: 500_000 + i * 1_000, resultat: 50_000 - i * 1_000, bank: null })),
   ].map((x) => (x.key === "2026-08" ? { ...x, period: "August 2026", omsaetning: 532_702, resultat: 51_769 } : x));
 
-  it("august vises; banken er «Banksaldo er ikke med i rapporterne» — aldrig estimatet fra december, aldrig «som i november»", () => {
+  it("august vises; banken er «Banksaldo er ikke med i de månedlige rapporter» — aldrig estimatet fra december, aldrig «som i november»", () => {
     const d = dinMaanedDom(floren, false, NU);
     if (d.tom === true) throw new Error("tom");
     expect(d.periodLabel).toBe("August 2026");
     expect(d.estimeret).toBe(false);
-    expect(d.tal[2]).toEqual({ felt: "bank", label: "Bank", value: null, retning: null, mangler: "Banksaldo er ikke med i rapporterne", pr: null });
+    expect(d.tal[2]).toEqual({ felt: "bank", label: "Bank", value: null, retning: null, mangler: "Banksaldo er ikke med i de månedlige rapporter", pr: null });
     expect(JSON.stringify(d)).not.toContain("november");
     expect(JSON.stringify(d)).not.toContain("3517");
   });
@@ -176,11 +176,11 @@ describe("g03-bank-som-i-november (3/10) — Florens RIGTIGE form, målt i prod 
     // 1. Aldrig: målte måneder uden banktal.
     const aldrig = dinMaanedDom([r("2026-07", { bank: null }), r("2026-08", { bank: null })], false, NU);
     if (aldrig.tom === true) throw new Error("tom");
-    expect(aldrig.tal[2]).toMatchObject({ value: null, mangler: "Banksaldo er ikke med i rapporterne", pr: null, retning: null });
+    expect(aldrig.tal[2]).toMatchObject({ value: null, mangler: "Banksaldo er ikke med i de månedlige rapporter", pr: null, retning: null });
     // 2. Kun estimat: banktal findes KUN i estimater — vises aldrig.
     const kunEstimat = dinMaanedDom([r("2025-12", { basis: "estimated", bank: 3_517 }), r("2026-08", { bank: null })], false, NU);
     if (kunEstimat.tom === true) throw new Error("tom");
-    expect(kunEstimat.tal[2]).toMatchObject({ value: null, mangler: "Banksaldo er ikke med i rapporterne" });
+    expect(kunEstimat.tal[2]).toMatchObject({ value: null, mangler: "Banksaldo er ikke med i de månedlige rapporter" });
     // 3a. Ældre målt, frisk (april ≥ marts): tallet med sin egen måned, ingen retning.
     const aeldre = dinMaanedDom([r("2026-04", { bank: 45_000 }), r("2026-08", { bank: null })], false, NU);
     if (aeldre.tom === true) throw new Error("tom");
@@ -189,7 +189,7 @@ describe("g03-bank-som-i-november (3/10) — Florens RIGTIGE form, målt i prod 
     const gammel = dinMaanedDom([r("2026-02", { bank: 45_000 }), r("2026-08", { bank: null })], false, NU);
     if (gammel.tom === true) throw new Error("tom");
     expect(gammel.tal[2]).toMatchObject({ value: null, mangler: BANK_FOR_GAMMEL_TEKST, pr: null });
-    expect(BANK_FOR_GAMMEL_TEKST).toBe("Banksaldo er ikke med i rapporterne fra de seneste 6 måneder");
+    expect(BANK_FOR_GAMMEL_TEKST).toBe("Banksaldo er ikke med i de månedlige rapporter fra de seneste 6 måneder");
     // Grænsen er Score's egen funktion.
     expect(aeldsteFriskeMaaned(NU)).toBe("2026-03");
     const graense = dinMaanedDom([r("2026-03", { bank: 1 }), r("2026-08", { bank: null })], false, NU);

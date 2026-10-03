@@ -48,5 +48,5 @@ export function loeftestangStatus(antalAktive: number): "active" | "parked" {
 export function loeftestangToast(status: "active" | "parked", titel: string): { title: string; description: string } {
   return status === "parked"
     ? { title: "Gemt som parkeret mål", description: `Gemt som parkeret mål — du har allerede ${MAX_AKTIVE_MAAL} aktive. Aktivér det når der er plads.` }
-    : { title: "Gemt som forslag", description: `"${titel}" er gemt som forslag — sig ja til det på Dine mål` };
+    : { title: "Gemt som forslag", description: `"${titel}" er gemt som forslag — sig ja til det på Dine mål.` };
 }

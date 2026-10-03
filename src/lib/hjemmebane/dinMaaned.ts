@@ -50,7 +50,7 @@
  *      grænse). Aldrig et estimat. Er bankmåneden ikke den viste, står dens
  *      egen måned ved tallet («pr. april») og der er INGEN retning. Ellers:
  *        - ingen målt måned overhovedet → «Banksaldo kommer med første målte måned»
- *        - målte måneder, men intet banktal i nogen → «Banksaldo er ikke med i rapporterne»
+ *        - målte måneder, men intet banktal i nogen → «Banksaldo er ikke med i de månedlige rapporter»
  *        - kun et banktal ældre end friskhedsgrænsen → «Banksaldo er ikke med i
  *          rapporterne fra de seneste 6 måneder» (Score siger det samme: for gammelt)
  *   3. Retningen sammenligner KUN to MÅLTE måneder: den viste og den FORRIGE
@@ -163,8 +163,8 @@ export function forrigeMaalte(sorteret: readonly MaanedsRaekke[], noegle: string
 }
 
 export const BANK_FOERSTE_MAALTE_TEKST = "Banksaldo kommer med første målte måned";
-export const BANK_IKKE_I_RAPPORTERNE_TEKST = "Banksaldo er ikke med i rapporterne";
-export const BANK_FOR_GAMMEL_TEKST = `Banksaldo er ikke med i rapporterne fra de seneste ${FRISKHED_MAANEDER} måneder`;
+export const BANK_IKKE_I_RAPPORTERNE_TEKST = "Banksaldo er ikke med i de månedlige rapporter";
+export const BANK_FOR_GAMMEL_TEKST = `Banksaldo er ikke med i de månedlige rapporter fra de seneste ${FRISKHED_MAANEDER} måneder`;
 
 /** «pr. april», og med årstal når året ikke er den viste måneds («pr. november 2025»). */
 export function bankPrTekst(bankNoegle: string, vistNoegle: string): string {
