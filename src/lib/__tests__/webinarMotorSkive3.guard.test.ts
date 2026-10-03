@@ -105,7 +105,7 @@ export function mailvejenErRigtig(kilde: string): boolean {
   const k = udenKommentarer(kilde);
   const koer = k.slice(k.indexOf("async function koer("), k.indexOf("async function skrivAlarm("));
   // Dommen, loftet og budgettet som før.
-  if (!koer.includes("planlaegKoersel({ raekker, afmeldte, sendte, fejlede, ukendte, nu: a.nu })")) return false;
+  if (!koer.includes("planlaegKoersel({ raekker, afmeldte, sendte, fejlede, ukendte, nu: a.nu, tiMinutterPort })")) return false;
   if (!koer.includes("beregnKoerselsLoft({ seneste: loftRaekker, loft: MAILGUN_LOFT_PR_TIME, nu: loftNu })")) return false;
   if (!koer.includes("budgetTillader({ forloebetMs, medInvitation: baererInvitation(s.art) })")) return false;
   // Hovedforespørgslen læser de samme kolonner — ingen motor-kolonne (virker før migrationerne).

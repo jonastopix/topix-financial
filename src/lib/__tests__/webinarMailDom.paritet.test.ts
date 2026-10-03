@@ -86,6 +86,23 @@ describe("webinarMailDom.paritet — dommene svarer ens", () => {
       const j = { raekker: to, afmeldte: new Set<string>(), sendte: new Set<string>(), fejlede, ukendte, nu: new Date(nu) };
       expect(deno.planlaegKoersel(j), nu).toEqual(src.planlaegKoersel(j));
     }
+    // 3/10: «ti_minutter» — motorens rækker, porten i alle tre tilstande (og udeladt),
+    // vinduet T−30 … T−5, en tabt efter fristen og to sessioner i samme kørsel.
+    const motor = [
+      { ...raekker[0], ewebinar_id: "P-00000000-0000-4000-8000-000000000001", email: "m@x.dk", join_link: null, kalender_link: null },
+      { ...raekker[0], ewebinar_id: "P-00000000-0000-4000-8000-000000000002", email: "n@x.dk", session_tid: "2026-10-13T09:20:00.000Z", registreret_at: null },
+      ...raekker,
+    ];
+    for (const port of [undefined, "klar", "migration_mangler", "laesefejl"] as const) {
+      for (const nu of ["2026-10-13T08:29:59Z", "2026-10-13T08:30:03Z", "2026-10-13T08:52:03Z", "2026-10-13T08:57:03Z", "2026-10-13T09:00:03Z", "2026-10-13T09:16:03Z"]) {
+        const j = { raekker: motor, afmeldte: new Set<string>(), sendte: new Set<string>(), nu: new Date(nu), tiMinutterPort: port };
+        expect(deno.planlaegKoersel(j), `${port}/${nu}`).toEqual(src.planlaegKoersel(j));
+      }
+    }
+    for (const reg of [null, "2026-10-13T08:55:00.000Z", "2026-10-13T08:55:00.001Z", "x"]) {
+      for (const art of deno.ARTER) expect(deno.erTabtKortNaade(art, SESSION, reg), `${art}/${reg}`).toBe(src.erTabtKortNaade(art, SESSION, reg));
+    }
+    expect([...deno.TI_MINUTTER_PORTE]).toEqual([...src.TI_MINUTTER_PORTE]);
     for (const udfald of ["ok", "timeout", "fejl", "loft", "ugyldig", "noegle_afvist", "ingen_noegle"]) {
       for (const status of [null, 200, 404, 429, 500, 503]) {
         expect(deno.afsendelseUkendt({ udfald, status }), `${udfald}/${status}`).toBe(src.afsendelseUkendt({ udfald, status }));

@@ -15,10 +15,16 @@
  * får hele tiden disse mails»). Første udgave (#1115) havde nøgle pr. dansk
  * time og lød ved HVERT loft-stop — under Mailguns probation rammes loftet hver
  * time (26 går igennem, så 420), og det er throttlen, der virker som bygget.
- * Resultat: én mail i timen hele dagen. Nu fire arter, i alvorsorden:
+ * Resultat: én mail i timen hele dagen. Nu fem arter, i alvorsorden:
  *
  *   fejl   FEJLEDE AF ANDRE GRUNDE END LOFTET (noegle_afvist, ugyldig, fejl,
  *          timeout, sporet kunne ikke skrives …) — som i dag: nøgle pr. dansk TIME.
+ *   ti_minutter  «LIGE FØR START» TABT ELLER I FARE (3/10-2026, CTO-rådets fund 1):
+ *          en «ti_minutter»-mail (vinduet T−30 … T−5, ingen indhentning) står
+ *          udsat eller over loftet med fristFor ≤ 10 min ude (TI_MINUTTER_ALARM_MS),
+ *          eller dommen har dømt den for_sent uden en ok-række for en, der var
+ *          tilmeldt før fristen (webinarMailDom.erTabtKortNaade). Nøgle pr. dansk
+ *          TIME, som «fejl» — den kan ikke vente til i morgen.
  *   tabt   UDLØBET: mails, dommen har dømt for_sent_efter_fejl i kørslen (en mail,
  *          vi fejlede med, nåede ikke ud før den næste art) — skal mærkes af et
  *          menneske, men ÉN mail om dagen pr. art er nok (Jonas 29/9: gentagelse
@@ -33,7 +39,7 @@
  *          hvor mange der gik igennem den seneste time, og hvornår de forventes
  *          ude — med regnestykket skrevet ud, og at prognosen antager samme takt
  *          som den seneste time.
- * KUN «fejl» har nøgle pr. dansk TIME — det er noget, der er i stykker. Arten
+ * KUN «fejl» og «ti_minutter» har nøgle pr. dansk TIME. Arten
  * står i nøglen, så dagens loft-mail aldrig dæmper en tabt- eller frist-mail,
  * og omvendt.
  *
@@ -72,7 +78,18 @@ export const ALARM_FEJL_LINJER_MAKS = 10;
 /** Det udfald, loftet giver (mailgunAfsendelse.doemMailgunSvar: 429, og enhver tekst i LOFT_MOENSTRE). */
 export const LOFT_UDFALD = "loft";
 
-export type AlarmArt = "fejl" | "tabt" | "frist" | "loft";
+export type AlarmArt = "fejl" | "ti_minutter" | "tabt" | "frist" | "loft";
+
+/**
+ * «TI_MINUTTER» I FARE (3/10-2026, CTO-rådets fund 1): en mail med egen, kort
+ * nåde (Plan.naadeMs — i dag kun «ti_minutter», vinduet T−30 … T−5) har ingen
+ * indhentning. Står den udsat (budgettet) eller over loftet med en frist
+ * (fristFor = T − 5 min) højst så mange ms ude, når den næppe ud — og alarmen
+ * lyder. Regnestykket: cronens største hul er 10 min (minutterne 9, 14, 24, 27,
+ * 29, 37, 39, 44, 47, 57, 59), så en udsat mail med frist > 10 min ude har altid
+ * et slot mere; ≤ 10 min kan den ikke regne med det.
+ */
+export const TI_MINUTTER_ALARM_MS = 10 * 60_000;
 
 // ── Input: de felter af MailResultat, dommen behøver ─────────────────────────
 
@@ -98,6 +115,14 @@ export interface AlarmInput {
   over_loft: number;
   sprunget: { for_sent_efter_fejl: number };
   ventende: readonly Ventende[];
+  /**
+   * Mails, budgettet udsatte i kørslen (art og session; 3/10). Udeladt = ingen.
+   * Læses KUN for arter med egen nåde (tiMinutterIFare) — de andre arters
+   * udsatte tages af næste slot, som før.
+   */
+  udsatte?: readonly Ventende[];
+  /** «ti_minutter» dømt for_sent uden en ok-række (dommens kortNaadeTabt, 3/10). Udeladt = 0. */
+  ti_minutter?: { tabt: number };
 }
 
 // ── Nøglerne ─────────────────────────────────────────────────────────────────
@@ -236,11 +261,28 @@ export interface Alarm {
   tabt: number;
   prognose: Prognose;
   iFare: FristIFare[];
+  /** «ti_minutter» (3/10): udsatte/over loftet med frist ≤ TI_MINUTTER_ALARM_MS, og dem, dommen dømte for_sent. */
+  tiMinutter: { iFare: FristIFare[]; tabt: number };
+}
+
+/**
+ * De ventende (over loftet) og udsatte (budgettet) med EGEN nåde, hvis frist
+ * (fristFor) ligger højst TI_MINUTTER_ALARM_MS efter `nu` — også en, der allerede
+ * er passeret. Læst af PLANEN (naadeMs), aldrig af artens navn.
+ */
+export function tiMinutterIFare(r: Pick<AlarmInput, "ventende" | "udsatte">, nu: Date): FristIFare[] {
+  const ud: FristIFare[] = [];
+  for (const v of [...r.ventende, ...(r.udsatte ?? [])]) {
+    if (PLANEN.find((p) => p.art === v.art)?.naadeMs === undefined) continue;
+    const frist = fristFor(v.art, v.session_tid);
+    if (frist !== null && frist.getTime() - nu.getTime() <= TI_MINUTTER_ALARM_MS) ud.push({ art: v.art, session_tid: v.session_tid, frist });
+  }
+  return ud.sort((a, b) => a.frist.getTime() - b.frist.getTime());
 }
 
 /**
  * Skal der alarmeres — og hvilken art? null = ingen alarm. Aldrig i en tørkørsel
- * eller en låst kørsel. Alvorsorden: fejl > tabt > frist > loft; den alvorligste
+ * eller en låst kørsel. Alvorsorden: fejl > ti_minutter > tabt > frist > loft; den alvorligste
  * vinder, og dens mail bærer også loft-tallene, når nogen venter.
  */
 export function doemAlarm(r: AlarmInput, nu: Date): Alarm | null {
@@ -250,14 +292,18 @@ export function doemAlarm(r: AlarmInput, nu: Date): Alarm | null {
   const prognose = beregnPrognose(r.over_loft, r.loft.ok_60_min, nu);
   const iFare = fristerIFare(r.ventende, prognose);
   const loftStop = r.loft.pause !== null || r.loft.stoppet_ved !== null || r.over_loft > 0;
+  // «ti_minutter» (3/10): ingen indhentning, så det, der ikke når ud NU, er tabt —
+  // nøgle pr. dansk TIME (står ikke i ARTER_PR_DAG), lige efter «fejl».
+  const tiMinutter = { iFare: tiMinutterIFare(r, nu), tabt: r.ti_minutter?.tabt ?? 0 };
   const art: AlarmArt | null =
     fejl.length > 0 ? "fejl"
+    : tiMinutter.iFare.length > 0 || tiMinutter.tabt > 0 ? "ti_minutter"
     : tabt > 0 ? "tabt"
     : iFare.length > 0 ? "frist"
     : loftStop ? "loft"
     : null;
   if (art === null) return null;
-  return { art, noegle: webinarAlarmNoegle(art, nu), andreFejl: fejl, tabt, prognose, iFare };
+  return { art, noegle: webinarAlarmNoegle(art, nu), andreFejl: fejl, tabt, prognose, iFare, tiMinutter };
 }
 
 // ── Teksten ──────────────────────────────────────────────────────────────────
@@ -351,6 +397,19 @@ export function webinarAlarmTekst(r: WebinarAlarmTekstInput, alarm: Alarm, nu: D
     }
     const resten = alarm.andreFejl.length - linjer.length;
     if (resten > 0) blokke.push({ overskrift: "…", tekst: `og ${resten} ${resten === 1 ? "linje" : "linjer"} mere — alle står i webinar_mails (udfald <> 'ok').` });
+  } else if (alarm.art === "ti_minutter") {
+    const { iFare: fare, tabt: tabte } = alarm.tiMinutter;
+    const dele: string[] = [];
+    if (tabte > 0) dele.push(`${tabte} tabt`);
+    if (fare.length > 0) dele.push(`${fare.length} i fare`);
+    emne = `«Vi begynder» lige før start: ${dele.join(", ")} — webinar-mail-cron når ikke ud`;
+    titel = `Webinarmails lige før start: ${dele.join(", ")} (${stemplet})`;
+    if (tabte > 0) afsnit.push(`${tabte} ${tabte === 1 ? "mail" : "mails"} «${ART_ORD.ti_minutter}» (vinduet T−30 … T−5 min) ${tabte === 1 ? "er" : "er"} dømt for sent uden at være sendt — personen var tilmeldt, før vinduet lukkede. Den indhentes aldrig.`);
+    if (fare.length > 0) {
+      const foerste = fare[0];
+      afsnit.push(`${fare.length} ${fare.length === 1 ? "mail" : "mails"} står udsat eller over loftet med en frist højst 10 min ude — den første ${danskDatoKlokke(foerste.frist)} (webinar ${danskDatoKlokke(new Date(foerste.session_tid))}). Næste slot kan være for sent.`);
+    }
+    afsnit.push(...loftAfsnit);
   } else if (alarm.art === "tabt") {
     const n = alarm.tabt;
     emne = `${n} ${n === 1 ? "webinarmail er tabt" : "webinarmails er tabt"} — nåede ikke ud før næste påmindelse`;

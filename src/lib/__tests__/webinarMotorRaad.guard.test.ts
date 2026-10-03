@@ -23,6 +23,8 @@ import { SET_PROCENT_KILDE_MOTOR } from "@/lib/webinarMotor/fremmoede";
  *      i begge spejle, og begge hentninger beder om `intern:raa->>intern`.
  *   5b. MÅLSTREGERNE OG ANNONCEPRISERNE (2/10-2026): samme filter i hver doms
  *      indgang i begge spejle — de får de RÅ rækker fra hooken og webinar-delt.
+ *   5c. BEVISET (3/10-2026, CTO-rådets fund 2): webinar-delts svar bærer
+ *      `interne_fraregnet` — et tal, regnet af den spejlede antalInterneTilmeldinger.
  *   8. SET_PROCENT_KILDE: SQL'en og cronen skriver det samme navn.
  */
 
@@ -278,6 +280,52 @@ describe("webinarMotorRaad.guard 5b — målstregerne og annoncepriserne uden de
       .replace(INTERN_FILTER, "");
     expect(pd2).not.toBe(pd);
     expect(maalOgPriserUdenInterne(ms, md, ps, pd2)).toBe(false);
+  });
+});
+
+// ── 5c — beviset `interne_fraregnet` i webinar-delt (3/10-2026, CTO-rådets fund 2) ──
+const DELING_SVAR = "supabase/functions/_shared/webinarDelingSvar.ts";
+const ANTAL_FN = "export function antalInterneTilmeldinger(raekker: readonly InternFelter[]): number {\n  return raekker.filter(erInternTilmelding).length;\n}";
+/**
+ * webinar-delts svar bærer et TAL for de fraregnede interne — regnet af den
+ * spejlede dom (ordret i begge dashboard-spejle, på de RÅ rækker, før filtrene),
+ * og typen siger `number` (aldrig en liste, der kunne bære mails).
+ */
+export function interneFraregnetBevis(svar: string, dashSrc: string, dashDeno: string): boolean {
+  const s = udenKommentarer(svar);
+  if (!/import \{[^}]*\bantalInterneTilmeldinger\b[^}]*\} from "\.\/webinarDashboard\.ts";/.test(s)) return false;
+  if (!s.includes("  interne_fraregnet: number;")) return false;
+  if (!s.includes("interne_fraregnet: antalInterneTilmeldinger(ind.tilmeldinger),")) return false;
+  if ((s.match(/interne_fraregnet:/g) ?? []).length !== 2) return false;
+  return dashSrc.includes(ANTAL_FN) && dashDeno.includes(ANTAL_FN);
+}
+
+describe("webinarMotorRaad.guard 5c — webinar-delt beviser filtret med et tal", () => {
+  const alt = () => [laes(DELING_SVAR), laes(DASH_SRC), laes(DASH_DENO)] as const;
+  it("feltet findes, regnes af den spejlede dom på de rå rækker, og er et tal", () => expect(interneFraregnetBevis(...alt())).toBe(true));
+  it("MUTATION: feltet fjernet fra svaret fanges", () => {
+    const [s, a, b] = alt();
+    const s2 = s.replace("    interne_fraregnet: antalInterneTilmeldinger(ind.tilmeldinger),\n", "");
+    expect(s2).not.toBe(s);
+    expect(interneFraregnetBevis(s2, a, b)).toBe(false);
+  });
+  it("MUTATION: en konstant i stedet for dommen fanges", () => {
+    const [s, a, b] = alt();
+    const s2 = s.replace("interne_fraregnet: antalInterneTilmeldinger(ind.tilmeldinger),", "interne_fraregnet: 0,");
+    expect(s2).not.toBe(s);
+    expect(interneFraregnetBevis(s2, a, b)).toBe(false);
+  });
+  it("MUTATION: typen gjort til en liste (som kunne bære mails) fanges", () => {
+    const [s, a, b] = alt();
+    const s2 = s.replace("  interne_fraregnet: number;", "  interne_fraregnet: string[];");
+    expect(s2).not.toBe(s);
+    expect(interneFraregnetBevis(s2, a, b)).toBe(false);
+  });
+  it("MUTATION: dommen afviger i det ene spejl fanges", () => {
+    const [s, a, b] = alt();
+    const b2 = b.replace("  return raekker.filter(erInternTilmelding).length;", "  return 0;");
+    expect(b2).not.toBe(b);
+    expect(interneFraregnetBevis(s, a, b2)).toBe(false);
   });
 });
 

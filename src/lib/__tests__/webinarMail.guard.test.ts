@@ -103,11 +103,20 @@ import { resolve } from "node:path";
  *      med begrundelse; prædikatet står i CI-værnet; klik-tabellen har ingen
  *      persondata og følger mail-rækken (cascade); konfig-migrationen er ÉN insert.
  *  20. «TI_MINUTTER» KUN FOR MOTORENS RÆKKER (3/10-2026): PLANENs linje bærer
- *      kunMotor og sit eget vindue (T−15 … T−5) i begge spejle; doemMail svarer
+ *      kunMotor og sit eget vindue (T−30 … T−5, udvidet 3/10 efter CTO-rådets
+ *      fund 1) i begge spejle; doemMail svarer
  *      «ikke_motor» som det FØRSTE, fail-closed (`!== true`); planlaegKoersel
  *      giver motorRaekke af ewebinar_id (erMotorRaekke), aldrig en konstant;
  *      formen er ORDRET webinarMotor/mail.ts' MOTOR_ID_FORM; arten er ingen
- *      grænse i indhentningens kæde; cronens svar bærer beviset `ti_minutter`.
+ *      grænse i indhentningens kæde; cronens svar bærer beviset `ti_minutter`,
+ *      talt efter prøvens filter (fund 5).
+ *  21. PORTEN FOR «TI_MINUTTER» (3/10-2026, CTO-rådets fund 3): migrationen
+ *      20261003040000 lægger app_config.webinar_ti_minutter_klar = true (ON
+ *      CONFLICT DO NOTHING) i SAMME transaktion som art-CHECK'en, og CHECK'en
+ *      skiftes i ÉT alter table (fund 6). Cronen læser nøglen fail-closed
+ *      (læsefejl = «laesefejl», alt andet end true = «migration_mangler») FØR
+ *      dommen og giver den til planlaegKoersel; dommen tager en kunMotor-art UD
+ *      af kørslen uden «klar», i begge spejle; svaret bærer `ti_minutter.port`.
  */
 
 const laes = (sti: string) => readFileSync(resolve(process.cwd(), sti), "utf8");
@@ -452,7 +461,7 @@ export const fejledeIndhentes = (cron: string, dom: string, spejl: string): bool
   return (
     f.includes('a.admin.from("webinar_mails").select("email, session_tid, art, udfald, status").neq("udfald", "ok")\n      .gte("session_tid", graense)') &&
     f.includes("const fejlede = new Set(fejledeRaekker.filter((x) => !afsendelseUkendt(x)).map((x) => noegle(x.email, x.session_tid, x.art)));") &&
-    f.includes("const plan = planlaegKoersel({ raekker, afmeldte, sendte, fejlede, ukendte, nu: a.nu });") &&
+    f.includes("const plan = planlaegKoersel({ raekker, afmeldte, sendte, fejlede, ukendte, nu: a.nu, tiMinutterPort });") &&
     foer(f, "const fejlede = new Set(", "const plan = planlaegKoersel(") &&
     f.includes("for_sent_efter_fejl: 0") &&
     iDommen(dom) && iDommen(spejl)
@@ -522,7 +531,7 @@ export const ukendteGensendesIkke = (cron: string, dom: string, spejl: string): 
     f.includes('select("email, session_tid, art, udfald, status").neq("udfald", "ok")') &&
     f.includes("const ukendte = new Set(fejledeRaekker.filter((x) => afsendelseUkendt(x)).map((x) => noegle(x.email, x.session_tid, x.art)));") &&
     f.includes("const fejlede = new Set(fejledeRaekker.filter((x) => !afsendelseUkendt(x)).map(") &&
-    f.includes("planlaegKoersel({ raekker, afmeldte, sendte, fejlede, ukendte, nu: a.nu })") &&
+    f.includes("planlaegKoersel({ raekker, afmeldte, sendte, fejlede, ukendte, nu: a.nu, tiMinutterPort })") &&
     f.includes("r.ukendt_ikke_indhentet = plan.sprunget.levering_ukendt;") &&
     f.includes("levering_ukendt: 0") &&
     iDommen(dom) && iDommen(spejl)
@@ -573,7 +582,7 @@ export const budgetDaekkerVaersteForloeb = (cron: string, budget: string, mig: s
   if (start === -1 || slut === -1 || start > slut) return false;
   const loekke = f.slice(start, slut);
   const TJEK = "if (!budgetTillader({ forloebetMs, medInvitation: baererInvitation(s.art) })) {";
-  const STOP = "if (r.budget.stoppet_af_budget) { r.udsat++; continue; }";
+  const STOP = "if (r.budget.stoppet_af_budget) { r.udsat++; r.udsatte.push({ art: s.art, session_tid: s.sessionTid }); continue; }";
   // Fra det SIDSTE Mailgun-kald til sporet: intet andet await.
   const KALD = "spor = await sendMailgun";
   const sidsteKald = loekke.lastIndexOf(KALD);
@@ -645,16 +654,20 @@ export const alarmenKunIRigtigKoersel = (cron: string, alarm: string): boolean =
     (skriv.match(/\} catch \(err\) \{/g) ?? []).length === 2 &&
     skriv.includes("r.fejl.push(`alarm_mail: ${grund}`);") &&
     skriv.includes("r.fejl.push(`alarm_klokke: ${grund}`);") &&
-    // Motoren: aldrig i tørkørsel; loft, tabt og frist er ÉN pr. dansk DAG, fejl pr. TIME; alvorsorden fejl > tabt > frist > loft.
+    // Motoren: aldrig i tørkørsel; loft, tabt og frist er ÉN pr. dansk DAG, fejl og ti_minutter pr. TIME;
+    // alvorsorden fejl > ti_minutter > tabt > frist > loft (3/10).
     a.includes("if (!r.sender_rigtigt) return null;") &&
     a.includes('export const ARTER_PR_DAG: readonly AlarmArt[] = ["loft", "tabt", "frist"];') &&
     a.includes("const hale = ARTER_PR_DAG.includes(art) ? webinarAlarmDato(nu) : webinarAlarmDatoOgTime(nu);") &&
-    /fejl\.length > 0 \? "fejl"\s*: tabt > 0 \? "tabt"\s*: iFare\.length > 0 \? "frist"\s*: loftStop \? "loft"\s*: null;/.test(a) &&
+    /fejl\.length > 0 \? "fejl"\s*: tiMinutter\.iFare\.length > 0 \|\| tiMinutter\.tabt > 0 \? "ti_minutter"\s*: tabt > 0 \? "tabt"\s*: iFare\.length > 0 \? "frist"\s*: loftStop \? "loft"\s*: null;/.test(a) &&
     a.includes("const loftStop = r.loft.pause !== null || r.loft.stoppet_ved !== null || r.over_loft > 0;") &&
     // Cronen giver dommen det, den behøver: ok pr. time og de ventende med art og session.
     f.includes('ok_60_min: loftRaekker.filter((x) => x.udfald === "ok").length,') &&
     f.includes("r.ventende = (loft.pause ? sendinger : sendinger.slice(loft.maks)).map((s) => ({ art: s.art, session_tid: s.sessionTid }));") &&
     f.includes("for (const v of sendinger.slice(i + 1)) r.ventende.push({ art: v.art, session_tid: v.sessionTid });") &&
+    // 3/10 (CTO-rådets fund 1): de UDSATTE (budgettet) og de TABTE «ti_minutter» når alarmen.
+    f.includes("if (r.budget.stoppet_af_budget) { r.udsat++; r.udsatte.push({ art: s.art, session_tid: s.sessionTid }); continue; }") &&
+    f.includes("tabt: proevenTagerTi ? plan.kortNaadeTabt : 0,") &&
     a.includes('export const WEBINAR_ALARM_KLOKKE_TYPE = "drift";') &&
     a.includes('export const WEBINAR_ALARM_REFERENCE = "webinar_mails";')
   );
@@ -662,7 +675,7 @@ export const alarmenKunIRigtigKoersel = (cron: string, alarm: string): boolean =
 
 // ── 20 ─────────────────────────────────────────────────────────────────────
 const MOTOR_MAIL = "supabase/functions/_shared/webinarMotor/mail.ts";
-const TI_PLAN = '{ art: "ti_minutter", minutterFoer: 10, tidligstFoerMs: 5 * 60_000, naadeMs: 5 * 60_000, kunMotor: true, kraeverIkkeBegyndt: true },';
+const TI_PLAN = '{ art: "ti_minutter", minutterFoer: 10, tidligstFoerMs: 20 * 60_000, naadeMs: 5 * 60_000, kunMotor: true, kraeverIkkeBegyndt: true },';
 const IKKE_MOTOR_FOERST = '  const { art } = i;\n  if (kunMotor(art) && i.motorRaekke !== true) return { send: false, art, grund: "ikke_motor" };\n  if (i.afmeldt) return';
 export const tiMinutterKunMotor = (dom: string, spejl: string, cron: string, motorMail: string): boolean => {
   const form = (k: string, navn: string) => udenKommentarer(k).match(new RegExp(`export const ${navn} = (\\/\\^P-[^\\n]*\\$\\/);`))?.[1] ?? null;
@@ -680,8 +693,11 @@ export const tiMinutterKunMotor = (dom: string, spejl: string, cron: string, mot
     if (motorForm === null || form(k, "MOTOR_ID_FORM_DOM") !== motorForm) return false;
   }
   const c = udenKommentarer(cron);
-  return c.includes("ti_minutter: { ikke_motor: number; skal_sendes: number };") &&
-    c.includes('r.ti_minutter = { ikke_motor: plan.sprunget.ikke_motor, skal_sendes: sendinger.filter((s) => s.art === "ti_minutter").length };');
+  // Beviset i svaret — og (fund 5) talt på SAMME grundlag som skal_sendes: efter prøvens filter.
+  return c.includes("ti_minutter: { port: TiMinutterPort; ikke_motor: number; skal_sendes: number; tabt: number };") &&
+    c.includes("const proevenTagerTi = a.art === null || kunMotor(a.art);") &&
+    c.includes("ikke_motor: proevenTagerTi ? plan.sprunget.ikke_motor : 0,") &&
+    c.includes("skal_sendes: sendinger.filter((s) => kunMotor(s.art)).length,");
 };
 
 // ── 19 ─────────────────────────────────────────────────────────────────────
@@ -786,6 +802,35 @@ describe("webinarMail.guard — platformens før-webinar-mails", () => {
     expect(videoKunEnDag(videoFiler())).toBe(true));
   it("20. ti_minutter KUN for motorens rækker: kunMotor i PLANEN, «ikke_motor» først, motorRaekke af id'et, samme form som motoren, beviset i svaret", () =>
     expect(tiMinutterKunMotor(laes(DOM), laes(DOM_SPEJL), laes(CRON), laes(MOTOR_MAIL))).toBe(true));
+  it("21. porten for ti_minutter: migrationen lægger den med CHECK'en i én transaktion, cronen læser den fail-closed FØR dommen, dommen tager arten ud uden «klar»", () =>
+    expect(tiMinutterPorten(laes(DOM), laes(DOM_SPEJL), laes(CRON), laes(MIG_TI))).toBe(true));
+});
+
+describe("webinarMail.guard dom 21 — porten for ti_minutter (mutationer)", () => {
+  const dom = laes(DOM), spejl = laes(DOM_SPEJL), cron = laes(CRON), mig = laes(MIG_TI);
+  const ud = (k: string, fra: string, til: string) => { const n = k.split(fra).join(til); expect(n, fra).not.toBe(k); return n; };
+  it("udgangspunktet består", () => expect(tiMinutterPorten(dom, spejl, cron, mig)).toBe(true));
+  it("MUTATION: porten fjernet i det ene spejl", () =>
+    expect(tiMinutterPorten(dom, ud(spejl, PORT_GATE, ""), cron, mig)).toBe(false));
+  it("MUTATION: porten fail-open (`=== \"laesefejl\"` i stedet for `!== \"klar\"`)", () =>
+    expect(tiMinutterPorten(ud(dom, PORT_GATE, 'if (kunMotor(art) && i.tiMinutterPort === "laesefejl") continue;'), spejl, cron, mig)).toBe(false));
+  it("MUTATION: en læsefejl giver «klar»", () =>
+    expect(tiMinutterPorten(dom, spejl, ud(cron, 'return "laesefejl";', 'return "klar";'), mig)).toBe(false));
+  it("MUTATION: porten læst EFTER dommen", () => {
+    const c = ud(cron, "  const tiMinutterPort = await laesTiMinutterPort(a.admin);\n", "")
+      .split("  r.sprunget = plan.sprunget;\n").join("  r.sprunget = plan.sprunget;\n  const tiMinutterPort = await laesTiMinutterPort(a.admin);\n");
+    expect(tiMinutterPorten(dom, spejl, c, mig)).toBe(false);
+  });
+  it("MUTATION: porten ikke givet til dommen", () =>
+    expect(tiMinutterPorten(dom, spejl, ud(cron, "nu: a.nu, tiMinutterPort })", "nu: a.nu })"), mig)).toBe(false));
+  it("MUTATION: migrationen uden ON CONFLICT DO NOTHING", () =>
+    expect(tiMinutterPorten(dom, spejl, cron, ud(mig, "on conflict (config_key) do nothing;\n\ncommit;", ";\n\ncommit;"))).toBe(false));
+  it("MUTATION: porten uden for transaktionen", () =>
+    expect(tiMinutterPorten(dom, spejl, cron, ud(mig, "\ncommit;\n", "\n").replace("\nbegin;\n", "\n"))).toBe(false));
+  it("MUTATION: CHECK'en i to sætninger (drop; add) — et øjeblik uden CHECK", () =>
+    expect(tiMinutterPorten(dom, spejl, cron, ud(mig, "  drop constraint if exists webinar_mails_art_check,\n  add constraint", "  drop constraint if exists webinar_mails_art_check;\nalter table public.webinar_mails\n  add constraint"))).toBe(false));
+  it("MUTATION: en anden nøgle i cronen end i migrationen", () =>
+    expect(tiMinutterPorten(dom, spejl, ud(cron, '"webinar_ti_minutter_klar"', '"webinar_ti_klar"'), mig)).toBe(false));
 });
 
 describe("webinarMail.guard dom 20 — eWebinar-rækker kan ALDRIG få ti_minutter (mutationer)", () => {
@@ -825,11 +870,60 @@ describe("webinarMail.guard dom 20 — eWebinar-rækker kan ALDRIG få ti_minutt
     expect(tiMinutterKunMotor(d, s, cron, motor)).toBe(false);
   });
   it("MUTATION: beviset `ti_minutter` fjernet fra cronens svar", () => {
-    const c = cron.split("  r.ti_minutter = { ikke_motor: plan.sprunget.ikke_motor,").join("  const _x = { ikke_motor: plan.sprunget.ikke_motor,");
+    const c = cron.split("ti_minutter: { port: TiMinutterPort; ikke_motor: number; skal_sendes: number; tabt: number };").join("x: number;");
     expect(c).not.toBe(cron);
     expect(tiMinutterKunMotor(dom, spejl, c, motor)).toBe(false);
   });
+  it("MUTATION: ikke_motor talt FØR prøvens filter (fund 5) — en prøve på en anden art ville vise eWebinar-tallet", () => {
+    const c = cron.split("ikke_motor: proevenTagerTi ? plan.sprunget.ikke_motor : 0,").join("ikke_motor: plan.sprunget.ikke_motor,");
+    expect(c).not.toBe(cron);
+    expect(tiMinutterKunMotor(dom, spejl, c, motor)).toBe(false);
+  });
+  it("MUTATION: vinduet snævret tilbage til T−15 (fund 1) fanges", () => {
+    const [d, s] = begge("tidligstFoerMs: 20 * 60_000,", "tidligstFoerMs: 5 * 60_000,");
+    expect(tiMinutterKunMotor(d, s, cron, motor)).toBe(false);
+  });
 });
+
+
+// ── 21 ─────────────────────────────────────────────────────────────────────
+const MIG_TI = "supabase/migrations/20261003040000_webinar_mails_ti_minutter.sql";
+const PORT_GATE = 'if (kunMotor(art) && i.tiMinutterPort !== "klar") continue;';
+export const tiMinutterPorten = (dom: string, spejl: string, cron: string, mig: string): boolean => {
+  for (const k of [dom, spejl]) {
+    const u = udenKommentarer(k);
+    const plan = u.slice(u.indexOf("export function planlaegKoersel("), u.indexOf("export function erTabtKortNaade("));
+    if (!plan.includes("tiMinutterPort?: TiMinutterPort;")) return false;
+    if (!plan.includes(PORT_GATE)) return false;
+    // Porten står FØRST i art-løkken — før dommen.
+    if (!foer(plan, "for (const art of AKTIVE_ARTER) {", PORT_GATE) || !foer(plan, PORT_GATE, "const dom = doemMail({")) return false;
+    if (!u.includes('export type TiMinutterPort = "klar" | "migration_mangler" | "laesefejl";')) return false;
+  }
+  const c = udenKommentarer(cron);
+  const laes = c.slice(c.indexOf("async function laesTiMinutterPort("), c.indexOf("async function laasErAktiv("));
+  const koer = c.slice(c.indexOf("async function koer("), c.indexOf("async function skrivAlarm("));
+  const noegle = c.match(/export const TI_MINUTTER_PORT_NOEGLE = "([a-z_]+)";/)?.[1] ?? null;
+  const m = udenSql(mig);
+  const iTrans = m.slice(m.indexOf("begin;"), m.indexOf("commit;"));
+  return (
+    noegle === "webinar_ti_minutter_klar" &&
+    laes.includes('.eq("config_key", TI_MINUTTER_PORT_NOEGLE).maybeSingle();') &&
+    laes.includes("if (error) throw new Error(error.message);") &&
+    laes.includes('return v === true || v === "true" ? "klar" : "migration_mangler";') &&
+    laes.includes('return "laesefejl";') &&
+    (laes.match(/"klar"/g) ?? []).length === 1 &&
+    // Læst FØR dommen, givet til den, og vist i svaret.
+    foer(koer, "const tiMinutterPort = await laesTiMinutterPort(a.admin);", "const plan = planlaegKoersel(") &&
+    koer.includes("planlaegKoersel({ raekker, afmeldte, sendte, fejlede, ukendte, nu: a.nu, tiMinutterPort })") &&
+    koer.includes("r.ti_minutter.port = tiMinutterPort;") &&
+    // Migrationen: porten i SAMME transaktion som CHECK'en, ét alter table, ON CONFLICT DO NOTHING.
+    m.indexOf("begin;") !== -1 && m.indexOf("commit;") > m.indexOf("begin;") &&
+    new RegExp(`insert into public\\.app_config \\(config_key, config_value, description\\)\\s+values \\('${noegle}', 'true'::jsonb, '[^']*'\\)\\s+on conflict \\(config_key\\) do nothing;`).test(iTrans) &&
+    /alter table public\.webinar_mails\s+drop constraint if exists webinar_mails_art_check,\s+add constraint webinar_mails_art_check\s+check \(art in/.test(iTrans) &&
+    (m.match(/alter table public\.webinar_mails/g) ?? []).length === 1 &&
+    (m.match(/drop constraint/g) ?? []).length === 1
+  );
+};
 
 const videoFiler = () => ({
   cron: laes(CRON), tekster: laes(TEKSTER), video: laes(VIDEO), klik: laes(KLIK), config: laes(CONFIG), ci: laes(CI), migVideo: laes(MIG_VIDEO), migKlik: laes(MIG_KLIK),
@@ -901,7 +995,7 @@ describe("webinarMail.guard — dommene fanger fejlen på en kopi", () => {
   it("fejlede ikke givet ind, læst som ok, uden afgrænsning, ikke slået op i dommen, eller bekræftelser ikke først, fælder dom 13", () => {
     const dom = laes(DOM), spejl = laes(DOM_SPEJL);
     // Selve fejlen, opgaven nævner: fejlede læses, men gives IKKE til planlaegKoersel.
-    expect(fejledeIndhentes(cron.split("planlaegKoersel({ raekker, afmeldte, sendte, fejlede, ukendte, nu: a.nu })").join("planlaegKoersel({ raekker, afmeldte, sendte, ukendte, nu: a.nu })"), dom, spejl)).toBe(false);
+    expect(fejledeIndhentes(cron.split("planlaegKoersel({ raekker, afmeldte, sendte, fejlede, ukendte, nu: a.nu, tiMinutterPort })").join("planlaegKoersel({ raekker, afmeldte, sendte, ukendte, nu: a.nu, tiMinutterPort })"), dom, spejl)).toBe(false);
     expect(fejledeIndhentes(cron.split('.neq("udfald", "ok")').join('.eq("udfald", "ok")'), dom, spejl)).toBe(false);
     expect(fejledeIndhentes(cron.split('.neq("udfald", "ok")\n      .gte("session_tid", graense)').join('.neq("udfald", "ok")\n     '), dom, spejl)).toBe(false);
     expect(fejledeIndhentes(cron.split("for_sent_efter_fejl: 0").join(""), dom, spejl)).toBe(false);
@@ -934,7 +1028,7 @@ describe("webinarMail.guard — dommene fanger fejlen på en kopi", () => {
     const dom = laes(DOM), spejl = laes(DOM_SPEJL);
     expect(ukendteGensendesIkke(cron, dom, spejl)).toBe(true);
     // Selve fejlen: ukendte læses, men gives IKKE til dommen — timeouten indhentes som før.
-    expect(ukendteGensendesIkke(cron.split("fejlede, ukendte, nu: a.nu })").join("fejlede, nu: a.nu })"), dom, spejl)).toBe(false);
+    expect(ukendteGensendesIkke(cron.split("fejlede, ukendte, nu: a.nu, tiMinutterPort })").join("fejlede, nu: a.nu, tiMinutterPort })"), dom, spejl)).toBe(false);
     expect(ukendteGensendesIkke(cron.split('select("email, session_tid, art, udfald, status")').join('select("email, session_tid, art")'), dom, spejl)).toBe(false);
     expect(ukendteGensendesIkke(cron.split("filter((x) => afsendelseUkendt(x))").join("filter((x) => !afsendelseUkendt(x))"), dom, spejl)).toBe(false);
     expect(ukendteGensendesIkke(cron, dom.split('if (forsoeg.udfald === "timeout") return true;').join('if (forsoeg.udfald === "timeout") return false;'), spejl)).toBe(false);
@@ -995,14 +1089,14 @@ describe("webinarMail.guard — dommene fanger fejlen på en kopi", () => {
     expect(alarmenKunIRigtigKoersel(cron, alarm.split("const hale = ARTER_PR_DAG.includes(art) ? webinarAlarmDato(nu) : webinarAlarmDatoOgTime(nu);").join("const hale = webinarAlarmDatoOgTime(nu);"))).toBe(false);
     expect(alarmenKunIRigtigKoersel(cron, alarm.split('export const ARTER_PR_DAG: readonly AlarmArt[] = ["loft", "tabt", "frist"];').join('export const ARTER_PR_DAG: readonly AlarmArt[] = ["loft", "frist"];'))).toBe(false);
     expect(alarmenKunIRigtigKoersel(cron, alarm.split('export const ARTER_PR_DAG: readonly AlarmArt[] = ["loft", "tabt", "frist"];').join('export const ARTER_PR_DAG: readonly AlarmArt[] = ["loft", "tabt"];'))).toBe(false);
-    expect(alarmenKunIRigtigKoersel(cron, alarm.replace(/fejl\.length > 0 \? "fejl"\s*: tabt > 0 \? "tabt"\s*: iFare\.length > 0 \? "frist"\s*: loftStop \? "loft"\s*: null;/, 'loftStop ? "loft" : fejl.length > 0 ? "fejl" : tabt > 0 ? "tabt" : iFare.length > 0 ? "frist" : null;'))).toBe(false);
+    expect(alarmenKunIRigtigKoersel(cron, alarm.replace(/fejl\.length > 0 \? "fejl"\s*: tiMinutter\.iFare\.length > 0 \|\| tiMinutter\.tabt > 0 \? "ti_minutter"\s*: tabt > 0 \? "tabt"\s*: iFare\.length > 0 \? "frist"\s*: loftStop \? "loft"\s*: null;/, 'loftStop ? "loft" : fejl.length > 0 ? "fejl" : tiMinutter.tabt > 0 ? "ti_minutter" : tabt > 0 ? "tabt" : iFare.length > 0 ? "frist" : null;'))).toBe(false);
     expect(alarmenKunIRigtigKoersel(cron, alarm.split("if (!r.sender_rigtigt) return null;").join(""))).toBe(false);
   });
 
   it("det gamle budget, et tjek efter hentningen, et stop der ikke holder, en anden timeout, en resttid uden ics, eller et await før sporet, fælder dom 17", () => {
     const budget = laes(BUDGET), migJob = laes(MIG_JOB);
     expect(budgetDaekkerVaersteForloeb(cron, budget, migJob)).toBe(true);
-    const SLUT = "    if (r.budget.stoppet_af_budget) { r.udsat++; continue; }\n";
+    const SLUT = "    if (r.budget.stoppet_af_budget) { r.udsat++; r.udsatte.push({ art: s.art, session_tid: s.sessionTid }); continue; }\n";
     const TJEK_BLOK = cron.slice(cron.indexOf("    if (!r.budget.stoppet_af_budget) {"), cron.indexOf(SLUT) + SLUT.length);
     expect(TJEK_BLOK.length).toBeGreaterThan(100);
     // Det gamle, halve budget tilbage: tjekket kun FØR forsøget, uden dets varighed.

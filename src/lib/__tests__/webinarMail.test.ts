@@ -209,7 +209,7 @@ describe("ti_minutter — «Vi begynder kl. 11.00 — her er dit link» (3/10-20
     }
   });
 
-  /** Fælder ethvert løfte om et ANTAL minutter — mailen går 5–15 min før (dommens vindue). */
+  /** Fælder ethvert løfte om et ANTAL minutter — mailen går 5–30 min før (dommens vindue, udvidet 3/10). */
   const LOVER_MINUTTER = /10\s*minutter|om\s+10\b|om\s+ti\b|ti\s+minutter|\bom\s+\d+\s*min/i;
   it("teksten lover ALDRIG et antal minutter («10 minutter», «om 10») — emne, HTML og tekst", () => {
     for (const [navn, tekst] of [["emne", m.subject], ["html", m.html], ["tekst", m.text]]) {

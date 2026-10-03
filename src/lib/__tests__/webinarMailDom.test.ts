@@ -3,7 +3,7 @@ import {
   afsendelseUkendt, AKTIVE_ARTER, ARTER, baererInvitation, BEKRAEFTELSE_FRA, erPaamindelse, BEKRAEFTELSE_FRA_MS, doemMail, erAfmeldtIEwebinar,
   googleKalenderUrl, kbhTilUtc, MED_INVITATION, noegle, outlookKalenderUrl, PLANEN, planlaegKoersel,
   indhentningSlut, naesteTidssatteArt, planlagtTid, sammeDanskeDato, SEN_TILMELDING_NAADE_MS, UDGAAEDE_ARTER,
-  erMotorRaekke, kunMotor, MOTOR_ID_FORM_DOM, naadeFor,
+  erMotorRaekke, erTabtKortNaade, kunMotor, MOTOR_ID_FORM_DOM, naadeFor,
   type MailArt, type Plan, type Tilmeldt,
 } from "@/lib/webinar/mailDom";
 import { erMotorId, MOTOR_ID_FORM } from "@/lib/webinarMotor/mail";
@@ -138,7 +138,7 @@ describe("doemMail — rækkefølgen er fail-closed", () => {
     // Bekræftelsen er med her siden 22/9: den har ingen nåde-regel, så
     // «sessionen er begyndt» er den eneste tidsdør, der lukker den.
     // («dagen» stod her til 30/9, hvor den udgik af PLANEN.)
-    // «ti_minutter» (3/10) kræver også «ikke begyndt» — og har sit eget vindue (T−15 … T−5).
+    // «ti_minutter» (3/10) kræver også «ikke begyndt» — og har sit eget vindue (T−30 … T−5).
     expect(PLANEN.filter((p) => p.kraeverIkkeBegyndt).map((p) => p.art)).toEqual(["bekraeftelse", "en_time", "ti_minutter"]);
     expect(doemMail({ ...basis, art: "en_dag", nu: dansk("2026-10-13T12:00:00.000Z") })).toEqual({ send: false, art: "en_dag", grund: "for_sent" });
   });
@@ -254,9 +254,10 @@ describe("planlaegKoersel — én person, uanset hvor mange registreringer", () 
 
   it("KØRSLEN på de udgåede arters gamle tidspunkter: intet sendes, og de tælles ikke som sprunget", () => {
     for (const nu of ["2026-10-10T06:05:00.000Z", "2026-10-13T05:35:00.000Z"]) {
-      const { sendinger, sprunget } = planlaegKoersel({ raekker: [R({ email: "a@x.dk", registreret_at: "2026-09-10T08:00:00Z" })], afmeldte: new Set(), sendte: new Set(), nu: dansk(nu) });
+      const { sendinger, sprunget } = planlaegKoersel({ raekker: [R({ email: "a@x.dk", registreret_at: "2026-09-10T08:00:00Z" })], afmeldte: new Set(), sendte: new Set(), nu: dansk(nu), tiMinutterPort: "klar" });
       expect(sendinger, nu).toEqual([]);
-      // Fem arter dømt, ikke syv: planlaegKoersel spørger aldrig om de udgåede.
+      // Seks arter dømt (porten «klar» tager ti_minutter med, 3/10), ikke otte:
+      // planlaegKoersel spørger aldrig om de udgåede.
       expect(Object.values(sprunget).reduce((a, b) => a + b, 0), nu).toBe(AKTIVE_ARTER.length);
     }
   });
@@ -858,16 +859,20 @@ describe("INGEN BLIND GENSENDELSE: et ukendt udfald indhentes ikke (29/9)", () =
   });
 });
 
+
 describe("ti_minutter — påmindelsen lige før start, KUN webinarmotorens rækker (3/10-2026)", () => {
-  // Session 13/10 kl. 11:00 dansk = 09:00Z. Planlagt T−10 = 08:50Z; vinduet T−15 … T−5 = 08:45Z … 08:55Z.
+  // Session 13/10 kl. 11:00 dansk = 09:00Z. Planlagt T−10 = 08:50Z; vinduet T−30 … T−5 = 08:30Z … 08:55Z
+  // (udvidet 3/10 efter CTO-rådets fund 1 — før T−15 … T−5).
   const MOTOR_ID = "P-0b9c5f1e-1234-4abc-8def-0123456789ab";
   const MAIL = "motor@x.dk";
+  const KLAR = "klar" as const;
   const basis = { art: "ti_minutter" as const, sessionTid: SESSION, email: MAIL, registreretAt: "2026-10-01T08:00:00.000Z", afmeldt: false, alleredeSendt: false };
   const motor = (nu: string, ekstra: Partial<Parameters<typeof doemMail>[0]> = {}) => doemMail({ ...basis, motorRaekke: true, nu: dansk(nu), ...ekstra });
 
-  it("planlagt 10 min før, egen nåde 5 min, tidligst 5 min før — og ingen kalenderfil", () => {
+  it("planlagt 10 min før, egen nåde 5 min, tidligst 20 min før — og ingen kalenderfil", () => {
     expect(planlagtTid(SESSION, "ti_minutter")!.toISOString()).toBe("2026-10-13T08:50:00.000Z");
     expect(naadeFor("ti_minutter")).toBe(5 * 60_000);
+    expect(PLANEN.find((p) => p.art === "ti_minutter")!.tidligstFoerMs).toBe(20 * 60_000);
     // De andre arter beholder de to timer.
     for (const art of AKTIVE_ARTER.filter((a) => a !== "ti_minutter")) expect(naadeFor(art), art).toBe(SEN_TILMELDING_NAADE_MS);
     expect(baererInvitation("ti_minutter")).toBe(false);
@@ -876,9 +881,10 @@ describe("ti_minutter — påmindelsen lige før start, KUN webinarmotorens ræk
     for (const art of ARTER.filter((a) => a !== "ti_minutter")) expect(kunMotor(art), art).toBe(false);
   });
 
-  it("vinduet: endnu_ikke før T−15, send T−15 … T−5, for_sent derefter, sessionen_begyndt fra T", () => {
-    expect(motor("2026-10-13T08:44:59.000Z")).toEqual({ send: false, art: "ti_minutter", grund: "endnu_ikke" });
-    expect(motor("2026-10-13T08:45:00.000Z")).toEqual({ send: true, art: "ti_minutter", planlagt: dansk("2026-10-13T08:50:00.000Z") });
+  it("vinduet: endnu_ikke før T−30, send T−30 … T−5, for_sent derefter, sessionen_begyndt fra T", () => {
+    expect(motor("2026-10-13T08:29:59.000Z")).toEqual({ send: false, art: "ti_minutter", grund: "endnu_ikke" });
+    expect(motor("2026-10-13T08:30:00.000Z")).toEqual({ send: true, art: "ti_minutter", planlagt: dansk("2026-10-13T08:50:00.000Z") });
+    expect(motor("2026-10-13T08:44:59.000Z").send).toBe(true);
     expect(motor("2026-10-13T08:55:00.000Z").send).toBe(true);
     expect(motor("2026-10-13T08:55:01.000Z")).toEqual({ send: false, art: "ti_minutter", grund: "for_sent" });
     expect(motor("2026-10-13T08:59:59.000Z")).toEqual({ send: false, art: "ti_minutter", grund: "for_sent" });
@@ -894,7 +900,7 @@ describe("ti_minutter — påmindelsen lige før start, KUN webinarmotorens ræk
   });
 
   it("eWebinars rækker får den ALDRIG — «ikke_motor» FØRST, før afmelding, spor og tid", () => {
-    for (const minut of [44, 45, 50, 55, 56]) {
+    for (const minut of [29, 30, 44, 45, 50, 55, 56]) {
       const nu = dansk(`2026-10-13T08:${minut}:00.000Z`);
       expect(doemMail({ ...basis, nu }), `${minut}`).toEqual({ send: false, art: "ti_minutter", grund: "ikke_motor" });
       expect(doemMail({ ...basis, motorRaekke: false, nu }), `${minut}`).toEqual({ send: false, art: "ti_minutter", grund: "ikke_motor" });
@@ -922,14 +928,14 @@ describe("ti_minutter — påmindelsen lige før start, KUN webinarmotorens ræk
     const ew = R({ email: "ew@x.dk" });
     const mo = R({ email: MAIL, ewebinar_id: MOTOR_ID, join_link: null, kalender_link: null });
     const nu = dansk("2026-10-13T08:47:03.000Z");
-    const med = planlaegKoersel({ raekker: [ew, mo], afmeldte: new Set(), sendte: new Set(), nu });
+    const med = planlaegKoersel({ raekker: [ew, mo], afmeldte: new Set(), sendte: new Set(), nu, tiMinutterPort: KLAR });
     expect(med.sendinger.filter((s) => s.art === "ti_minutter").map((s) => s.email)).toEqual(["motor@x.dk"]);
     expect(med.sprunget.ikke_motor).toBe(1);
     // De andre arter er de samme for begge rækker (bekræftelse og en_time går til begge).
     const andre = (email: string) => med.sendinger.filter((s) => s.email === email && s.art !== "ti_minutter").map((s) => s.art);
     expect(andre("motor@x.dk")).toEqual(andre("ew@x.dk"));
     // eWebinar-rækken alene: én dom pr. aktiv art, og den nye er «ikke_motor».
-    const kun = planlaegKoersel({ raekker: [ew], afmeldte: new Set(), sendte: new Set(), nu });
+    const kun = planlaegKoersel({ raekker: [ew], afmeldte: new Set(), sendte: new Set(), nu, tiMinutterPort: KLAR });
     expect(kun.sendinger.some((s) => s.art === "ti_minutter")).toBe(false);
     const { ikke_motor, ...resten } = kun.sprunget;
     expect(ikke_motor).toBe(1);
@@ -939,45 +945,97 @@ describe("ti_minutter — påmindelsen lige før start, KUN webinarmotorens ræk
   it("samme mail tilmeldt samme tidspunkt i BEGGE systemer: eWebinars række vinder, og vi sender ikke", () => {
     const ew = R({ email: MAIL });
     const mo = R({ email: MAIL, ewebinar_id: MOTOR_ID, join_link: null, kalender_link: null });
-    const { sendinger } = planlaegKoersel({ raekker: [mo, ew], afmeldte: new Set(), sendte: new Set(), nu: dansk("2026-10-13T08:47:03.000Z") });
+    const { sendinger } = planlaegKoersel({ raekker: [mo, ew], afmeldte: new Set(), sendte: new Set(), nu: dansk("2026-10-13T08:47:03.000Z"), tiMinutterPort: KLAR });
     expect(sendinger.filter((s) => s.art === "ti_minutter")).toEqual([]);
   });
 
   it("SWEEP: en eWebinar-række får aldrig ti_minutter — hvert 5. minut over to døgn, også med et «fejlet» forsøg", () => {
     const ew = R({ email: "ew@x.dk", ewebinar_id: "ew-12345" });
     for (let t = Date.parse("2026-10-11T09:00:00.000Z"); t <= Date.parse("2026-10-13T10:00:00.000Z"); t += 5 * 60_000) {
-      const { sendinger } = planlaegKoersel({ raekker: [ew], afmeldte: new Set(), sendte: new Set(), fejlede: new Set([noegle("ew@x.dk", SESSION, "ti_minutter")]), nu: new Date(t) });
+      const { sendinger } = planlaegKoersel({ raekker: [ew], afmeldte: new Set(), sendte: new Set(), fejlede: new Set([noegle("ew@x.dk", SESSION, "ti_minutter")]), nu: new Date(t), tiMinutterPort: KLAR });
       expect(sendinger.some((s) => s.art === "ti_minutter"), new Date(t).toISOString()).toBe(false);
     }
   });
 
-  it("CRONENS SLOTS: for en session på ETHVERT helt minut i timen går mailen præcis én gang, mellem T−15 og T−5", () => {
-    // Job 573: «9,14,24,27,29,37,39,44,47,57,59 * * * *» — slottet fyrer et par sekunder efter minuttet.
-    const SLOTS = [9, 14, 24, 27, 29, 37, 39, 44, 47, 57, 59];
+  // ── Cronens slots (CTO-rådets fund 1, HØJ) ─────────────────────────────────
+  // Job 573: «9,14,24,27,29,37,39,44,47,57,59 * * * *» (migration 20260922172000) —
+  // slottet fyrer et par sekunder efter minuttet. Regnestykket står ved PLANEN.
+  const SLOTS = [9, 14, 24, 27, 29, 37, 39, 44, 47, 57, 59];
+  /** De slots, hvor dommen TILBYDER mailen, når den aldrig er sendt (fx udsat hver gang) — kapaciteten pr. session. */
+  const tilbudtVed = (minut: number): number[] => {
+    const start = Date.UTC(2026, 10, 3, 10, minut); // tirsdag 3/11 kl. 11:mm dansk (vintertid)
+    const sessionTid = new Date(start).toISOString();
+    const ud: number[] = [];
+    for (let t = start - 2 * 3_600_000; t < start + 3_600_000; t += 60_000) {
+      if (!SLOTS.includes(new Date(t).getUTCMinutes())) continue;
+      const nu = new Date(t + 3_000);
+      const { sendinger } = planlaegKoersel({
+        raekker: [R({ email: MAIL, ewebinar_id: MOTOR_ID, session_tid: sessionTid, registreret_at: "2026-10-14T08:00:00.000Z" })],
+        afmeldte: new Set(), sendte: new Set(), nu, tiMinutterPort: KLAR,
+      });
+      if (sendinger.some((x) => x.art === "ti_minutter")) ud.push(nu.getTime());
+    }
+    return ud;
+  };
+  /** Tabellen ved PLANEN — m = 0 … 59. */
+  const TABEL = [
+    4, 4, 4, 5, 5, 6, 6, 6, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 3, 3,
+    4, 4, 4, 4, 4, 4, 4, 4, 3, 3, 3, 3, 3, 4, 4, 5, 5, 5, 5, 5,
+    4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 7, 7, 6, 6, 6, 5, 5,
+  ];
+
+  it("CRONENS SLOTS: mindst 3 slots i vinduet for ETHVERT startminut, 4 for :00 og 3 for :30 — tallene er tabellen ved PLANEN", () => {
+    const antal = Array.from({ length: 60 }, (_, m) => tilbudtVed(m).length);
+    expect(antal).toEqual(TABEL);
+    expect(Math.min(...antal)).toBe(3);
+    expect(Math.max(...antal)).toBe(7);
+    expect(antal[0]).toBeGreaterThanOrEqual(3);
+    expect(antal[30]).toBeGreaterThanOrEqual(3);
+    expect(antal[0]).toBe(4);
+    expect(antal[30]).toBe(3);
+    for (let m = 0; m < 60; m++) expect(antal[m], `minut ${m}`).toBeGreaterThanOrEqual(3);
+  });
+
+  it("CRONENS SLOTS: hvert tilbud ligger i T−30 … T−5 — og sidste ja + budget + Mailgun er før starten", () => {
     for (let minut = 0; minut < 60; minut++) {
-      const start = Date.UTC(2026, 10, 3, 10, minut); // tirsdag 3/11 kl. 11:mm dansk (vintertid)
-      const sessionTid = new Date(start).toISOString();
-      const sendte = new Set<string>();
-      const sendtVed: number[] = [];
-      for (let t = start - 2 * 3_600_000; t < start + 3_600_000; t += 60_000) {
-        if (!SLOTS.includes(new Date(t).getUTCMinutes())) continue;
-        const nu = new Date(t + 3_000);
-        const { sendinger } = planlaegKoersel({
-          raekker: [R({ email: MAIL, ewebinar_id: MOTOR_ID, session_tid: sessionTid, registreret_at: "2026-10-14T08:00:00.000Z" })],
-          afmeldte: new Set(), sendte, nu,
-        });
-        for (const s of sendinger.filter((x) => x.art === "ti_minutter")) {
-          sendte.add(noegle(s.email, s.sessionTid, s.art));
-          sendtVed.push(nu.getTime());
-        }
+      const start = Date.UTC(2026, 10, 3, 10, minut);
+      for (const t of tilbudtVed(minut)) {
+        expect(t >= start - 30 * 60_000 && t <= start - 5 * 60_000 + 3_000, `minut ${minut}`).toBe(true);
+        // Regnestykket: seneste ja T−5 min (+ slottets sekunder) + budgettets 40 s + Mailguns 10 s < T.
+        expect(t + 40_000 + 10_000 < start, `minut ${minut}`).toBe(true);
       }
-      expect(sendtVed.length, `minut ${minut}`).toBe(1);
-      expect(sendtVed[0] >= start - 15 * 60_000 && sendtVed[0] <= start - 5 * 60_000 + 3_000, `minut ${minut}`).toBe(true);
-      // Regnestykket: seneste ja T−5 min (+ slottets sekunder) + budgettets 40 s + Mailguns 10 s < T.
-      expect(sendtVed[0] + 40_000 + 10_000 < start, `minut ${minut}`).toBe(true);
     }
   });
 
+  it("CRONENS SLOTS: sendt én gang, går den aldrig igen i de næste slots", () => {
+    for (let minut = 0; minut < 60; minut++) {
+      const start = Date.UTC(2026, 10, 3, 10, minut);
+      const sessionTid = new Date(start).toISOString();
+      const sendte = new Set<string>();
+      let gange = 0;
+      for (let t = start - 2 * 3_600_000; t < start + 3_600_000; t += 60_000) {
+        if (!SLOTS.includes(new Date(t).getUTCMinutes())) continue;
+        const { sendinger } = planlaegKoersel({
+          raekker: [R({ email: MAIL, ewebinar_id: MOTOR_ID, session_tid: sessionTid, registreret_at: "2026-10-14T08:00:00.000Z" })],
+          afmeldte: new Set(), sendte, nu: new Date(t + 3_000), tiMinutterPort: KLAR,
+        });
+        for (const s of sendinger.filter((x) => x.art === "ti_minutter")) { sendte.add(noegle(s.email, s.sessionTid, s.art)); gange++; }
+      }
+      expect(gange, `minut ${minut}`).toBe(1);
+    }
+  });
+
+  it("MUTATIONSBEVIS: det gamle vindue (T−15) ville have givet ét slot for :00 og :30 — prøven fælder det", () => {
+    // Samme regel som dommen (m−vindue ≤ s ≤ m−6, mod 60) med det gamle vindue.
+    const slotsI = (m: number, foer: number) => SLOTS.filter((s) => { for (let k = 6; k <= foer; k++) if ((m - k + 60) % 60 === s) return true; return false; }).length;
+    expect(slotsI(0, 15)).toBe(1);
+    expect(slotsI(30, 15)).toBe(1);
+    expect(Array.from({ length: 60 }, (_, m) => slotsI(m, 15)).some((n) => n < 3)).toBe(true);
+    // Og den samme regel med det nye vindue ER tabellen — prøven ovenfor måler dommen, ikke reglen.
+    expect(Array.from({ length: 60 }, (_, m) => slotsI(m, 30))).toEqual(TABEL);
+  });
+
+  // ── Sorteringen ──────────────────────────────────────────────────────────
   it("sorteringen: bekræftelser først, så ti_minutter (kort nåde), så resten efter planlagt", () => {
     const S2 = "2026-10-20T09:00:00.000Z";
     const ny = R({ email: "ny@x.dk", session_tid: S2, registreret_at: "2026-10-13T08:40:00.000Z" });
@@ -989,15 +1047,98 @@ describe("ti_minutter — påmindelsen lige før start, KUN webinarmotorens ræk
     // ti_minutter står foran dem.
     const fejlede = new Set([noegle("ind@x.dk", S2, "syv_dage"), noegle("ny@x.dk", S2, "syv_dage")]);
     const { sendinger } = planlaegKoersel({
-      raekker: [ind, mo, ny], afmeldte: new Set(), sendte: new Set(), fejlede, nu: dansk("2026-10-13T08:47:03.000Z"),
+      raekker: [ind, mo, ny], afmeldte: new Set(), sendte: new Set(), fejlede, nu: dansk("2026-10-13T08:47:03.000Z"), tiMinutterPort: KLAR,
     });
     expect(sendinger.map((s) => `${s.art}:${s.email}`)).toEqual([
       "bekraeftelse:ny@x.dk", "ti_minutter:motor@x.dk", "syv_dage:ind@x.dk", "syv_dage:ny@x.dk", "en_time:motor@x.dk",
     ]);
   });
 
+  it("sorteringen: blandt ti_minutter går NÆRMESTE FRIST først — også når mailen sorteres før den anden", () => {
+    // To motor-sessioner samme formiddag: 11:00 dansk (09:00Z) og 11:20 dansk (09:20Z).
+    // Kl. 10:52 dansk (08:52Z) er begge i vinduet (T−30 … T−5): fristerne 08:55Z og 09:15Z.
+    // Mailen «a@x.dk» (alfabetisk først) står på den SENERE session.
+    const tidlig = R({ email: "z@x.dk", ewebinar_id: "P-00000000-0000-4000-8000-000000000001", session_tid: SESSION, join_link: null, kalender_link: null });
+    const sen = R({ email: "a@x.dk", ewebinar_id: "P-00000000-0000-4000-8000-000000000002", session_tid: "2026-10-13T09:20:00.000Z", join_link: null, kalender_link: null });
+    const { sendinger } = planlaegKoersel({ raekker: [sen, tidlig], afmeldte: new Set(), sendte: new Set(), nu: dansk("2026-10-13T08:52:03.000Z"), tiMinutterPort: KLAR });
+    expect(sendinger.filter((s) => s.art === "ti_minutter").map((s) => s.email)).toEqual(["z@x.dk", "a@x.dk"]);
+  });
+
+  it("sorteringen: uden ti_minutter i listen er rækkefølgen ORDRET den gamle (eWebinar-rækkerne)", () => {
+    const gammelSortering = (liste: ReturnType<typeof planlaegKoersel>["sendinger"]) => {
+      const erStraks = (art: MailArt) => PLANEN.find((p) => p.art === art)?.straks === true;
+      return [...liste].sort((a, b) =>
+        Number(erStraks(b.art)) - Number(erStraks(a.art)) || a.planlagt.localeCompare(b.planlagt) || a.email.localeCompare(b.email));
+    };
+    const S2 = "2026-10-20T09:00:00.000Z";
+    const raekker = [
+      R({ email: "c@x.dk", session_tid: S2, registreret_at: "2026-10-13T08:40:00.000Z" }),
+      R({ email: "b@x.dk", session_tid: S2, registreret_at: "2026-09-23T08:00:00.000Z" }),
+      R({ email: "a@x.dk" }),
+      R({ email: "d@x.dk", registreret_at: "2026-10-13T08:10:00.000Z" }),
+    ];
+    const fejlede = new Set([noegle("b@x.dk", S2, "syv_dage"), noegle("c@x.dk", S2, "syv_dage")]);
+    for (const nu of ["2026-10-13T08:12:03.000Z", "2026-10-13T08:47:03.000Z", "2026-10-13T06:09:03.000Z"]) {
+      const { sendinger } = planlaegKoersel({ raekker, afmeldte: new Set(), sendte: new Set(), fejlede, nu: dansk(nu), tiMinutterPort: KLAR });
+      expect(sendinger.some((s) => s.art === "ti_minutter"), nu).toBe(false);
+      expect(sendinger.length, nu).toBeGreaterThan(0);
+      expect(sendinger, nu).toEqual(gammelSortering(sendinger));
+    }
+  });
+
   it("indhentningens kæde for eWebinars arter er urørt: en_time har stadig ingen næste art", () => {
     expect(naesteTidssatteArt("en_dag")).toBe("en_time");
     expect(naesteTidssatteArt("en_time")).toBeNull();
+  });
+
+  // ── Porten (CTO-rådets fund 3) ─────────────────────────────────────────────
+  it("PORTEN: kun «klar» tager ti_minutter med — udeladt, «migration_mangler» og «laesefejl» tager den UD (fail-closed)", () => {
+    const ew = R({ email: "ew@x.dk" });
+    const mo = R({ email: MAIL, ewebinar_id: MOTOR_ID, join_link: null, kalender_link: null });
+    const nu = dansk("2026-10-13T08:47:03.000Z");
+    const klar = planlaegKoersel({ raekker: [ew, mo], afmeldte: new Set(), sendte: new Set(), nu, tiMinutterPort: "klar" });
+    expect(klar.sendinger.some((s) => s.art === "ti_minutter")).toBe(true);
+    for (const port of [undefined, "migration_mangler", "laesefejl"] as const) {
+      const p = planlaegKoersel({ raekker: [ew, mo], afmeldte: new Set(), sendte: new Set(), nu, tiMinutterPort: port });
+      expect(p.sendinger.some((s) => s.art === "ti_minutter"), String(port)).toBe(false);
+      // Arten er slet ikke dømt: ingen ikke_motor, ingen tabt.
+      expect(p.sprunget.ikke_motor, String(port)).toBe(0);
+      expect(p.kortNaadeTabt, String(port)).toBe(0);
+      // De andre arter er ordret de samme.
+      expect(p.sendinger, String(port)).toEqual(klar.sendinger.filter((s) => s.art !== "ti_minutter"));
+      expect({ ...p.sprunget, ikke_motor: klar.sprunget.ikke_motor }, String(port)).toEqual(klar.sprunget);
+    }
+  });
+
+  // ── Tabt lige før start (alarmens grundlag, fund 1) ──────────────────────────
+  it("kortNaadeTabt: en motor-række tilmeldt FØR fristen og dømt for_sent tælles — én pr. person", () => {
+    const mo = R({ email: MAIL, ewebinar_id: MOTOR_ID, join_link: null, kalender_link: null, registreret_at: "2026-10-01T08:00:00.000Z" });
+    const p = planlaegKoersel({ raekker: [mo], afmeldte: new Set(), sendte: new Set(), nu: dansk("2026-10-13T08:57:03.000Z"), tiMinutterPort: KLAR });
+    expect(p.kortNaadeTabt).toBe(1);
+    expect(p.sprunget.for_sent).toBeGreaterThanOrEqual(1);
+  });
+
+  it("kortNaadeTabt: ikke for en, der er sendt (allerede_sendt), en eWebinar-række, en tilmelding EFTER fristen, før vinduet eller efter starten", () => {
+    const mo = (reg: string | null) => R({ email: MAIL, ewebinar_id: MOTOR_ID, join_link: null, kalender_link: null, registreret_at: reg });
+    const k = (raekker: Tilmeldt[], nu: string, sendte = new Set<string>()) =>
+      planlaegKoersel({ raekker, afmeldte: new Set(), sendte, nu: dansk(nu), tiMinutterPort: KLAR }).kortNaadeTabt;
+    expect(k([mo("2026-10-01T08:00:00.000Z")], "2026-10-13T08:57:03.000Z", new Set([noegle(MAIL, SESSION, "ti_minutter")]))).toBe(0);
+    expect(k([R({ email: "ew@x.dk" })], "2026-10-13T08:57:03.000Z")).toBe(0);
+    // Tilmeldt 08:56Z — efter fristen 08:55Z: kom for sent til vinduet, ikke tabt.
+    expect(k([mo("2026-10-13T08:56:00.000Z")], "2026-10-13T08:57:03.000Z")).toBe(0);
+    // Tilmeldt præcis ved fristen: tabt.
+    expect(k([mo("2026-10-13T08:55:00.000Z")], "2026-10-13T08:57:03.000Z")).toBe(1);
+    // Ukendt tilmeldingstid: tælles (hellere en alarm for meget).
+    expect(k([mo(null)], "2026-10-13T08:57:03.000Z")).toBe(1);
+    // I vinduet (sendes) og efter starten (sessionen_begyndt): ikke tabt.
+    expect(k([mo("2026-10-01T08:00:00.000Z")], "2026-10-13T08:47:03.000Z")).toBe(0);
+    expect(k([mo("2026-10-01T08:00:00.000Z")], "2026-10-13T09:00:03.000Z")).toBe(0);
+  });
+
+  it("erTabtKortNaade gælder KUN arter med egen nåde", () => {
+    for (const art of ARTER.filter((a) => a !== "ti_minutter")) expect(erTabtKortNaade(art, SESSION, null), art).toBe(false);
+    expect(erTabtKortNaade("ti_minutter", SESSION, null)).toBe(true);
+    expect(erTabtKortNaade("ti_minutter", SESSION, "2026-10-13T08:55:00.000Z")).toBe(true);
+    expect(erTabtKortNaade("ti_minutter", SESSION, "2026-10-13T08:55:00.001Z")).toBe(false);
   });
 });

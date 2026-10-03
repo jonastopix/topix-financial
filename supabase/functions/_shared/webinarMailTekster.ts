@@ -34,7 +34,7 @@
  * eneste tekster i filen, der ikke er Mortens egne, og begge er markeret.
  *
  * Den ottende, `ti_minutter` (3/10-2026), er også husets: «Vi begynder kl. 11.00»
- * (klokkeslættet, aldrig «om 10 minutter»: mailen går 5–15 min før; og ingen
+ * (klokkeslættet, aldrig «om 10 minutter»: mailen går 5–30 min før; og ingen
  * påstand om lobbyen, hvis lobby_min mailen ikke kender) — KUN til webinarmotorens tilmeldte (dommens kunMotor; eWebinar
  * sender selv sin 10-minutters-mail til sine). Ingen kalenderrække (UDEN_KALENDER)
  * og ingen kalenderfil.
@@ -252,7 +252,7 @@ export const EMNER: Record<MailArt, string> = {
   en_dag: "Vi ses i morgen — tag én beslutning med",
   dagen: "Det er i dag",
   en_time: "Vi starter om en time — her er dit link",
-  // Intet antal minutter (mailen går 5–15 min før) og ingen påstand om lobbyen:
+  // Intet antal minutter (mailen går 5–30 min før) og ingen påstand om lobbyen:
   // klokkeslættet sættes ind af emneFor — «Vi begynder kl. 11.00 — her er dit link».
   ti_minutter: `Vi begynder ${KLOKKE_PLADS} — her er dit link`,
 };
@@ -267,7 +267,7 @@ export function emneFor(art: MailArt, klokke: string): string {
 }
 
 /**
- * MAILS UDEN KALENDERRÆKKE (3/10-2026): «ti_minutter» går 5–15 minutter før
+ * MAILS UDEN KALENDERRÆKKE (3/10-2026): «ti_minutter» går 5–30 minutter før
  * starten (dommens vindue) — at lægge sessionen i kalenderen er da ingen hjælp,
  * og en kalenderfil følger den heller ikke (den står ikke i MED_INVITATION).
  * Knappen til rummet er hele ærindet. Alle andre arter: uændret.
@@ -415,13 +415,13 @@ function indhold(art: MailArt, tid: string, medInvitation: boolean, video: MailV
       // bagefter og ingen påstand om sendingen (D2.1, docs/webinarmotor.md §7).
       //
       // KLOKKESLÆTTET, IKKE ET ANTAL MINUTTER (3/10-2026): mailen går et sted
-      // mellem T−15 og T−5 (dommens vindue mod cronens slots) — «om 10 minutter»
-      // ville være forkert med op til fem minutter. Teksten skal være sand, så den
+      // mellem T−30 og T−5 (dommens vindue mod cronens slots, udvidet 3/10) —
+      // «om 10 minutter» ville være forkert med op til tyve minutter. Teksten skal være sand, så den
       // siger klokkeslættet i dansk tid (webinarKlokke, samme hjælper som
       // webinarTekst).
       //
       // INGEN PÅSTAND OM RUMMETS TILSTAND (3/10-2026): om lobbyen er åben, når
-      // mailen går (T−15 … T−5), afhænger af sessionens lobby_min — og den står
+      // mailen går (T−30 … T−5), afhænger af sessionens lobby_min — og den står
       // hverken i dommens input eller i cronens opslag. En sætning, mailen ikke
       // kan dømme, skrives ikke (prøvet i webinarMail.test.ts).
       return {

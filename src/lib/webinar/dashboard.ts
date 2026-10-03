@@ -146,6 +146,17 @@ export type Tilmelding = WebinarTilmelding & AnnoncesporFelter & BedoemmelseFelt
 export const erInternTilmelding = (r: InternFelter): boolean => r.intern === true || r.intern === "true";
 
 /**
+ * HVOR MANGE INTERNE RÆKKER DOMMENE HAR FRAREGNET (3/10-2026, CTO-rådets fund 2):
+ * et TAL — aldrig en mail eller et navn. webinar-delt svarer med det som
+ * `interne_fraregnet`; feltet findes kun i den kode, der filtrerer
+ * erInternTilmelding i målstregerne og annoncepriserne, og er derfor beviset for
+ * udrulningen af den (0 er et gyldigt svar — før den første interne prøve).
+ */
+export function antalInterneTilmeldinger(raekker: readonly InternFelter[]): number {
+  return raekker.filter(erInternTilmelding).length;
+}
+
+/**
  * Den indsendte ansøgning, reduceret til det fladen bruger: mailen (koblingen),
  * hvornår den kom (tiden), og de to felter «blev medlem» dømmes af.
  *
