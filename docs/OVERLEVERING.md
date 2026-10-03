@@ -418,7 +418,7 @@ Hovedsessionen MÅLTE i prod 3/10-2026 ca. 03:30 (Lovable `query_database`, som 
 
 **Rettet:** CLAUDE.md — 3a «ikke kørt» → «ikke målt»; låsene for Klaviyo-medlem, Meta, GA, Klaviyo-afmeld, webinarmails, driftsagent og nyhedsagent markeret åbne; `webinar_en_dag_video` stadig null; ring-op (merget, migration kørt); dag-1 (låsen stadig lukket, indekset findes); F0 (begge migrationer kørt); with-check (stadig ikke kørt, målt); punkt 13 (kørt); driftsagentens og nyhedsagentens cron (kørt); seks steder (merget); Community Spørgsmål (merget, kørt). Denne fil — «30. september nat»-afsnittenes låse (driftsagent, nyhedsagent, Klaviyo-medlem) → true; «2. oktober aften — samlet» (with-check stadig ikke kørt, 3a ikke målt, «Mest læst» kørt); «2. oktober nat — samlet» punkt 4 og 8 (seks steder merget; triggeren kørt; with-check stadig ikke kørt; dubletlinjen med det gamle navn `20261002210000` strøget; F0 merget og kørt) og 3a-linjerne → ikke målt; sektionshovederne for seks steder skridt 1/2, Community Spørgsmål, F0 og ring-op → merget/kørt; i Community Spørgsmål-afsnittet også migrationslinjen, «Rådets fund» og «Ikke gjort (bevidst)» → merget #1236 og kørt («Rækkefølgen»-listen står som historik); DEL 3 «Dag-1-klokken» og «Driftsagenten» status.
 
-**Ikke afgjort af målingen (står som før):** om Update er klikket for #1242–#1254; om edge functions (fx `stille-klokker-cron`, `drift-agent-cron`, `nyhed-agent-cron`) kører den nyeste kode; om `20260930151000` (driftsagentens DEFINER) er kørt — kun cron-jobbet er målt.
+**Ikke afgjort af målingen (står som før):** om Update er klikket for #1232–#1235 og #1242–#1254; om edge functions (fx `stille-klokker-cron`, `drift-agent-cron`, `nyhed-agent-cron`) kører den nyeste kode; om `20260930151000` (driftsagentens DEFINER) er kørt — kun cron-jobbet er målt.
 
 ### 2. oktober kl. 17–21 — forsiden færdig, aftenlistens ja'er udført
 
@@ -11613,7 +11613,7 @@ Samleoversigten for natten 1.–2. oktober. Detaljen står i emnernes egne sekti
 
 Efter Update: mål bundlen rekursivt i en FRISK fane (regelsættet (ee), (jj)), og lav designgennemsyn i drift (§4b).
 
-**4. ~~Forberedt, IKKE merget~~ — merget #1232 (skridt 2: #1234, #1235), rettet 3/10:** grenen `feat/seks-steder` (menuen, stedsætningerne og forsiden). Den **afventer Jonas' ja kl. 08:15**. Et klikbart forslag er publiceret som artifact «Ny struktur». Intet af det er i drift.
+**4. ~~Forberedt, IKKE merget~~ — merget #1232 (skridt 2: #1234, #1235), rettet 3/10:** grenen `feat/seks-steder` (menuen, stedsætningerne og forsiden). ~~Den **afventer Jonas' ja kl. 08:15**.~~ Et klikbart forslag er publiceret som artifact «Ny struktur». Intet af det er i drift (Update ikke målt 3/10).
 
 **5. Aftenlistens svar (Jonas 1/10 22:04–22:19) — og hvad der skete med hvert:**
 
@@ -11843,7 +11843,7 @@ Jonas 1/10 11:37: «Det er heller ikke smart, at et skridt kan have en deadline 
 
 **Lærestreg:** et «kald, der skal væk», er ikke væk, før den KØRENDE bundle siger nej. En slettet mappe er en påstand om repoet; 410 er et svar, man kan måle.
 
-### 2. oktober nat — seks steder, skridt 1: menu + stedsætninger + forsiden ryddet (gren `feat/seks-steder`, skåret fra `69c2b366` og rebaset på `08feadd8` (#1230); FORBEREDT, afventer Jonas' ja kl. 08:15 — IKKE merget; pushet til grenen efter rådets gennemsyn, anden runde) — rettet 3/10: merget #1232
+### 2. oktober nat — seks steder, skridt 1: menu + stedsætninger + forsiden ryddet (gren `feat/seks-steder`, skåret fra `69c2b366` og rebaset på `08feadd8` (#1230); ~~FORBEREDT, afventer Jonas' ja kl. 08:15 — IKKE merget~~; pushet til grenen efter rådets gennemsyn, anden runde) — rettet 3/10: merget #1232
 **Grundlaget:** det klikbare forslag «Ny struktur» (ia-forslag, 1/10 aften — mockup, ikke kode) og Jonas' ord 1/10 kl. 22:50: «Fedt med menuen. Jeg er enig med dig» om menuen «Dit Boardroom · Dine tal · Dine mål (eget punkt) · Netværket (Community + Events + Medlemmerne + Anbefal) · Akademiet · Din rådgiver», og om forsiden: «Måske skal nyheder væk? Måske skal Denne uges video væk. Måske skal Værd at se igen væk. Det var fyld … Vi skal virkelig steppe op på UX, så medlemmer føler sig holdt i hånden … Enkelthed er et nøgleord.» Forslagets rækkefølge, hvis ja: **(1) menu + stedsætninger + forsiden ryddet (alt S — én PR, én Update)** ← denne gren; (2) Netværket som faner + Din måned/Kommende/fællesskabet flyttet; (3) Kom godt i gang i ny orden; (4) Community (Spørg mig om-kort, filtre, Ugens spørgsmål, svar-forslag).
 
 **Bygget (frontend alene — ingen migration, ingen edge function; `src/` → Update efter merge):**
@@ -11862,7 +11862,7 @@ Jonas 1/10 11:37: «Det er heller ikke smart, at et skridt kan have en deadline 
 
 **Ikke gjort (bevidst):** ingen push, ingen PR, ingen Lovable-kald. PR #1230 (Dine mål skive 3, rørte også BoardroomView) landede, mens grenen blev bygget — grenen er rebaset på den uden konflikter; tsc 0 fejl og suiten grøn (648 filer, 9433 tests, kun pdf-miljøfejlen) EFTER rebasen.
 
-#### Rådets gennemsyn af grenen (2/10 nat, anden runde) — fund og rettelser (samme gren, rebaset på `origin/main` = `08feadd8`; pushet til `feat/seks-steder`, IKKE merget) — rettet 3/10: merget #1232
+#### Rådets gennemsyn af grenen (2/10 nat, anden runde) — fund og rettelser (samme gren, rebaset på `origin/main` = `08feadd8`; pushet til `feat/seks-steder`, ~~IKKE merget~~) — rettet 3/10: merget #1232
 Det tekniske råd læste grenen og fandt tretten punkter; de ti, der var rettelser, er rettet her (numrene er rådets):
 
 1. **De fire admin-editorer lovede forsiden** (UgensVideoView, RedaktioneltView, EvergreenView, PushView: «Seneste publicerede er forsidens hero» — og `adminContentApi`s fire hints) — forsiden tegner ingen af dem siden skridt 1. Rettet: ÉN komponent `admin/views/ForsidenRyddetLinje.tsx` (ordene i `FORSIDEN_RYDDET_LINJE`) står synligt ØVERST i listekolonnen i alle fire views: «Vises ikke for medlemmer lige nu — forsiden er ryddet (2/10). Indholdet får plads i Akademiet som «Nyt fra os».» De fire hints i `AREAS` begynder med samme sætning og siger «var forsidens …». Fanerne er IKKE fjernet. **Ikke rettet (ikke bedt om):** EvergreenViews advarsel «Forsiden har intet sikkerhedsnet» ved nul publicerede og de tomme-liste-tekster («Seneste publicerede er forsidens hero») står stadig — de er nu usande og bør falde med «Nyt fra os».
@@ -11950,7 +11950,7 @@ Rådets punkter 8, 11 og 12 var ikke rettelser (ingen handling bestilt).
 **Rækkefølgen (ét skridt ad gangen):** 1. Jonas' grønne lys til migrationen. 2. FØR-SQL (gem CSV; sektion 1 «FINDES IKKE», sektion 2–3 som `20261002242000`, porten `kan_laese_community` — ellers STOP). 3. KØR migrationen i Lovable → SQL editor. 4. EFTER-SQL (23 kolonner × 2, RPC, trigger, indeks, grants, 0 markerede). 5. Flip første linje til «KØRT i prod». 6. PR → merge → **Update**. 7. Designgennemsyn i drift (§4b): en rådgiver markerer → øverst; en anden markering afløser; et medlem, der har svaret, ser én linje; filtret; kortene. Update FØR kørslen er tilladt (fail-soft), men markeringen virker først efter.
 
 **Ikke gjort (bevidst):** ingen push, ingen PR, ingen Lovable-kald, ingen prod-måling (RPC-kroppene i prod er UMÅLT — FØR-SQL måler dem). — Rettet 3/10 (målt): siden gjort — merget #1236, migrationen KØRT (kolonnen, triggeren, RPC'en og indekset findes).
-### 2. oktober — «Må vi ringe til dig?» (gren `feat/ring-mig-op`; BYGGET, ~~IKKE merget, IKKE kørt~~, IKKE udrullet — rettet 3/10: merget #1238, migrationen KØRT (målt); udrulningen står i «2. oktober eftermiddag — ring-op i drift»)
+### 2. oktober — «Må vi ringe til dig?» (gren `feat/ring-mig-op`; BYGGET, ~~IKKE merget, IKKE kørt, IKKE udrullet~~ — rettet 3/10: merget #1238, migrationen KØRT (målt); udrullet 2/10 14:05 og bevist (`"ring_mig_op": "skive-1"`, pg_net 29513) — bogført i «2. oktober eftermiddag — ring-op i drift»)
 
 **Grundlaget:** `docs/samtykke-og-opkald.md` del 2 og Jonas' fem svar 2/10 kl. 07:38–07:39 (ordret valg): «Kun dem, der deltog i webinaret — ja» · «Slet nummeret efter 90 dage — ja» · «Klaviyo får hændelsen «Bad om opkald» uden nummer — ja» · «Besked i morgenmailen, ikke straks — ja» · «Både Morten og Jonas får klokken — ja»; morgenlisten: «Ja, efter papiret». Grundtanken 1/10: «efter webinaret spørge folk om de ønsker at blive ringet op … så får vi deres nummer og Morten eller Jonas giver dem et kald.» Ingen SMS, ingen ny mail, ingen liste over «varme leads». **Vejen (Jonas 08:17):** nu en knap i Klaviyos EKSISTERENDE «Deltog»-mail med et personligt link (profilegenskab `ring_op_url`, kun for deltagere); senere i platformens eget webinarrum. Afvigelserne fra papiret og hvorfor står i papirets §2.10.
 
@@ -12000,7 +12000,7 @@ Værn: `ringMigOp.guard` dom 8 (indsend), 9 (RLS), 10 (IP-hash); `opkaldDom.test
 
 Jonas 2/10: «Klokke i morgenmailen, vi skriver selv». Forsidens «Kom ind i går, har ikke hørt fra os» ringer klokken `venter_paa_velkomst` (MORGEN) hos hver rådgiver kl. 04:30 UTC (06:30 dansk sommertid / 05:30 vintertid), så den står i samme morgens mail (klokke-mail-cron, første kørsel efter kl. 07 på en hverdag). Ét tredje pas i `stille-klokker-cron` — **intet nyt cron-job**: job 566 («30 4 * * *», `{"dry_run": false}`) kører det allerede; **låsen `app_config.dag1_klokke_aktiv` er kontakten**. Begrundelserne: CLAUDE.md «Dag-1-klokken» og `supabase/functions/_shared/dag1Klokke.ts`' filhoved. **Ingen Update**: `src/lib/venterPaaVelkomst.ts` er kun omskrevet (`doemVenterPaaVelkomst` trukket ud, adfærden uændret — paritetstesten beviser det), og klokkens link (`/chat?companyId=…`) findes allerede i `raadgiverSti`.
 
-**Status 2/10 aften:** bygget og pushet på grenen; IKKE merget, IKKE kørt, IKKE udrullet. **Rettet 3/10 (målt):** merget #1248; migrationen kørt (indekset findes); låsen `dag1_klokke_aktiv` er stadig `false` — trin 6 står hos Jonas.
+**Status 2/10 aften:** bygget og pushet på grenen; ~~IKKE merget, IKKE kørt, IKKE udrullet~~. **Rettet 3/10 (målt):** merget #1248; migrationen kørt (indekset findes); `stille-klokker-cron` udrullet og i drift 2/10 18:43–18:45, bevist ved tørkørsel kald 29849 (`"dag1_klokke": "skive-1"`) — bogført i CLAUDE.md «Dag-1-klokken» og DEL 2 «2. oktober kl. 17–21»; låsen `dag1_klokke_aktiv` er stadig `false` — trin 6 står hos Jonas.
 
 | # | hvad | kanal | beviset før næste trin |
 |---|---|---|---|
