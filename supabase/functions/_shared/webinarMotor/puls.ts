@@ -217,6 +217,41 @@ export function pulsLoft(kendteEnheder: readonly string[], enhed: string, sidste
   return "ok";
 }
 
+// ── Loftet pr. (tilmelding, time) for spørgsmål og reaktioner ───────────────
+//
+// Rådets fund 30/9 (MELLEM): et gyldigt token kunne sende 10 handlinger pr.
+// kald uden loft over tid — alene ét kald i sekundet er 10 × 3.600 = 36.000
+// spørgsmål i timen i værtens kø, eller 72.000 skrivninger (log + tæller) af
+// reaktioner. Loftet tælles i
+// webinar_motor_log (art, tilmelding_id, tid) FØR indsættelsen.
+//
+// TALLENE (regnestykket, ikke kun resultatet):
+//   spoergsmaal 10/time — et webinar er ~60 min; en rigtig seer stiller 1–3
+//     spørgsmål. 10 er over tre gange det, og værtens kø kan højst få 10 pr.
+//     token i timen (500 seere × 10 = 5.000 er stadig til at skumme, 36.000
+//     pr. person er det ikke).
+//   reaktion 120/time — én pr. 30 s i gennemsnit hele timen (60 × 60 / 120 =
+//     30). Tælleren er aggregeret pr. 5-s-stykke (webinar_reaktion_tael), så
+//     en ivrig seers byger af 5–10 hjerter rammer ikke loftet; en bot rammer
+//     det efter to minutter med 1/s. Hver reaktion er to skrivninger → højst
+//     240 pr. person i timen.
+// «svar» (quiz, afstemning, CTA, feedback) har ingen loft her: det er allerede
+// én række pr. (deltagelse, interaktion) i databasen (unik).
+
+export const HANDLING_LOFT_VINDUE_MS = 60 * 60 * 1000;
+export const HANDLING_LOFT_PR_TIME = { spoergsmaal: 10, reaktion: 120 } as const;
+export type LoftArt = keyof typeof HANDLING_LOFT_PR_TIME;
+
+/**
+ * Er der plads til ÉN handling mere? `alleredeIVinduet` = de loggede i den
+ * seneste time (talt FØR indsættelsen) + dem, der er skrevet tidligere i SAMME
+ * kald. Ukendt eller negativt tal → nej (fail-closed).
+ */
+export function handlingUnderLoft(art: LoftArt, alleredeIVinduet: number): boolean {
+  if (!Number.isInteger(alleredeIVinduet) || alleredeIVinduet < 0) return false;
+  return alleredeIVinduet < HANDLING_LOFT_PR_TIME[art];
+}
+
 // ── Kroppen til webinar-puls ─────────────────────────────────────────────────
 
 /** DE ENESTE felter, kroppen må bære (bodyFelter.guard: STRIKS). Ingen «forventet» — positionen er serverens. */

@@ -17,6 +17,10 @@ import * as srcTok from "@/lib/webinarMotor/token";
 import * as denoTok from "../../../supabase/functions/_shared/webinarMotor/token.ts";
 import * as srcPlan from "@/lib/webinarMotor/sessionplan";
 import * as denoPlan from "../../../supabase/functions/_shared/webinarMotor/sessionplan.ts";
+import * as srcFrem from "@/lib/webinarMotor/fremmoede";
+import * as denoFrem from "../../../supabase/functions/_shared/webinarMotor/fremmoede.ts";
+import * as srcMail from "@/lib/webinarMotor/mail";
+import * as denoMail from "../../../supabase/functions/_shared/webinarMotor/mail.ts";
 
 /**
  * Paritet for webinarmotorens rene domme (skive 1, 30/9-2026), samme form som
@@ -32,10 +36,10 @@ const DENO_DIR = "supabase/functions/_shared/webinarMotor";
 const FILER = readdirSync(resolve(process.cwd(), SRC_DIR)).filter((f) => f.endsWith(".ts")).sort();
 
 describe("webinarMotor.paritet — kildeteksten", () => {
-  it("de to mapper har PRÆCIS de samme filer (ni)", () => {
+  it("de to mapper har PRÆCIS de samme filer (elleve — skive 3 lagde fremmoede.ts og mail.ts til)", () => {
     const deno = readdirSync(resolve(process.cwd(), DENO_DIR)).filter((f) => f.endsWith(".ts")).sort();
     expect(deno).toEqual(FILER);
-    expect(FILER).toEqual(["ics.ts", "interaktioner.ts", "puls.ts", "sessionplan.ts", "spolning.ts", "svar.ts", "tilmelding.ts", "token.ts", "ur.ts"]);
+    expect(FILER).toEqual(["fremmoede.ts", "ics.ts", "interaktioner.ts", "mail.ts", "puls.ts", "sessionplan.ts", "spolning.ts", "svar.ts", "tilmelding.ts", "token.ts", "ur.ts"]);
   });
 
   for (const f of FILER) {
@@ -101,6 +105,26 @@ describe("webinarMotor.paritet — dommene svarer ens", () => {
     expect(denoPlan.naesteSessioner(s, 0)).toEqual(srcPlan.naesteSessioner(s, 0));
     const ics = { tilmeldingId: "11111111-2222-4333-8444-555555555555", sekvens: 1, metode: "REQUEST" as const, startMs: S.starterMs, slutMs: S.starterMs + 3_600_000, stempelMs: 0, titel: "æøå", beskrivelse: "x".repeat(300), url: "https://a", deltagerMail: "a@b.dk" };
     expect(denoIcs.bygIcs(ics)).toBe(srcIcs.bygIcs(ics));
+  });
+
+  it("skive 3: fremmøde, mailvej, intern og stierne", () => {
+    const d = { foerste_ind_at: "2026-10-13T09:01:00Z", set_procent: 81.4 };
+    const t = { state: "Joined", sidste_action: "Joined", set_procent: 80 };
+    for (const [dd, tt] of [[d, t], [null, { state: "Registered", sidste_action: "Registered", set_procent: null }], [{ foerste_ind_at: "x", set_procent: 0 }, t]] as const) {
+      expect(denoFrem.fremmoedeDom(dd, tt)).toEqual(srcFrem.fremmoedeDom(dd, tt));
+      expect(denoFrem.fremmoedeRettelse(tt, srcFrem.fremmoedeDom(dd, tt))).toEqual(srcFrem.fremmoedeRettelse(tt, srcFrem.fremmoedeDom(dd, tt)));
+    }
+    expect(denoFrem.sessionKlarTilDom(1000, 301_000)).toBe(srcFrem.sessionKlarTilDom(1000, 301_000));
+    expect(denoFrem.SENESTE_START_MS).toBe(srcFrem.SENESTE_START_MS);
+    const o = { tilmeldingId: "11111111-2222-4333-8444-555555555555", kildeSystem: "platform", tokenVersion: 1, email: "a@topix.dk", slug: "raad", titel: "T", vaertNavn: null, starterMs: 1, slutMs: 2, icsSekvens: 0, sessionStatus: "planlagt" };
+    for (const id of ["P-11111111-2222-4333-8444-555555555555", "abc123", "P-x"]) expect(denoMail.mailVejDom(id, o, true)).toEqual(srcMail.mailVejDom(id, o, true));
+    expect(denoTil.internDom(true, "a@firma.dk")).toEqual(srcTil.internDom(true, "a@firma.dk"));
+    expect(denoTok.kalenderSti("raad", "t.k")).toBe(srcTok.kalenderSti("raad", "t.k"));
+    expect(denoTok.tilmeldSti("raad", "s")).toBe(srcTok.tilmeldSti("raad", "s"));
+    expect(denoIcs.icsBeskrivelse("https://a", null)).toBe(srcIcs.icsBeskrivelse("https://a", null));
+    const s = [{ id: "a", starterMs: 5, status: "planlagt", type: "Scheduled", kapacitet: null, tilmeldte: null, intern: true }];
+    expect(denoPlan.naesteSessioner(s, 0)).toEqual(srcPlan.naesteSessioner(s, 0));
+    expect(denoPlan.naesteSessioner(s, 0, 3, true)).toEqual(srcPlan.naesteSessioner(s, 0, 3, true));
   });
 
   it("token: et token bygget af det ene spejl læses af det andet", async () => {

@@ -125,6 +125,15 @@ export interface IcsInput {
   deltagerMail: string;
 }
 
+/**
+ * Beskrivelsen i husets .ics (skive 3): ét sted for webinar-rum GET ics OG
+ * webinar-mail-cron's vedhæftede invitation, så de to filer er ens. Lover
+ * intet om sendingen — kun rummet og spørgsmålet i venteværelset.
+ */
+export function icsBeskrivelse(url: string, vaertNavn: string | null): string {
+  return `Gå ind i rummet her: ${url}\n\nDu kan stille ${vaertNavn ?? "værten"} et spørgsmål allerede i venteværelset.`;
+}
+
 /** Hele filen, CRLF-afsluttet. */
 export function bygIcs(i: IcsInput): string {
   const aflyst = i.metode === "CANCEL";

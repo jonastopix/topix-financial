@@ -31,9 +31,13 @@ export const WEBINAR_TILMELDINGER_KEY = ["webinar-tilmeldinger"] as const;
  * svarer PostgREST null, og dommen siger «ingen bedømmelse».
  * Samme udtryk står ORDRET i supabase/functions/webinar-delt (GRUND_KOLONNER),
  * så den delte visning ser det samme; låst af webinarDeling.guard dom 11.
+ *
+ * PRØVEMÆRKET (rådets fund 30/9): `intern:raa->>intern` — ligeledes en
+ * tekststi, aldrig hele `raa`. Dashboard-dommen (erInternTilmelding) holder
+ * webinarmotorens interne prøvesession ude af tallene i begge spejle.
  */
 export const TILMELDING_KOLONNER =
-  "ewebinar_id, email, navn, webinar_id, webinar_titel, session_tid, session_type, registreret_at, state, sidste_action, attended, subscribed, set_procent, set_procent_kilde, utm_source, utm_medium, utm_campaign, utm_content, utm_term, fbclid, origin, first_origin, referrer, first_referrer, widget_source, by, land, enhed, tidszone, interactions:raa->>interactionsSummary";
+  "ewebinar_id, email, navn, webinar_id, webinar_titel, session_tid, session_type, registreret_at, state, sidste_action, attended, subscribed, set_procent, set_procent_kilde, utm_source, utm_medium, utm_campaign, utm_content, utm_term, fbclid, origin, first_origin, referrer, first_referrer, widget_source, by, land, enhed, tidszone, interactions:raa->>interactionsSummary, intern:raa->>intern";
 
 /** numeric kommer som streng fra PostgREST — tallet skal være et tal for dommen. */
 function somRaekke(r: Record<string, unknown>): WebinarTilmelding {

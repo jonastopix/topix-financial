@@ -514,7 +514,7 @@ describe("token — HMAC, intet gemt", () => {
 
 describe("svar — beviset og persondata", () => {
   it("motor-versionen er beviset", () => {
-    expect(MOTOR_VERSION).toBe("boardroom-2");
+    expect(MOTOR_VERSION).toBe("boardroom-3");
   });
   it("findMotorForbudte finder persondata hvor dybt det end ligger", () => {
     expect(findMotorForbudte({ rum: "lobby", webinar: { titel: "x" } })).toEqual([]);

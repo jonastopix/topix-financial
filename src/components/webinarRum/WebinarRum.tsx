@@ -457,7 +457,7 @@ export function WebinarRum({ slug, token, onNytToken, onGlemToken }: { slug: str
 
       {visning === "gaa_ind" && (
         <div className="space-y-6 text-center">
-          <p className={EYEBROW}>Live nu</p>
+          <p className={EYEBROW}>I gang nu</p>
           <h1 className={H1}>{w.titel}</h1>
           <p className={BROED}>Webinaret er i gang. Tryk for at gå ind — med lyd.</p>
           <HbButton className={STOR_KNAP} onClick={() => setGaaetInd(true)} autoFocus>
@@ -470,7 +470,7 @@ export function WebinarRum({ slug, token, onNytToken, onGlemToken }: { slug: str
         <>
           <header>
             <p className={cn(EYEBROW, "flex items-center gap-2")}>
-              <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-hb-rust" aria-hidden="true" /> Live
+              <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-hb-rust" aria-hidden="true" /> I gang
             </p>
             <h1 className={cn(H2, "mt-1")}>{w.titel}</h1>
           </header>

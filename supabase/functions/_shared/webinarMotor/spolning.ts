@@ -31,7 +31,7 @@ export type Spoledom =
  *   under buffering                                 → vent (aldrig et hop)
  *   faktisk > forventet + 3 (spolet frem)           → hop til forventet
  *   faktisk < forventet − 3 og tilstanden er spiller → hop til forventet (bagud af afbrydelse)
- *   faktisk < forventet − 3 og tilstanden er pause   → ok (pausen er tilladt; «Tilbage til live» er seerens valg)
+ *   faktisk < forventet − 3 og tilstanden er pause   → ok (pausen er tilladt; «Tilbage til webinaret» er seerens valg)
  *   seneste korrektion for under 8 s siden          → vent
  */
 export function spoleDom(

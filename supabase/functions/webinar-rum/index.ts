@@ -47,6 +47,14 @@
 //   Personfelterne i «hilsen» og «forudfyld» går gennem NAVNGIVNE_UNDTAGELSER
 //   (webinarMotor/svar.ts): præcise stier, kun i de to svar.
 //
+// SKIVE 3 (30/9-2026): en INTERN session (webinar_sessioner.intern, D2.7)
+//   tilbydes kun husets egne adresser — i «tilstand»s næste session og i
+//   «gen_tilmeld» (naesteSessioner(…, erInternAdresse(mail))), og en OFFENTLIG
+//   session kun, når låsen app_config.webinarmotor_offentlig_aktiv er åben
+//   (bagLaasen, rådets fund 30/9). «gen_tilmeld» er den ENESTE vej, der flytter
+//   en tilmelding: tokenet beviser personen (webinar-tilmeld flytter aldrig). .ics'ens
+//   beskrivelse er icsBeskrivelse — samme tekst som mailens vedhæftede fil.
+//
 // BUNNYS EMBED signeres KUN i intro og afspilning, som get-video-embed/chat-video:
 // sha256hex(TOKEN_AUTH_KEY + guid + expires) — men i webinarbiblioteket (egne
 // secrets BUNNY_WEBINAR_LIBRARY_ID + BUNNY_WEBINAR_TOKEN_AUTH_KEY, aldrig
@@ -55,26 +63,25 @@
 //
 // INGEN PERSONDATA i svaret (findMotorForbudte går hele svaret igennem, 500 ellers)
 // — undtagen de to navngivne stier ovenfor.
-// BEVISET: `motor: "boardroom-2"`.
+// BEVISET: `motor: "boardroom-3"` (MOTOR_VERSION; skive 2 svarede «boardroom-2»).
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 import { corsHeaders } from "../_shared/edgeFunctionAuth.ts";
 import { ukendteFelter, ukendteFelterBesked } from "../_shared/kendteFelter.ts";
 import { type Deltager, joinSecret, verifyDeltagertoken } from "../_shared/webinarDeltagerAuth.ts";
-import { frysTidslinje, hentRumData, type RumData } from "../_shared/webinarMotorHent.ts";
+import { frysTidslinje, hentOffentligLaas, hentRumData, type RumData } from "../_shared/webinarMotorHent.ts";
 import { ipDagshash } from "../_shared/webinarTilmeldVaern.ts";
 import { embedParametre, embedUdloebSek, faarEmbed, positionDom, type Rum, senIndgangDom, sessionTider } from "../_shared/webinarMotor/ur.ts";
 import { aktiveInteraktioner, ctaVindue, type Interaktion, kapitler, type NedtaellingsKilder, seerTidslinje, somSeerSer, type Tidslinje } from "../_shared/webinarMotor/interaktioner.ts";
-import { naesteSessioner, type SessionValg } from "../_shared/webinarMotor/sessionplan.ts";
-import { bygIcs } from "../_shared/webinarMotor/ics.ts";
-import { byggDeltagertoken, rumSti } from "../_shared/webinarMotor/token.ts";
-import { type EksisterendeTilmelding, platformEwebinarId, tilmeldDom } from "../_shared/webinarMotor/tilmelding.ts";
+import { bagLaasen, naesteSessioner, type SessionValg } from "../_shared/webinarMotor/sessionplan.ts";
+import { bygIcs, icsBeskrivelse } from "../_shared/webinarMotor/ics.ts";
+import { APP_URL, byggDeltagertoken, rumSti } from "../_shared/webinarMotor/token.ts";
+import { erInternAdresse, type EksisterendeTilmelding, platformEwebinarId, tilmeldDom } from "../_shared/webinarMotor/tilmelding.ts";
 import { findMotorForbudte, findMotorForbudteMed, MOTOR_VERSION, type Undtagelse } from "../_shared/webinarMotor/svar.ts";
 
 const LOG = "[webinar-rum]";
 const KENDTE_FELTER = ["t", "handling"] as const;
 const HANDLINGER = ["tilstand", "gen_tilmeld", "forudfyld"] as const;
-const APP_URL = "https://app.theboardroom.dk";
 
 function json(body: Record<string, unknown>, status = 200, undtagelse: Undtagelse | null = null): Response {
   const ud = { motor: MOTOR_VERSION, ...body };
@@ -126,7 +133,7 @@ async function icsSvar(admin: SupabaseClient, d: Deltager, rd: RumData, token: s
     slutMs: pos.tider.afspilningSlutMs,
     stempelMs: nuMs,
     titel: rd.webinar.titel,
-    beskrivelse: `Gå ind i rummet her: ${url}\n\nDu kan stille ${rd.webinar.vaert_navn ?? "værten"} et spørgsmål allerede i venteværelset.`,
+    beskrivelse: icsBeskrivelse(url, rd.webinar.vaert_navn),
     url,
     deltagerMail: d.email,
   });
@@ -148,7 +155,7 @@ async function hentPerson(admin: SupabaseClient, id: string): Promise<{ fornavn:
 async function kommendeSessioner(admin: SupabaseClient, webinarId: string, nuMs: number, udenId: string): Promise<SessionValg[] | null> {
   const { data, error } = await admin
     .from("webinar_sessioner")
-    .select("id, starter_at, type, status, kapacitet")
+    .select("id, starter_at, type, status, kapacitet, intern")
     .eq("webinar_id", webinarId)
     .in("status", ["planlagt", "aaben"])
     .gt("starter_at", new Date(nuMs).toISOString())
@@ -169,7 +176,7 @@ async function kommendeSessioner(admin: SupabaseClient, webinarId: string, nuMs:
       if (cFejl) return null;
       tilmeldte = count ?? 0;
     }
-    ud.push({ id: s.id as string, starterMs: Date.parse(s.starter_at as string), status: s.status as string, type: s.type as string, kapacitet, tilmeldte });
+    ud.push({ id: s.id as string, starterMs: Date.parse(s.starter_at as string), status: s.status as string, type: s.type as string, kapacitet, tilmeldte, intern: s.intern === true });
   }
   return ud;
 }
@@ -186,7 +193,9 @@ async function genTilmeld(admin: SupabaseClient, req: Request, d: Deltager, rd: 
   if (!secret) return json({ fejl: "ikke_sat_op" }, 503);
   const kommende = await kommendeSessioner(admin, rd.webinar.id, nuMs, d.session_id);
   if (!kommende) return json({ fejl: "opslag" }, 500);
-  const naeste = naesteSessioner(kommende, nuMs, 1)[0] ?? null;
+  // En intern session tilbydes KUN husets egne adresser (skive 3, D2.7).
+  // Og en OFFENTLIG kun, når låsen er åben (rådets fund 30/9) — som webinar-tilmeld.
+  const naeste = naesteSessioner(bagLaasen(kommende, await hentOffentligLaas(admin)), nuMs, 1, erInternAdresse(d.email))[0] ?? null;
   if (!naeste) return json({ ok: false, fejl: "ingen_naeste_session" }, 409);
   const { data: naesteRaekke } = await admin.from("webinar_sessioner").select("starter_at, type").eq("id", naeste.id).maybeSingle();
   if (!naesteRaekke) return json({ fejl: "opslag" }, 500);
@@ -244,7 +253,7 @@ async function genTilmeld(admin: SupabaseClient, req: Request, d: Deltager, rd: 
       user_agent: (req.headers.get("user-agent") ?? "").slice(0, 500) || null,
       ip_dagshash: await ipDagshash(req, nuMs),
       token_version: 1,
-      raa: { kilde: "platform", motor: MOTOR_VERSION, via: "gen_tilmeld" },
+      raa: { kilde: "platform", motor: MOTOR_VERSION, via: "gen_tilmeld", ...(naeste.intern === true ? { intern: true } : {}) },
     });
     if (iFejl) {
       if (iFejl.code !== "23505") {
@@ -375,16 +384,19 @@ Deno.serve(async (req) => {
     // Næste session (til sen indgang og «Tag den næste session»).
     const { data: senere } = await admin
       .from("webinar_sessioner")
-      .select("id, starter_at, type, status, kapacitet")
+      .select("id, starter_at, type, status, kapacitet, intern")
       .eq("webinar_id", rd.webinar.id)
       .in("status", ["planlagt", "aaben"])
       .gt("starter_at", new Date(nuMs).toISOString())
       .order("starter_at", { ascending: true })
       .limit(5);
+    // En intern session tilbydes KUN husets egne adresser (skive 3, D2.7).
+    // Og en OFFENTLIG kun, når låsen er åben (rådets fund 30/9) — som webinar-tilmeld.
     const naeste = naesteSessioner(
-      (senere ?? []).map((s) => ({ id: s.id as string, starterMs: Date.parse(s.starter_at as string), status: s.status as string, type: s.type as string, kapacitet: null, tilmeldte: null })),
+      bagLaasen((senere ?? []).map((s) => ({ id: s.id as string, starterMs: Date.parse(s.starter_at as string), status: s.status as string, type: s.type as string, kapacitet: null, tilmeldte: null, intern: s.intern === true })), await hentOffentligLaas(admin)),
       nuMs,
       1,
+      erInternAdresse(d.email),
     )[0] ?? null;
 
     const sen = pos.rum === "afspilning" ? senIndgangDom(pos.forventetPosSek, rd.webinar.varighed_sek) : null;

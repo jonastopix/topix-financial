@@ -21,8 +21,9 @@ import { BROED, EYEBROW, FEJL, FELT, H1, INDHOLD, LABEL, STOR_KNAP } from "./sti
  * ikke (app'en har intet samtykkebanner).
  *
  * Svaret: en NY tilmelding giver tokenet ÉN gang → kvittering med kalender og
- * «Gå til rummet». «Samme» og «flyttet» giver intet token (enhver kan taste en
- * mail) — linket kommer på mail.
+ * «Gå til rummet». Alt andet er ÉT ensartet svar uden token (enhver kan taste
+ * en mail): «linket kommer på mail» — siden siger ikke, om mailen stod på
+ * listen i forvejen (rådets fund 30/9, enumeration).
  */
 
 const SERVER_FEJL: Record<string, string> = {
@@ -34,6 +35,8 @@ const SERVER_FEJL: Record<string, string> = {
   aflyst: "Den session er aflyst — vælg et andet tidspunkt.",
   ikke_sat_op: "Tilmeldingen er ikke åbnet endnu.",
   ukendt_session: "Den session findes ikke længere — vælg et andet tidspunkt.",
+  intern: "Den session er en intern prøve — kun husets egne adresser kan tilmelde sig.",
+  ikke_aaben: "Tilmeldingen er ikke åbnet endnu.",
 };
 
 export function WebinarTilmelding({ slug, onGaaTilRummet }: { slug: string; onGaaTilRummet: (token: string) => void }) {
@@ -57,10 +60,12 @@ export function WebinarTilmelding({ slug, onGaaTilRummet }: { slug: string; onGa
     }),
   );
   const id = useId();
+  // Rådgiverens prøvelink til en INTERN session (skive 3): /w/<slug>/tilmeld?session=<id>.
+  const bestemtSession = searchParams.get("session");
 
   useEffect(() => {
     let aktiv = true;
-    hentSessioner(slug)
+    hentSessioner(slug, bestemtSession)
       .then((d) => {
         if (!aktiv) return;
         setData(d);
@@ -72,7 +77,7 @@ export function WebinarTilmelding({ slug, onGaaTilRummet }: { slug: string; onGa
     return () => {
       aktiv = false;
     };
-  }, [slug]);
+  }, [slug, bestemtSession]);
 
   if (hentFejl === "ukendt") {
     return (
@@ -100,7 +105,7 @@ export function WebinarTilmelding({ slug, onGaaTilRummet }: { slug: string; onGa
     return (
       <div className={cn(INDHOLD, "space-y-6")}>
         <p className={cn(EYEBROW, "flex items-center gap-2")}>
-          <Check className="h-4 w-4" aria-hidden="true" /> {kvittering.dublet === "ny" ? "Du er tilmeldt" : kvittering.dublet === "flyttet" ? "Din tilmelding er flyttet" : "Du er allerede tilmeldt"}
+          <Check className="h-4 w-4" aria-hidden="true" /> {kvittering.token ? "Du er tilmeldt" : "Tjek din mail"}
         </p>
         <h1 className={H1} tabIndex={-1} ref={(el) => el?.focus()}>
           {s ? sessionTekst(s.starter_at) : w.titel}
@@ -114,9 +119,7 @@ export function WebinarTilmelding({ slug, onGaaTilRummet }: { slug: string; onGa
             </HbButton>
           </>
         ) : (
-          <p className={BROED}>
-            {kvittering.dublet === "flyttet" ? "Din tilmelding med den mail er flyttet til dette tidspunkt." : "Du er allerede tilmeldt med den mail."} Af hensyn til dig selv viser vi ikke linket til rummet her — det kommer på mail.
-          </p>
+          <p className={BROED}>Linket til rummet står i mailen til den adresse, du skrev. Af hensyn til dig selv viser vi det ikke her.</p>
         )}
       </div>
     );
@@ -184,6 +187,7 @@ export function WebinarTilmelding({ slug, onGaaTilRummet }: { slug: string; onGa
                   >
                     <input type="radio" name="session" value={s.id} checked={er} onChange={() => setValgt(s.id)} className="h-5 w-5 accent-[hsl(170_46%_14%)]" />
                     <span className="first-letter:uppercase">{sessionTekst(s.starter_at)}</span>
+                    {s.intern === true && <span className="ml-auto text-xs uppercase tracking-[0.1em] text-hb-ink-soft">Intern prøve</span>}
                   </label>
                 );
               })}

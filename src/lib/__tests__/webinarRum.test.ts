@@ -322,7 +322,7 @@ describe("webinarMotor, skive 2 — seerTidslinje, undtagelserne, versionen", ()
     expect(findMotorForbudteMed({ hilsen: { fornavn: "Anne", email: "a" } }, "hilsen")).toEqual(["hilsen.email"]);
     expect(findMotorForbudteMed({ hilsen: { fornavn: "Anne" } }, null)).toEqual(["hilsen.fornavn"]);
   });
-  it("versionen er skive 2's — beviset i drift skelner den fra skive 1", () => {
-    expect(MOTOR_VERSION).toBe("boardroom-2");
+  it("versionen er skive 3's — beviset i drift skelner den fra skive 1 og 2", () => {
+    expect(MOTOR_VERSION).toBe("boardroom-3");
   });
 });

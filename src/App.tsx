@@ -88,6 +88,8 @@ const RingMigOp = lazy(() => import("./pages/RingMigOp"));
 const DeltWebinar = lazy(() => import("./pages/DeltWebinar"));
 // Lazy — seerens webinarflade (skive 2, 30/9-2026): offentlig, uden login, i ingen menu.
 const WebinarSide = lazy(() => import("./pages/WebinarSide"));
+// Lazy — webinarmotorens opsætning (skive 3, 30/9-2026): rådgiver, i ingen menu endnu.
+const WebinarMotor = lazy(() => import("./pages/WebinarMotor"));
 
 // Lazy — demo routes (no auth)
 const DemoLayout = lazy(() => import("./demo/DemoLayout"));
@@ -368,6 +370,9 @@ const App = () => (
               <Route path="/nyheder" element={<AdvisorRoute><Nyheder /></AdvisorRoute>} />
               {/* «Må vi ringe til dig?» (2/10): rådgivernes kø af dem, der bad om et opkald — fra klokken og menupunktet «Opkald» (Jonas 2/10 14:22). */}
               <Route path="/opkald" element={<AdvisorRoute><Opkald /></AdvisorRoute>} />
+              {/* Webinarmotorens opsætning (skive 3, 30/9-2026 — docs/webinarmotor.md §7): webinar, sessioner
+                  (intern ja/nej) og tidslinjen. AdvisorRoute + RLS (kun rådgivere skriver). Intet menupunkt endnu. */}
+              <Route path="/webinar/motor" element={<AdvisorRoute><WebinarMotor /></AdvisorRoute>} />
               {/* Kontoen i Hjemmebane (9/9): navn, adgangskode, login, log ud — for alle roller. */}
               <Route path="/konto" element={<ProtectedRoute><Konto /></ProtectedRoute>} />
               {/* Delingskreativen (14/9, første skridt): én kreativ på skærmen. Intet menupunkt endnu. */}

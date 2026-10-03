@@ -50,19 +50,34 @@ async function kald<T>(fn: "webinar-tilmeld" | "webinar-rum" | "webinar-puls", b
 export interface SessionerSvar {
   motor: string;
   webinar: { slug: string; titel: string; beskrivelse: string | null; vaert_navn: string | null; vaert_billede: string | null; varighed_sek: number; intro_sek?: number };
-  sessioner: Array<{ id: string; starter_at: string; type: string }>;
+  /** `intern` kun på en intern prøvesession, hentet med sit id (skive 3). */
+  sessioner: Array<{ id: string; starter_at: string; type: string; intern?: boolean }>;
 }
 
-export async function hentSessioner(slug: string): Promise<SessionerSvar> {
-  return (await kald<SessionerSvar>("webinar-tilmeld", { handling: "sessioner", slug })).data;
+/**
+ * Sessionerne. Med `sessionId` (fra `?session=` — rådgiverens prøvelink,
+ * webinarMotor/token.ts:tilmeldSti) spørges der om netop den ene; en INTERN
+ * session står aldrig i den offentlige liste (skive 3, D2.7).
+ */
+export async function hentSessioner(slug: string, sessionId: string | null = null): Promise<SessionerSvar> {
+  const krop: Record<string, unknown> = { handling: "sessioner", slug };
+  if (sessionId) krop.session_id = sessionId;
+  return (await kald<SessionerSvar>("webinar-tilmeld", krop)).data;
 }
 
+/**
+ * Svaret på «tilmeld» (rådets fund 30/9): en NY række bærer tokenet ÉN gang
+ * (+ rum_sti). Alt andet — en mail, der allerede står på sessionen, et kapløb,
+ * honningfeltet — får ÉT ensartet svar uden token og med `link_paa_mail`. Der
+ * er intet `dublet`-felt: svaret afslører ikke, om mailen stod på listen, og
+ * serveren FLYTTER aldrig en tilmelding (det kræver tokenet, webinar-rum).
+ */
 export interface TilmeldSvar {
   ok: true;
-  dublet: "ny" | "samme" | "flyttet";
-  session?: { id: string; starter_at: string };
+  session: { id: string; starter_at: string } | null;
   token: string | null;
   rum_sti?: string;
+  link_paa_mail?: true;
 }
 
 export async function tilmeld(body: Record<string, unknown>): Promise<TilmeldSvar> {

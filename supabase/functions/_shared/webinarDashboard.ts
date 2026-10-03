@@ -67,8 +67,26 @@ export interface BedoemmelseFelter {
   interactions?: string | null;
 }
 
-/** Tilmeldingen som fladen læser den: webinarDom's række + annoncesporet + bedømmelsens tekst. */
-export type Tilmelding = WebinarTilmelding & AnnoncesporFelter & BedoemmelseFelter;
+/**
+ * Webinarmotorens INTERNE prøvesession (skive 3, D2.7): rækkerne bærer
+ * `raa.intern = true` og hentes som TEKSTSTI (`intern:raa->>intern`, aldrig hele
+ * `raa` — samme regel som bedømmelsen). VALGFRI: eWebinars rækker har den ikke.
+ */
+export interface InternFelter {
+  /** «true» (tekststien) eller true — alt andet er en rigtig tilmelding. */
+  intern?: string | boolean | null;
+}
+
+/** Tilmeldingen som fladen læser den: webinarDom's række + annoncesporet + bedømmelsens tekst + prøvemærket. */
+export type Tilmelding = WebinarTilmelding & AnnoncesporFelter & BedoemmelseFelter & InternFelter;
+
+/**
+ * Er rækken motorens INTERNE prøve (rådets fund 30/9, MELLEM)? Så står den
+ * ALDRIG i /webinar-tallene eller i delingen — en test med husets egne adresser
+ * er ikke en tilmelding. Kun mærket afgør det: `kilde_system = 'platform'` alene
+ * er IKKE intern (motorens offentlige sessioner skal tælle).
+ */
+export const erInternTilmelding = (r: InternFelter): boolean => r.intern === true || r.intern === "true";
 
 /**
  * Den indsendte ansøgning, reduceret til det fladen bruger: mailen (koblingen),
@@ -1382,7 +1400,9 @@ export function udenRaekker(dom: WebinarDashboard): WebinarDashboardSvar {
 
 /** Ét kald, ét svar. Fladen regner intet selv. */
 export function webinarDashboard(ind: DashboardInput, nu: Date): WebinarDashboard {
-  const { tilmeldinger, sporKolonnerFindes } = ind;
+  const { sporKolonnerFindes } = ind;
+  // Den interne prøvesession tæller aldrig — filtreret FØR hver del af dommen.
+  const tilmeldinger = ind.tilmeldinger.filter((r) => !erInternTilmelding(r));
   // Webinarkoblingen (1/10): en bekræftet kobling tæller som et mail-match — ÉT sted, før alt andet.
   const ansoegninger = medWebinarKobling(ind.ansoegninger);
   // TO FORMER AF SAMME MÆNGDE: tragten (§2) skal kende TIDSPUNKTET for at

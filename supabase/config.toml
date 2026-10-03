@@ -414,6 +414,13 @@ project_id = "loiavmastgeieqyiwyyr"
     verify_jwt = false
   [functions.webinar-puls]
     verify_jwt = false
+  # Webinarmotorens efterarbejde (skive 3, 30/9-2026). Bucket B, authenticateServiceRole
+  # FØRST, kaldt gennem kald_edge hvert 5. minut. Tørkørsel som standard; skriver kun
+  # med «dry_run: false» OG (låsen app_config.webinar_motor_aktiv ELLER session_id på
+  # en INTERN session — prøven). Fremmøde fra bitmappen → webinar_tilmeldinger og
+  # Klaviyo (sendHvisMail), og opbevaringen af webinar_pulser (90 dage).
+  [functions.webinar-motor-cron]
+    verify_jwt = true
   # Metas Conversions API fra platformen (udkast 21/9-2026 aften). Bucket B,
   # authenticateServiceRole FØRST, kaldt gennem kald_edge hvert 5. minut. Tørkørsel
   # som standard; sender for alvor kun med «dry_run: false» OG (låsen
