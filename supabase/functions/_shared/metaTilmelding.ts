@@ -64,7 +64,7 @@ import {
 
 /** app_config-nøglen — tilmeldingernes EGEN lås. Fraværende = false (laasErAktiv(null) = false). */
 export const WEBINAR_META_LAAS_NOEGLE = "webinarmotor_meta_aktiv";
-/** Sporets art (meta_haendelser.art) — CHECK'en i 20261003070000 kender den. */
+/** Sporets art (meta_haendelser.art) — CHECK'en i 20261003090000 kender den. */
 export const TILMELDING_ART = "registration" as const;
 /** Metas standardhændelse for en tilmelding. */
 export const TILMELDING_EVENT_NAME = "CompleteRegistration";
@@ -219,7 +219,7 @@ export function bygTilmeldingPayload(
 }
 
 /**
- * PORTEN (samme form som ti_minutter, 20261003040000): migrationen 20261003070000 lægger
+ * PORTEN (samme form som ti_minutter, 20261003040000): migrationen 20261003090000 lægger
  * låsens række (false). Findes rækken, er sporets CHECK'er udvidet — og KUN da sendes der
  * noget, OGSÅ med en testkode. Uden porten ville en testhændelse nå Meta, men sporets række
  * blive afvist (23502 på ansoegning_id, 23514 på art), så næste testkørsel sendte den igen.
@@ -269,7 +269,7 @@ export interface TilmeldingPlan {
 
 /** Svarets felt `tilmeldinger` — beviset for udrulningen (kun den nye kode har det). */
 export interface TilmeldingResultat {
-  /** klar · migration_mangler · laesefejl — findes låsens række (= migrationen 20261003070000 er kørt)? */
+  /** klar · migration_mangler · laesefejl — findes låsens række (= migrationen 20261003090000 er kørt)? */
   port: TilmeldingPort;
   /** app_config.webinarmotor_meta_aktiv som læst (fail-closed; fraværende = false). */
   laas_aktiv: boolean;

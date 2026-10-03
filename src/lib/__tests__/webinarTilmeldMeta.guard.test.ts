@@ -57,7 +57,7 @@ const DOM = "supabase/functions/_shared/metaTilmelding.ts";
 const KOERSEL = "supabase/functions/_shared/metaTilmeldingKoersel.ts";
 const CRON = "supabase/functions/meta-send-cron/index.ts";
 const MIG_DIR = "supabase/migrations";
-const MIG = "supabase/migrations/20261003070000_meta_haendelser_tilmelding.sql";
+const MIG = "supabase/migrations/20261003090000_meta_haendelser_tilmelding.sql";
 const TRACKING = "docs/tracking.md";
 const MOTOR_DOC = "docs/webinarmotor.md";
 const CLAUDE_MD = "CLAUDE.md";
@@ -263,7 +263,7 @@ describe("webinarTilmeldMeta.guard — tilmeldingerne til Metas Conversions API"
   it("6. migrationen: CHECK'en = kodens arter, IKKE KØRT-hovedet, én transaktion, porten, låsen false, efter enhver kørt", () => {
     const { koert } = migrationsOrden(MIG_DIR);
     expect(artListenIMigrationen(laes(MIG))).toEqual([...ARTER, TILMELDING_ART]);
-    expect(migrationenErRigtig(laes(MIG), [...ARTER, TILMELDING_ART], koert, "20261003070000_meta_haendelser_tilmelding.sql")).toBe(true);
+    expect(migrationenErRigtig(laes(MIG), [...ARTER, TILMELDING_ART], koert, "20261003090000_meta_haendelser_tilmelding.sql")).toBe(true);
   });
   it("8. isoleret og porten først: intet læses før porten; passets fejl aldrig i r.fejl/ok/status", () =>
     expect(isoleretOgPortFoerst(laes(KOERSEL), laes(CRON))).toBe(true));
@@ -328,7 +328,7 @@ describe("webinarTilmeldMeta.guard — dommene fanger fejlen på en kopi", () =>
   });
   it("6. en art i koden uden CHECK, et andet filhoved, to alter table, ingen port, låsen true, eller en kørt fil efter, fælder dom 6", () => {
     const { koert } = migrationsOrden(MIG_DIR);
-    const F = "20261003070000_meta_haendelser_tilmelding.sql";
+    const F = "20261003090000_meta_haendelser_tilmelding.sql";
     const arter = [...ARTER, TILMELDING_ART];
     expect(migrationenErRigtig(mig, [...arter, "ny_art"], koert, F)).toBe(false);
     expect(migrationenErRigtig(skift(mig, ", 'registration'))", "))"), arter, koert, F)).toBe(false);
@@ -338,7 +338,7 @@ describe("webinarTilmeldMeta.guard — dommene fanger fejlen på en kopi", () =>
     expect(migrationenErRigtig(skift(mig, "values ('webinarmotor_meta_aktiv', 'false'::jsonb,", "values ('webinarmotor_meta_aktiv', 'true'::jsonb,"), arter, koert, F)).toBe(false);
     expect(migrationenErRigtig(skift(mig, "on conflict (config_key) do nothing;", "on conflict (config_key) do update set config_value = excluded.config_value;"), arter, koert, F)).toBe(false);
     expect(migrationenErRigtig(skift(mig, "alter column ansoegning_id drop not null,", ""), arter, koert, F)).toBe(false);
-    expect(migrationenErRigtig(mig, arter, [...koert, "20261003080000_kort_efter.sql"], F)).toBe(false);
+    expect(migrationenErRigtig(mig, arter, [...koert, "20261003100000_kort_efter.sql"], F)).toBe(false);
   });
   it("8. en læsning før porten, springOver efter låsen, en tilmeldingsfejl i r.fejl, ok/status rørt, eller try fjernet, fælder dom 8", () => {
     const port = '    if (r.port !== "klar") return { resultat: r, planer };\n';
