@@ -3,7 +3,7 @@ import {
   afsendelseUkendt, AKTIVE_ARTER, ARTER, baererInvitation, BEKRAEFTELSE_FRA, erPaamindelse, BEKRAEFTELSE_FRA_MS, doemMail, erAfmeldtIEwebinar,
   googleKalenderUrl, kbhTilUtc, MED_INVITATION, noegle, outlookKalenderUrl, PLANEN, planlaegKoersel,
   indhentningSlut, naesteTidssatteArt, planlagtTid, sammeDanskeDato, SEN_TILMELDING_NAADE_MS, UDGAAEDE_ARTER,
-  erMotorRaekke, erTabtKortNaade, kunMotor, MOTOR_ID_FORM_DOM, naadeFor, SAMME_KOERSEL_ARTER, STOERSTE_HUL_MS,
+  erMotorRaekke, erTabtKortNaade, kunMotor, MOTOR_ID_FORM_DOM, naadeFor, SAMME_KOERSEL_ARTER, SLOT_FORSINKELSE_MARGEN_MS, STOERSTE_HUL_MS,
   type MailArt, type Plan, type Tilmeldt,
 } from "@/lib/webinar/mailDom";
 import { erMotorId, mailVejDom, MOTOR_ID_FORM, taelTabteUdenAflyste } from "@/lib/webinarMotor/mail";
@@ -1167,8 +1167,9 @@ describe("ti_minutter — påmindelsen lige før start, KUN webinarmotorens ræk
 
   // ── Aldrig tre mails i samme kørsel (runde 2, fund 4) ──────────────────────
   it("SAMME_KOERSEL: en sen motor-tilmelding (T−20) får bekræftelse + «om en time» nu, og ti_minutter springes over — næste slot tager den", () => {
-    const mo = R({ email: MAIL, ewebinar_id: MOTOR_ID, join_link: null, kalender_link: null, registreret_at: "2026-10-13T08:40:00.000Z" });
-    const foerst = planlaegKoersel({ raekker: [mo], afmeldte: new Set(), sendte: new Set(), nu: dansk("2026-10-13T08:41:03.000Z"), tiMinutterPort: KLAR });
+    // Slot :39:03 → 39:03 + 10 min + 1 min = 50:03 ≤ fristen 55:00 → springes over; næste slot :44 tager den.
+    const mo = R({ email: MAIL, ewebinar_id: MOTOR_ID, join_link: null, kalender_link: null, registreret_at: "2026-10-13T08:38:00.000Z" });
+    const foerst = planlaegKoersel({ raekker: [mo], afmeldte: new Set(), sendte: new Set(), nu: dansk("2026-10-13T08:39:03.000Z"), tiMinutterPort: KLAR });
     expect(foerst.sendinger.map((s) => s.art).sort()).toEqual(["bekraeftelse", "en_time"]);
     expect(foerst.sprunget.samme_koersel).toBe(1);
     const naeste = planlaegKoersel({ raekker: [mo], afmeldte: new Set(), sendte: andreSendt([MAIL, SESSION]), nu: dansk("2026-10-13T08:44:03.000Z"), tiMinutterPort: KLAR });
@@ -1183,9 +1184,16 @@ describe("ti_minutter — påmindelsen lige før start, KUN webinarmotorens ræk
     expect(p.sendinger.map((s) => s.art).sort()).toEqual(["bekraeftelse", "en_time", "ti_minutter"]);
     expect(p.sprunget.samme_koersel).toBe(0);
     expect(p.kortNaadeTabte).toEqual([]);
-    // Grænsen: 08:47:00 + 10 min = 08:57:00 ≤ fristen → springes over (næste slot :57 er i vinduet).
-    const graense = planlaegKoersel({ raekker: [mo], afmeldte: new Set(), sendte: new Set(), nu: dansk("2026-10-13T08:47:00.000Z"), tiMinutterPort: KLAR });
+    // Grænsen (runde 4, med margenen): 08:46:00 + 10 min + 1 min = 08:57:00 ≤ fristen → springes over;
+    // ét millisekund senere → sendes nu. Uden margenen ville 08:46:30 være sprunget over.
+    const graense = planlaegKoersel({ raekker: [mo], afmeldte: new Set(), sendte: new Set(), nu: dansk("2026-10-13T08:46:00.000Z"), tiMinutterPort: KLAR });
     expect(graense.sprunget.samme_koersel).toBe(1);
+    const lige = planlaegKoersel({ raekker: [mo], afmeldte: new Set(), sendte: new Set(), nu: dansk("2026-10-13T08:46:00.001Z"), tiMinutterPort: KLAR });
+    expect(lige.sprunget.samme_koersel).toBe(0);
+    expect(lige.sendinger.some((s) => s.art === "ti_minutter")).toBe(true);
+    const halv = planlaegKoersel({ raekker: [mo], afmeldte: new Set(), sendte: new Set(), nu: dansk("2026-10-13T08:46:30.000Z"), tiMinutterPort: KLAR });
+    expect(halv.sprunget.samme_koersel).toBe(0);
+    expect(SLOT_FORSINKELSE_MARGEN_MS).toBe(60_000);
     // Og næste slot (08:57:03) er efter fristen? Nej — fristen er 08:57:00; derfor er :47:03 «send nu».
     const efter = planlaegKoersel({ raekker: [mo], afmeldte: new Set(), sendte: andreSendt([MAIL, S]), nu: dansk("2026-10-13T08:57:03.000Z"), tiMinutterPort: KLAR });
     expect(efter.sendinger.some((s) => s.art === "ti_minutter")).toBe(false);
@@ -1193,8 +1201,8 @@ describe("ti_minutter — påmindelsen lige før start, KUN webinarmotorens ræk
 
   it("SAMME_KOERSEL gælder pr. ewebinar_id — en ANDEN persons bekræftelse holder intet tilbage, og kun én af de to arter er nok", () => {
     const mo = R({ email: MAIL, ewebinar_id: MOTOR_ID, join_link: null, kalender_link: null, registreret_at: "2026-10-01T08:00:00.000Z" });
-    const ny = R({ email: "ny@x.dk", ewebinar_id: "P-00000000-0000-4000-8000-0000000000aa", join_link: null, kalender_link: null, registreret_at: "2026-10-13T08:40:00.000Z" });
-    const nu = dansk("2026-10-13T08:41:03.000Z"); // 41:03 + 10 min ≤ fristen 08:55 — et senere slot er garanteret (runde 3)
+    const ny = R({ email: "ny@x.dk", ewebinar_id: "P-00000000-0000-4000-8000-0000000000aa", join_link: null, kalender_link: null, registreret_at: "2026-10-13T08:38:00.000Z" });
+    const nu = dansk("2026-10-13T08:39:03.000Z"); // slot :39 — 39:03 + 10 + 1 min = 50:03 ≤ fristen 08:55: et senere slot er garanteret
     // Motor-personen har fået begge før; «ny» får bekræftelse + en_time nu.
     const p = planlaegKoersel({ raekker: [mo, ny], afmeldte: new Set(), sendte: andreSendt([MAIL, SESSION]), nu, tiMinutterPort: KLAR });
     expect(p.sendinger.filter((s) => s.art === "ti_minutter").map((s) => s.email)).toEqual([MAIL]);
@@ -1207,8 +1215,8 @@ describe("ti_minutter — påmindelsen lige før start, KUN webinarmotorens ræk
 
   it("SAMME_KOERSEL rører ingen eWebinar-række og ingen anden art", () => {
     expect([...SAMME_KOERSEL_ARTER]).toEqual(["bekraeftelse", "en_time"]);
-    const ew = R({ email: "ew@x.dk", registreret_at: "2026-10-13T08:40:00.000Z" });
-    const p = planlaegKoersel({ raekker: [ew], afmeldte: new Set(), sendte: new Set(), nu: dansk("2026-10-13T08:41:03.000Z"), tiMinutterPort: KLAR });
+    const ew = R({ email: "ew@x.dk", registreret_at: "2026-10-13T08:38:00.000Z" });
+    const p = planlaegKoersel({ raekker: [ew], afmeldte: new Set(), sendte: new Set(), nu: dansk("2026-10-13T08:39:03.000Z"), tiMinutterPort: KLAR });
     expect(p.sendinger.map((s) => s.art).sort()).toEqual(["bekraeftelse", "en_time"]);
     expect(p.sprunget.samme_koersel).toBe(0);
   });

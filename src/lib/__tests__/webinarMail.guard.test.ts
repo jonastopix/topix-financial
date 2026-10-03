@@ -702,7 +702,9 @@ export const tiMinutterKunMotor = (dom: string, spejl: string, cron: string, mot
     if (!u.includes("const fikAndenNu = new Set(sendinger.filter((s) => SAMME_KOERSEL_ARTER.includes(s.art)).map((s) => s.ewebinarId));")) return false;
     if (!u.includes("if (kunMotor(sendinger[n].art) && fikAndenNu.has(sendinger[n].ewebinarId) && senereSlotFoerFristen(sendinger[n])) {")) return false;
     // Runde 3: kun når et senere slot er garanteret før fristen.
-    if (!u.includes("const senereSlotFoerFristen = (s: Sending) => i.nu.getTime() + STOERSTE_HUL_MS <= Date.parse(s.planlagt) + naadeFor(s.art);")) return false;
+    if (!u.includes("const senereSlotFoerFristen = (s: Sending) => i.nu.getTime() + STOERSTE_HUL_MS + SLOT_FORSINKELSE_MARGEN_MS <= Date.parse(s.planlagt) + naadeFor(s.art);")) return false;
+    // Runde 4: margenen for et forsinket slot — ét minut.
+    if (!u.includes("export const SLOT_FORSINKELSE_MARGEN_MS = 60_000;")) return false;
     if (!foer(u, "const fikAndenNu = new Set(", "sendinger.sort((a, b) =>")) return false;
   }
   const c = udenKommentarer(cron);
@@ -908,6 +910,10 @@ describe("webinarMail.guard dom 20 — eWebinar-rækker kan ALDRIG få ti_minutt
   });
   it("MUTATION (runde 3): betingelsen «senere slot før fristen» fjernet — så kunne en ti_minutter springes over i sidste slot og tabes", () => {
     const [d, s] = begge(" && senereSlotFoerFristen(sendinger[n])) {", ") {");
+    expect(tiMinutterKunMotor(d, s, cron, motor)).toBe(false);
+  });
+  it("MUTATION (runde 4): margenen fjernet fra betingelsen", () => {
+    const [d, s] = begge(" + STOERSTE_HUL_MS + SLOT_FORSINKELSE_MARGEN_MS <= ", " + STOERSTE_HUL_MS <= ");
     expect(tiMinutterKunMotor(d, s, cron, motor)).toBe(false);
   });
   it("MUTATION (runde 2, fund 4): «samme_koersel» fjernet i det ene spejl", () => {

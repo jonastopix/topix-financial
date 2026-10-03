@@ -835,15 +835,19 @@ export function planlaegKoersel(i: {
   // en kunMotor-art («ti_minutter») over som «samme_koersel». Typisk en sen
   // tilmelding 20 min før start: bekræftelse + om en time + vi begynder på ét
   // minut. Næste slot i vinduet kan tage den (en ok-række for de andre findes da).
-  // KUN NÅR ET SENERE SLOT ER GARANTERET FØR FRISTEN (runde 3): næste slot
-  // kommer senest STOERSTE_HUL_MS efter denne kørsel, så der springes kun over, når
-  //   nu + STOERSTE_HUL_MS ≤ planlagt + naadeFor(art)   (= fristen, T − 5 min).
-  // Ellers sendes den med i samme kørsel — hellere tre mails end en tabt «vi
-  // begynder». Eksempel: session hh:02 (frist hh−1:57), kørsel hh−1:47:03 →
-  // 47:03 + 10 min = 57:03 > 57:00 → sendes nu. Session hh:00, kørsel
-  // hh−1:41:03 → 51:03 ≤ 55:00 → springes over; næste slot (:44) tager den.
+  // KUN NÅR ET SENERE SLOT ER GARANTERET FØR FRISTEN (runde 3, margen runde 4):
+  // næste slot kommer senest STOERSTE_HUL_MS efter denne kørsel — plus det, et
+  // slot kan komme for sent (SLOT_FORSINKELSE_MARGEN_MS) — så der springes kun
+  // over, når
+  //   nu + STOERSTE_HUL_MS + SLOT_FORSINKELSE_MARGEN_MS ≤ planlagt + naadeFor(art)
+  // (= fristen, T − 5 min). Ellers sendes den med i samme kørsel — hellere tre
+  // mails end en tabt «vi begynder». Eksempler (slots, ikke vilkårlige minutter):
+  //   session hh:02 (frist hh−1:57), kørsel :47:03 → 47:03 + 10 + 1 = 58:03 > 57:00
+  //     → sendes nu.
+  //   session hh:00 (frist hh−1:55), kørsel :39:03 → 39:03 + 10 + 1 = 50:03 ≤ 55:00
+  //     → springes over; næste slot (:44) tager den.
   const fikAndenNu = new Set(sendinger.filter((s) => SAMME_KOERSEL_ARTER.includes(s.art)).map((s) => s.ewebinarId));
-  const senereSlotFoerFristen = (s: Sending) => i.nu.getTime() + STOERSTE_HUL_MS <= Date.parse(s.planlagt) + naadeFor(s.art);
+  const senereSlotFoerFristen = (s: Sending) => i.nu.getTime() + STOERSTE_HUL_MS + SLOT_FORSINKELSE_MARGEN_MS <= Date.parse(s.planlagt) + naadeFor(s.art);
   for (let n = sendinger.length - 1; n >= 0; n--) {
     if (kunMotor(sendinger[n].art) && fikAndenNu.has(sendinger[n].ewebinarId) && senereSlotFoerFristen(sendinger[n])) {
       sprunget.samme_koersel++;
@@ -887,6 +891,17 @@ export const SAMME_KOERSEL_ARTER: readonly MailArt[] = ["bekraeftelse", "en_time
  * største er 10 min. Låst til den målte slotliste i webinarMailDom.test.ts.
  */
 export const STOERSTE_HUL_MS = 10 * 60_000;
+
+/**
+ * MARGENEN FOR ET FORSINKET SLOT (runde 4, LAV): pg_cron fyrer et par sekunder
+ * efter minuttet (målt i prøverne som +3 s), og en kørsel kan starte senere,
+ * hvis den forrige stadig kører eller databasen er travl. Ét minut dækker
+ * begge med god plads:
+ *   næste slot senest = nu + STOERSTE_HUL_MS (10 min) + 60 s.
+ * Bruges KUN af «samme_koersel» (senereSlotFoerFristen) — aldrig af
+ * erTabtKortNaade, hvis grænse er rådets egen (runde 2).
+ */
+export const SLOT_FORSINKELSE_MARGEN_MS = 60_000;
 
 /**
  * TABT LIGE FØR START (3/10-2026, CTO-rådets fund 1): en art med egen nåde
