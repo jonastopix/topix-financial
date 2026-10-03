@@ -19,6 +19,10 @@ import { resolve } from "node:path";
  *      leveret null og 1–1000 tegn, DROP kun af egne objekter, efter 20261003040000.
  *   6. HOOKS I TOPBLOKKEN (React #310): ingen hook efter konsollens første return;
  *      rækken har ingen hooks.
+ *   7. TJENESTEKONTOEN (CTO 3/10, LAV): svarfeltet vises aldrig for den (visSvarfelt
+ *      med erTjenestekonto fra AuthContext), mutationen afviser den før skrivningen,
+ *      og 0 rækker for den hedder «tjenestekonto»; migrationens prøve dækker
+ *      tjenestekonto → 0, medlem → 0 og andet svar → 55000.
  */
 
 const ROD = process.cwd();
@@ -234,5 +238,42 @@ describe("webinarKonsol.guard 6 — hooks i topblokken", () => {
     const f = laes(FLADE);
     expect(hooksITopblokken(f.replace("  const s = session.data ?? null;", "  const s = session.data ?? null;\n  const [x] = useState(0);"))).toBe(false);
     expect(hooksITopblokken(f.replace('  const feltId = `konsol-svar-${q.id}`;', '  const feltId = `konsol-svar-${q.id}`;\n  const [y] = useState(1);'))).toBe(false);
+  });
+});
+
+// ── 7. Tjenestekontoen ───────────────────────────────────────────────────────
+
+function tjenestekontoLaast(flade: string, hook: string, lib: string): boolean {
+  const f = udenKommentarer(flade), h = udenKommentarer(hook), l = udenKommentarer(lib);
+  if (!/const \{ erTjenestekonto \} = useAuth\(\);/.test(f)) return false;
+  if (!f.includes("kanSvare={visSvarfelt(q, erTjenestekonto)}")) return false;
+  if (!f.includes("{kanSvare && (")) return false;
+  if (/\{erUbesvaret\(q\) && \(/.test(f)) return false;
+  if (!l.includes("!erTjenestekonto && erUbesvaret(s)")) return false;
+  if (!/if \(erTjenestekonto\) return "tjenestekonto";/.test(l)) return false;
+  if (!/const \{ user, erTjenestekonto \} = useAuth\(\);/.test(h)) return false;
+  // Afvist FØR skrivningen, og 0 rækker dømmes med kontoen.
+  const afvis = h.indexOf("if (erTjenestekonto) throw");
+  const upd = h.indexOf(".update({");
+  if (afvis === -1 || upd === -1 || afvis > upd) return false;
+  return h.includes("nulRaekkerGrund((nu?.status as string | undefined) ?? null, erTjenestekonto)");
+}
+
+describe("webinarKonsol.guard 7 — tjenestekontoen", () => {
+  it("svarfeltet skjules, mutationen afviser, grunden hedder «tjenestekonto»", () => {
+    expect(tjenestekontoLaast(laes(FLADE), laes(HOOK), laes(LIB))).toBe(true);
+  });
+  it("migrationens prøve dækker tjenestekonto, medlem og andet svar — med forventet udfald", () => {
+    const m = laes(MIG);
+    expect(m).toMatch(/-- a\) tjenestekonto[\s\S]*?-- → UPDATE 0/);
+    expect(m).toMatch(/-- b\) medlem[\s\S]*?-- → UPDATE 0/);
+    expect(m).toMatch(/-- d\) andet svar på samme spørgsmål:[\s\S]*?-- → FEJL 55000/);
+  });
+  it("MUTATION: svarfelt uden kontoen, ingen afvisning og en grund uden kontoen fanges", () => {
+    const f = laes(FLADE), h = laes(HOOK), l = laes(LIB);
+    expect(tjenestekontoLaast(f.replace("{kanSvare && (", "{erUbesvaret(q) && ("), h, l)).toBe(false);
+    expect(tjenestekontoLaast(f, h.replace(/\n\s*if \(erTjenestekonto\) throw[^\n]*/, ""), l)).toBe(false);
+    expect(tjenestekontoLaast(f, h, l.replace('if (erTjenestekonto) return "tjenestekonto";', ""))).toBe(false);
+    expect(tjenestekontoLaast(f, h, l.replace("!erTjenestekonto && erUbesvaret(s)", "erUbesvaret(s)"))).toBe(false);
   });
 });

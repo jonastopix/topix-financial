@@ -12,6 +12,7 @@ import {
   nulRaekkerGrund,
   posTekst,
   sorterKoe,
+  visSvarfelt,
 } from "@/lib/webinarMotorAdmin/konsol";
 import { I_RUMMET_SEK } from "@/lib/webinarMotor/puls";
 import { positionDom } from "@/lib/webinarMotor/ur";
@@ -30,6 +31,14 @@ describe("konsol — sortering", () => {
     const ind = [{ id: "x", stillet_at: "2026-11-03T10:00:00Z" }, { id: "y", stillet_at: "2026-11-03T10:01:00Z" }];
     sorterKoe(ind);
     expect(ind[0].id).toBe("x");
+  });
+});
+
+describe("konsol — svarfeltet", () => {
+  it("kun ubesvaret og aldrig for en tjenestekonto", () => {
+    expect(visSvarfelt({ status: "ny" }, false)).toBe(true);
+    expect(visSvarfelt({ status: "ny" }, true)).toBe(false);
+    expect(visSvarfelt({ status: "besvaret" }, false)).toBe(false);
   });
 });
 
@@ -93,5 +102,8 @@ describe("konsol — fejl og 0 rækker", () => {
     expect(nulRaekkerGrund("ny")).toBe("kraever_migration");
     expect(nulRaekkerGrund("besvaret")).toBe("besvaret_imens");
     expect(nulRaekkerGrund(null)).toBe("forsvundet");
+  });
+  it("en tjenestekonto er altid grunden «tjenestekonto»", () => {
+    for (const st of ["ny", "besvaret", null]) expect(nulRaekkerGrund(st, true)).toBe("tjenestekonto");
   });
 });

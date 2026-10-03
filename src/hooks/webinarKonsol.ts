@@ -154,13 +154,14 @@ export function useSpoergsmaalKoe(sessionId: string | undefined) {
  * sig hvorfor (RLS før migrationen, eller en anden svarede imens).
  */
 export function useSvarSpoergsmaal(sessionId: string | undefined) {
-  const { user } = useAuth();
+  const { user, erTjenestekonto } = useAuth();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (a: { id: string; svar: string }): Promise<void> => {
       const dom = laesSvar(a.svar);
       if (dom.ok === false) throw new Error(SVAR_FEJL_TEKST[dom.fejl]);
       if (!user) throw new Error("Du er ikke logget ind.");
+      if (erTjenestekonto) throw new Error(NUL_RAEKKER_TEKST[nulRaekkerGrund(null, true)]);
       const { data, error } = await tabel("webinar_spoergsmaal")
         .update({ status: "besvaret", svar_tekst: dom.svar, svaret_af: user.id })
         .eq("id", a.id)
@@ -169,7 +170,7 @@ export function useSvarSpoergsmaal(sessionId: string | undefined) {
       if (error) throw new KonsolFejl("svaret", error);
       if ((data ?? []).length === 0) {
         const { data: nu } = await tabel("webinar_spoergsmaal").select("status").eq("id", a.id).maybeSingle();
-        throw new Error(NUL_RAEKKER_TEKST[nulRaekkerGrund((nu?.status as string | undefined) ?? null)]);
+        throw new Error(NUL_RAEKKER_TEKST[nulRaekkerGrund((nu?.status as string | undefined) ?? null, erTjenestekonto)]);
       }
     },
     onSettled: () => qc.invalidateQueries({ queryKey: [...KONSOL_KEY, "koe", sessionId] }),

@@ -66,13 +66,31 @@
 -- Udefra, FØR Update: konsollen læser kun eksisterende kolonner; beviset er, at et svar
 --   gemmes (fladen siger ellers «kræver migrationen»).
 --
--- PRØVE i én transaktion (rul tilbage), når der findes et spørgsmål:
+-- PRØVE i én transaktion (rul tilbage), når der findes et spørgsmål med status 'ny' og leveret null.
+-- Et fejlende UPDATE afbryder transaktionen — derfor står hvert forventet nej bag en SAVEPOINT,
+-- og «0 rækker» læses i SQL editorens «UPDATE 0». Skift bruger med set_config (tredje argument
+-- true = kun i transaktionen). Forventet udfald står efter hver linje:
 --   begin;
 --   set local role authenticated;
+--   -- a) tjenestekonto (en user_id i public.tjenestekonti, med advisor-rolle):
+--   select set_config('request.jwt.claims', json_build_object('sub', '<tjenestekontoens uuid>', 'role', 'authenticated')::text, true);
+--   update public.webinar_spoergsmaal set status = 'besvaret', svar_tekst = 'Hej', svaret_af = '<tjenestekontoens uuid>' where id = '<id>';  -- → UPDATE 0 (RLS: politikken udelukker tjenestekonti)
+--   -- b) medlem (ingen advisor-rolle):
+--   select set_config('request.jwt.claims', json_build_object('sub', '<medlemmets uuid>', 'role', 'authenticated')::text, true);
+--   update public.webinar_spoergsmaal set status = 'besvaret', svar_tekst = 'Hej', svaret_af = '<medlemmets uuid>' where id = '<id>';      -- → UPDATE 0 (RLS: ingen politik siger ja)
+--   -- c) rådgiveren:
 --   select set_config('request.jwt.claims', json_build_object('sub', '<rådgiverens uuid>', 'role', 'authenticated')::text, true);
---   update public.webinar_spoergsmaal set tekst = 'x' where id = '<id>';                -- → 42501 (seerens felt)
---   update public.webinar_spoergsmaal set svaret_af = gen_random_uuid(), status = 'besvaret', svar_tekst = 'Hej' where id = '<id>'; -- → 42501
---   update public.webinar_spoergsmaal set status = 'besvaret', svar_tekst = 'Hej', svaret_af = '<rådgiverens uuid>' where id = '<id>' returning svaret_at; -- → 1 række, svaret_at = now()
+--   savepoint p1;
+--   update public.webinar_spoergsmaal set tekst = 'x' where id = '<id>';                                                                    -- → FEJL 42501 (seerens felt)
+--   rollback to savepoint p1;
+--   savepoint p2;
+--   update public.webinar_spoergsmaal set status = 'besvaret', svar_tekst = 'Hej', svaret_af = gen_random_uuid() where id = '<id>';         -- → FEJL 42501 (svaret_af ≠ dig)
+--   rollback to savepoint p2;
+--   update public.webinar_spoergsmaal set status = 'besvaret', svar_tekst = '  Hej  ', svaret_af = '<rådgiverens uuid>' where id = '<id>' returning svar_tekst, svaret_at; -- → 1 række, svar_tekst = 'Hej', svaret_at = now()
+--   -- d) andet svar på samme spørgsmål:
+--   savepoint p3;
+--   update public.webinar_spoergsmaal set status = 'besvaret', svar_tekst = 'Rettet', svaret_af = '<rådgiverens uuid>' where id = '<id>';   -- → FEJL 55000 (allerede besvaret)
+--   rollback to savepoint p3;
 --   rollback;
 --
 -- ROLLBACK:

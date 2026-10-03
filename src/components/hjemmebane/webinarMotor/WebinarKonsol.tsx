@@ -4,6 +4,7 @@ import { HbSection } from "@/components/hjemmebane/HbSection";
 import { HbCard } from "@/components/hjemmebane/HbCard";
 import { HbButton } from "@/components/hjemmebane/HbButton";
 import { HbTextarea } from "@/components/hjemmebane/admin/HbField";
+import { useAuth } from "@/hooks/useAuth";
 import { useIRummet, useKonsolSession, useServerForskydning, useSpoergsmaalKoe, useSvarSpoergsmaal } from "@/hooks/webinarKonsol";
 import {
   erUbesvaret,
@@ -16,6 +17,7 @@ import {
   posTekst,
   RUM_ORD,
   sorterKoe,
+  visSvarfelt,
 } from "@/lib/webinarMotorAdmin/konsol";
 import { tidskode } from "@/lib/webinarMotorAdmin/opsaetning";
 import { sessionTekst } from "@/lib/webinarRum/links";
@@ -30,6 +32,7 @@ import { sessionTekst } from "@/lib/webinarRum/links";
 const MIGRATION_TEKST = "Konsollen virker, når migrationen er kørt.";
 
 export const WebinarKonsol = ({ sessionId }: { sessionId: string | undefined }) => {
+  const { erTjenestekonto } = useAuth();
   const session = useKonsolSession(sessionId);
   const ur = useServerForskydning();
   const [nu, setNu] = useState(() => Date.now());
@@ -116,7 +119,7 @@ export const WebinarKonsol = ({ sessionId }: { sessionId: string | undefined }) 
       </HbSection>
 
       <HbSection eyebrow="Spørgsmål" title={ubesvarede > 0 ? `${ubesvarede} ubesvarede` : "Spørgsmålskøen"} hairline className="mt-10">
-        <p className="mb-4 text-xs text-hb-ink-soft">Opdateres hvert 10. sekund. Svaret vises for seeren i rummet ved næste puls — der sendes intet på mail.</p>
+        <p className="mb-4 text-xs text-hb-ink-soft">Opdateres hvert 10. sekund. Svaret vises for seeren ved næste puls, hvis seeren stadig er i rummet — der sendes intet på mail.</p>
         {koe.isPending ? (
           <div className="h-16 animate-pulse rounded-hb bg-hb-line/60" />
         ) : koe.isError ? (
@@ -129,6 +132,7 @@ export const WebinarKonsol = ({ sessionId }: { sessionId: string | undefined }) 
               <SpoergsmaalRaekke
                 key={q.id}
                 q={q}
+                kanSvare={visSvarfelt(q, erTjenestekonto)}
                 udkast={udkast[q.id] ?? ""}
                 fejl={fejl[q.id] ?? ""}
                 travl={svar.isPending && svar.variables?.id === q.id}
@@ -145,6 +149,8 @@ export const WebinarKonsol = ({ sessionId }: { sessionId: string | undefined }) 
 
 interface RaekkeProps {
   q: KonsolSpoergsmaal;
+  /** visSvarfelt: ubesvaret OG ikke en tjenestekonto. */
+  kanSvare: boolean;
   udkast: string;
   fejl: string;
   travl: boolean;
@@ -153,7 +159,7 @@ interface RaekkeProps {
 }
 
 /** Ét spørgsmål. Ingen hooks — al tilstand bor i konsollen. */
-function SpoergsmaalRaekke({ q, udkast, fejl, travl, onUdkast, onSend }: RaekkeProps) {
+function SpoergsmaalRaekke({ q, kanSvare, udkast, fejl, travl, onUdkast, onSend }: RaekkeProps) {
   const feltId = `konsol-svar-${q.id}`;
   return (
     <li className="border-t border-hb-line py-4 last:border-b" data-konsol-spoergsmaal={q.status}>
@@ -164,7 +170,7 @@ function SpoergsmaalRaekke({ q, udkast, fejl, travl, onUdkast, onSend }: RaekkeP
       {q.svar_tekst && (
         <p className="mt-2 whitespace-pre-wrap break-words border-l-2 border-hb-line pl-3 text-sm text-hb-ink-soft">{q.svar_tekst}</p>
       )}
-      {erUbesvaret(q) && (
+      {kanSvare && (
         <div className="mt-3">
           <label htmlFor={feltId} className="sr-only">Dit svar</label>
           <HbTextarea id={feltId} rows={2} maxLength={KONSOL_SVAR_MAKS} value={udkast} onChange={(e) => onUdkast(e.target.value)} placeholder="Dit svar" />

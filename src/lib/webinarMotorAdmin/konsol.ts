@@ -56,6 +56,9 @@ export function sorterKoe<T extends { id: string; stillet_at: string }>(liste: r
 /** Ubesvaret = status «ny». Kun et ubesvaret spørgsmål får et svarfelt (ét svar pr. spørgsmål). */
 export const erUbesvaret = (s: Pick<KonsolSpoergsmaal, "status">): boolean => s.status === "ny";
 
+/** Svarfeltet vises KUN for et ubesvaret spørgsmål og ALDRIG for en tjenestekonto (den ser, den svarer ikke — RLS siger det samme). */
+export const visSvarfelt = (s: Pick<KonsolSpoergsmaal, "status">, erTjenestekonto: boolean): boolean => !erTjenestekonto && erUbesvaret(s);
+
 export type SvarDom = { ok: true; svar: string } | { ok: false; fejl: "tom" | "for_lang" };
 
 /** Svarets validering: trim, 1–1000 tegn. */
@@ -116,15 +119,19 @@ export function konsolFejlArt(fejl: { code?: string | null; message?: string | n
 }
 
 /**
- * Efter en UPDATE med 0 rækker: læs rækken igen. Står den stadig «ny», nægtede
- * RLS (migration 20261003050000 er ikke kørt) — ellers har en anden svaret imens.
+ * Efter en UPDATE med 0 rækker: læs rækken igen. En tjenestekonto har aldrig
+ * UPDATE (politikken udelukker den) — det er grunden, uanset status. Står rækken
+ * ellers stadig «ny», nægtede RLS (migration 20261003050000 er ikke kørt) — ellers
+ * har en anden svaret imens.
  */
-export function nulRaekkerGrund(statusNu: string | null): "kraever_migration" | "besvaret_imens" | "forsvundet" {
+export function nulRaekkerGrund(statusNu: string | null, erTjenestekonto = false): "tjenestekonto" | "kraever_migration" | "besvaret_imens" | "forsvundet" {
+  if (erTjenestekonto) return "tjenestekonto";
   if (statusNu === null) return "forsvundet";
   return statusNu === "ny" ? "kraever_migration" : "besvaret_imens";
 }
 
 export const NUL_RAEKKER_TEKST: Record<ReturnType<typeof nulRaekkerGrund>, string> = {
+  tjenestekonto: "En tjenestekonto kan se konsollen, men ikke svare.",
   kraever_migration: "Svaret blev ikke gemt: konsollen kan først svare, når migrationen 20261003050000 er kørt.",
   besvaret_imens: "En anden har svaret på spørgsmålet imens.",
   forsvundet: "Spørgsmålet findes ikke længere.",
