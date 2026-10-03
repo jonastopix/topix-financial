@@ -12124,7 +12124,7 @@ Værn: `ringMigOp.guard` dom 8 (indsend), 9 (RLS), 10 (IP-hash); `opkaldDom.test
 
 ### Pakke B skive 1 — udrulning (3/10, gren `fix/ai-skema-grupper`; kortet `m17-ai-skema-grupper`)
 
-**STATUS 3/10 aften: MÅ IKKE MERGES endnu — CTO-fund 7 er STOPPET og venter på Jonas (se nedenfor).** CTO'ens dom på `3fd8e91b` var «ret først»; rettelserne (fund 2, 3, 5, 9, 10) ligger på grenen.
+**STATUS 3/10 kl. ca. 20:45: merges nu.** Fund 7 er afgjort: Jonas sagde ja 20:19, og #1275 er merget, så de danske flader kender nøglerne. CTO'en dømte runde 1 «ret først» på `3fd8e91b`. Runde 2 havde ét fund i beskrivelsen af fremmed arbejde, som er rettet sammen med summen af personalenøglerne i dobbelttællings-signalet. Udrulningen af `extract-financial-data` kræver Jonas' ja.
 
 **Hvad skiven er:** AI-skemaet (`key_figures` i tool-definitionen i `extract-financial-data`) fik fem felter — `pensioner_sociale`, `oevrige_personale`, `autodrift`, `oevrige_omkostninger` (andre eksterne) og `ekstraordinaere_poster` — med en beskrivelse pr. felt (danske regnskabslinjer, fortegn, «udelad feltet» uden gruppen) og et afsnit i prompten (TRIN 3 B). Skemaet bor i `_shared/aiSkema.ts`. Ingen nye nøgler: felterne er husets eksisterende kilde-id'er og mappes af `canonicalEngine.KF_TO_CANONICAL` (nu eksporteret):
 
