@@ -14,6 +14,8 @@
  *   5. STRIKS body kender feltet, og klienten sender det kun med «opret».
  *   6. Koblingen skriver KUN webinar_tilmelding_id og KUN når den er null (ingen egen
  *      migration: kolonnen står i skive 1's 20261003010000 §5).
+ *   7. Sentry: `#wt=` fjernes fra enhver streng, og `/w/<slug>?t=` + ics-linket renses
+ *      (src/lib/sentryRens.ts; CTO 3/10).
  */
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
@@ -28,6 +30,7 @@ import {
   WEBINAR_KOBLING_UDFALD,
 } from "../../../supabase/functions/_shared/ansoegningWebinarKobling";
 import { landingUdenToken as landingKlient, laesAnnoncespor } from "@/lib/ansoegning/skema";
+import { rensUrl } from "@/lib/sentryRens";
 import { landingUdenToken as landingServer } from "../../../supabase/functions/_shared/ansoegningSkema";
 
 const ROD = process.cwd();
@@ -363,5 +366,53 @@ describe("webinarAnsoegningKobling.guard 6 — kun webinar_tilmelding_id, kun n�
     const m = laes(GEM).replace(".insert({ kilde, kilde_raa: kildeSpor, ip_hash: ipHash, ...del.svar })", ".insert({ kilde, kilde_raa: kildeSpor, ip_hash: ipHash, webinar_tilmelding_id: null, ...del.svar })");
     expect(m).not.toBe(laes(GEM));
     expect(skriverKunKolonnenNaarNull(laes(KOBLING), m)).toBe(false);
+  });
+});
+
+// ── 7. Sentry: tokenet forlader aldrig browseren (CTO 3/10, «RET FØRST» (1)) ──
+
+/**
+ * src/lib/sentryRens.ts: `#wt=…` fjernes fra ENHVER streng, FØR rensUrl springer
+ * strenge uden «?» over (et fragment på en sti uden query har intet «?»), og
+ * `/w/<slug>` + ics-linket (`/functions/v1/webinar-rum`) er token-stier.
+ */
+export function sentryRenserWebinarTokens(kilde: string): boolean {
+  const k = udenKommentarer(kilde);
+  if (!k.includes(`export const FRAGMENT_MOENSTER = /#wt=[^\\s"'<>&]*/g;`)) return false;
+  const fn = k.slice(k.indexOf("export function rensUrl("));
+  const iFragment = fn.indexOf('s = s.replace(FRAGMENT_MOENSTER, "")');
+  const iSpring = fn.indexOf('if (s.indexOf("?") === -1) return s;');
+  if (iFragment < 0 || iSpring < 0 || iFragment > iSpring) return false;
+  const moenster = /const MOENSTER = ([^\n]*);/.exec(k)?.[1] ?? "";
+  const sti = /const STI_MOENSTER = ([^\n]*);/.exec(k)?.[1] ?? "";
+  return [moenster, sti].every((m) => m.includes("w\\/[^/?#") && m.includes("functions\\/v1\\/webinar-rum"));
+}
+
+describe("webinarAnsoegningKobling.guard 7 — Sentry renser #wt= og /w/<slug>?t=", () => {
+  const SENTRY = "src/lib/sentryRens.ts";
+  const LINJE = '  if (s.indexOf("#wt=") !== -1) s = s.replace(FRAGMENT_MOENSTER, "");\n';
+  const SPRING = '  if (s.indexOf("?") === -1) return s;\n';
+  it("fragmentet fjernes overalt og først; /w/ og ics-linket er token-stier", () => {
+    expect(sentryRenserWebinarTokens(laes(SENTRY))).toBe(true);
+  });
+  it("adfærden: intet token efter rensen", () => {
+    expect(rensUrl(`/hvadsomhelst#wt=${TOKEN}`)).toBe("/hvadsomhelst");
+    expect(rensUrl(`/ansoeg?kilde=webinar#wt=${TOKEN}`)).toBe("/ansoeg?kilde=webinar");
+    expect(rensUrl(`/w/boardroom?t=${TOKEN}`)).toBe("/w/boardroom");
+  });
+  it("MUTATION: uden fragment-rensen fanges", () => {
+    const m = laes(SENTRY).replace(LINJE, "");
+    expect(m).not.toBe(laes(SENTRY));
+    expect(sentryRenserWebinarTokens(m)).toBe(false);
+  });
+  it("MUTATION: fragment-rensen efter «?»-springet fanges", () => {
+    const m = laes(SENTRY).replace(LINJE, "").replace(SPRING, SPRING + LINJE);
+    expect(m).not.toBe(laes(SENTRY));
+    expect(sentryRenserWebinarTokens(m)).toBe(false);
+  });
+  it("MUTATION: /w/ fjernet fra token-stierne fanges", () => {
+    const m = laes(SENTRY).split(`|w\\/[^/?#\\s"'<>]+(?:\\/[a-z]+)?`).join("");
+    expect(m).not.toBe(laes(SENTRY));
+    expect(sentryRenserWebinarTokens(m)).toBe(false);
   });
 });

@@ -45,6 +45,31 @@ describe("sentryRens — hele hændelsen", () => {
     expect(rensSentryHaendelse(null)).toBe(null);
   });
 
+  it("webinarmotoren (3/10): #wt= overalt, /w/<slug>?t= og ics-linket — navigations-breadcrumb og request.url", () => {
+    const T = "AAAAAAAAAAAAAAAAAAAAAAAAAAA.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+    const h = {
+      transaction: "/w/:slug",
+      request: { url: `https://app.theboardroom.dk/w/boardroom?t=${T}&utm_source=mail`, query_string: `t=${T}&utm_source=mail` },
+      breadcrumbs: [
+        { category: "navigation", data: { from: `/ansoeg?kilde=webinar#wt=${T}`, to: "/ansoeg?kilde=webinar" } },
+        { category: "navigation", data: { from: `/w/boardroom?t=${T}`, to: "/w/boardroom" } },
+        { category: "navigation", data: { from: `/w/boardroom/kalender?t=${T}`, to: `https://x.supabase.co/functions/v1/webinar-rum?handling=ics&t=${T}` } },
+      ],
+      message: `fejl på https://app.theboardroom.dk/hvadsomhelst#wt=${T}`,
+    };
+    const ud = rensSentryHaendelse(h);
+    expect(JSON.stringify(ud)).not.toContain(T);
+    expect(ud.request.url).toBe("https://app.theboardroom.dk/w/boardroom?utm_source=mail");
+    expect("query_string" in ud.request).toBe(false);
+    expect(ud.breadcrumbs[0].data.from).toBe("/ansoeg?kilde=webinar");
+    expect(ud.breadcrumbs[1].data.from).toBe("/w/boardroom");
+    expect(ud.breadcrumbs[2].data.from).toBe("/w/boardroom/kalender");
+    expect(ud.breadcrumbs[2].data.to).toBe("https://x.supabase.co/functions/v1/webinar-rum?handling=ics");
+    // Andet røres ikke: /webinar er ikke /w/, og et andet fragment står.
+    expect(rensUrl("/webinar?t=x")).toBe("/webinar?t=x");
+    expect(rensUrl("/side#top")).toBe("/side#top");
+  });
+
   it("main.tsx kobler rensen på både beforeSend og beforeSendTransaction", () => {
     const m = readFileSync(resolve(process.cwd(), "src/main.tsx"), "utf8");
     expect(m).toContain("beforeSend: (haendelse) => rensSentryHaendelse(haendelse),");

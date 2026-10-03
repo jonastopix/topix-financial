@@ -160,7 +160,8 @@ describe("webinarRum.guard 5 — offentlige ruter i ingen menu", () => {
     expect(app).toContain('<Route path="/w/:slug/kalender" element={<WebinarSide visning="kalender" />} />');
   });
   it("intet andet sted i src/ linker til /w/", () => {
-    const tilladt = new Set(["src/App.tsx", "src/pages/WebinarSide.tsx", "src/lib/webinarMotor/token.ts"]);
+    // sentryRens.ts (3/10) nævner stien for at RENSE tokenet ud af Sentry — den linker ikke.
+    const tilladt = new Set(["src/App.tsx", "src/pages/WebinarSide.tsx", "src/lib/webinarMotor/token.ts", "src/lib/sentryRens.ts"]);
     const linkere = alleFiler("src", /\.tsx?$/)
       .filter((f) => !tilladt.has(f) && !f.includes("__tests__"))
       .filter((f) => /["'`]\/w\//.test(utenKommentarer(laes(f))));
