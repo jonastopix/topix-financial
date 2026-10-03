@@ -29,6 +29,32 @@ import { agentProgressRaekke, F0_MARKOER } from "../_shared/agentIndholdsFremdri
 const DEPLOY_STAMP = "run-company-agent v8 f0 og ordet mål (2026-10-03)";
 const MODEL = "google/gemini-2.5-flash";
 
+// SVARENE (v8, CTO 3/10): HVERT svar går gennem svarJson, som lægger markøren
+// `f0` i kroppen — 200, 400, 401, 403, company_not_found og catch. Beviset for
+// udrulningen kan derfor læses af ethvert svar (også ?meta=version, der svarer
+// før auth). Værnet agentV8.guard dom 4 kræver, at Response-konstruktøren KUN
+// kaldes her. Preflight (body null) har ingen krop at bære markøren i.
+function svarJson(body: Record<string, unknown> | null, status = 200): Response {
+  if (body === null) return new Response(null, { status, headers: corsHeaders });
+  return new Response(
+    JSON.stringify({ ...body, f0: F0_MARKOER }),
+    { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+  );
+}
+
+/** authenticateUser's afvisning (401 m.fl.) bæres videre med samme status og markøren. */
+async function svarFraAuth(afvist: Response): Promise<Response> {
+  const tekst = await afvist.text();
+  let body: Record<string, unknown>;
+  try {
+    const tolket = JSON.parse(tekst);
+    body = tolket && typeof tolket === "object" && !Array.isArray(tolket) ? tolket : { error: tekst };
+  } catch {
+    body = { error: tekst };
+  }
+  return svarJson(body, afvist.status);
+}
+
 // ARBEJDSGANGS-MINIMUMMET I PROMPTEN — hvorfor det findes: målt mod prod
 // 2026-08-25 (agent_runs, tør kørsel) skrev agenten efter 2 iterationer og
 // 5 af 10 værktøjer — get_handout_levers, get_pulse_checkins,
@@ -953,14 +979,11 @@ async function hentIndholdsbibliotek(adminClient: any): Promise<string> {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return svarJson(null);
   }
 
   if (new URL(req.url).searchParams.get("meta") === "version") {
-    return new Response(
-      JSON.stringify({ stamp: DEPLOY_STAMP, f0: F0_MARKOER, now: new Date().toISOString() }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return svarJson({ stamp: DEPLOY_STAMP, now: new Date().toISOString() }, 200);
   }
 
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -977,7 +1000,7 @@ Deno.serve(async (req) => {
   } else {
     // User-triggered call — validate JWT
     const auth = await authenticateUser(req);
-    if (auth instanceof Response) return auth;
+    if (auth instanceof Response) return await svarFraAuth(auth);
     callerClient = auth.callerClient;
     callerId = auth.callerId;
   }
@@ -1017,33 +1040,21 @@ Deno.serve(async (req) => {
     "company_review",
   ];
   if (!KNOWN_TRIGGERS.includes(trigger)) {
-    return new Response(
-      JSON.stringify({ ok: false, error: `Unknown trigger '${trigger}' — must be one of: ${KNOWN_TRIGGERS.join(", ")}` }),
-      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return svarJson({ ok: false, error: `Unknown trigger '${trigger}' — must be one of: ${KNOWN_TRIGGERS.join(", ")}` }, 400);
   }
 
   // period_key er påkrævet for alle triggere UNDTAGEN company_review, som
   // selv finder nyeste periode med tal (opslag efter adminClient nedenfor).
   if (!company_id || (!period_key && trigger !== "company_review")) {
-    return new Response(
-      JSON.stringify({ ok: false, error: "Missing required fields" }),
-      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return svarJson({ ok: false, error: "Missing required fields" }, 400);
   }
 
   if (!UUID_RE.test(company_id)) {
-    return new Response(
-      JSON.stringify({ ok: false, error: "Invalid company_id (must be UUID)" }),
-      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return svarJson({ ok: false, error: "Invalid company_id (must be UUID)" }, 400);
   }
 
   if (period_key && !PERIOD_RE.test(period_key)) {
-    return new Response(
-      JSON.stringify({ ok: false, error: "Invalid period_key (must be YYYY-MM)" }),
-      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return svarJson({ ok: false, error: "Invalid period_key (must be YYYY-MM)" }, 400);
   }
 
   // Agenten poster ALDRIG uopfordret i founderens chat.
@@ -1095,10 +1106,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (!accessCheck) {
-      return new Response(
-        JSON.stringify({ error: "Forbidden" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return svarJson({ error: "Forbidden" }, 403);
     }
 
     // LIVE-porten (30/9-2026, sikkerhedsanalysen fund 9, _shared/agentLiveAdgang.ts):
@@ -1109,10 +1117,7 @@ Deno.serve(async (req) => {
       const { data: erRaadgiver } = await callerClient.rpc("has_role", { _user_id: callerId, _role: "advisor" });
       if (!maaKoereLive({ dryRun, isServiceRole, isAdvisor: erRaadgiver === true, trigger })) {
         console.warn(`[run-company-agent] denied live: caller=${callerId} trigger=${trigger} company=${company_id}`);
-        return new Response(
-          JSON.stringify({ ok: false, error: "live_kraever_raadgiver" }),
-          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return svarJson({ ok: false, error: "live_kraever_raadgiver" }, 403);
       }
     }
   }
@@ -1134,10 +1139,7 @@ Deno.serve(async (req) => {
 
     if (companyErr || !companyData) {
       console.error("Company lookup failed", companyErr);
-      return new Response(
-        JSON.stringify({ ok: false, error: "company_not_found" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return svarJson({ ok: false, error: "company_not_found" }, 200);
     }
 
     // Fetch founder's first name
@@ -1457,19 +1459,15 @@ ${trigger === "pulse_submitted"
     }
 
     if (dryRun && !runId) {
-      return new Response(
-        JSON.stringify({
-          ok: false,
-          dry_run: true,
-          run_id: null,
-          iterations,
-          proposals: proposals.length,
-          annoncerede_vaerktoejer: annoncerede, // beviset for udrulningen (30/9, design §9)
-          f0: F0_MARKOER, // v8-beviset (3/10): kun v8 svarer med feltet
-          error: `run_log_failed: ${runLogError} — tør-kørslens forslag er IKKE gemt (er agent_runs-migrationen kørt i Lovable?)`,
-        }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return svarJson({
+        ok: false,
+        dry_run: true,
+        run_id: null,
+        iterations,
+        proposals: proposals.length,
+        annoncerede_vaerktoejer: annoncerede, // beviset for udrulningen (30/9, design §9)
+        error: `run_log_failed: ${runLogError} — tør-kørslens forslag er IKKE gemt (er agent_runs-migrationen kørt i Lovable?)`,
+      }, 200);
     }
 
     // Godkendelseslaget (design §7): hvert opsnappet forslag spejles som
@@ -1492,19 +1490,15 @@ ${trigger === "pulse_submitted"
         .insert(proposalRows);
       if (propErr) {
         console.error("[run-company-agent] agent_proposals insert fejlede:", propErr.message);
-        return new Response(
-          JSON.stringify({
-            ok: false,
-            dry_run: dryRun,
-            run_id: runId,
-            iterations,
-            proposals: proposals.length,
-            annoncerede_vaerktoejer: annoncerede, // beviset for udrulningen (30/9, design §9)
-            f0: F0_MARKOER, // v8-beviset (3/10): kun v8 svarer med feltet
-            error: `proposals_log_failed: ${propErr.message} — kørslen er logget (agent_runs), men forslagene er IKKE oprettet som beslutningsrækker (er agent_proposals-migrationen kørt i Lovable?)`,
-          }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return svarJson({
+          ok: false,
+          dry_run: dryRun,
+          run_id: runId,
+          iterations,
+          proposals: proposals.length,
+          annoncerede_vaerktoejer: annoncerede, // beviset for udrulningen (30/9, design §9)
+          error: `proposals_log_failed: ${propErr.message} — kørslen er logget (agent_runs), men forslagene er IKKE oprettet som beslutningsrækker (er agent_proposals-migrationen kørt i Lovable?)`,
+        }, 200);
       }
     }
 
@@ -1513,21 +1507,17 @@ ${trigger === "pulse_submitted"
     // medlemsrettet fokus). ok:false her betyder "koerslen producerede
     // intet" — laes den ikke automatisk som en fejl i agenten.
     if (!producedOutput) {
-      return new Response(
-        JSON.stringify({
-          ok: false,
-          done,
-          iterations,
-          dry_run: dryRun,
-          run_id: runId,
-          proposals: proposals.length,
-          annoncerede_vaerktoejer: annoncerede, // beviset for udrulningen (30/9, design §9)
-          f0: F0_MARKOER, // v8-beviset (3/10): kun v8 svarer med feltet
-          error: lastError || "Agent fuldførte uden at producere output (weekly focus, handlingsopgave eller chat-besked)",
-          diagnostics: { stop_reason: stopReasonFinal, produced_output: false },
-        }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return svarJson({
+        ok: false,
+        done,
+        iterations,
+        dry_run: dryRun,
+        run_id: runId,
+        proposals: proposals.length,
+        annoncerede_vaerktoejer: annoncerede, // beviset for udrulningen (30/9, design §9)
+        error: lastError || "Agent fuldførte uden at producere output (weekly focus, handlingsopgave eller chat-besked)",
+        diagnostics: { stop_reason: stopReasonFinal, produced_output: false },
+      }, 200);
     }
 
     // Mark onboarding completed if this was an onboarding trigger
@@ -1538,26 +1528,19 @@ ${trigger === "pulse_submitted"
         .eq("id", company_id);
     }
 
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        iterations,
-        done,
-        produced_output: true,
-        message_written: messageWritten,
-        dry_run: dryRun,
-        run_id: runId,
-        proposals: proposals.length,
-        annoncerede_vaerktoejer: annoncerede, // beviset for udrulningen (30/9, design §9)
-        f0: F0_MARKOER, // v8-beviset (3/10): kun v8 svarer med feltet
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return svarJson({
+      ok: true,
+      iterations,
+      done,
+      produced_output: true,
+      message_written: messageWritten,
+      dry_run: dryRun,
+      run_id: runId,
+      proposals: proposals.length,
+      annoncerede_vaerktoejer: annoncerede, // beviset for udrulningen (30/9, design §9)
+    }, 200);
   } catch (err) {
     console.error("run-company-agent error:", err);
-    return new Response(
-      JSON.stringify({ ok: false, error: err instanceof Error ? err.message : "Unknown error" }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return svarJson({ ok: false, error: err instanceof Error ? err.message : "Unknown error" }, 200);
   }
 });

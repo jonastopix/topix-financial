@@ -102,7 +102,8 @@ export const agentLivePort = (raa: string): boolean => {
     foer(k, "if (!dryRun) {", AGENT_ADMIN) &&
     blok.includes('callerClient.rpc("has_role", { _user_id: callerId, _role: "advisor" })') &&
     blok.includes("if (!maaKoereLive({ dryRun, isServiceRole, isAdvisor: erRaadgiver === true, trigger })) {") &&
-    blok.includes("status: 403")
+    // v8 (3/10): alle svar går gennem svarJson (agentV8.guard dom 4) — afvisningen er 403 dér.
+    blok.includes('return svarJson({ ok: false, error: "live_kraever_raadgiver" }, 403);')
   );
 };
 

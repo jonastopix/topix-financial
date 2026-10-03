@@ -15,7 +15,11 @@ import { resolve } from "node:path";
  * Dom 3 — F0: get_member_content_progress henter markeret_at og dømmer gennem
  *   agentProgressRaekke (husets itemProgressState); intet rå
  *   `r.acknowledged_at ?` som tilstand.
- * Dom 4 — BEVISET: DEPLOY_STAMP er v8, og hvert svar bærer f0-markøren.
+ * Dom 4 — BEVISET: DEPLOY_STAMP er v8, og hvert svar bærer f0-markøren —
+ *   STEDBUNDET (CTO 3/10): `new Response(` står KUN i hjælperen svarJson, som
+ *   lægger markøren i kroppen; authenticateUser's afvisning går gennem
+ *   svarFraAuth. Et nyt svar uden om hjælperen fælder værnet, uanset hvor
+ *   mange markører der står andre steder.
  */
 
 const STI = "supabase/functions/run-company-agent/index.ts";
@@ -36,6 +40,20 @@ export function forbudteOrd(tekst: string): string[] {
     .replace(/\.from\("milestones"\)/g, " ") // tabellen
     .split(ORD_REGEL).join(" ");
   return udenIdentifikatorer.match(/milest\w*|milepæl\w*|milepael\w*/gi) ?? [];
+}
+
+/** Linjenumre med `new Response(` uden for svarJson-hjælperen (dom 4). */
+export function responsUdenomHjaelperen(tekst: string): number[] {
+  const fra = tekst.indexOf("function svarJson(");
+  const til = tekst.indexOf("async function svarFraAuth(");
+  const ud: number[] = [];
+  const re = /new Response\(/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(tekst))) {
+    if (fra >= 0 && til > fra && m.index > fra && m.index < til) continue;
+    ud.push(tekst.slice(0, m.index).split("\n").length);
+  }
+  return ud;
 }
 
 describe("agentV8.guard", () => {
@@ -72,12 +90,35 @@ describe("agentV8.guard", () => {
     expect(modul).toContain("itemProgressState(r)");
   });
 
-  it("dom 4: DEPLOY_STAMP er v8, og hvert svar bærer f0-markøren", () => {
+  it("dom 4: DEPLOY_STAMP er v8", () => {
+    expect(kilde()).toMatch(/const DEPLOY_STAMP = "run-company-agent v8 [^"]*\(2026-10-03\)";/);
+  });
+
+  it("dom 4: hvert `new Response(` står i svarJson, og svarJson lægger markøren", () => {
     const k = kilde();
-    expect(k).toMatch(/const DEPLOY_STAMP = "run-company-agent v8 [^"]*\(2026-10-03\)";/);
-    const svar = (k.match(/annoncerede_vaerktoejer: annoncerede,/g) ?? []).length;
-    const markoerer = (k.match(/f0: F0_MARKOER/g) ?? []).length;
-    expect(svar).toBe(4);
-    expect(markoerer).toBe(svar + 1); // + ?meta=version
+    expect(responsUdenomHjaelperen(k)).toEqual([]);
+    const hjaelper = k.slice(k.indexOf("function svarJson("), k.indexOf("async function svarFraAuth("));
+    expect(hjaelper).toContain("JSON.stringify({ ...body, f0: F0_MARKOER })");
+    expect((hjaelper.match(/new Response\(/g) ?? []).length).toBe(2); // krop + preflight (null)
+    // Markøren sættes ét sted — ingen håndskrevne f0-felter at glemme.
+    expect((k.match(/F0_MARKOER/g) ?? []).length).toBe(2); // import + svarJson
+    // Afvisningen fra authenticateUser sendes ikke rå videre.
+    expect(k).toContain("if (auth instanceof Response) return await svarFraAuth(auth);");
+    expect(k).not.toMatch(/return auth;/);
+    // Svarene, CTO'en nævnte, går gennem hjælperen.
+    expect(k).toContain('return svarJson({ ok: false, error: "company_not_found" }, 200);');
+    expect(k).toContain('return svarJson({ ok: false, error: err instanceof Error ? err.message : "Unknown error" }, 200);');
+    expect(k).toContain('return svarJson({ stamp: DEPLOY_STAMP, now: new Date().toISOString() }, 200);');
+    expect((k.match(/return (await )?svar(Json|FraAuth)\(/g) ?? []).length).toBeGreaterThanOrEqual(15);
+  });
+
+  it("dom 4, SELVBEVIS: et svar uden om hjælperen fælder", () => {
+    const k = kilde();
+    const snydt = k.replace(
+      'return svarJson({ ok: false, error: "company_not_found" }, 200);',
+      'return new Response(JSON.stringify({ ok: false, error: "company_not_found" }), { status: 200 });',
+    );
+    expect(snydt).not.toBe(k);
+    expect(responsUdenomHjaelperen(snydt)).toHaveLength(1);
   });
 });
